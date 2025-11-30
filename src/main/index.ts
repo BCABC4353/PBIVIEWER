@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import { PARTITION_NAME, APP_NAME } from '../shared/constants';

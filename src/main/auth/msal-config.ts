@@ -1,17 +1,10 @@
 import { Configuration, LogLevel } from '@azure/msal-node';
+import { AZURE_CONFIG } from './azure-config.generated';
 
 // Azure AD Configuration
-// Client ID and Tenant ID must be provided via environment variables
-// Create a .env file with AZURE_CLIENT_ID and AZURE_TENANT_ID
-const clientId = process.env.AZURE_CLIENT_ID;
-const tenantId = process.env.AZURE_TENANT_ID;
-
-if (!clientId || !tenantId) {
-  throw new Error(
-    'Missing Azure AD configuration. Please set AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables. ' +
-    'See .env.example for details.'
-  );
-}
+// Credentials are embedded at build time via scripts/generate-config.js
+const clientId = AZURE_CONFIG.clientId;
+const tenantId = AZURE_CONFIG.tenantId;
 
 export const msalConfig: Configuration = {
   auth: {

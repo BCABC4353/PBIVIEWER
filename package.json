@@ -1,14 +1,15 @@
 {
   "name": "powerbi-viewer",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "description": "Power BI Desktop Viewer - A clean, isolated viewing experience",
   "main": "dist/main/main/index.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev": "npm run generate-config && concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",
     "dev:renderer": "vite",
     "dev:electron": "wait-on tcp:5173 && electron .",
-    "build": "npm run build:main && npm run build:renderer",
+    "generate-config": "node scripts/generate-config.js",
+    "build": "npm run generate-config && npm run build:main && npm run build:renderer",
     "build:main": "tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "start": "electron .",
