@@ -9,10 +9,22 @@ import {
 } from '@fluentui/react-icons';
 import type { IPCResponse, App } from '../../../shared/types';
 
+// Type definition for Electron webview element
+interface ElectronWebView extends HTMLElement {
+  src: string;
+  partition?: string;
+  allowpopups?: string;
+  reload: () => void;
+  canGoBack: () => boolean;
+  goBack: () => void;
+  addEventListener: (event: string, handler: (event: Event) => void) => void;
+  removeEventListener: (event: string, handler: (event: Event) => void) => void;
+}
+
 export const AppViewer: React.FC = () => {
   const { appId } = useParams<{ appId: string }>();
   const navigate = useNavigate();
-  const webviewRef = useRef<HTMLWebViewElement>(null);
+  const webviewRef = useRef<ElectronWebView>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +101,7 @@ export const AppViewer: React.FC = () => {
   const handleRefresh = () => {
     const webview = webviewRef.current;
     if (webview) {
-      (webview as any).reload();
+      webview.reload();
     }
   };
 
@@ -99,8 +111,8 @@ export const AppViewer: React.FC = () => {
 
   const handleGoBack = () => {
     const webview = webviewRef.current;
-    if (webview && (webview as any).canGoBack()) {
-      (webview as any).goBack();
+    if (webview && webview.canGoBack()) {
+      webview.goBack();
     }
   };
 
@@ -173,7 +185,6 @@ export const AppViewer: React.FC = () => {
               visibility: error ? 'hidden' : 'visible',
               border: 'none',
             }}
-            // @ts-ignore - webview attributes
             partition={partitionName || undefined}
             allowpopups="true"
           />

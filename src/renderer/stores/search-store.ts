@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ContentItem, App, Workspace, IPCResponse } from '../../shared/types';
+import type { ContentItem, App, Workspace, Report, Dashboard, IPCResponse } from '../../shared/types';
 
 interface SearchResult {
   id: string;
@@ -14,16 +14,18 @@ interface SearchResult {
 interface SearchCache {
   workspaces: Workspace[] | null;
   apps: App[] | null;
-  allItems: ContentItem[] | null;
+  reports: Report[] | null;
+  dashboards: Dashboard[] | null;
   lastFetched: number;
 }
 
-const CACHE_TTL = 60000; // 1 minute cache
+const CACHE_TTL = 5 * 60 * 1000; // 5 minute cache for full content
 
 let searchCache: SearchCache = {
   workspaces: null,
   apps: null,
-  allItems: null,
+  reports: null,
+  dashboards: null,
   lastFetched: 0,
 };
 
@@ -67,7 +69,8 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     searchCache = {
       workspaces: null,
       apps: null,
-      allItems: null,
+      reports: null,
+      dashboards: null,
       lastFetched: 0,
     };
   },
@@ -92,14 +95,18 @@ export const useSearchStore = create<SearchState>((set, get) => ({
       // Fetch data (use cache if valid)
       let workspaces = searchCache.workspaces;
       let apps = searchCache.apps;
-      let allItems = searchCache.allItems;
+      let reports = searchCache.reports;
+      let dashboards = searchCache.dashboards;
 
-      if (!cacheValid || !workspaces || !apps || !allItems) {
-        // Fetch all data in parallel
-        const [workspacesResponse, appsResponse, recentResponse] = await Promise.all([
+      if (!cacheValid || !workspaces || !apps || !reports || !dashboards) {
+        // Fetch all data in parallel:
+        // - workspaces (for workspace search and name lookup)
+        // - apps
+        // - all reports and dashboards from all workspaces
+        const [workspacesResponse, appsResponse, allItemsResponse] = await Promise.all([
           window.electronAPI.content.getWorkspaces() as Promise<IPCResponse<Workspace[]>>,
           window.electronAPI.content.getApps() as Promise<IPCResponse<App[]>>,
-          window.electronAPI.content.getRecent() as Promise<IPCResponse<ContentItem[]>>,
+          window.electronAPI.content.getAllItems() as Promise<IPCResponse<{ reports: Report[]; dashboards: Dashboard[] }>>,
         ]);
 
         // Check if this search is still current
@@ -109,13 +116,15 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
         workspaces = workspacesResponse.success ? workspacesResponse.data || [] : [];
         apps = appsResponse.success ? appsResponse.data || [] : [];
-        allItems = recentResponse.success ? recentResponse.data || [] : [];
+        reports = allItemsResponse.success && allItemsResponse.data ? allItemsResponse.data.reports : [];
+        dashboards = allItemsResponse.success && allItemsResponse.data ? allItemsResponse.data.dashboards : [];
 
         // Update cache
         searchCache = {
           workspaces,
           apps,
-          allItems,
+          reports,
+          dashboards,
           lastFetched: now,
         };
       }
@@ -123,6 +132,12 @@ export const useSearchStore = create<SearchState>((set, get) => ({
       // Check again if this search is still current
       if (thisSearchId !== currentSearchId) {
         return; // Stale search, abort
+      }
+
+      // Create workspace name lookup map
+      const workspaceNameMap = new Map<string, string>();
+      for (const ws of workspaces) {
+        workspaceNameMap.set(ws.id, ws.name);
       }
 
       // Search workspaces
@@ -147,17 +162,28 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         description: app.description,
       })));
 
-      // Search all items (reports/dashboards)
-      const matchingItems = allItems.filter(item =>
-        item.name.toLowerCase().includes(searchLower) ||
-        item.workspaceName.toLowerCase().includes(searchLower)
+      // Search all reports from Power BI
+      const matchingReports = reports.filter(report =>
+        report.name.toLowerCase().includes(searchLower)
       );
-      results.push(...matchingItems.map(item => ({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        workspaceId: item.workspaceId,
-        workspaceName: item.workspaceName,
+      results.push(...matchingReports.map(report => ({
+        id: report.id,
+        name: report.name,
+        type: 'report' as const,
+        workspaceId: report.workspaceId,
+        workspaceName: workspaceNameMap.get(report.workspaceId) || 'Unknown Workspace',
+      })));
+
+      // Search all dashboards from Power BI
+      const matchingDashboards = dashboards.filter(dashboard =>
+        dashboard.name.toLowerCase().includes(searchLower)
+      );
+      results.push(...matchingDashboards.map(dashboard => ({
+        id: dashboard.id,
+        name: dashboard.name,
+        type: 'dashboard' as const,
+        workspaceId: dashboard.workspaceId,
+        workspaceName: workspaceNameMap.get(dashboard.workspaceId) || 'Unknown Workspace',
       })));
 
       // Sort results - exact matches first, then partial matches
@@ -181,7 +207,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
       }
 
       // Limit results
-      set({ results: results.slice(0, 20), isSearching: false });
+      set({ results: results.slice(0, 30), isSearching: false });
     } catch (error) {
       console.error('Search error:', error);
       if (thisSearchId === currentSearchId) {

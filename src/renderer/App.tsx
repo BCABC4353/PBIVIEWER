@@ -13,6 +13,7 @@ import { WorkspacesPage } from './components/workspaces/WorkspacesPage';
 import { AppsPage } from './components/apps/AppsPage';
 import { SearchDialog } from './components/search/SearchDialog';
 import { SettingsPage } from './components/settings/SettingsPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Loading screen
 const LoadingScreen: React.FC = () => (
@@ -51,10 +52,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <HashRouter>
-      <div className="h-screen bg-neutral-background-2 text-neutral-foreground-1 font-sans">
-        <SearchDialog />
-        <Routes>
+    <ErrorBoundary>
+      <HashRouter>
+        <div className="h-screen bg-neutral-background-2 text-neutral-foreground-1 font-sans">
+          <SearchDialog />
+          <Routes>
           {/* Public route */}
           <Route
             path="/login"
@@ -133,8 +135,9 @@ const App: React.FC = () => {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </div>
-    </HashRouter>
+        </div>
+      </HashRouter>
+    </ErrorBoundary>
   );
 };
 

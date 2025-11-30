@@ -9,6 +9,7 @@ const electronAPI = {
     getUser: () => ipcRenderer.invoke('auth:get-user'),
     getAccessToken: () => ipcRenderer.invoke('auth:get-token'),
     isAuthenticated: () => ipcRenderer.invoke('auth:is-authenticated'),
+    validateToken: () => ipcRenderer.invoke('auth:validate-token'),
   },
 
   // Power BI Content
@@ -18,6 +19,8 @@ const electronAPI = {
       ipcRenderer.invoke('content:get-reports', workspaceId),
     getDashboards: (workspaceId: string) =>
       ipcRenderer.invoke('content:get-dashboards', workspaceId),
+    getDashboard: (workspaceId: string, dashboardId: string) =>
+      ipcRenderer.invoke('content:get-dashboard', workspaceId, dashboardId),
     getApps: () => ipcRenderer.invoke('content:get-apps'),
     getApp: (appId: string) => ipcRenderer.invoke('content:get-app', appId),
     getAppReports: (appId: string) =>
@@ -26,21 +29,10 @@ const electronAPI = {
       ipcRenderer.invoke('content:get-app-dashboards', appId),
     getEmbedToken: (reportId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-embed-token', reportId, workspaceId),
-    getDatasetRefreshInfo: (datasetId: string) =>
-      ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId),
+    getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
+      ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
+    getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
     getRecent: () => ipcRenderer.invoke('content:get-recent'),
-  },
-
-  // Cache
-  cache: {
-    getThumbnail: (itemId: string, itemType: string, workspaceId: string) =>
-      ipcRenderer.invoke('cache:get-thumbnail', itemId, itemType, workspaceId),
-    getOfflineContent: () => ipcRenderer.invoke('cache:get-offline'),
-    saveOfflineContent: (items: unknown[]) =>
-      ipcRenderer.invoke('cache:save-offline', items),
-    getLastSync: () => ipcRenderer.invoke('cache:get-last-sync'),
-    getStats: () => ipcRenderer.invoke('cache:get-stats'),
-    clearCache: () => ipcRenderer.invoke('cache:clear'),
   },
 
   // Window controls

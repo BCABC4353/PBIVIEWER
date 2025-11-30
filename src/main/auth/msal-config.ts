@@ -1,10 +1,17 @@
 import { Configuration, LogLevel } from '@azure/msal-node';
 
 // Azure AD Configuration
-// These are public application identifiers for delegated (user) authentication
-// Security is enforced by user login, not by keeping these secret
-const clientId = process.env.AZURE_CLIENT_ID || 'ee7edf76-d666-4e27-8ee7-fbc19648c4f4';
-const tenantId = process.env.AZURE_TENANT_ID || '65028f2d-9190-4d7f-bc2d-8ce298c3ba6f';
+// Client ID and Tenant ID must be provided via environment variables
+// Create a .env file with AZURE_CLIENT_ID and AZURE_TENANT_ID
+const clientId = process.env.AZURE_CLIENT_ID;
+const tenantId = process.env.AZURE_TENANT_ID;
+
+if (!clientId || !tenantId) {
+  throw new Error(
+    'Missing Azure AD configuration. Please set AZURE_CLIENT_ID and AZURE_TENANT_ID environment variables. ' +
+    'See .env.example for details.'
+  );
+}
 
 export const msalConfig: Configuration = {
   auth: {
@@ -42,6 +49,7 @@ export const loginRequest = {
     'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
     'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
     'https://analysis.windows.net/powerbi/api/App.Read.All',
+    'https://analysis.windows.net/powerbi/api/Dataset.Read.All',
     'offline_access',
     'openid',
     'profile',

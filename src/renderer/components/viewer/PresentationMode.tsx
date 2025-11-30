@@ -23,6 +23,20 @@ interface ReportPage {
   displayName: string;
 }
 
+interface ReportBookmark {
+  name: string;
+  displayName: string;
+  state?: string;
+}
+
+// Unified slide item that can be either a page or bookmark
+interface SlideItem {
+  type: 'page' | 'bookmark';
+  name: string;
+  displayName: string;
+  pageName?: string; // For bookmarks, which page they belong to
+}
+
 export const PresentationMode: React.FC = () => {
   const { workspaceId, reportId } = useParams<{
     workspaceId: string;
@@ -40,13 +54,18 @@ export const PresentationMode: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pages, setPages] = useState<ReportPage[]>([]);
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [bookmarks, setBookmarks] = useState<ReportBookmark[]>([]);
+  const [slides, setSlides] = useState<SlideItem[]>([]);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [intervalSeconds, setIntervalSeconds] = useState(10);
+  const [intervalSeconds, setIntervalSeconds] = useState(30);
+  const [slideshowMode, setSlideshowMode] = useState<'pages' | 'bookmarks' | 'both'>('pages');
+  const [autoStartSlideshow, setAutoStartSlideshow] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
+  const [slidesReady, setSlidesReady] = useState(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -55,6 +74,8 @@ export const PresentationMode: React.FC = () => {
         const response = await window.electronAPI.settings.get() as IPCResponse<AppSettings>;
         if (response.success && response.data) {
           setIntervalSeconds(response.data.slideshowInterval);
+          setSlideshowMode(response.data.slideshowMode);
+          setAutoStartSlideshow(response.data.autoStartSlideshow);
           setAutoRefreshEnabled(response.data.autoRefreshEnabled);
           setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
         }
@@ -64,6 +85,54 @@ export const PresentationMode: React.FC = () => {
     };
     loadSettings();
   }, []);
+
+  // Build slides list based on slideshowMode when pages/bookmarks change
+  useEffect(() => {
+    const newSlides: SlideItem[] = [];
+
+    if (slideshowMode === 'pages' || slideshowMode === 'both') {
+      // Add all pages
+      for (const page of pages) {
+        newSlides.push({
+          type: 'page',
+          name: page.name,
+          displayName: page.displayName,
+        });
+      }
+    }
+
+    if (slideshowMode === 'bookmarks' || slideshowMode === 'both') {
+      // Add all bookmarks
+      for (const bookmark of bookmarks) {
+        newSlides.push({
+          type: 'bookmark',
+          name: bookmark.name,
+          displayName: bookmark.displayName,
+        });
+      }
+    }
+
+    // Fallback: if no slides available in bookmark mode, use pages
+    if (newSlides.length === 0 && pages.length > 0) {
+      for (const page of pages) {
+        newSlides.push({
+          type: 'page',
+          name: page.name,
+          displayName: page.displayName,
+        });
+      }
+    }
+
+    setSlides(newSlides);
+    setSlidesReady(newSlides.length > 0);
+  }, [pages, bookmarks, slideshowMode]);
+
+  // Auto-start slideshow when slides are ready (if setting enabled)
+  useEffect(() => {
+    if (slidesReady && autoStartSlideshow && !isPlaying && !isLoading && !error) {
+      setIsPlaying(true);
+    }
+  }, [slidesReady, autoStartSlideshow, isLoading, error]);
 
   // Exit function - navigates back to report viewer
   const doExit = () => {
@@ -185,13 +254,13 @@ export const PresentationMode: React.FC = () => {
       switch (e.key) {
         case 'ArrowRight':
         case ' ':
-          if (pages.length > 0) {
-            setCurrentPageIndex((prev) => (prev + 1) % pages.length);
+          if (slides.length > 0) {
+            setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
           }
           break;
         case 'ArrowLeft':
-          if (pages.length > 0) {
-            setCurrentPageIndex((prev) => (prev - 1 + pages.length) % pages.length);
+          if (slides.length > 0) {
+            setCurrentSlideIndex((prev) => (prev - 1 + slides.length) % slides.length);
           }
           break;
         case 'Escape':
@@ -206,13 +275,13 @@ export const PresentationMode: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pages.length, workspaceId, reportId]);
+  }, [slides.length, workspaceId, reportId]);
 
   // Handle slideshow auto-advance
   useEffect(() => {
-    if (isPlaying && pages.length > 0) {
+    if (isPlaying && slides.length > 0) {
       slideshowIntervalRef.current = setInterval(() => {
-        setCurrentPageIndex((prev) => (prev + 1) % pages.length);
+        setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
       }, intervalSeconds * 1000);
     } else {
       if (slideshowIntervalRef.current) {
@@ -226,19 +295,25 @@ export const PresentationMode: React.FC = () => {
         clearInterval(slideshowIntervalRef.current);
       }
     };
-  }, [isPlaying, intervalSeconds, pages.length]);
+  }, [isPlaying, intervalSeconds, slides.length]);
 
-  // Navigate to page when index changes
+  // Navigate to slide (page or bookmark) when index changes
   useEffect(() => {
-    if (reportRef.current && pages.length > 0) {
-      const page = pages[currentPageIndex];
-      if (page) {
-        reportRef.current.setPage(page.name).catch((err) => {
-          console.error('Failed to set page:', err);
-        });
+    if (reportRef.current && slides.length > 0) {
+      const slide = slides[currentSlideIndex];
+      if (slide) {
+        if (slide.type === 'page') {
+          reportRef.current.setPage(slide.name).catch((err) => {
+            console.error('Failed to set page:', err);
+          });
+        } else if (slide.type === 'bookmark') {
+          reportRef.current.bookmarksManager.apply(slide.name).catch((err) => {
+            console.error('Failed to apply bookmark:', err);
+          });
+        }
       }
     }
-  }, [currentPageIndex, pages]);
+  }, [currentSlideIndex, slides]);
 
   // Auto-refresh data based on settings - only when visible
   useEffect(() => {
@@ -348,6 +423,22 @@ export const PresentationMode: React.FC = () => {
         } catch (err) {
           console.error('Failed to get pages:', err);
         }
+
+        // Get all bookmarks
+        try {
+          const bookmarksManager = report.bookmarksManager;
+          const reportBookmarks = await bookmarksManager.getBookmarks();
+          const bookmarksList = reportBookmarks.map((b) => ({
+            name: b.name,
+            displayName: b.displayName || b.name,
+            state: b.state,
+          }));
+          setBookmarks(bookmarksList);
+        } catch (err) {
+          // Bookmarks may not be available for all reports
+          console.warn('Failed to get bookmarks (may not be supported):', err);
+          setBookmarks([]);
+        }
       });
 
       report.on('error', (event) => {
@@ -364,15 +455,15 @@ export const PresentationMode: React.FC = () => {
     }
   };
 
-  const nextPage = () => {
-    if (pages.length > 0) {
-      setCurrentPageIndex((prev) => (prev + 1) % pages.length);
+  const nextSlide = () => {
+    if (slides.length > 0) {
+      setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
     }
   };
 
-  const prevPage = () => {
-    if (pages.length > 0) {
-      setCurrentPageIndex((prev) => (prev - 1 + pages.length) % pages.length);
+  const prevSlide = () => {
+    if (slides.length > 0) {
+      setCurrentSlideIndex((prev) => (prev - 1 + slides.length) % slides.length);
     }
   };
 
@@ -420,7 +511,9 @@ export const PresentationMode: React.FC = () => {
           <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent">
             <div className="flex items-center justify-between">
               <Text className="text-white text-shadow">
-                {pages[currentPageIndex]?.displayName || 'Page'} ({currentPageIndex + 1} / {pages.length})
+                {slides[currentSlideIndex]?.displayName || 'Slide'}
+                {slides[currentSlideIndex]?.type === 'bookmark' ? ' (Bookmark)' : ''}
+                ({currentSlideIndex + 1} / {slides.length})
               </Text>
               <div className="flex items-center gap-2">
                 <Button
@@ -465,10 +558,10 @@ export const PresentationMode: React.FC = () => {
               <Button
                 appearance="subtle"
                 icon={<ChevronLeftRegular />}
-                onClick={prevPage}
+                onClick={prevSlide}
                 style={{ color: 'white' }}
                 size="large"
-                title="Previous page"
+                title="Previous slide"
               />
               <Button
                 appearance="primary"
@@ -481,24 +574,24 @@ export const PresentationMode: React.FC = () => {
               <Button
                 appearance="subtle"
                 icon={<ChevronRightRegular />}
-                onClick={nextPage}
+                onClick={nextSlide}
                 style={{ color: 'white' }}
                 size="large"
-                title="Next page"
+                title="Next slide"
               />
             </div>
 
-            {/* Page indicators */}
-            {pages.length > 1 && pages.length <= 20 && (
+            {/* Slide indicators */}
+            {slides.length > 1 && slides.length <= 20 && (
               <div className="flex items-center justify-center gap-2 mt-4">
-                {pages.map((_, index) => (
+                {slides.map((slide, index) => (
                   <button
                     key={index}
                     className={`w-2 h-2 rounded-full transition-colors ${
-                      index === currentPageIndex ? 'bg-white' : 'bg-white/40'
-                    }`}
-                    onClick={() => setCurrentPageIndex(index)}
-                    title={`Go to page ${index + 1}`}
+                      index === currentSlideIndex ? 'bg-white' : 'bg-white/40'
+                    } ${slide.type === 'bookmark' ? 'ring-1 ring-white/60' : ''}`}
+                    onClick={() => setCurrentSlideIndex(index)}
+                    title={`Go to ${slide.type === 'bookmark' ? 'bookmark' : 'page'} ${index + 1}`}
                   />
                 ))}
               </div>
@@ -508,7 +601,7 @@ export const PresentationMode: React.FC = () => {
           {/* Keyboard hints */}
           <div className="absolute bottom-4 left-4 text-white/60 text-xs">
             <div>← → Arrow keys: Navigate</div>
-            <div>Space: Next page</div>
+            <div>Space: Next slide</div>
             <div>P: Play/Pause</div>
             <div>Esc: Exit</div>
           </div>

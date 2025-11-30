@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TitleBar } from './TitleBar';
 import { Sidebar } from './Sidebar';
 import { StatusBar } from './StatusBar';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { settings, updateSettings } = useSettingsStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -46,8 +47,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          collapsed={settings.sidebarCollapsed}
+          onToggleCollapse={() => updateSettings({ sidebarCollapsed: !settings.sidebarCollapsed })}
           activeItem={getActiveItem()}
           onNavigate={handleNavigate}
         />
@@ -59,7 +60,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       </div>
 
       {/* Status bar */}
-      <StatusBar isOnline={true} lastSyncTime={new Date()} />
+      <StatusBar />
     </div>
   );
 };

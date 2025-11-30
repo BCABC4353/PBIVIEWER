@@ -78,7 +78,18 @@
       "WebFetch(domain:api.github.com)",
       "Bash(cmd /c \"cd /d \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\"\" && gh run list --limit 3\")",
       "Bash(timeout:*)",
-      "Bash(cmd /c \"taskkill /F /IM \"\"Power BI Viewer.exe\"\" 2>nul & taskkill /F /IM electron.exe 2>nul & echo Done\")"
+      "Bash(cmd /c \"taskkill /F /IM \"\"Power BI Viewer.exe\"\" 2>nul & taskkill /F /IM electron.exe 2>nul & echo Done\")",
+      "Bash(cmd /c \"taskkill /F /IM node.exe 2>nul & taskkill /F /IM electron.exe 2>nul & echo All node and electron processes killed\")",
+      "Bash(cmd /c \"dir /s /b \"%LOCALAPPDATA%ProgramsPower BI Viewer\" 2>nul | head -30\")",
+      "Bash(cmd /c \"del /q \"%APPDATA%powerbi-viewersettings.json\" 2>nul && echo Deleted settings.json || echo settings.json not found\")",
+      "Bash(cmd /c \"if not exist \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\\build\"\" mkdir \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\\build\"\"\")",
+      "Bash(cmd /c \"del /q \"%APPDATA%powerbi-viewerpowerbi-viewer-auth.json\" 2>nul & echo Auth cache cleared\")",
+      "Bash(cmd /c \"taskkill /F /IM electron.exe 2>nul & taskkill /F /IM node.exe 2>nul & echo Killed processes\")",
+      "Bash(cmd /c \"cd /d \"C:UsersBrendan Camerondesktoppowerbi-viewer\" && npm run build\")",
+      "Bash(cmd /c \"cd /d \"C:UsersBrendan Camerondesktoppowerbi-viewer\" && npm run build && npm start\")",
+      "Bash(cmd /c \"cd /d \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\"\" && npm run build\")",
+      "Bash(cmd /c \"del /q \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\\src\\main\\services\\cache-service.ts\"\"\")",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

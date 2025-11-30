@@ -41,8 +41,8 @@ export const ReportViewer: React.FC = () => {
           setAutoRefreshEnabled(response.data.autoRefreshEnabled);
           setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
         }
-      } catch (error) {
-        console.error('Failed to load settings:', error);
+      } catch {
+        // Settings load failure is non-critical, use defaults
       }
     };
     loadSettings();
@@ -79,10 +79,8 @@ export const ReportViewer: React.FC = () => {
     const refreshIntervalId = setInterval(() => {
       // Only refresh if document is visible (not in background tab)
       if (reportRef.current && !isLoading && !error && document.visibilityState === 'visible') {
-        reportRef.current.refresh().catch((err) => {
-          // Some visuals (like FlowVisual) may throw authorization errors
-          // during refresh - these are non-fatal and the report still works
-          console.warn('[ReportViewer] Auto-refresh warning (non-fatal):', err?.message || err);
+        reportRef.current.refresh().catch(() => {
+          // Auto-refresh errors are non-fatal (some visuals may throw authorization errors)
         });
       }
     }, autoRefreshIntervalMinutes * 60 * 1000); // Convert minutes to milliseconds
@@ -163,30 +161,29 @@ export const ReportViewer: React.FC = () => {
       report.on('loaded', async () => {
         setIsLoading(false);
         // Fetch dataset refresh info after report loads
-        if (datasetIdRef.current) {
+        if (datasetIdRef.current && workspaceId) {
           try {
             const refreshResponse = await window.electronAPI.content.getDatasetRefreshInfo(
-              datasetIdRef.current
+              datasetIdRef.current,
+              workspaceId
             ) as IPCResponse<DatasetRefreshInfo>;
             if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
               setLastDataRefresh(refreshResponse.data.lastRefreshTime);
             }
           } catch {
-            // Silently ignore - some datasets may not have refresh info
+            // Dataset refresh info fetch failure is non-critical
           }
         }
       });
 
       // Handle error event
-      report.on('error', (event) => {
-        console.error('[ReportViewer] Report error:', event);
+      report.on('error', () => {
         setError('Failed to load report. Please try again.');
         setIsLoading(false);
       });
 
     } catch (err) {
-      console.error('[ReportViewer] Failed to load report:', err);
-      setError(String(err));
+      setError(err instanceof Error ? err.message : 'Failed to load report');
       setIsLoading(false);
       isLoadingRef.current = false;
     }
@@ -194,10 +191,8 @@ export const ReportViewer: React.FC = () => {
 
   const handleRefresh = () => {
     if (reportRef.current) {
-      reportRef.current.refresh().catch((err) => {
-        // Some visuals (like FlowVisual) may throw authorization errors
-        // during refresh - these are non-fatal and the report still works
-        console.warn('[ReportViewer] Refresh warning (non-fatal):', err?.message || err);
+      reportRef.current.refresh().catch(() => {
+        // Refresh errors are non-fatal
       });
     } else {
       isLoadingRef.current = false; // Allow reload
@@ -221,20 +216,15 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
-  // Format last refresh time as relative time
-  const formatRelativeTime = (isoString: string): string => {
+  // Format last refresh time as date and time (MM/DD/YY HH:mm)
+  const formatDateTime = (isoString: string): string => {
     const date = new Date(isoString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${month}/${day}/${year} ${hours}:${minutes}`;
   };
 
   return (
@@ -254,7 +244,7 @@ export const ReportViewer: React.FC = () => {
         <div className="flex items-center gap-2">
           {lastDataRefresh && (
             <Text className="text-neutral-foreground-3 text-sm mr-2">
-              Data refreshed: {formatRelativeTime(lastDataRefresh)}
+              Data refreshed: {formatDateTime(lastDataRefresh)}
             </Text>
           )}
           <Button

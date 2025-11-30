@@ -22,6 +22,14 @@ win:
         - x64
   icon: assets/icons/icon.ico
   artifactName: ${productName}-${version}-Windows-Setup.${ext}
+  # Code signing - set these environment variables for signing:
+  # CSC_LINK: path to .pfx certificate file
+  # CSC_KEY_PASSWORD: certificate password
+  # Or use Windows Certificate Store:
+  # certificateSubjectName: "Your Company Name"
+  signingHashAlgorithms:
+    - sha256
+  signDlls: false
 
 nsis:
   oneClick: true
@@ -44,6 +52,13 @@ mac:
   category: public.app-category.business
   hardenedRuntime: true
   gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarization - set these environment variables:
+  # APPLE_ID: your Apple ID email
+  # APPLE_APP_SPECIFIC_PASSWORD: app-specific password from appleid.apple.com
+  # APPLE_TEAM_ID: your Apple Developer Team ID
+  notarize: false  # Set to true when you have Apple Developer credentials
 
 dmg:
   contents:

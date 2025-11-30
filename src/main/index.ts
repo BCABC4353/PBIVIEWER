@@ -5,7 +5,6 @@ import { PARTITION_NAME, APP_NAME } from '../shared/constants';
 import { authService } from './auth/auth-service';
 import { powerbiApiService } from './services/powerbi-api';
 import { settingsService } from './services/settings-service';
-import { cacheService } from './services/cache-service';
 import { usageTrackingService } from './services/usage-tracking-service';
 import type { ContentItem, AppSettings, DatasetRefreshInfo } from '../shared/types';
 
@@ -95,6 +94,23 @@ app.on('window-all-closed', () => {
 });
 
 // ============================================
+// WEBVIEW SECURITY - Handle popups
+// ============================================
+
+// Handle all webContents creation (including webviews)
+app.on('web-contents-created', (_, contents) => {
+  // Only handle webviews, not the main window
+  if (contents.getType() === 'webview') {
+    // Handle new windows/popups - open in system browser
+    contents.setWindowOpenHandler(({ url }) => {
+      // Open all popups in system browser (for auth flows, external links, etc.)
+      require('electron').shell.openExternal(url);
+      return { action: 'deny' }; // Don't open in electron, open in system browser
+    });
+  }
+});
+
+// ============================================
 // IPC HANDLERS - Window Controls
 // ============================================
 
@@ -152,6 +168,10 @@ ipcMain.handle('auth:is-authenticated', async () => {
   return await authService.isAuthenticated();
 });
 
+ipcMain.handle('auth:validate-token', async () => {
+  return await authService.validateToken();
+});
+
 // ============================================
 // IPC HANDLERS - Content
 // ============================================
@@ -166,6 +186,10 @@ ipcMain.handle('content:get-reports', async (_event, workspaceId: string) => {
 
 ipcMain.handle('content:get-dashboards', async (_event, workspaceId: string) => {
   return await powerbiApiService.getDashboards(workspaceId);
+});
+
+ipcMain.handle('content:get-dashboard', async (_event, workspaceId: string, dashboardId: string) => {
+  return await powerbiApiService.getDashboard(workspaceId, dashboardId);
 });
 
 ipcMain.handle('content:get-apps', async () => {
@@ -188,77 +212,37 @@ ipcMain.handle('content:get-embed-token', async (_event, reportId: string, works
   return await powerbiApiService.getEmbedToken(reportId, workspaceId);
 });
 
-ipcMain.handle('content:get-dataset-refresh-info', async (_event, datasetId: string) => {
-  return await powerbiApiService.getDatasetRefreshInfo(datasetId);
+ipcMain.handle('content:get-dataset-refresh-info', async (_event, datasetId: string, workspaceId?: string) => {
+  return await powerbiApiService.getDatasetRefreshInfo(datasetId, workspaceId);
+});
+
+ipcMain.handle('content:get-all-items', async () => {
+  return await powerbiApiService.getAllItems();
 });
 
 ipcMain.handle('content:get-recent', async () => {
+  // Return usage-based recent items instead of enumerating the entire tenant
+  // This is much faster and doesn't cause timeouts on large tenants
   try {
-    const result = await powerbiApiService.getAllItems();
+    const items = usageTrackingService.getRecentItems();
 
-    if (!result.success || !result.data) {
-      return result;
-    }
+    const contentItems: ContentItem[] = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      workspaceId: item.workspaceId,
+      workspaceName: item.workspaceName,
+      lastOpened: item.lastOpened,
+      openCount: item.openCount,
+    }));
 
-    // Get workspace names for display
-    const workspacesResult = await powerbiApiService.getWorkspaces();
-    const workspaceMap = new Map(
-      (workspacesResult.data || []).map((ws) => [ws.id, ws.name])
-    );
-
-    // Convert to ContentItem format
-    const recentItems: ContentItem[] = [
-      ...result.data.reports.map((report) => ({
-        id: report.id,
-        name: report.name,
-        type: 'report' as const,
-        workspaceId: report.workspaceId,
-        workspaceName: workspaceMap.get(report.workspaceId) || 'Unknown',
-      })),
-      ...result.data.dashboards.map((dashboard) => ({
-        id: dashboard.id,
-        name: dashboard.name,
-        type: 'dashboard' as const,
-        workspaceId: dashboard.workspaceId,
-        workspaceName: workspaceMap.get(dashboard.workspaceId) || 'Unknown',
-      })),
-    ];
-
-    return { success: true, data: recentItems };
+    return { success: true, data: contentItems };
   } catch (error) {
     return {
       success: false,
       error: { code: 'RECENT_FETCH_FAILED', message: String(error) },
     };
   }
-});
-
-// ============================================
-// IPC HANDLERS - Cache
-// ============================================
-
-ipcMain.handle('cache:get-thumbnail', async (_event, itemId: string, itemType: string, workspaceId: string) => {
-  return await cacheService.getThumbnail(itemId, itemType as 'report' | 'dashboard', workspaceId);
-});
-
-ipcMain.handle('cache:get-offline', async () => {
-  return cacheService.getOfflineContent();
-});
-
-ipcMain.handle('cache:save-offline', async (_event, items: ContentItem[]) => {
-  return await cacheService.cacheOfflineContent(items);
-});
-
-ipcMain.handle('cache:get-last-sync', async () => {
-  return cacheService.getLastSyncTime();
-});
-
-ipcMain.handle('cache:get-stats', async () => {
-  return cacheService.getCacheStats();
-});
-
-ipcMain.handle('cache:clear', async () => {
-  return cacheService.clearCache();
 });
 
 // ============================================

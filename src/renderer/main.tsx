@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { FluentProvider, webLightTheme, webDarkTheme } from '@fluentui/react-components';
 import App from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles/globals.css';
 import { useSettingsStore } from './stores/settings-store';
 import type { AppSettings, IPCResponse } from '../shared/types';
@@ -16,24 +17,21 @@ declare global {
         getUser: () => Promise<unknown>;
         getAccessToken: () => Promise<unknown>;
         isAuthenticated: () => Promise<unknown>;
+        validateToken: () => Promise<unknown>;
       };
       content: {
         getWorkspaces: () => Promise<unknown>;
         getReports: (workspaceId: string) => Promise<unknown>;
         getDashboards: (workspaceId: string) => Promise<unknown>;
+        getDashboard: (workspaceId: string, dashboardId: string) => Promise<unknown>;
         getApps: () => Promise<unknown>;
         getApp: (appId: string) => Promise<unknown>;
         getAppReports: (appId: string) => Promise<unknown>;
         getAppDashboards: (appId: string) => Promise<unknown>;
         getEmbedToken: (reportId: string, workspaceId: string) => Promise<unknown>;
-        getDatasetRefreshInfo: (datasetId: string) => Promise<unknown>;
+        getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<unknown>;
+        getAllItems: () => Promise<unknown>;
         getRecent: () => Promise<unknown>;
-      };
-      cache: {
-        getThumbnail: (itemId: string) => Promise<unknown>;
-        getOfflineContent: () => Promise<unknown>;
-        saveOfflineContent: (items: unknown[]) => Promise<unknown>;
-        clearCache: () => Promise<unknown>;
       };
       window: {
         minimize: () => Promise<void>;
@@ -123,6 +121,8 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <ThemedApp />
+    <ErrorBoundary>
+      <ThemedApp />
+    </ErrorBoundary>
   </React.StrictMode>
 );

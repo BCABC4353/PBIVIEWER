@@ -23,18 +23,33 @@ export const useAuthStore = create<AuthState>((set) => ({
   checkAuth: async () => {
     set({ isLoading: true, error: null });
     try {
+      // First check if accounts exist
       const authResponse = await window.electronAPI.auth.isAuthenticated() as IPCResponse<boolean>;
 
       if (authResponse.success && authResponse.data) {
-        const userResponse = await window.electronAPI.auth.getUser() as IPCResponse<UserInfo | null>;
+        // Accounts exist - now validate we can actually get a token
+        // This catches cases where scopes have changed and re-consent is needed
+        const validateResponse = await window.electronAPI.auth.validateToken() as IPCResponse<boolean>;
 
-        if (userResponse.success && userResponse.data) {
-          set({
-            user: userResponse.data,
-            isAuthenticated: true,
-            isLoading: false,
-          });
+        if (validateResponse.success && validateResponse.data) {
+          // Token is valid, get user info
+          const userResponse = await window.electronAPI.auth.getUser() as IPCResponse<UserInfo | null>;
+
+          if (userResponse.success && userResponse.data) {
+            set({
+              user: userResponse.data,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } else {
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
+          }
         } else {
+          // Token validation failed - need to re-login
           set({
             user: null,
             isAuthenticated: false,

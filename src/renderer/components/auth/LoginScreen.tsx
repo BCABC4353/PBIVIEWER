@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Spinner,
   Text,
   Title1,
-  Body1,
   MessageBar,
   MessageBarBody,
   MessageBarTitle,
@@ -14,6 +13,11 @@ import { useAuthStore } from '../../stores/auth-store';
 
 export const LoginScreen: React.FC = () => {
   const { login, isLoading, error, clearError } = useAuthStore();
+  const [version, setVersion] = useState<string>('');
+
+  useEffect(() => {
+    window.electronAPI.app.getVersion().then(setVersion);
+  }, []);
 
   const handleLogin = async () => {
     clearError();
@@ -43,12 +47,9 @@ export const LoginScreen: React.FC = () => {
 
           {/* Title */}
           <div className="text-center mb-6">
-            <Title1 className="text-neutral-foreground-1 mb-2">
+            <Title1 className="text-neutral-foreground-1">
               Power BI Viewer
             </Title1>
-            <Body1 className="text-neutral-foreground-2">
-              Sign in with your Microsoft account to view Power BI reports and dashboards.
-            </Body1>
           </div>
 
           {/* Error message */}
@@ -74,19 +75,13 @@ export const LoginScreen: React.FC = () => {
             {isLoading ? 'Signing in...' : 'Sign in with Microsoft'}
           </Button>
 
-          {/* Footer text */}
-          <div className="mt-6 text-center">
-            <Text size={200} className="text-neutral-foreground-3">
-              Your credentials are stored securely on this device and are isolated from your browser.
-            </Text>
-          </div>
         </div>
       </div>
 
       {/* Footer */}
       <div className="h-8 flex items-center justify-center">
         <Text size={100} className="text-neutral-foreground-3">
-          Version 1.0.0
+          {version ? `Version ${version}` : ''}
         </Text>
       </div>
     </div>

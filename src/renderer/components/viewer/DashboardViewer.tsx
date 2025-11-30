@@ -8,7 +8,7 @@ import {
   HomeRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { IPCResponse, EmbedToken } from '../../../shared/types';
+import type { IPCResponse, EmbedToken, Dashboard } from '../../../shared/types';
 
 // Create a single instance of the Power BI service
 const powerbiService = new pbi.service.Service(
@@ -28,6 +28,22 @@ export const DashboardViewer: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dashboardName, setDashboardName] = useState<string>('Dashboard');
+
+  // Fetch dashboard details to get the name
+  useEffect(() => {
+    if (!workspaceId || !dashboardId) return;
+
+    const loadDashboardDetails = async () => {
+      const response = await window.electronAPI.content.getDashboard(
+        workspaceId,
+        dashboardId
+      ) as IPCResponse<Dashboard>;
+      if (response.success && response.data) {
+        setDashboardName(response.data.name);
+      }
+    };
+    loadDashboardDetails();
+  }, [workspaceId, dashboardId]);
 
   useEffect(() => {
     if (!workspaceId || !dashboardId) {

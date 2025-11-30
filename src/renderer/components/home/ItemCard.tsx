@@ -39,7 +39,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       className="w-48 cursor-pointer hover:shadow-fluent-4 transition-shadow"
       onClick={handleClick}
     >
-      {/* Thumbnail placeholder */}
+      {/* Item icon */}
       <div className="h-28 bg-neutral-background-4 flex items-center justify-center rounded-t-lg">
         {item.type === 'report' ? (
           <DocumentRegular className="text-4xl text-neutral-foreground-3" />

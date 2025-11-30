@@ -13,6 +13,7 @@ import type {
 interface PowerBIApiResponse<T> {
   value: T[];
   '@odata.context'?: string;
+  '@odata.nextLink'?: string;
 }
 
 class PowerBIApiService {
@@ -38,25 +39,71 @@ class PowerBIApiService {
     return response.json();
   }
 
+  /**
+   * Makes a request to a full URL (used for pagination with @odata.nextLink)
+   */
+  private async makeRequestWithUrl<T>(fullUrl: string): Promise<T> {
+    const tokenResponse = await authService.getAccessToken();
+
+    if (!tokenResponse.success || !tokenResponse.data) {
+      throw new Error(tokenResponse.error?.message || 'Failed to get access token');
+    }
+
+    const response = await fetch(fullUrl, {
+      headers: {
+        Authorization: `Bearer ${tokenResponse.data}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Power BI API error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Fetches all pages of a paginated API response using @odata.nextLink
+   */
+  private async fetchAllPages<TRaw, TTransformed>(
+    endpoint: string,
+    transform: (item: TRaw) => TTransformed
+  ): Promise<TTransformed[]> {
+    const allItems: TTransformed[] = [];
+    let nextUrl: string | undefined = `${POWERBI_API_BASE}${endpoint}`;
+
+    while (nextUrl) {
+      const response: PowerBIApiResponse<TRaw> = await this.makeRequestWithUrl(nextUrl);
+      allItems.push(...response.value.map(transform));
+      nextUrl = response['@odata.nextLink'];
+    }
+
+    return allItems;
+  }
+
   async getWorkspaces(): Promise<IPCResponse<Workspace[]>> {
     try {
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      interface RawWorkspace {
         id: string;
         name: string;
         isReadOnly: boolean;
         type: string;
-      }>>('/groups');
+      }
 
-      const workspaces: Workspace[] = response.value.map((ws) => ({
-        id: ws.id,
-        name: ws.name,
-        isReadOnly: ws.isReadOnly,
-        type: ws.type === 'PersonalGroup' ? 'PersonalGroup' : 'Workspace',
-      }));
+      const workspaces = await this.fetchAllPages<RawWorkspace, Workspace>(
+        '/groups',
+        (ws) => ({
+          id: ws.id,
+          name: ws.name,
+          isReadOnly: ws.isReadOnly,
+          type: ws.type === 'PersonalGroup' ? 'PersonalGroup' : 'Workspace',
+        })
+      );
 
       return { success: true, data: workspaces };
     } catch (error) {
-      console.error('[PowerBIAPI] getWorkspaces error:', error);
       return {
         success: false,
         error: { code: 'WORKSPACES_FETCH_FAILED', message: String(error) },
@@ -66,26 +113,28 @@ class PowerBIApiService {
 
   async getReports(workspaceId: string): Promise<IPCResponse<Report[]>> {
     try {
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      interface RawReport {
         id: string;
         name: string;
         embedUrl: string;
         datasetId: string;
         reportType: string;
-      }>>(`/groups/${workspaceId}/reports`);
+      }
 
-      const reports: Report[] = response.value.map((report) => ({
-        id: report.id,
-        name: report.name,
-        workspaceId,
-        embedUrl: report.embedUrl,
-        datasetId: report.datasetId,
-        reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
-      }));
+      const reports = await this.fetchAllPages<RawReport, Report>(
+        `/groups/${workspaceId}/reports`,
+        (report) => ({
+          id: report.id,
+          name: report.name,
+          workspaceId,
+          embedUrl: report.embedUrl,
+          datasetId: report.datasetId,
+          reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
+        })
+      );
 
       return { success: true, data: reports };
     } catch (error) {
-      console.error('[PowerBIAPI] getReports error:', error);
       return {
         success: false,
         error: { code: 'REPORTS_FETCH_FAILED', message: String(error) },
@@ -95,24 +144,26 @@ class PowerBIApiService {
 
   async getDashboards(workspaceId: string): Promise<IPCResponse<Dashboard[]>> {
     try {
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      interface RawDashboard {
         id: string;
         displayName: string;
         embedUrl: string;
         isReadOnly: boolean;
-      }>>(`/groups/${workspaceId}/dashboards`);
+      }
 
-      const dashboards: Dashboard[] = response.value.map((dashboard) => ({
-        id: dashboard.id,
-        name: dashboard.displayName,
-        workspaceId,
-        embedUrl: dashboard.embedUrl,
-        isReadOnly: dashboard.isReadOnly,
-      }));
+      const dashboards = await this.fetchAllPages<RawDashboard, Dashboard>(
+        `/groups/${workspaceId}/dashboards`,
+        (dashboard) => ({
+          id: dashboard.id,
+          name: dashboard.displayName,
+          workspaceId,
+          embedUrl: dashboard.embedUrl,
+          isReadOnly: dashboard.isReadOnly,
+        })
+      );
 
       return { success: true, data: dashboards };
     } catch (error) {
-      console.error('[PowerBIAPI] getDashboards error:', error);
       return {
         success: false,
         error: { code: 'DASHBOARDS_FETCH_FAILED', message: String(error) },
@@ -120,29 +171,58 @@ class PowerBIApiService {
     }
   }
 
+  async getDashboard(workspaceId: string, dashboardId: string): Promise<IPCResponse<Dashboard>> {
+    try {
+      const response = await this.makeRequest<{
+        id: string;
+        displayName: string;
+        embedUrl: string;
+        isReadOnly: boolean;
+      }>(`/groups/${workspaceId}/dashboards/${dashboardId}`);
+
+      return {
+        success: true,
+        data: {
+          id: response.id,
+          name: response.displayName,
+          workspaceId,
+          embedUrl: response.embedUrl,
+          isReadOnly: response.isReadOnly,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: { code: 'DASHBOARD_FETCH_FAILED', message: String(error) },
+      };
+    }
+  }
+
   async getApps(): Promise<IPCResponse<App[]>> {
     try {
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      interface RawApp {
         id: string;
         name: string;
         description: string;
         publishedBy: string;
         lastUpdate: string;
         workspaceId?: string;
-      }>>('/apps');
+      }
 
-      const apps: App[] = response.value.map((app) => ({
-        id: app.id,
-        name: app.name,
-        description: app.description,
-        publishedBy: app.publishedBy,
-        lastUpdate: app.lastUpdate,
-        workspaceId: app.workspaceId,
-      }));
+      const apps = await this.fetchAllPages<RawApp, App>(
+        '/apps',
+        (app) => ({
+          id: app.id,
+          name: app.name,
+          description: app.description,
+          publishedBy: app.publishedBy,
+          lastUpdate: app.lastUpdate,
+          workspaceId: app.workspaceId,
+        })
+      );
 
       return { success: true, data: apps };
     } catch (error) {
-      console.error('[PowerBIAPI] getApps error:', error);
       return {
         success: false,
         error: { code: 'APPS_FETCH_FAILED', message: String(error) },
@@ -172,7 +252,6 @@ class PowerBIApiService {
 
       return { success: true, data: app };
     } catch (error) {
-      console.error('[PowerBIAPI] getApp error:', error);
       return {
         success: false,
         error: { code: 'APP_FETCH_FAILED', message: String(error) },
@@ -220,7 +299,6 @@ class PowerBIApiService {
 
       return { success: true, data: reports };
     } catch (error) {
-      console.error('[PowerBIAPI] getAppReports error:', error);
       return {
         success: false,
         error: { code: 'APP_REPORTS_FETCH_FAILED', message: String(error) },
@@ -266,7 +344,6 @@ class PowerBIApiService {
 
       return { success: true, data: dashboards };
     } catch (error) {
-      console.error('[PowerBIAPI] getAppDashboards error:', error);
       return {
         success: false,
         error: { code: 'APP_DASHBOARDS_FETCH_FAILED', message: String(error) },
@@ -297,7 +374,6 @@ class PowerBIApiService {
         },
       };
     } catch (error) {
-      console.error('[PowerBIAPI] getEmbedToken error:', error);
       return {
         success: false,
         error: { code: 'EMBED_TOKEN_FAILED', message: String(error) },
@@ -360,7 +436,6 @@ class PowerBIApiService {
         },
       };
     } catch (error) {
-      console.error('[PowerBIAPI] getAllItems error:', error);
       return {
         success: false,
         error: { code: 'ALL_ITEMS_FETCH_FAILED', message: String(error) },
@@ -368,9 +443,14 @@ class PowerBIApiService {
     }
   }
 
-  async getDatasetRefreshInfo(datasetId: string): Promise<IPCResponse<DatasetRefreshInfo>> {
+  async getDatasetRefreshInfo(datasetId: string, workspaceId?: string): Promise<IPCResponse<DatasetRefreshInfo>> {
     try {
       // Get the most recent refresh history (top 1)
+      // Use workspace context if provided, otherwise try direct access (for My Workspace)
+      const endpoint = workspaceId
+        ? `/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=1`
+        : `/datasets/${datasetId}/refreshes?$top=1`;
+
       const response = await this.makeRequest<PowerBIApiResponse<{
         requestId: string;
         id: string;
@@ -378,7 +458,7 @@ class PowerBIApiService {
         startTime: string;
         endTime: string;
         status: string;
-      }>>(`/datasets/${datasetId}/refreshes?$top=1`);
+      }>>(endpoint);
 
       if (response.value && response.value.length > 0) {
         const lastRefresh = response.value[0];
@@ -395,8 +475,9 @@ class PowerBIApiService {
         success: true,
         data: {},
       };
-    } catch (error) {
-      // Don't log as error - some datasets may not have refresh history
+    } catch {
+      // Return success with empty data - don't break the app for this non-critical feature
+      // Common reasons: 401 (user lacks write permissions), 403 (access forbidden), DirectQuery/Live datasets
       return {
         success: true,
         data: {},

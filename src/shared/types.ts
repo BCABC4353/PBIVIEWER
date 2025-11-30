@@ -58,7 +58,6 @@ export interface ContentItem {
   type: 'report' | 'dashboard';
   workspaceId: string;
   workspaceName: string;
-  thumbnailUrl?: string;
   lastAccessed?: string;
   lastOpened?: string; // ISO date string
   openCount?: number;
@@ -73,29 +72,6 @@ export interface EmbedToken {
 export interface DatasetRefreshInfo {
   lastRefreshTime?: string; // ISO date string
   lastRefreshStatus?: 'Unknown' | 'Completed' | 'Failed' | 'Disabled';
-}
-
-// ============================================
-// PRESENTATION TYPES
-// ============================================
-
-export interface Point {
-  x: number;
-  y: number;
-  pressure?: number;
-}
-
-export interface Stroke {
-  points: Point[];
-  color: string;
-  size: number;
-}
-
-export interface Annotation {
-  id: string;
-  pageIndex: number;
-  strokes: Stroke[];
-  createdAt: string;
 }
 
 // ============================================

@@ -45,8 +45,8 @@ class AuthService {
           this.account = accounts[0];
         }
       }
-    } catch (error) {
-      console.error('[AuthService] Failed to initialize cache:', error);
+    } catch {
+      // Cache initialization failure is non-critical, will start fresh
     }
   }
 
@@ -54,8 +54,8 @@ class AuthService {
     try {
       const cache = this.pca.getTokenCache().serialize();
       await tokenCache.saveCache(cache);
-    } catch (error) {
-      console.error('[AuthService] Failed to persist cache:', error);
+    } catch {
+      // Cache persistence failure is non-critical
     }
   }
 
@@ -69,6 +69,28 @@ class AuthService {
         success: false,
         error: { code: 'AUTH_CHECK_FAILED', message: String(error) },
       };
+    }
+  }
+
+  /**
+   * Validates that we can actually get a token (not just that accounts exist).
+   * This catches cases where scopes have changed and re-consent is needed.
+   */
+  async validateToken(): Promise<IPCResponse<boolean>> {
+    try {
+      const tokenResult = await this.getAccessToken();
+
+      if (tokenResult.success && tokenResult.data) {
+        return { success: true, data: true };
+      } else {
+        // If we can't get a token, clear the cache so user is prompted to login
+        if (tokenResult.error?.code === 'INTERACTION_REQUIRED' || tokenResult.error?.code === 'NO_ACCOUNT') {
+          await this.logout();
+        }
+        return { success: true, data: false };
+      }
+    } catch {
+      return { success: true, data: false };
     }
   }
 
@@ -185,7 +207,6 @@ class AuthService {
         error: { code: 'LOGIN_FAILED', message: 'No result from authentication' },
       };
     } catch (error) {
-      console.error('[AuthService] Login error:', error);
       return {
         success: false,
         error: { code: 'LOGIN_FAILED', message: String(error) },
@@ -260,10 +281,12 @@ class AuthService {
         return { success: true, data: result.accessToken };
       } catch (error) {
         if (error instanceof InteractionRequiredAuthError) {
-          // Token expired, need interactive login
+          // Token expired or scopes changed, need interactive login
+          // Clear the cache and trigger re-login
+          await this.logout();
           return {
             success: false,
-            error: { code: 'INTERACTION_REQUIRED', message: 'Please log in again' },
+            error: { code: 'INTERACTION_REQUIRED', message: 'Session expired. Please log in again.' },
           };
         }
         throw error;
