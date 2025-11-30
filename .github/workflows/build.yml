@@ -2,8 +2,14 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - master
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
@@ -21,21 +27,23 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        env:
-          npm_config_platform: win32
-          npm_config_arch: x64
 
       - name: Build and package Windows
         run: npm run package:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List build output
+        run: dir build-output
+        shell: cmd
+
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
           path: build-output/*.exe
-          retention-days: 30
+          if-no-files-found: error
+          retention-days: 90
 
   build-mac:
     runs-on: macos-latest
@@ -57,20 +65,30 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List build output
+        run: ls -la build-output/
+
       - name: Upload macOS installer
         uses: actions/upload-artifact@v4
         with:
           name: mac-installer
           path: build-output/*.dmg
-          retention-days: 30
+          if-no-files-found: error
+          retention-days: 90
 
   release:
     needs: [build-windows, build-mac]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
@@ -83,8 +101,25 @@ jobs:
           name: mac-installer
           path: ./artifacts
 
+      - name: List downloaded artifacts
+        run: ls -la ./artifacts/
+
+      - name: Delete existing release if exists
+        run: gh release delete "v${{ steps.version.outputs.VERSION }}" --yes || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Power BI Viewer v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Download Links
+
+            **Windows:** Download the `.exe` file below and run it to install.
+
+            **Mac:** Download the `.dmg` file below, open it, and drag the app to Applications.
           files: ./artifacts/*
-          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          make_latest: true
