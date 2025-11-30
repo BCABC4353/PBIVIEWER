@@ -6,9 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -16,43 +13,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug - Show directory contents
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Files:"
-          ls -la
-          echo "Package.json exists:"
-          cat package.json | head -20
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Debug - Node and npm versions
-        run: |
-          node --version
-          npm --version
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --verbose
+        run: npm ci
         env:
           npm_config_platform: win32
           npm_config_arch: x64
 
-      - name: Debug - Check installed packages
-        run: |
-          echo "node_modules exists:"
-          ls node_modules | head -20
-
       - name: Build and package Windows
         run: npm run package:win
-
-      - name: Debug - Check build output
-        run: |
-          echo "build-output contents:"
-          ls -la build-output || echo "build-output does not exist"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
@@ -67,40 +43,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug - Show directory contents
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Files:"
-          ls -la
-          echo "Package.json exists:"
-          cat package.json | head -20
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Debug - Node and npm versions
-        run: |
-          node --version
-          npm --version
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps --verbose
-
-      - name: Debug - Check installed packages
-        run: |
-          echo "node_modules exists:"
-          ls node_modules | head -20
+        run: npm ci
 
       - name: Build and package macOS
         run: npm run package:mac
-
-      - name: Debug - Check build output
-        run: |
-          echo "build-output contents:"
-          ls -la build-output || echo "build-output does not exist"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload macOS installer
         uses: actions/upload-artifact@v4
@@ -113,6 +68,8 @@ jobs:
     needs: [build-windows, build-mac]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     steps:
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
@@ -126,15 +83,8 @@ jobs:
           name: mac-installer
           path: ./artifacts
 
-      - name: Debug - Show artifacts
-        run: |
-          echo "Artifacts:"
-          ls -la ./artifacts
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: ./artifacts/*
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
