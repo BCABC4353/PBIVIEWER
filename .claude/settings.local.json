@@ -73,7 +73,11 @@
       "Bash(cmd /c \"del /q \"\"C:\\Users\\Brendan Cameron\\AppData\\Roaming\\powerbi-viewer\\favorites.json\"\" 2>nul && echo Deleted favorites.json\")",
       "Bash(cmd /c \"if exist \"\"C:\\Users\\Brendan Cameron\\AppData\\Roaming\\powerbi-viewer\\powerbi-viewer-auth.json\"\" (echo File exists, deleting... && del /q \"\"C:\\Users\\Brendan Cameron\\AppData\\Roaming\\powerbi-viewer\\powerbi-viewer-auth.json\"\") else (echo File does not exist)\")",
       "Bash(powershell.exe:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(cmd /c \"cd /d \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\"\" && gh run list --limit 3\")",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
