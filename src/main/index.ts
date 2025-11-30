@@ -354,3 +354,8 @@ ipcMain.handle('app:get-partition-name', () => {
   // In dev mode, we use no partition (undefined/null), in production we use PARTITION_NAME
   return isDev ? null : PARTITION_NAME;
 });
+
+ipcMain.handle('app:get-version', () => {
+  // Returns the version from package.json - single source of truth
+  return app.getVersion();
+});

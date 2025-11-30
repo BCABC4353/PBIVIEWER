@@ -24,9 +24,14 @@ export const SettingsPage: React.FC = () => {
   const { settings, isLoading, loadSettings, updateSettings, resetSettings } = useSettingsStore();
   const { loadRecentItems, loadFrequentItems } = useContentStore();
   const [clearingUsage, setClearingUsage] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
 
   useEffect(() => {
     loadSettings();
+    // Fetch app version from main process (reads from package.json)
+    window.electronAPI.app.getVersion().then((version: string) => {
+      setAppVersion(version);
+    });
   }, [loadSettings]);
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
@@ -283,7 +288,7 @@ export const SettingsPage: React.FC = () => {
               </h2>
               <div className="space-y-2">
                 <Text className="text-neutral-foreground-1 block">
-                  Power BI Viewer v1.1.5
+                  Power BI Viewer v{appVersion}
                 </Text>
               </div>
             </div>

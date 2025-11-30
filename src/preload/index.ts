@@ -78,6 +78,7 @@ const electronAPI = {
   // App info
   app: {
     getPartitionName: () => ipcRenderer.invoke('app:get-partition-name'),
+    getVersion: () => ipcRenderer.invoke('app:get-version'),
   },
 };
 
