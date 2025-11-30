@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
 import {
@@ -9,6 +9,11 @@ import {
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
 import type { IPCResponse, EmbedToken, AppSettings, Report, DatasetRefreshInfo } from '../../../shared/types';
+
+interface PageInfo {
+  name: string;
+  displayName: string;
+}
 
 // Create a single instance of the Power BI service
 const powerbiService = new pbi.service.Service(
@@ -31,6 +36,22 @@ export const ReportViewer: React.FC = () => {
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
   const datasetIdRef = useRef<string | null>(null);
+
+  // Fullscreen keyboard navigation state
+  const [pages, setPages] = useState<PageInfo[]>([]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const pagesRef = useRef<PageInfo[]>([]);
+  const currentPageIndexRef = useRef(0);
+
+  // Keep refs in sync with state for use in event handlers
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
+
+  useEffect(() => {
+    currentPageIndexRef.current = currentPageIndex;
+  }, [currentPageIndex]);
 
   // Load settings on mount
   useEffect(() => {
@@ -89,6 +110,75 @@ export const ReportViewer: React.FC = () => {
       clearInterval(refreshIntervalId);
     };
   }, [isLoading, error, autoRefreshEnabled, autoRefreshIntervalMinutes]);
+
+  // Navigate to a specific page by index
+  const navigateToPage = useCallback(async (pageIndex: number) => {
+    if (!reportRef.current || pagesRef.current.length === 0) return;
+
+    const targetIndex = Math.max(0, Math.min(pageIndex, pagesRef.current.length - 1));
+    const targetPage = pagesRef.current[targetIndex];
+
+    if (targetPage) {
+      try {
+        await reportRef.current.setPage(targetPage.name);
+        setCurrentPageIndex(targetIndex);
+      } catch {
+        // Page navigation errors are non-fatal
+      }
+    }
+  }, []);
+
+  // Fullscreen change detection
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+      // Focus the container when entering fullscreen to receive keyboard events
+      if (isNowFullscreen && embedContainerRef.current) {
+        embedContainerRef.current.focus();
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Keyboard navigation for fullscreen mode
+  // Use capture phase to intercept events before the iframe consumes them
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle navigation when in fullscreen
+      if (!document.fullscreenElement) return;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentPages = pagesRef.current;
+        const currentIdx = currentPageIndexRef.current;
+
+        if (currentPages.length === 0) return;
+
+        if (e.key === 'ArrowRight') {
+          // Next page (wrap around)
+          const nextIndex = (currentIdx + 1) % currentPages.length;
+          navigateToPage(nextIndex);
+        } else if (e.key === 'ArrowLeft') {
+          // Previous page (wrap around)
+          const prevIndex = (currentIdx - 1 + currentPages.length) % currentPages.length;
+          navigateToPage(prevIndex);
+        }
+      }
+    };
+
+    // Use capture phase to intercept events before they reach the iframe
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [navigateToPage]);
 
   const loadReport = async () => {
     if (!embedContainerRef.current || !workspaceId || !reportId) return;
@@ -160,6 +250,29 @@ export const ReportViewer: React.FC = () => {
       // Handle loaded event
       report.on('loaded', async () => {
         setIsLoading(false);
+
+        // Fetch pages for keyboard navigation in fullscreen
+        try {
+          const reportPages = await report.getPages();
+          const visiblePages = reportPages.filter((p: pbi.Page) => p.visibility !== 1); // Filter hidden pages
+          const pageInfos: PageInfo[] = visiblePages.map((p: pbi.Page) => ({
+            name: p.name,
+            displayName: p.displayName,
+          }));
+          setPages(pageInfos);
+
+          // Get current active page index
+          const activePage = reportPages.find((p: pbi.Page) => p.isActive);
+          if (activePage) {
+            const activeIndex = pageInfos.findIndex((p) => p.name === activePage.name);
+            if (activeIndex >= 0) {
+              setCurrentPageIndex(activeIndex);
+            }
+          }
+        } catch {
+          // Page fetch failure is non-critical
+        }
+
         // Fetch dataset refresh info after report loads
         if (datasetIdRef.current && workspaceId) {
           try {
@@ -201,8 +314,14 @@ export const ReportViewer: React.FC = () => {
   };
 
   const handleFullScreen = () => {
-    if (reportRef.current) {
-      reportRef.current.fullscreen();
+    // Use our own fullscreen implementation instead of Power BI's SDK fullscreen()
+    // This keeps our app in control and allows keyboard event handling
+    if (embedContainerRef.current) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        embedContainerRef.current.requestFullscreen();
+      }
     }
   };
 
@@ -300,8 +419,9 @@ export const ReportViewer: React.FC = () => {
 
         <div
           ref={embedContainerRef}
-          className="w-full h-full"
+          className="w-full h-full outline-none"
           style={{ visibility: isLoading || error ? 'hidden' : 'visible' }}
+          tabIndex={-1}
         />
       </div>
     </div>
