@@ -77,7 +77,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:api.github.com)",
       "Bash(cmd /c \"cd /d \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\"\" && gh run list --limit 3\")",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(cmd /c \"taskkill /F /IM \"\"Power BI Viewer.exe\"\" 2>nul & taskkill /F /IM electron.exe 2>nul & echo Done\")"
     ],
     "deny": [],
     "ask": []

@@ -283,10 +283,7 @@ export const SettingsPage: React.FC = () => {
               </h2>
               <div className="space-y-2">
                 <Text className="text-neutral-foreground-1 block">
-                  Power BI Viewer v1.0.0
-                </Text>
-                <Text className="text-neutral-foreground-3 text-sm block">
-                  A desktop application for viewing Power BI reports and dashboards.
+                  Power BI Viewer v1.1.5
                 </Text>
               </div>
             </div>

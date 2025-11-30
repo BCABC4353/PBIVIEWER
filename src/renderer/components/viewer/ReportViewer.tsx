@@ -251,13 +251,12 @@ export const ReportViewer: React.FC = () => {
 
         <div className="flex-1" />
 
-        {lastDataRefresh && (
-          <Text className="text-neutral-foreground-3 text-sm">
-            Data refreshed: {formatRelativeTime(lastDataRefresh)}
-          </Text>
-        )}
-
         <div className="flex items-center gap-2">
+          {lastDataRefresh && (
+            <Text className="text-neutral-foreground-3 text-sm mr-2">
+              Data refreshed: {formatRelativeTime(lastDataRefresh)}
+            </Text>
+          )}
           <Button
             appearance="subtle"
             icon={<ArrowSyncRegular />}
