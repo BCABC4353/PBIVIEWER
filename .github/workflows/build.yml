@@ -36,11 +36,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List build output
+        run: dir build-output
+        shell: cmd
+
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
           path: build-output/*.exe
+          if-no-files-found: error
           retention-days: 30
 
   build-mac:
@@ -63,11 +68,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: List build output
+        run: ls -la build-output/
+
       - name: Upload macOS installer
         uses: actions/upload-artifact@v4
         with:
           name: mac-installer
           path: build-output/*.dmg
+          if-no-files-found: error
           retention-days: 30
 
   release:
@@ -89,8 +98,12 @@ jobs:
           name: mac-installer
           path: ./artifacts
 
+      - name: List downloaded artifacts
+        run: ls -la ./artifacts/
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./artifacts/*
           generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
