@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text, Slider } from '@fluentui/react-components';
 import {
   DismissRegular,
@@ -24,24 +24,64 @@ interface ReportPage {
 }
 
 export const PresentationMode: React.FC = () => {
-  const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
-  const [searchParams] = useSearchParams();
+  const { workspaceId, reportId } = useParams<{
+    workspaceId: string;
+    reportId: string;
+  }>();
   const navigate = useNavigate();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<pbi.Report | null>(null);
   const isLoadingRef = useRef(false);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isExitingRef = useRef(false);
+  const hasEnteredFullscreen = useRef(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pages, setPages] = useState<ReportPage[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [interval, setIntervalValue] = useState(10); // seconds
+  const [intervalSeconds, setIntervalSeconds] = useState(10);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Exit function - navigates back to report viewer
+  const doExit = () => {
+    if (isExitingRef.current) return;
+    isExitingRef.current = true;
+
+    // Stop slideshow
+    setIsPlaying(false);
+    if (slideshowIntervalRef.current) {
+      clearInterval(slideshowIntervalRef.current);
+      slideshowIntervalRef.current = null;
+    }
+
+    // Clean up Power BI
+    if (embedContainerRef.current) {
+      try {
+        powerbiService.reset(embedContainerRef.current);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+    reportRef.current = null;
+
+    // Exit fullscreen if active
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+
+    // Navigate back to the report viewer (explicit route, not -1)
+    if (workspaceId && reportId) {
+      navigate(`/report/${workspaceId}/${reportId}`, { replace: true });
+    } else {
+      navigate('/', { replace: true });
+    }
+  };
+
+  // Load report on mount
   useEffect(() => {
     if (!workspaceId || !reportId) {
       setError('Invalid report parameters');
@@ -55,54 +95,106 @@ export const PresentationMode: React.FC = () => {
 
     loadReport();
 
-    // Enter fullscreen
-    document.documentElement.requestFullscreen?.();
+    // Try to enter fullscreen (don't block if it fails)
+    document.documentElement.requestFullscreen?.().then(() => {
+      hasEnteredFullscreen.current = true;
+    }).catch(() => {});
 
     return () => {
+      if (slideshowIntervalRef.current) {
+        clearInterval(slideshowIntervalRef.current);
+        slideshowIntervalRef.current = null;
+      }
       if (embedContainerRef.current) {
-        powerbiService.reset(embedContainerRef.current);
+        try {
+          powerbiService.reset(embedContainerRef.current);
+        } catch (e) {
+          // Ignore
+        }
       }
       reportRef.current = null;
       isLoadingRef.current = false;
-      if (slideshowIntervalRef.current) {
-        clearInterval(slideshowIntervalRef.current);
-      }
-      // Exit fullscreen
-      document.exitFullscreen?.();
     };
   }, [workspaceId, reportId]);
+
+  // Listen for fullscreen exit - when user presses Escape, browser exits fullscreen
+  // and we need to navigate back to the report
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      // If fullscreen was exited (and we didn't trigger it ourselves via doExit)
+      // and we had successfully entered fullscreen before
+      if (!document.fullscreenElement && !isExitingRef.current && hasEnteredFullscreen.current) {
+        isExitingRef.current = true;
+
+        // Stop slideshow
+        if (slideshowIntervalRef.current) {
+          clearInterval(slideshowIntervalRef.current);
+          slideshowIntervalRef.current = null;
+        }
+
+        // Clean up Power BI
+        if (embedContainerRef.current) {
+          try {
+            powerbiService.reset(embedContainerRef.current);
+          } catch (e) {
+            // Ignore
+          }
+        }
+        reportRef.current = null;
+
+        // Navigate back to the report viewer
+        if (workspaceId && reportId) {
+          navigate(`/report/${workspaceId}/${reportId}`, { replace: true });
+        } else {
+          navigate('/', { replace: true });
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [workspaceId, reportId, navigate]);
 
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent default for our handled keys
+      if (['Escape', 'ArrowRight', 'ArrowLeft', ' ', 'p', 'P'].includes(e.key)) {
+        e.preventDefault();
+      }
+
       switch (e.key) {
         case 'ArrowRight':
         case ' ':
-          nextPage();
+          if (pages.length > 0) {
+            setCurrentPageIndex((prev) => (prev + 1) % pages.length);
+          }
           break;
         case 'ArrowLeft':
-          prevPage();
+          if (pages.length > 0) {
+            setCurrentPageIndex((prev) => (prev - 1 + pages.length) % pages.length);
+          }
           break;
         case 'Escape':
-          handleExit();
+          doExit();
           break;
         case 'p':
         case 'P':
-          togglePlayPause();
+          setIsPlaying((prev) => !prev);
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pages, currentPageIndex, isPlaying]);
+  }, [pages.length, workspaceId, reportId]);
 
   // Handle slideshow auto-advance
   useEffect(() => {
     if (isPlaying && pages.length > 0) {
       slideshowIntervalRef.current = setInterval(() => {
         setCurrentPageIndex((prev) => (prev + 1) % pages.length);
-      }, interval * 1000);
+      }, intervalSeconds * 1000);
     } else {
       if (slideshowIntervalRef.current) {
         clearInterval(slideshowIntervalRef.current);
@@ -115,17 +207,36 @@ export const PresentationMode: React.FC = () => {
         clearInterval(slideshowIntervalRef.current);
       }
     };
-  }, [isPlaying, interval, pages.length]);
+  }, [isPlaying, intervalSeconds, pages.length]);
 
   // Navigate to page when index changes
   useEffect(() => {
     if (reportRef.current && pages.length > 0) {
       const page = pages[currentPageIndex];
       if (page) {
-        reportRef.current.setPage(page.name);
+        reportRef.current.setPage(page.name).catch((err) => {
+          console.error('Failed to set page:', err);
+        });
       }
     }
   }, [currentPageIndex, pages]);
+
+  // Auto-refresh data every 30 seconds to pick up dataset changes
+  useEffect(() => {
+    const autoRefreshInterval = setInterval(() => {
+      if (reportRef.current && !isLoading && !error) {
+        reportRef.current.refresh().catch((err) => {
+          // Some visuals (like FlowVisual) may throw authorization errors
+          // during refresh - these are non-fatal and the report still works
+          console.warn('[PresentationMode] Auto-refresh warning (non-fatal):', err?.message || err);
+        });
+      }
+    }, 30000); // 30 seconds
+
+    return () => {
+      clearInterval(autoRefreshInterval);
+    };
+  }, [isLoading, error]);
 
   // Hide controls after inactivity
   useEffect(() => {
@@ -162,6 +273,8 @@ export const PresentationMode: React.FC = () => {
     try {
       powerbiService.reset(embedContainerRef.current);
 
+      const embedUrl = `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${workspaceId}`;
+
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         reportId,
         workspaceId
@@ -176,7 +289,7 @@ export const PresentationMode: React.FC = () => {
       const embedConfig: pbi.IReportEmbedConfiguration = {
         type: 'report',
         id: reportId,
-        embedUrl: `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${workspaceId}`,
+        embedUrl: embedUrl,
         accessToken: token,
         tokenType: pbi.models.TokenType.Aad,
         settings: {
@@ -184,7 +297,8 @@ export const PresentationMode: React.FC = () => {
             filters: { visible: false },
             pageNavigation: { visible: false },
           },
-          background: pbi.models.BackgroundType.Transparent,
+          // Use default background, not transparent
+          background: pbi.models.BackgroundType.Default,
           navContentPaneEnabled: false,
         },
       };
@@ -228,35 +342,30 @@ export const PresentationMode: React.FC = () => {
     }
   };
 
-  const nextPage = useCallback(() => {
+  const nextPage = () => {
     if (pages.length > 0) {
       setCurrentPageIndex((prev) => (prev + 1) % pages.length);
     }
-  }, [pages.length]);
+  };
 
-  const prevPage = useCallback(() => {
+  const prevPage = () => {
     if (pages.length > 0) {
       setCurrentPageIndex((prev) => (prev - 1 + pages.length) % pages.length);
     }
-  }, [pages.length]);
+  };
 
-  const togglePlayPause = useCallback(() => {
+  const togglePlayPause = () => {
     setIsPlaying((prev) => !prev);
-  }, []);
-
-  const handleExit = () => {
-    document.exitFullscreen?.();
-    navigate(-1);
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50">
+    <div className="fixed inset-0 z-50 bg-neutral-background-1">
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
+        <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-20">
           <div className="text-center">
             <Spinner size="large" />
-            <Text className="mt-4 text-white block">
+            <Text className="mt-4 text-neutral-foreground-2 block">
               Loading presentation...
             </Text>
           </div>
@@ -265,10 +374,10 @@ export const PresentationMode: React.FC = () => {
 
       {/* Error overlay */}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
+        <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-20">
           <div className="text-center max-w-md">
-            <Text className="text-red-500 block mb-4">{error}</Text>
-            <Button appearance="primary" onClick={handleExit}>
+            <Text className="text-status-error block mb-4">{error}</Text>
+            <Button appearance="primary" onClick={doExit}>
               Exit
             </Button>
           </div>
@@ -286,9 +395,9 @@ export const PresentationMode: React.FC = () => {
       {showControls && !isLoading && !error && (
         <>
           {/* Top bar */}
-          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent">
+          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent">
             <div className="flex items-center justify-between">
-              <Text className="text-white">
+              <Text className="text-white text-shadow">
                 {pages[currentPageIndex]?.displayName || 'Page'} ({currentPageIndex + 1} / {pages.length})
               </Text>
               <div className="flex items-center gap-2">
@@ -296,13 +405,15 @@ export const PresentationMode: React.FC = () => {
                   appearance="subtle"
                   icon={<SettingsRegular />}
                   onClick={() => setShowSettings(!showSettings)}
-                  className="text-white hover:bg-white/20"
+                  style={{ color: 'white' }}
+                  title="Settings"
                 />
                 <Button
                   appearance="subtle"
                   icon={<DismissRegular />}
-                  onClick={handleExit}
-                  className="text-white hover:bg-white/20"
+                  onClick={doExit}
+                  style={{ color: 'white' }}
+                  title="Exit (Esc)"
                 />
               </div>
             </div>
@@ -310,31 +421,32 @@ export const PresentationMode: React.FC = () => {
 
           {/* Settings panel */}
           {showSettings && (
-            <div className="absolute top-16 right-4 bg-neutral-background-1 rounded-lg p-4 shadow-lg z-30">
+            <div className="absolute top-16 right-4 bg-neutral-background-1 rounded-lg p-4 shadow-lg z-30 border border-neutral-stroke-1">
               <Text weight="semibold" className="block mb-3">Slideshow Settings</Text>
               <div className="flex items-center gap-3">
                 <Text size={200}>Interval:</Text>
                 <Slider
                   min={3}
                   max={60}
-                  value={interval}
-                  onChange={(_, data) => setIntervalValue(data.value)}
-                  className="w-32"
+                  value={intervalSeconds}
+                  onChange={(_, data) => setIntervalSeconds(data.value)}
+                  style={{ width: '120px' }}
                 />
-                <Text size={200}>{interval}s</Text>
+                <Text size={200}>{intervalSeconds}s</Text>
               </div>
             </div>
           )}
 
           {/* Bottom controls */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
             <div className="flex items-center justify-center gap-4">
               <Button
                 appearance="subtle"
                 icon={<ChevronLeftRegular />}
                 onClick={prevPage}
-                className="text-white hover:bg-white/20"
+                style={{ color: 'white' }}
                 size="large"
+                title="Previous page"
               />
               <Button
                 appearance="primary"
@@ -348,28 +460,32 @@ export const PresentationMode: React.FC = () => {
                 appearance="subtle"
                 icon={<ChevronRightRegular />}
                 onClick={nextPage}
-                className="text-white hover:bg-white/20"
+                style={{ color: 'white' }}
                 size="large"
+                title="Next page"
               />
             </div>
 
             {/* Page indicators */}
-            <div className="flex items-center justify-center gap-2 mt-4">
-              {pages.map((_, index) => (
-                <button
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    index === currentPageIndex ? 'bg-white' : 'bg-white/40'
-                  }`}
-                  onClick={() => setCurrentPageIndex(index)}
-                />
-              ))}
-            </div>
+            {pages.length > 1 && pages.length <= 20 && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                {pages.map((_, index) => (
+                  <button
+                    key={index}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      index === currentPageIndex ? 'bg-white' : 'bg-white/40'
+                    }`}
+                    onClick={() => setCurrentPageIndex(index)}
+                    title={`Go to page ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Keyboard hints */}
           <div className="absolute bottom-4 left-4 text-white/60 text-xs">
-            <div>Arrow keys: Navigate</div>
+            <div>← → Arrow keys: Navigate</div>
             <div>Space: Next page</div>
             <div>P: Play/Pause</div>
             <div>Esc: Exit</div>

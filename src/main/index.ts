@@ -24,6 +24,11 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = !app.isPackaged;
 
 function createWindow(): void {
+  // Get initial theme setting to set correct colors
+  const settingsResult = settingsService.getSettings();
+  const initialTheme = settingsResult.success && settingsResult.data ? settingsResult.data.theme : 'light';
+  const isDarkTheme = initialTheme === 'dark';
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -32,8 +37,8 @@ function createWindow(): void {
     title: APP_NAME,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#f5f5f5',
-      symbolColor: '#242424',
+      color: isDarkTheme ? '#1f1f1f' : '#f5f5f5',
+      symbolColor: isDarkTheme ? '#ffffff' : '#242424',
       height: 40,
     },
     webPreferences: {
@@ -43,10 +48,11 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false, // Needed for electron-store
       webSecurity: !isDev, // Disable web security in dev for localhost
+      webviewTag: true, // Enable webview tag for Power BI App viewing
     },
     icon: path.join(__dirname, '../../../assets/icons/icon.png'),
     show: false,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: isDarkTheme ? '#1f1f1f' : '#f5f5f5',
   });
 
   // Show window when ready
@@ -109,6 +115,16 @@ ipcMain.handle('window:close', () => {
 
 ipcMain.handle('window:is-maximized', () => {
   return mainWindow?.isMaximized() ?? false;
+});
+
+ipcMain.handle('window:set-title-bar-overlay', (_event, options: { color: string; symbolColor: string }) => {
+  if (mainWindow && process.platform === 'win32') {
+    mainWindow.setTitleBarOverlay({
+      color: options.color,
+      symbolColor: options.symbolColor,
+      height: 40,
+    });
+  }
 });
 
 // ============================================
@@ -304,6 +320,7 @@ ipcMain.handle('usage:record-open', async (_event, item: {
 ipcMain.handle('usage:get-recent', async () => {
   try {
     const items = usageTrackingService.getRecentItems();
+    console.log('[IPC] usage:get-recent - items count:', items.length, items.map(i => ({ name: i.name, count: i.openCount })));
     // Get favorites for isFavorite status
     const favoritesResult = favoritesService.getFavorites();
     const favoriteIds = new Set(
@@ -332,6 +349,7 @@ ipcMain.handle('usage:get-recent', async () => {
 ipcMain.handle('usage:get-frequent', async () => {
   try {
     const items = usageTrackingService.getFrequentItems();
+    console.log('[IPC] usage:get-frequent - items count:', items.length, items.map(i => ({ name: i.name, count: i.openCount })));
     // Get favorites for isFavorite status
     const favoritesResult = favoritesService.getFavorites();
     const favoriteIds = new Set(

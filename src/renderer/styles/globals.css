@@ -24,10 +24,54 @@
 /* Title bar drag region */
 .title-bar-drag {
   -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .title-bar-no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* Ensure buttons and interactive elements in title bar are clickable */
+.title-bar-drag button,
+.title-bar-drag input,
+.title-bar-drag a,
+.title-bar-drag [role="button"],
+.title-bar-drag [role="menu"],
+.title-bar-drag [role="menuitem"] {
+  -webkit-app-region: no-drag;
+}
+
+/* Fluent UI Slider styling - ensure visibility */
+.fui-Slider {
+  --slider-thumb-size: 20px;
+  --slider-rail-size: 4px;
+}
+
+.fui-Slider__rail {
+  background-color: var(--colorNeutralStroke1, #d1d1d1) !important;
+  height: var(--slider-rail-size) !important;
+}
+
+.fui-Slider__track {
+  background-color: var(--colorBrandBackground, #0078d4) !important;
+  height: var(--slider-rail-size) !important;
+}
+
+.fui-Slider__thumb {
+  width: var(--slider-thumb-size) !important;
+  height: var(--slider-thumb-size) !important;
+  background-color: var(--colorBrandBackground, #0078d4) !important;
+  border: 2px solid var(--colorNeutralBackground1, #ffffff) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.fui-Slider__thumb:hover {
+  background-color: var(--colorBrandBackgroundHover, #106ebe) !important;
+}
+
+.fui-Slider__input {
+  height: var(--slider-thumb-size) !important;
 }
 
 /* Fluent focus styles */

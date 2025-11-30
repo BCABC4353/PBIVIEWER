@@ -88,6 +88,7 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          {/* App viewer - loads full Power BI App experience */}
           <Route
             path="/app/:appId"
             element={

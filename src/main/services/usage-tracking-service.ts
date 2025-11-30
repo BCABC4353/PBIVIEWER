@@ -40,16 +40,18 @@ export const usageTrackingService = {
     const existingIndex = records.findIndex((r) => r.id === item.id);
 
     if (existingIndex >= 0) {
-      // Update existing record
-      records[existingIndex] = {
-        ...records[existingIndex],
+      // Update existing record - remove from current position and add to front
+      const existingRecord = records[existingIndex];
+      records.splice(existingIndex, 1);
+      records.unshift({
+        ...existingRecord,
         name: item.name, // Update name in case it changed
         workspaceName: item.workspaceName,
         lastOpened: new Date().toISOString(),
-        openCount: records[existingIndex].openCount + 1,
-      };
+        openCount: existingRecord.openCount + 1,
+      });
     } else {
-      // Add new record
+      // Add new record at front
       records.unshift({
         id: item.id,
         name: item.name,
@@ -64,6 +66,8 @@ export const usageTrackingService = {
     // Keep only the most recent MAX_RECORDS
     const trimmedRecords = records.slice(0, MAX_RECORDS);
     store.set('usageRecords', trimmedRecords);
+
+    console.log('[UsageTracking] Recorded open:', item.name, 'Count:', records[0].openCount);
   },
 
   /**

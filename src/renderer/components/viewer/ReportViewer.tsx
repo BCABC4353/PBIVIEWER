@@ -1,13 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Spinner, Button, Text, Breadcrumb, BreadcrumbItem } from '@fluentui/react-components';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Spinner, Button, Text } from '@fluentui/react-components';
 import {
   ArrowLeftRegular,
   ArrowSyncRegular,
   FullScreenMaximizeRegular,
-  StarRegular,
-  StarFilled,
-  HomeRegular,
+  PlayRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
 import type { IPCResponse, EmbedToken } from '../../../shared/types';
@@ -21,7 +19,6 @@ const powerbiService = new pbi.service.Service(
 
 export const ReportViewer: React.FC = () => {
   const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
@@ -30,8 +27,6 @@ export const ReportViewer: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reportName, setReportName] = useState<string>('Report');
-  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     if (!workspaceId || !reportId) {
@@ -56,6 +51,23 @@ export const ReportViewer: React.FC = () => {
       isLoadingRef.current = false;
     };
   }, [workspaceId, reportId]);
+
+  // Auto-refresh every 30 seconds to pick up dataset changes
+  useEffect(() => {
+    const autoRefreshInterval = setInterval(() => {
+      if (reportRef.current && !isLoading && !error) {
+        reportRef.current.refresh().catch((err) => {
+          // Some visuals (like FlowVisual) may throw authorization errors
+          // during refresh - these are non-fatal and the report still works
+          console.warn('[ReportViewer] Auto-refresh warning (non-fatal):', err?.message || err);
+        });
+      }
+    }, 30000); // 30 seconds
+
+    return () => {
+      clearInterval(autoRefreshInterval);
+    };
+  }, [isLoading, error]);
 
   const loadReport = async () => {
     if (!embedContainerRef.current || !workspaceId || !reportId) return;
@@ -137,7 +149,11 @@ export const ReportViewer: React.FC = () => {
 
   const handleRefresh = () => {
     if (reportRef.current) {
-      reportRef.current.refresh();
+      reportRef.current.refresh().catch((err) => {
+        // Some visuals (like FlowVisual) may throw authorization errors
+        // during refresh - these are non-fatal and the report still works
+        console.warn('[ReportViewer] Refresh warning (non-fatal):', err?.message || err);
+      });
     } else {
       isLoadingRef.current = false; // Allow reload
       loadReport();
@@ -154,15 +170,10 @@ export const ReportViewer: React.FC = () => {
     navigate('/');
   };
 
-  const handleToggleFavorite = async () => {
-    if (!reportId) return;
-
-    if (isFavorite) {
-      await window.electronAPI.content.removeFavorite(reportId);
-    } else {
-      await window.electronAPI.content.addFavorite(reportId, 'report');
+  const handleSlideshow = () => {
+    if (workspaceId && reportId) {
+      navigate(`/presentation/${workspaceId}/${reportId}`);
     }
-    setIsFavorite(!isFavorite);
   };
 
   return (
@@ -177,19 +188,6 @@ export const ReportViewer: React.FC = () => {
           Back
         </Button>
 
-        <div className="h-6 w-px bg-neutral-stroke-2" />
-
-        <Breadcrumb aria-label="Breadcrumb">
-          <BreadcrumbItem>
-            <Button appearance="subtle" icon={<HomeRegular />} onClick={handleBack}>
-              Home
-            </Button>
-          </BreadcrumbItem>
-          <BreadcrumbItem>
-            <Text>{reportName}</Text>
-          </BreadcrumbItem>
-        </Breadcrumb>
-
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
@@ -197,20 +195,26 @@ export const ReportViewer: React.FC = () => {
             appearance="subtle"
             icon={<ArrowSyncRegular />}
             onClick={handleRefresh}
-            title="Refresh"
-          />
+            title="Refresh report data"
+          >
+            Refresh
+          </Button>
           <Button
             appearance="subtle"
-            icon={isFavorite ? <StarFilled className="text-brand-primary" /> : <StarRegular />}
-            onClick={handleToggleFavorite}
-            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          />
+            icon={<PlayRegular />}
+            onClick={handleSlideshow}
+            title="Start slideshow presentation"
+          >
+            Slideshow
+          </Button>
           <Button
             appearance="subtle"
             icon={<FullScreenMaximizeRegular />}
             onClick={handleFullScreen}
-            title="Full screen"
-          />
+            title="Enter full screen mode"
+          >
+            Full Screen
+          </Button>
         </div>
       </div>
 

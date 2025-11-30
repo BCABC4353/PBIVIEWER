@@ -16,6 +16,7 @@ import {
   DismissRegular,
 } from '@fluentui/react-icons';
 import { useSearchStore } from '../../stores/search-store';
+import { useContentStore } from '../../stores/content-store';
 
 export const SearchDialog: React.FC = () => {
   const navigate = useNavigate();
@@ -31,6 +32,8 @@ export const SearchDialog: React.FC = () => {
     setQuery,
     search,
   } = useSearchStore();
+
+  const { recordItemOpened } = useContentStore();
 
   // Debounce search
   useEffect(() => {
@@ -58,8 +61,19 @@ export const SearchDialog: React.FC = () => {
     setSelectedIndex(0);
   }, [results]);
 
-  const handleNavigate = useCallback((result: typeof results[0]) => {
+  const handleNavigate = useCallback(async (result: typeof results[0]) => {
     closeSearch();
+
+    // Record usage for reports and dashboards
+    if ((result.type === 'report' || result.type === 'dashboard') && result.workspaceId) {
+      await recordItemOpened({
+        id: result.id,
+        name: result.name,
+        type: result.type,
+        workspaceId: result.workspaceId,
+        workspaceName: result.workspaceName || 'Unknown',
+      });
+    }
 
     switch (result.type) {
       case 'report':
@@ -79,7 +93,7 @@ export const SearchDialog: React.FC = () => {
         navigate('/workspaces');
         break;
     }
-  }, [closeSearch, navigate]);
+  }, [closeSearch, navigate, recordItemOpened]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {

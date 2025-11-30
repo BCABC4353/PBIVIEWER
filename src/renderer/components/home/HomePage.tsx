@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
-import { ArrowSyncRegular, PeopleRegular } from '@fluentui/react-icons';
+import { ArrowSyncRegular } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useContentStore } from '../../stores/content-store';
 import { FrequentStrip } from './FrequentStrip';
-import { ContentTabs, TabValue } from './ContentTabs';
 import { ItemList } from './ItemList';
-import { AppsList } from './AppsList';
 import type { ContentItem } from '../../../shared/types';
 
 export const HomePage: React.FC = () => {
@@ -17,30 +15,22 @@ export const HomePage: React.FC = () => {
     recentItems,
     frequentItems,
     allItems,
-    favoriteItems,
-    apps,
     isLoading,
     error,
     loadAllItems,
     loadRecentItems,
     loadFrequentItems,
-    loadFavorites,
-    loadApps,
     recordItemOpened,
     toggleFavorite,
     refreshAll,
     clearError,
   } = useContentStore();
 
-  const [selectedTab, setSelectedTab] = useState<TabValue>('recent');
-
   useEffect(() => {
     loadAllItems();
     loadRecentItems();
     loadFrequentItems();
-    loadFavorites();
-    loadApps();
-  }, [loadAllItems, loadRecentItems, loadFrequentItems, loadFavorites, loadApps]);
+  }, [loadAllItems, loadRecentItems, loadFrequentItems]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -70,52 +60,8 @@ export const HomePage: React.FC = () => {
     await refreshAll();
   };
 
-  const getCurrentTabItems = (): ContentItem[] => {
-    switch (selectedTab) {
-      case 'recent':
-        // If user has opened items, show those; otherwise show all available items
-        return recentItems.length > 0 ? recentItems : allItems;
-      case 'favorites':
-        return favoriteItems;
-      case 'shared':
-      case 'apps':
-        // These tabs have special rendering, return empty
-        return [];
-      default:
-        return [];
-    }
-  };
-
-  const renderTabContent = () => {
-    switch (selectedTab) {
-      case 'recent':
-      case 'favorites':
-        return (
-          <ItemList
-            items={getCurrentTabItems()}
-            onOpen={handleOpenItem}
-            onPresentationMode={handlePresentationMode}
-            onToggleFavorite={handleToggleFavorite}
-          />
-        );
-      case 'shared':
-        return (
-          <div className="bg-neutral-background-2 rounded-lg p-8 text-center">
-            <PeopleRegular className="text-4xl text-neutral-foreground-3 mx-auto mb-4" />
-            <Text className="text-neutral-foreground-3 block">
-              Content shared with you will appear here.
-            </Text>
-            <Text size={200} className="text-neutral-foreground-4 block mt-2">
-              This feature requires additional Power BI API permissions.
-            </Text>
-          </div>
-        );
-      case 'apps':
-        return <AppsList apps={apps} />;
-      default:
-        return null;
-    }
-  };
+  const recentContent: ContentItem[] =
+    recentItems.length > 0 ? recentItems : allItems;
 
   return (
     <div className="h-full overflow-auto">
@@ -185,21 +131,21 @@ export const HomePage: React.FC = () => {
             {/* Divider */}
             <div className="border-t border-neutral-stroke-2 my-6" />
 
-            {/* Content tabs */}
-            <ContentTabs
-              selectedTab={selectedTab}
-              onTabSelect={setSelectedTab}
-              counts={{
-                recent: recentItems.length > 0 ? recentItems.length : allItems.length,
-                favorites: favoriteItems.length,
-                apps: apps.length,
-              }}
-            />
-
-            {/* Tab content */}
-            <div className="mt-4">
-              {renderTabContent()}
+            {/* Recent content */}
+            <div className="flex items-center justify-between mb-4">
+              <Text weight="semibold" size={400} className="text-neutral-foreground-1">
+                Recent
+              </Text>
+              <Text size={200} className="text-neutral-foreground-3">
+                {recentContent.length} item{recentContent.length === 1 ? '' : 's'}
+              </Text>
             </div>
+            <ItemList
+              items={recentContent}
+              onOpen={handleOpenItem}
+              onPresentationMode={handlePresentationMode}
+              onToggleFavorite={handleToggleFavorite}
+            />
           </>
         )}
       </div>

@@ -54,6 +54,8 @@ const electronAPI = {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+    setTitleBarOverlay: (options: { color: string; symbolColor: string }) =>
+      ipcRenderer.invoke('window:set-title-bar-overlay', options),
   },
 
   // Settings

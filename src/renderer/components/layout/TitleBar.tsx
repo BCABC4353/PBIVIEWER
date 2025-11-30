@@ -50,8 +50,8 @@ export const TitleBar: React.FC = () => {
   }, [openSearch]);
 
   return (
-    <div className="h-10 bg-neutral-background-3 flex items-center px-4 title-bar-drag border-b border-neutral-stroke-2">
-      {/* App title */}
+    <div className="h-10 bg-neutral-background-3 flex items-center px-4 border-b border-neutral-stroke-2 select-none" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      {/* App title - draggable */}
       <div className="flex items-center gap-2 mr-4">
         <img
           src={logoIcon}
@@ -63,10 +63,11 @@ export const TitleBar: React.FC = () => {
         </Text>
       </div>
 
-      {/* Search bar - centered */}
-      <div className="flex-1 flex justify-center title-bar-no-drag">
+      {/* Search bar - only the button itself is no-drag */}
+      <div className="flex-1 flex justify-center">
         <button
           onClick={openSearch}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="w-full max-w-md flex items-center gap-2 px-3 py-1.5 bg-neutral-background-1 border border-neutral-stroke-2 rounded-md text-neutral-foreground-3 text-sm hover:bg-neutral-background-2 transition-colors"
         >
           <SearchRegular />
@@ -77,13 +78,13 @@ export const TitleBar: React.FC = () => {
         </button>
       </div>
 
-      {/* Right side actions */}
-      <div className="flex items-center gap-2 ml-4 title-bar-no-drag">
+      {/* Right side actions - only the button itself is no-drag */}
+      <div className="flex items-center gap-2 ml-4">
         {/* User menu */}
         {user && (
           <Menu>
             <MenuTrigger disableButtonEnhancement>
-              <Button appearance="subtle" className="p-0">
+              <Button appearance="subtle" className="p-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
                 <Avatar
                   name={user.displayName}
                   initials={getInitials(user.displayName)}

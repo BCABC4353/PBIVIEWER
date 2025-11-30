@@ -41,6 +41,7 @@ declare global {
         maximize: () => Promise<void>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+        setTitleBarOverlay: (options: { color: string; symbolColor: string }) => Promise<void>;
       };
       settings: {
         get: () => Promise<IPCResponse<AppSettings>>;
@@ -111,6 +112,21 @@ const ThemedApp: React.FC = () => {
 
   const isDark = theme === 'dark' || (theme === 'system' && systemDark);
   const fluentTheme = isDark ? webDarkTheme : webLightTheme;
+
+  // Update title bar overlay colors when theme changes
+  useEffect(() => {
+    const updateTitleBarOverlay = async () => {
+      try {
+        await window.electronAPI.window.setTitleBarOverlay({
+          color: isDark ? '#1f1f1f' : '#f5f5f5',
+          symbolColor: isDark ? '#ffffff' : '#242424',
+        });
+      } catch (error) {
+        // Ignore errors (e.g., on non-Windows platforms)
+      }
+    };
+    updateTitleBarOverlay();
+  }, [isDark]);
 
   return (
     <FluentProvider theme={fluentTheme}>

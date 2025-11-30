@@ -8,6 +8,7 @@ import {
   ChevronRightRegular,
   ArrowSyncRegular,
 } from '@fluentui/react-icons';
+import { useContentStore } from '../../stores/content-store';
 import type { Workspace, Report, Dashboard, IPCResponse } from '../../../shared/types';
 
 interface WorkspaceWithContent extends Workspace {
@@ -19,6 +20,7 @@ interface WorkspaceWithContent extends Workspace {
 
 export const WorkspacesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { recordItemOpened } = useContentStore();
   const [workspaces, setWorkspaces] = useState<WorkspaceWithContent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,12 +111,28 @@ export const WorkspacesPage: React.FC = () => {
     }
   };
 
-  const openReport = (workspaceId: string, reportId: string) => {
-    navigate(`/report/${workspaceId}/${reportId}`);
+  const openReport = async (workspace: WorkspaceWithContent, report: Report) => {
+    // Record usage before navigating
+    await recordItemOpened({
+      id: report.id,
+      name: report.name,
+      type: 'report',
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+    });
+    navigate(`/report/${workspace.id}/${report.id}`);
   };
 
-  const openDashboard = (workspaceId: string, dashboardId: string) => {
-    navigate(`/dashboard/${workspaceId}/${dashboardId}`);
+  const openDashboard = async (workspace: WorkspaceWithContent, dashboard: Dashboard) => {
+    // Record usage before navigating
+    await recordItemOpened({
+      id: dashboard.id,
+      name: dashboard.name,
+      type: 'dashboard',
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+    });
+    navigate(`/dashboard/${workspace.id}/${dashboard.id}`);
   };
 
   if (isLoading) {
@@ -216,7 +234,7 @@ export const WorkspacesPage: React.FC = () => {
                           <button
                             key={report.id}
                             className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
-                            onClick={() => openReport(workspace.id, report.id)}
+                            onClick={() => openReport(workspace, report)}
                           >
                             <DocumentRegular className="text-accent-primary" />
                             <div className="flex-1 min-w-0">
@@ -235,7 +253,7 @@ export const WorkspacesPage: React.FC = () => {
                           <button
                             key={dashboard.id}
                             className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
-                            onClick={() => openDashboard(workspace.id, dashboard.id)}
+                            onClick={() => openDashboard(workspace, dashboard)}
                           >
                             <BoardRegular className="text-status-success" />
                             <div className="flex-1 min-w-0">
