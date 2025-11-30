@@ -5,8 +5,6 @@ import {
   ArrowLeftRegular,
   ArrowSyncRegular,
   FullScreenMaximizeRegular,
-  StarRegular,
-  StarFilled,
   HomeRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
@@ -30,7 +28,6 @@ export const DashboardViewer: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dashboardName, setDashboardName] = useState<string>('Dashboard');
-  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     if (!workspaceId || !dashboardId) {
@@ -137,17 +134,6 @@ export const DashboardViewer: React.FC = () => {
     navigate('/');
   };
 
-  const handleToggleFavorite = async () => {
-    if (!dashboardId) return;
-
-    if (isFavorite) {
-      await window.electronAPI.content.removeFavorite(dashboardId);
-    } else {
-      await window.electronAPI.content.addFavorite(dashboardId, 'dashboard');
-    }
-    setIsFavorite(!isFavorite);
-  };
-
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
@@ -181,12 +167,6 @@ export const DashboardViewer: React.FC = () => {
             icon={<ArrowSyncRegular />}
             onClick={handleRefresh}
             title="Refresh"
-          />
-          <Button
-            appearance="subtle"
-            icon={isFavorite ? <StarFilled className="text-brand-primary" /> : <StarRegular />}
-            onClick={handleToggleFavorite}
-            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           />
           <Button
             appearance="subtle"

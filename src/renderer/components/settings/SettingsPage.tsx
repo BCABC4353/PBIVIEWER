@@ -45,6 +45,14 @@ export const SettingsPage: React.FC = () => {
     updateSettings({ autoStartSlideshow: checked });
   };
 
+  const handleAutoRefreshEnabledChange = (checked: boolean) => {
+    updateSettings({ autoRefreshEnabled: checked });
+  };
+
+  const handleAutoRefreshIntervalChange = (value: number) => {
+    updateSettings({ autoRefreshInterval: value });
+  };
+
   const handleClearUsageHistory = async () => {
     setClearingUsage(true);
     try {
@@ -156,17 +164,17 @@ export const SettingsPage: React.FC = () => {
                   </div>
                   <div className="w-full">
                     <Slider
-                      min={3}
-                      max={120}
-                      step={1}
+                      min={30}
+                      max={300}
+                      step={10}
                       value={settings.slideshowInterval}
                       onChange={(_, data) => handleSlideshowIntervalChange(data.value)}
                       style={{ width: '100%' }}
                     />
                   </div>
                   <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
-                    <span>3s</span>
-                    <span>120s</span>
+                    <span>30s</span>
+                    <span>5 min</span>
                   </div>
                 </div>
 
@@ -183,17 +191,53 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div>
-                    <Text className="text-neutral-foreground-1 block">Auto-start slideshow</Text>
-                    <Text size={200} className="text-neutral-foreground-3">
-                      Automatically start presentation when opening a report
-                    </Text>
-                  </div>
+                  <Text className="text-neutral-foreground-1">Auto-start slideshow</Text>
                   <Switch
                     checked={settings.autoStartSlideshow}
                     onChange={(_, data) => handleAutoStartChange(data.checked)}
                   />
                 </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Data Refresh section */}
+          <Card>
+            <div className="p-4">
+              <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
+                Data Refresh
+              </h2>
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <Text className="text-neutral-foreground-1">Auto-refresh reports</Text>
+                  <Switch
+                    checked={settings.autoRefreshEnabled}
+                    onChange={(_, data) => handleAutoRefreshEnabledChange(data.checked)}
+                  />
+                </div>
+
+                {settings.autoRefreshEnabled && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Text className="text-neutral-foreground-2">Refresh interval</Text>
+                      <Text weight="semibold">{settings.autoRefreshInterval} {settings.autoRefreshInterval === 1 ? 'minute' : 'minutes'}</Text>
+                    </div>
+                    <div className="w-full">
+                      <Slider
+                        min={1}
+                        max={60}
+                        step={1}
+                        value={settings.autoRefreshInterval}
+                        onChange={(_, data) => handleAutoRefreshIntervalChange(data.value)}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
+                      <span>1 min</span>
+                      <span>1 hour</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </Card>

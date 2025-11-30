@@ -35,6 +35,18 @@ const store = new Store<CacheMetadata>({
 });
 
 export const cacheService = {
+  /**
+   * Get thumbnail for a report or dashboard.
+   *
+   * KNOWN LIMITATION: Power BI REST API does not provide a direct endpoint for
+   * report/dashboard thumbnails. The only ways to get thumbnails would be:
+   * 1. Use the Export API to export a page as an image (requires Premium capacity)
+   * 2. Embed the report and capture a screenshot programmatically
+   *
+   * Both approaches have significant complexity and requirements. For now,
+   * this function returns null and the UI shows placeholder icons instead.
+   * This is a deliberate design decision, not a bug.
+   */
   async getThumbnail(itemId: string, itemType: 'report' | 'dashboard', workspaceId: string): Promise<IPCResponse<string | null>> {
     try {
       ensureCacheDirectories();
@@ -52,15 +64,8 @@ export const cacheService = {
         }
       }
 
-      // Fetch new thumbnail from Power BI API
-      const tokenResult = await authService.getAccessToken();
-      if (!tokenResult.success || !tokenResult.data) {
-        return { success: true, data: null };
-      }
-
-      // Power BI doesn't have a direct thumbnail API for reports/dashboards
-      // We would need to use the Export API or embed and screenshot
-      // For now, return null to use placeholder icons
+      // Power BI REST API does not have a thumbnail endpoint.
+      // Returning null causes the UI to show placeholder icons.
       return { success: true, data: null };
     } catch (error) {
       console.error('[CacheService] getThumbnail error:', error);

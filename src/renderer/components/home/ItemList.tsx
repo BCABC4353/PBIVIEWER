@@ -18,8 +18,6 @@ import {
 import {
   DocumentRegular,
   BoardRegular,
-  StarRegular,
-  StarFilled,
   MoreHorizontalRegular,
   OpenRegular,
   FullScreenMaximizeRegular,
@@ -30,14 +28,12 @@ interface ItemListProps {
   items: ContentItem[];
   onOpen: (item: ContentItem) => void;
   onPresentationMode?: (item: ContentItem) => void;
-  onToggleFavorite?: (item: ContentItem) => void;
 }
 
 export const ItemList: React.FC<ItemListProps> = ({
   items,
   onOpen,
   onPresentationMode,
-  onToggleFavorite,
 }) => {
   if (items.length === 0) {
     return (
@@ -54,7 +50,7 @@ export const ItemList: React.FC<ItemListProps> = ({
           <TableHeaderCell>Name</TableHeaderCell>
           <TableHeaderCell>Type</TableHeaderCell>
           <TableHeaderCell>Workspace</TableHeaderCell>
-          <TableHeaderCell style={{ width: 100 }}>Actions</TableHeaderCell>
+          <TableHeaderCell style={{ width: 60 }}>Actions</TableHeaderCell>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -88,20 +84,7 @@ export const ItemList: React.FC<ItemListProps> = ({
             </TableCell>
             <TableCell>{item.workspaceName}</TableCell>
             <TableCell>
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  appearance="subtle"
-                  icon={
-                    item.isFavorite ? (
-                      <StarFilled className="text-brand-primary" />
-                    ) : (
-                      <StarRegular />
-                    )
-                  }
-                  size="small"
-                  onClick={() => onToggleFavorite?.(item)}
-                  title={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                />
+              <div onClick={(e) => e.stopPropagation()}>
                 <Menu>
                   <MenuTrigger disableButtonEnhancement>
                     <Button

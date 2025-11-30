@@ -26,14 +26,9 @@ const electronAPI = {
       ipcRenderer.invoke('content:get-app-dashboards', appId),
     getEmbedToken: (reportId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-embed-token', reportId, workspaceId),
+    getDatasetRefreshInfo: (datasetId: string) =>
+      ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId),
     getRecent: () => ipcRenderer.invoke('content:get-recent'),
-    getFavorites: () => ipcRenderer.invoke('content:get-favorites'),
-    addFavorite: (itemId: string, itemType: string) =>
-      ipcRenderer.invoke('content:add-favorite', itemId, itemType),
-    removeFavorite: (itemId: string) =>
-      ipcRenderer.invoke('content:remove-favorite', itemId),
-    isFavorite: (itemId: string) =>
-      ipcRenderer.invoke('content:is-favorite', itemId),
   },
 
   // Cache
@@ -78,6 +73,11 @@ const electronAPI = {
     getRecent: () => ipcRenderer.invoke('usage:get-recent'),
     getFrequent: () => ipcRenderer.invoke('usage:get-frequent'),
     clear: () => ipcRenderer.invoke('usage:clear'),
+  },
+
+  // App info
+  app: {
+    getPartitionName: () => ipcRenderer.invoke('app:get-partition-name'),
   },
 };
 

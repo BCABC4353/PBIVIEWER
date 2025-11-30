@@ -66,8 +66,6 @@ export const usageTrackingService = {
     // Keep only the most recent MAX_RECORDS
     const trimmedRecords = records.slice(0, MAX_RECORDS);
     store.set('usageRecords', trimmedRecords);
-
-    console.log('[UsageTracking] Recorded open:', item.name, 'Count:', records[0].openCount);
   },
 
   /**

@@ -19,6 +19,8 @@ const defaultSettings: AppSettings = {
   slideshowMode: 'pages',
   autoStartSlideshow: false,
   autoStartReportId: undefined,
+  autoRefreshEnabled: true,
+  autoRefreshInterval: 30,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

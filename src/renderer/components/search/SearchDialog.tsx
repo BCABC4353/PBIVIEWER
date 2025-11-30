@@ -87,10 +87,11 @@ export const SearchDialog: React.FC = () => {
         }
         break;
       case 'app':
-        navigate('/apps');
+        navigate(`/app/${result.id}`);
         break;
       case 'workspace':
-        navigate('/workspaces');
+        // Navigate to workspaces page with expand param to auto-open this workspace
+        navigate(`/workspaces?expand=${result.id}`);
         break;
     }
   }, [closeSearch, navigate, recordItemOpened]);

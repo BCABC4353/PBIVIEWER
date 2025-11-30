@@ -60,13 +60,19 @@ export interface ContentItem {
   workspaceName: string;
   thumbnailUrl?: string;
   lastAccessed?: string;
-  isFavorite: boolean;
+  lastOpened?: string; // ISO date string
+  openCount?: number;
 }
 
 export interface EmbedToken {
   token: string;
   tokenId: string;
   expiration: string;
+}
+
+export interface DatasetRefreshInfo {
+  lastRefreshTime?: string; // ISO date string
+  lastRefreshStatus?: 'Unknown' | 'Completed' | 'Failed' | 'Disabled';
 }
 
 // ============================================
@@ -116,4 +122,6 @@ export interface AppSettings {
   slideshowMode: 'pages' | 'bookmarks' | 'both';
   autoStartSlideshow: boolean;
   autoStartReportId?: string;
+  autoRefreshEnabled: boolean;
+  autoRefreshInterval: number; // in minutes (1-60)
 }

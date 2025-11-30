@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spinner, Text, Button, Card, Badge } from '@fluentui/react-components';
 import {
   FolderRegular,
@@ -20,14 +20,12 @@ interface WorkspaceWithContent extends Workspace {
 
 export const WorkspacesPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { recordItemOpened } = useContentStore();
   const [workspaces, setWorkspaces] = useState<WorkspaceWithContent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadWorkspaces();
-  }, []);
+  const [lastExpandedId, setLastExpandedId] = useState<string | null>(null);
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -56,32 +54,39 @@ export const WorkspacesPage: React.FC = () => {
     }
   };
 
-  const toggleWorkspace = async (workspaceId: string) => {
-    const workspace = workspaces.find((ws) => ws.id === workspaceId);
-    if (!workspace) return;
+  const toggleWorkspace = useCallback(async (workspaceId: string) => {
+    setWorkspaces((prevWorkspaces) => {
+      const workspace = prevWorkspaces.find((ws) => ws.id === workspaceId);
+      if (!workspace) return prevWorkspaces;
 
-    if (workspace.isExpanded) {
-      // Collapse
-      setWorkspaces((prev) =>
-        prev.map((ws) =>
+      if (workspace.isExpanded) {
+        // Collapse
+        return prevWorkspaces.map((ws) =>
           ws.id === workspaceId ? { ...ws, isExpanded: false } : ws
-        )
-      );
-    } else {
-      // Expand and load content if not already loaded
-      if (workspace.reports.length === 0 && workspace.dashboards.length === 0) {
-        setWorkspaces((prev) =>
-          prev.map((ws) =>
-            ws.id === workspaceId ? { ...ws, isLoading: true, isExpanded: true } : ws
-          )
         );
+      } else {
+        // Expand - if content not loaded, mark as loading
+        if (workspace.reports.length === 0 && workspace.dashboards.length === 0) {
+          return prevWorkspaces.map((ws) =>
+            ws.id === workspaceId ? { ...ws, isLoading: true, isExpanded: true } : ws
+          );
+        } else {
+          return prevWorkspaces.map((ws) =>
+            ws.id === workspaceId ? { ...ws, isExpanded: true } : ws
+          );
+        }
+      }
+    });
 
-        try {
-          const [reportsRes, dashboardsRes] = await Promise.all([
-            window.electronAPI.content.getReports(workspaceId) as Promise<IPCResponse<Report[]>>,
-            window.electronAPI.content.getDashboards(workspaceId) as Promise<IPCResponse<Dashboard[]>>,
-          ]);
-
+    // Load content if needed (check current state)
+    setWorkspaces((prevWorkspaces) => {
+      const workspace = prevWorkspaces.find((ws) => ws.id === workspaceId);
+      if (workspace && workspace.isLoading) {
+        // Trigger content loading asynchronously
+        Promise.all([
+          window.electronAPI.content.getReports(workspaceId) as Promise<IPCResponse<Report[]>>,
+          window.electronAPI.content.getDashboards(workspaceId) as Promise<IPCResponse<Dashboard[]>>,
+        ]).then(([reportsRes, dashboardsRes]) => {
           setWorkspaces((prev) =>
             prev.map((ws) =>
               ws.id === workspaceId
@@ -94,22 +99,34 @@ export const WorkspacesPage: React.FC = () => {
                 : ws
             )
           );
-        } catch (err) {
+        }).catch(() => {
           setWorkspaces((prev) =>
             prev.map((ws) =>
               ws.id === workspaceId ? { ...ws, isLoading: false } : ws
             )
           );
-        }
-      } else {
-        setWorkspaces((prev) =>
-          prev.map((ws) =>
-            ws.id === workspaceId ? { ...ws, isExpanded: true } : ws
-          )
-        );
+        });
       }
+      return prevWorkspaces;
+    });
+  }, []);
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
+
+  // Handle expand query param from search navigation
+  useEffect(() => {
+    const expandId = searchParams.get('expand');
+    // Only expand if we have a new expandId that differs from the last one we handled
+    if (expandId && workspaces.length > 0 && expandId !== lastExpandedId) {
+      const workspace = workspaces.find((ws) => ws.id === expandId);
+      if (workspace && !workspace.isExpanded) {
+        toggleWorkspace(expandId);
+      }
+      setLastExpandedId(expandId);
     }
-  };
+  }, [workspaces, searchParams, lastExpandedId, toggleWorkspace]);
 
   const openReport = async (workspace: WorkspaceWithContent, report: Report) => {
     // Record usage before navigating

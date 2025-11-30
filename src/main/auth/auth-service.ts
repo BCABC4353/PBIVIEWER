@@ -13,10 +13,20 @@ class AuthService {
   private pca: PublicClientApplication;
   private account: AccountInfo | null = null;
   private cryptoProvider: CryptoProvider;
+  private pendingAuthState: string | null = null; // For CSRF validation
 
   constructor() {
     this.pca = new PublicClientApplication(msalConfig);
     this.cryptoProvider = new CryptoProvider();
+  }
+
+  /**
+   * Generate a cryptographically random state value for CSRF protection
+   */
+  private generateState(): string {
+    const array = new Uint8Array(32);
+    require('crypto').randomFillSync(array);
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
   async initialize(): Promise<void> {
@@ -100,25 +110,43 @@ class AuthService {
       // Generate PKCE codes
       const { verifier, challenge } = await this.cryptoProvider.generatePkceCodes();
 
-      // Get authorization URL
+      // Generate state for CSRF protection
+      const state = this.generateState();
+      this.pendingAuthState = state;
+
+      // Get authorization URL with state parameter
       const authCodeUrlParams = {
         scopes: loginRequest.scopes,
         redirectUri: 'http://localhost',
         codeChallenge: challenge,
         codeChallengeMethod: 'S256',
+        state: state,
       };
 
       const authCodeUrl = await this.pca.getAuthCodeUrl(authCodeUrlParams);
 
       // Open interactive login window
-      const authCode = await this.openAuthWindow(authCodeUrl);
+      const authResult = await this.openAuthWindow(authCodeUrl, state);
 
-      if (!authCode) {
+      if (!authResult) {
+        this.pendingAuthState = null;
         return {
           success: false,
           error: { code: 'LOGIN_CANCELLED', message: 'Login was cancelled by user' },
         };
       }
+
+      // Validate state to prevent CSRF
+      if (authResult.state !== this.pendingAuthState) {
+        this.pendingAuthState = null;
+        return {
+          success: false,
+          error: { code: 'CSRF_VALIDATION_FAILED', message: 'State mismatch - possible CSRF attack' },
+        };
+      }
+
+      this.pendingAuthState = null;
+      const authCode = authResult.code;
 
       // Exchange auth code for tokens
       const tokenResponse = await this.pca.acquireTokenByCode({
@@ -165,7 +193,7 @@ class AuthService {
     }
   }
 
-  private async openAuthWindow(authUrl: string): Promise<string | null> {
+  private async openAuthWindow(authUrl: string, expectedState: string): Promise<{ code: string; state: string } | null> {
     return new Promise((resolve) => {
       const authWindow = new BrowserWindow({
         width: 500,
@@ -177,22 +205,26 @@ class AuthService {
         },
       });
 
-      authWindow.webContents.on('will-redirect', (event, url) => {
+      const handleRedirect = (url: string) => {
         const urlObj = new URL(url);
         if (urlObj.hostname === 'localhost') {
           const code = urlObj.searchParams.get('code');
+          const state = urlObj.searchParams.get('state');
           authWindow.close();
-          resolve(code);
+          if (code && state) {
+            resolve({ code, state });
+          } else {
+            resolve(null);
+          }
         }
+      };
+
+      authWindow.webContents.on('will-redirect', (event, url) => {
+        handleRedirect(url);
       });
 
       authWindow.webContents.on('will-navigate', (event, url) => {
-        const urlObj = new URL(url);
-        if (urlObj.hostname === 'localhost') {
-          const code = urlObj.searchParams.get('code');
-          authWindow.close();
-          resolve(code);
-        }
+        handleRedirect(url);
       });
 
       authWindow.on('closed', () => {

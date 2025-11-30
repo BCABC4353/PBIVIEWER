@@ -8,7 +8,6 @@ interface FrequentStripProps {
   isLoading?: boolean;
   onOpen: (item: ContentItem) => void;
   onPresentationMode?: (item: ContentItem) => void;
-  onToggleFavorite?: (item: ContentItem) => void;
 }
 
 export const FrequentStrip: React.FC<FrequentStripProps> = ({
@@ -16,7 +15,6 @@ export const FrequentStrip: React.FC<FrequentStripProps> = ({
   isLoading = false,
   onOpen,
   onPresentationMode,
-  onToggleFavorite,
 }) => {
   if (isLoading) {
     return (
@@ -50,7 +48,6 @@ export const FrequentStrip: React.FC<FrequentStripProps> = ({
             item={item}
             onOpen={onOpen}
             onPresentationMode={onPresentationMode}
-            onToggleFavorite={onToggleFavorite}
           />
         ))}
       </div>

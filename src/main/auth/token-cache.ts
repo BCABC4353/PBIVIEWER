@@ -6,9 +6,11 @@ interface TokenCacheSchema {
   userInfo: string;
 }
 
+// Note: We don't use electron-store's encryptionKey because the actual sensitive
+// data (tokens, user info) is encrypted via Electron's safeStorage API before
+// being stored. This provides OS-level encryption that's unique per machine.
 const store = new Store<TokenCacheSchema>({
   name: 'powerbi-viewer-auth',
-  encryptionKey: 'powerbi-viewer-secure-key',
 });
 
 export interface CachedUserInfo {

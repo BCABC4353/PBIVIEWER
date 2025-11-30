@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
-import { ArrowSyncRegular } from '@fluentui/react-icons';
+import { ArrowSyncRegular, FolderRegular } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useContentStore } from '../../stores/content-store';
 import { FrequentStrip } from './FrequentStrip';
@@ -11,26 +11,24 @@ import type { ContentItem } from '../../../shared/types';
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(true);
   const {
     recentItems,
     frequentItems,
-    allItems,
-    isLoading,
-    error,
-    loadAllItems,
     loadRecentItems,
     loadFrequentItems,
     recordItemOpened,
-    toggleFavorite,
-    refreshAll,
     clearError,
   } = useContentStore();
 
   useEffect(() => {
-    loadAllItems();
-    loadRecentItems();
-    loadFrequentItems();
-  }, [loadAllItems, loadRecentItems, loadFrequentItems]);
+    const loadData = async () => {
+      setIsLoading(true);
+      await Promise.all([loadRecentItems(), loadFrequentItems()]);
+      setIsLoading(false);
+    };
+    loadData();
+  }, [loadRecentItems, loadFrequentItems]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -42,7 +40,12 @@ export const HomePage: React.FC = () => {
   const handleOpenItem = async (item: ContentItem) => {
     // Record that this item was opened
     await recordItemOpened(item);
-    navigate(`/report/${item.workspaceId}/${item.id}`);
+    // Route based on item type
+    if (item.type === 'dashboard') {
+      navigate(`/dashboard/${item.workspaceId}/${item.id}`);
+    } else {
+      navigate(`/report/${item.workspaceId}/${item.id}`);
+    }
   };
 
   const handlePresentationMode = async (item: ContentItem) => {
@@ -51,17 +54,14 @@ export const HomePage: React.FC = () => {
     navigate(`/presentation/${item.workspaceId}/${item.id}`);
   };
 
-  const handleToggleFavorite = async (item: ContentItem) => {
-    await toggleFavorite(item.id, item.type);
-  };
-
   const handleRefresh = async () => {
     clearError();
-    await refreshAll();
+    setIsLoading(true);
+    await Promise.all([loadRecentItems(), loadFrequentItems()]);
+    setIsLoading(false);
   };
 
-  const recentContent: ContentItem[] =
-    recentItems.length > 0 ? recentItems : allItems;
+  const hasUsageData = recentItems.length > 0 || frequentItems.length > 0;
 
   return (
     <div className="h-full overflow-auto">
@@ -86,66 +86,70 @@ export const HomePage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Error state */}
-        {error && (
-          <div className="bg-status-error/10 border border-status-error rounded-lg p-4 mb-6">
-            <Text className="text-status-error">{error}</Text>
-            <Button
-              appearance="subtle"
-              size="small"
-              onClick={handleRefresh}
-              className="mt-2"
-            >
-              Try again
-            </Button>
-          </div>
-        )}
-
         {/* Loading state */}
-        {isLoading && allItems.length === 0 && (
+        {isLoading && !hasUsageData && (
           <div className="flex items-center justify-center py-16">
             <Spinner size="large" label="Loading content..." />
           </div>
         )}
 
-        {/* Content */}
-        {!isLoading && allItems.length === 0 && !error && (
+        {/* Get started state - no usage history yet */}
+        {!isLoading && !hasUsageData && (
           <div className="bg-neutral-background-2 rounded-lg p-8 text-center">
-            <Text className="text-neutral-foreground-3">
-              No reports or dashboards found. Make sure you have access to Power BI content.
+            <FolderRegular className="text-4xl text-brand-primary mx-auto mb-4" />
+            <Text weight="semibold" size={400} className="text-neutral-foreground-1 block mb-2">
+              Welcome to Power BI Viewer
             </Text>
+            <Text className="text-neutral-foreground-3 block mb-4">
+              Browse your workspaces to start viewing reports and dashboards.
+              Items you open will appear here for quick access.
+            </Text>
+            <Button
+              appearance="primary"
+              icon={<FolderRegular />}
+              onClick={() => navigate('/workspaces')}
+            >
+              Browse Workspaces
+            </Button>
           </div>
         )}
 
-        {allItems.length > 0 && (
+        {/* Content - show when user has usage history */}
+        {hasUsageData && (
           <>
-            {/* Frequent strip - shows most opened items, or all items if no usage yet */}
-            <FrequentStrip
-              items={frequentItems.length > 0 ? frequentItems : allItems}
-              isLoading={isLoading}
-              onOpen={handleOpenItem}
-              onPresentationMode={handlePresentationMode}
-              onToggleFavorite={handleToggleFavorite}
-            />
+            {/* Frequent strip - shows most opened items */}
+            {frequentItems.length > 0 && (
+              <FrequentStrip
+                items={frequentItems}
+                isLoading={isLoading}
+                onOpen={handleOpenItem}
+                onPresentationMode={handlePresentationMode}
+              />
+            )}
 
             {/* Divider */}
-            <div className="border-t border-neutral-stroke-2 my-6" />
+            {frequentItems.length > 0 && recentItems.length > 0 && (
+              <div className="border-t border-neutral-stroke-2 my-6" />
+            )}
 
             {/* Recent content */}
-            <div className="flex items-center justify-between mb-4">
-              <Text weight="semibold" size={400} className="text-neutral-foreground-1">
-                Recent
-              </Text>
-              <Text size={200} className="text-neutral-foreground-3">
-                {recentContent.length} item{recentContent.length === 1 ? '' : 's'}
-              </Text>
-            </div>
-            <ItemList
-              items={recentContent}
-              onOpen={handleOpenItem}
-              onPresentationMode={handlePresentationMode}
-              onToggleFavorite={handleToggleFavorite}
-            />
+            {recentItems.length > 0 && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <Text weight="semibold" size={400} className="text-neutral-foreground-1">
+                    Recent
+                  </Text>
+                  <Text size={200} className="text-neutral-foreground-3">
+                    {recentItems.length} item{recentItems.length === 1 ? '' : 's'}
+                  </Text>
+                </div>
+                <ItemList
+                  items={recentItems}
+                  onOpen={handleOpenItem}
+                  onPresentationMode={handlePresentationMode}
+                />
+              </>
+            )}
           </>
         )}
       </div>

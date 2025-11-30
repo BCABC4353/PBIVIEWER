@@ -8,7 +8,7 @@ import {
   PlayRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { IPCResponse, EmbedToken } from '../../../shared/types';
+import type { IPCResponse, EmbedToken, AppSettings, Report, DatasetRefreshInfo } from '../../../shared/types';
 
 // Create a single instance of the Power BI service
 const powerbiService = new pbi.service.Service(
@@ -27,6 +27,26 @@ export const ReportViewer: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
+  const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
+  const datasetIdRef = useRef<string | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await window.electronAPI.settings.get() as IPCResponse<AppSettings>;
+        if (response.success && response.data) {
+          setAutoRefreshEnabled(response.data.autoRefreshEnabled);
+          setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   useEffect(() => {
     if (!workspaceId || !reportId) {
@@ -52,22 +72,25 @@ export const ReportViewer: React.FC = () => {
     };
   }, [workspaceId, reportId]);
 
-  // Auto-refresh every 30 seconds to pick up dataset changes
+  // Auto-refresh based on settings - only when visible
   useEffect(() => {
-    const autoRefreshInterval = setInterval(() => {
-      if (reportRef.current && !isLoading && !error) {
+    if (!autoRefreshEnabled) return;
+
+    const refreshIntervalId = setInterval(() => {
+      // Only refresh if document is visible (not in background tab)
+      if (reportRef.current && !isLoading && !error && document.visibilityState === 'visible') {
         reportRef.current.refresh().catch((err) => {
           // Some visuals (like FlowVisual) may throw authorization errors
           // during refresh - these are non-fatal and the report still works
           console.warn('[ReportViewer] Auto-refresh warning (non-fatal):', err?.message || err);
         });
       }
-    }, 30000); // 30 seconds
+    }, autoRefreshIntervalMinutes * 60 * 1000); // Convert minutes to milliseconds
 
     return () => {
-      clearInterval(autoRefreshInterval);
+      clearInterval(refreshIntervalId);
     };
-  }, [isLoading, error]);
+  }, [isLoading, error, autoRefreshEnabled, autoRefreshIntervalMinutes]);
 
   const loadReport = async () => {
     if (!embedContainerRef.current || !workspaceId || !reportId) return;
@@ -84,6 +107,15 @@ export const ReportViewer: React.FC = () => {
     try {
       // Reset any existing embed first
       powerbiService.reset(embedContainerRef.current);
+
+      // Fetch report details to get datasetId
+      const reportsResponse = await window.electronAPI.content.getReports(workspaceId) as IPCResponse<Report[]>;
+      if (reportsResponse.success && reportsResponse.data) {
+        const reportData = reportsResponse.data.find(r => r.id === reportId);
+        if (reportData?.datasetId) {
+          datasetIdRef.current = reportData.datasetId;
+        }
+      }
 
       // Get embed token
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
@@ -128,8 +160,21 @@ export const ReportViewer: React.FC = () => {
       reportRef.current = report;
 
       // Handle loaded event
-      report.on('loaded', () => {
+      report.on('loaded', async () => {
         setIsLoading(false);
+        // Fetch dataset refresh info after report loads
+        if (datasetIdRef.current) {
+          try {
+            const refreshResponse = await window.electronAPI.content.getDatasetRefreshInfo(
+              datasetIdRef.current
+            ) as IPCResponse<DatasetRefreshInfo>;
+            if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
+              setLastDataRefresh(refreshResponse.data.lastRefreshTime);
+            }
+          } catch {
+            // Silently ignore - some datasets may not have refresh info
+          }
+        }
       });
 
       // Handle error event
@@ -176,6 +221,22 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
+  // Format last refresh time as relative time
+  const formatRelativeTime = (isoString: string): string => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
@@ -189,6 +250,12 @@ export const ReportViewer: React.FC = () => {
         </Button>
 
         <div className="flex-1" />
+
+        {lastDataRefresh && (
+          <Text className="text-neutral-foreground-3 text-sm">
+            Data refreshed: {formatRelativeTime(lastDataRefresh)}
+          </Text>
+        )}
 
         <div className="flex items-center gap-2">
           <Button

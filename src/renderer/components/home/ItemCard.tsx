@@ -13,8 +13,6 @@ import {
 import {
   DocumentRegular,
   BoardRegular,
-  StarRegular,
-  StarFilled,
   MoreHorizontalRegular,
   OpenRegular,
   FullScreenMaximizeRegular,
@@ -25,22 +23,15 @@ interface ItemCardProps {
   item: ContentItem;
   onOpen: (item: ContentItem) => void;
   onPresentationMode?: (item: ContentItem) => void;
-  onToggleFavorite?: (item: ContentItem) => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({
   item,
   onOpen,
   onPresentationMode,
-  onToggleFavorite,
 }) => {
   const handleClick = () => {
     onOpen(item);
-  };
-
-  const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleFavorite?.(item);
   };
 
   return (
@@ -69,40 +60,31 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 {item.name}
               </Text>
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                appearance="subtle"
-                icon={item.isFavorite ? <StarFilled className="text-brand-primary" /> : <StarRegular />}
-                onClick={handleFavoriteClick}
-                size="small"
-                title={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              />
-              <Menu>
-                <MenuTrigger disableButtonEnhancement>
-                  <Button
-                    appearance="subtle"
-                    icon={<MoreHorizontalRegular />}
-                    size="small"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </MenuTrigger>
-                <MenuPopover>
-                  <MenuList>
-                    <MenuItem icon={<OpenRegular />} onClick={() => onOpen(item)}>
-                      Open
+            <Menu>
+              <MenuTrigger disableButtonEnhancement>
+                <Button
+                  appearance="subtle"
+                  icon={<MoreHorizontalRegular />}
+                  size="small"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  <MenuItem icon={<OpenRegular />} onClick={() => onOpen(item)}>
+                    Open
+                  </MenuItem>
+                  {item.type === 'report' && onPresentationMode && (
+                    <MenuItem
+                      icon={<FullScreenMaximizeRegular />}
+                      onClick={() => onPresentationMode(item)}
+                    >
+                      Presentation mode
                     </MenuItem>
-                    {item.type === 'report' && onPresentationMode && (
-                      <MenuItem
-                        icon={<FullScreenMaximizeRegular />}
-                        onClick={() => onPresentationMode(item)}
-                      >
-                        Presentation mode
-                      </MenuItem>
-                    )}
-                  </MenuList>
-                </MenuPopover>
-              </Menu>
-            </div>
+                  )}
+                </MenuList>
+              </MenuPopover>
+            </Menu>
           </div>
         }
       />

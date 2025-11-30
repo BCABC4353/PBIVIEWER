@@ -6,6 +6,7 @@ import type {
   Dashboard,
   App,
   EmbedToken,
+  DatasetRefreshInfo,
   IPCResponse,
 } from '../../shared/types';
 
@@ -181,6 +182,24 @@ class PowerBIApiService {
 
   async getAppReports(appId: string): Promise<IPCResponse<Report[]>> {
     try {
+      // First, get the app to retrieve its actual workspaceId
+      // Power BI embedding requires the real workspace GUID, not the app ID
+      const appResponse = await this.getApp(appId);
+      if (!appResponse.success || !appResponse.data) {
+        return {
+          success: false,
+          error: appResponse.error || { code: 'APP_FETCH_FAILED', message: 'Failed to fetch app details' },
+        };
+      }
+
+      const actualWorkspaceId = appResponse.data.workspaceId;
+      if (!actualWorkspaceId) {
+        return {
+          success: false,
+          error: { code: 'NO_WORKSPACE_ID', message: 'App does not have a workspaceId - cannot embed reports' },
+        };
+      }
+
       const response = await this.makeRequest<PowerBIApiResponse<{
         id: string;
         name: string;
@@ -193,7 +212,7 @@ class PowerBIApiService {
       const reports: Report[] = response.value.map((report) => ({
         id: report.id,
         name: report.name,
-        workspaceId: appId, // Use appId as the workspace identifier for app reports
+        workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
         embedUrl: report.embedUrl,
         datasetId: report.datasetId,
         reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
@@ -211,6 +230,24 @@ class PowerBIApiService {
 
   async getAppDashboards(appId: string): Promise<IPCResponse<Dashboard[]>> {
     try {
+      // First, get the app to retrieve its actual workspaceId
+      // Power BI embedding requires the real workspace GUID, not the app ID
+      const appResponse = await this.getApp(appId);
+      if (!appResponse.success || !appResponse.data) {
+        return {
+          success: false,
+          error: appResponse.error || { code: 'APP_FETCH_FAILED', message: 'Failed to fetch app details' },
+        };
+      }
+
+      const actualWorkspaceId = appResponse.data.workspaceId;
+      if (!actualWorkspaceId) {
+        return {
+          success: false,
+          error: { code: 'NO_WORKSPACE_ID', message: 'App does not have a workspaceId - cannot embed dashboards' },
+        };
+      }
+
       const response = await this.makeRequest<PowerBIApiResponse<{
         id: string;
         displayName: string;
@@ -222,7 +259,7 @@ class PowerBIApiService {
       const dashboards: Dashboard[] = response.value.map((dashboard) => ({
         id: dashboard.id,
         name: dashboard.displayName,
-        workspaceId: appId, // Use appId as the workspace identifier for app dashboards
+        workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
         embedUrl: dashboard.embedUrl,
         isReadOnly: dashboard.isReadOnly,
       }));
@@ -268,7 +305,11 @@ class PowerBIApiService {
     }
   }
 
-  async getRecentItems(): Promise<IPCResponse<{
+  /**
+   * Fetches all available reports and dashboards from all workspaces.
+   * For actual "recent" items based on user activity, use usage-tracking-service.
+   */
+  async getAllItems(): Promise<IPCResponse<{
     reports: Report[];
     dashboards: Dashboard[];
   }>> {
@@ -285,20 +326,29 @@ class PowerBIApiService {
       const allReports: Report[] = [];
       const allDashboards: Dashboard[] = [];
 
-      // Fetch reports and dashboards from each workspace (limit to first 5 for performance)
-      const workspacesToFetch = workspacesResponse.data.slice(0, 5);
+      // Fetch reports and dashboards from all workspaces in parallel batches
+      const workspaces = workspacesResponse.data;
+      const BATCH_SIZE = 5; // Process 5 workspaces at a time to avoid rate limits
 
-      for (const workspace of workspacesToFetch) {
-        const [reportsResponse, dashboardsResponse] = await Promise.all([
-          this.getReports(workspace.id),
-          this.getDashboards(workspace.id),
-        ]);
+      for (let i = 0; i < workspaces.length; i += BATCH_SIZE) {
+        const batch = workspaces.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (workspace) => {
+            const [reportsResponse, dashboardsResponse] = await Promise.all([
+              this.getReports(workspace.id),
+              this.getDashboards(workspace.id),
+            ]);
+            return { reportsResponse, dashboardsResponse };
+          })
+        );
 
-        if (reportsResponse.success && reportsResponse.data) {
-          allReports.push(...reportsResponse.data);
-        }
-        if (dashboardsResponse.success && dashboardsResponse.data) {
-          allDashboards.push(...dashboardsResponse.data);
+        for (const { reportsResponse, dashboardsResponse } of batchResults) {
+          if (reportsResponse.success && reportsResponse.data) {
+            allReports.push(...reportsResponse.data);
+          }
+          if (dashboardsResponse.success && dashboardsResponse.data) {
+            allDashboards.push(...dashboardsResponse.data);
+          }
         }
       }
 
@@ -310,10 +360,46 @@ class PowerBIApiService {
         },
       };
     } catch (error) {
-      console.error('[PowerBIAPI] getRecentItems error:', error);
+      console.error('[PowerBIAPI] getAllItems error:', error);
       return {
         success: false,
-        error: { code: 'RECENT_ITEMS_FETCH_FAILED', message: String(error) },
+        error: { code: 'ALL_ITEMS_FETCH_FAILED', message: String(error) },
+      };
+    }
+  }
+
+  async getDatasetRefreshInfo(datasetId: string): Promise<IPCResponse<DatasetRefreshInfo>> {
+    try {
+      // Get the most recent refresh history (top 1)
+      const response = await this.makeRequest<PowerBIApiResponse<{
+        requestId: string;
+        id: string;
+        refreshType: string;
+        startTime: string;
+        endTime: string;
+        status: string;
+      }>>(`/datasets/${datasetId}/refreshes?$top=1`);
+
+      if (response.value && response.value.length > 0) {
+        const lastRefresh = response.value[0];
+        return {
+          success: true,
+          data: {
+            lastRefreshTime: lastRefresh.endTime || lastRefresh.startTime,
+            lastRefreshStatus: lastRefresh.status as DatasetRefreshInfo['lastRefreshStatus'],
+          },
+        };
+      }
+
+      return {
+        success: true,
+        data: {},
+      };
+    } catch (error) {
+      // Don't log as error - some datasets may not have refresh history
+      return {
+        success: true,
+        data: {},
       };
     }
   }

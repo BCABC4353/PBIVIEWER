@@ -17,6 +17,18 @@ export const AppViewer: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [appName, setAppName] = useState<string>('App');
+  const [partitionName, setPartitionName] = useState<string | null>(null);
+  const [partitionLoaded, setPartitionLoaded] = useState(false);
+
+  // Load the partition name from main process
+  useEffect(() => {
+    const loadPartition = async () => {
+      const partition = await window.electronAPI.app.getPartitionName();
+      setPartitionName(partition);
+      setPartitionLoaded(true);
+    };
+    loadPartition();
+  }, []);
 
   useEffect(() => {
     if (!appId) {
@@ -59,7 +71,7 @@ export const AppViewer: React.FC = () => {
       webview.removeEventListener('did-stop-loading', handleDidStopLoading);
       webview.removeEventListener('did-fail-load', handleDidFailLoad);
     };
-  }, []);
+  }, [partitionLoaded]);
 
   const loadAppDetails = async () => {
     if (!appId) return;
@@ -151,7 +163,8 @@ export const AppViewer: React.FC = () => {
         )}
 
         {/* Webview to load full Power BI App experience */}
-        {appUrl && (
+        {/* Only render webview after partition name is loaded to ensure correct session */}
+        {appUrl && partitionLoaded && (
           <webview
             ref={webviewRef}
             src={appUrl}
@@ -161,7 +174,7 @@ export const AppViewer: React.FC = () => {
               border: 'none',
             }}
             // @ts-ignore - webview attributes
-            partition="persist:powerbi-viewer"
+            partition={partitionName || undefined}
             allowpopups="true"
           />
         )}

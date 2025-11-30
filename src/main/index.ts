@@ -4,11 +4,10 @@ import * as path from 'path';
 import { PARTITION_NAME, APP_NAME } from '../shared/constants';
 import { authService } from './auth/auth-service';
 import { powerbiApiService } from './services/powerbi-api';
-import { favoritesService } from './services/favorites-service';
 import { settingsService } from './services/settings-service';
 import { cacheService } from './services/cache-service';
 import { usageTrackingService } from './services/usage-tracking-service';
-import type { ContentItem, AppSettings } from '../shared/types';
+import type { ContentItem, AppSettings, DatasetRefreshInfo } from '../shared/types';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 try {
@@ -27,7 +26,9 @@ function createWindow(): void {
   // Get initial theme setting to set correct colors
   const settingsResult = settingsService.getSettings();
   const initialTheme = settingsResult.success && settingsResult.data ? settingsResult.data.theme : 'light';
-  const isDarkTheme = initialTheme === 'dark';
+  // Check if dark theme: either explicit 'dark' or 'system' with native dark mode
+  const nativeTheme = require('electron').nativeTheme;
+  const isDarkTheme = initialTheme === 'dark' || (initialTheme === 'system' && nativeTheme.shouldUseDarkColors);
 
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -187,9 +188,13 @@ ipcMain.handle('content:get-embed-token', async (_event, reportId: string, works
   return await powerbiApiService.getEmbedToken(reportId, workspaceId);
 });
 
+ipcMain.handle('content:get-dataset-refresh-info', async (_event, datasetId: string) => {
+  return await powerbiApiService.getDatasetRefreshInfo(datasetId);
+});
+
 ipcMain.handle('content:get-recent', async () => {
   try {
-    const result = await powerbiApiService.getRecentItems();
+    const result = await powerbiApiService.getAllItems();
 
     if (!result.success || !result.data) {
       return result;
@@ -201,14 +206,6 @@ ipcMain.handle('content:get-recent', async () => {
       (workspacesResult.data || []).map((ws) => [ws.id, ws.name])
     );
 
-    // Get favorites for isFavorite status
-    const favoritesResult = favoritesService.getFavorites();
-    const favoriteIds = new Set(
-      (favoritesResult.success && favoritesResult.data)
-        ? favoritesResult.data.map(f => f.id)
-        : []
-    );
-
     // Convert to ContentItem format
     const recentItems: ContentItem[] = [
       ...result.data.reports.map((report) => ({
@@ -217,7 +214,6 @@ ipcMain.handle('content:get-recent', async () => {
         type: 'report' as const,
         workspaceId: report.workspaceId,
         workspaceName: workspaceMap.get(report.workspaceId) || 'Unknown',
-        isFavorite: favoriteIds.has(report.id),
       })),
       ...result.data.dashboards.map((dashboard) => ({
         id: dashboard.id,
@@ -225,7 +221,6 @@ ipcMain.handle('content:get-recent', async () => {
         type: 'dashboard' as const,
         workspaceId: dashboard.workspaceId,
         workspaceName: workspaceMap.get(dashboard.workspaceId) || 'Unknown',
-        isFavorite: favoriteIds.has(dashboard.id),
       })),
     ];
 
@@ -236,22 +231,6 @@ ipcMain.handle('content:get-recent', async () => {
       error: { code: 'RECENT_FETCH_FAILED', message: String(error) },
     };
   }
-});
-
-ipcMain.handle('content:get-favorites', async () => {
-  return favoritesService.getFavorites();
-});
-
-ipcMain.handle('content:add-favorite', async (_event, itemId: string, itemType: string) => {
-  return favoritesService.addFavorite(itemId, itemType as 'report' | 'dashboard');
-});
-
-ipcMain.handle('content:remove-favorite', async (_event, itemId: string) => {
-  return favoritesService.removeFavorite(itemId);
-});
-
-ipcMain.handle('content:is-favorite', async (_event, itemId: string) => {
-  return favoritesService.isFavorite(itemId);
 });
 
 // ============================================
@@ -320,14 +299,6 @@ ipcMain.handle('usage:record-open', async (_event, item: {
 ipcMain.handle('usage:get-recent', async () => {
   try {
     const items = usageTrackingService.getRecentItems();
-    console.log('[IPC] usage:get-recent - items count:', items.length, items.map(i => ({ name: i.name, count: i.openCount })));
-    // Get favorites for isFavorite status
-    const favoritesResult = favoritesService.getFavorites();
-    const favoriteIds = new Set(
-      (favoritesResult.success && favoritesResult.data)
-        ? favoritesResult.data.map(f => f.id)
-        : []
-    );
 
     const contentItems: ContentItem[] = items.map((item) => ({
       id: item.id,
@@ -335,7 +306,6 @@ ipcMain.handle('usage:get-recent', async () => {
       type: item.type,
       workspaceId: item.workspaceId,
       workspaceName: item.workspaceName,
-      isFavorite: favoriteIds.has(item.id),
       lastOpened: item.lastOpened,
       openCount: item.openCount,
     }));
@@ -349,14 +319,6 @@ ipcMain.handle('usage:get-recent', async () => {
 ipcMain.handle('usage:get-frequent', async () => {
   try {
     const items = usageTrackingService.getFrequentItems();
-    console.log('[IPC] usage:get-frequent - items count:', items.length, items.map(i => ({ name: i.name, count: i.openCount })));
-    // Get favorites for isFavorite status
-    const favoritesResult = favoritesService.getFavorites();
-    const favoriteIds = new Set(
-      (favoritesResult.success && favoritesResult.data)
-        ? favoritesResult.data.map(f => f.id)
-        : []
-    );
 
     const contentItems: ContentItem[] = items.map((item) => ({
       id: item.id,
@@ -364,7 +326,6 @@ ipcMain.handle('usage:get-frequent', async () => {
       type: item.type,
       workspaceId: item.workspaceId,
       workspaceName: item.workspaceName,
-      isFavorite: favoriteIds.has(item.id),
       lastOpened: item.lastOpened,
       openCount: item.openCount,
     }));
@@ -382,4 +343,14 @@ ipcMain.handle('usage:clear', async () => {
   } catch (error) {
     return { success: false, error: { code: 'USAGE_CLEAR_FAILED', message: String(error) } };
   }
+});
+
+// ============================================
+// IPC HANDLERS - App Info
+// ============================================
+
+ipcMain.handle('app:get-partition-name', () => {
+  // Return the partition name used by the main window
+  // In dev mode, we use no partition (undefined/null), in production we use PARTITION_NAME
+  return isDev ? null : PARTITION_NAME;
 });

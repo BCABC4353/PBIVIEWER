@@ -25,10 +25,8 @@ declare global {
         getAppReports: (appId: string) => Promise<unknown>;
         getAppDashboards: (appId: string) => Promise<unknown>;
         getEmbedToken: (reportId: string, workspaceId: string) => Promise<unknown>;
+        getDatasetRefreshInfo: (datasetId: string) => Promise<unknown>;
         getRecent: () => Promise<unknown>;
-        getFavorites: () => Promise<unknown>;
-        addFavorite: (itemId: string, itemType: string) => Promise<unknown>;
-        removeFavorite: (itemId: string) => Promise<unknown>;
       };
       cache: {
         getThumbnail: (itemId: string) => Promise<unknown>;
@@ -59,6 +57,9 @@ declare global {
         getRecent: () => Promise<unknown>;
         getFrequent: () => Promise<unknown>;
         clear: () => Promise<unknown>;
+      };
+      app: {
+        getPartitionName: () => Promise<string | null>;
       };
     };
   }
@@ -92,21 +93,24 @@ const ThemedApp: React.FC = () => {
     };
     mediaQuery.addEventListener('change', handleChange);
 
-    // Poll for settings changes (simple approach for theme updates)
-    const interval = setInterval(async () => {
-      try {
-        const response = await window.electronAPI.settings.get();
-        if (response.success && response.data) {
-          setTheme(response.data.theme);
+    // Refresh settings when window becomes visible (instead of constant polling)
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const response = await window.electronAPI.settings.get();
+          if (response.success && response.data) {
+            setTheme(response.data.theme);
+          }
+        } catch {
+          // Ignore errors
         }
-      } catch {
-        // Ignore errors during polling
       }
-    }, 1000);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
-      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

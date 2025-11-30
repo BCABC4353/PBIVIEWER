@@ -15,8 +15,6 @@ interface ContentState {
   apps: App[];
   recentItems: ContentItem[];
   frequentItems: ContentItem[];
-  allItems: ContentItem[]; // All available items from API
-  favoriteItems: ContentItem[];
   isLoading: boolean;
   error: string | null;
 
@@ -25,13 +23,9 @@ interface ContentState {
   loadReports: (workspaceId: string) => Promise<void>;
   loadDashboards: (workspaceId: string) => Promise<void>;
   loadApps: () => Promise<void>;
-  loadAllItems: () => Promise<void>;
   loadRecentItems: () => Promise<void>;
   loadFrequentItems: () => Promise<void>;
-  loadFavorites: () => Promise<void>;
   recordItemOpened: (item: ContentItem) => Promise<void>;
-  toggleFavorite: (itemId: string, itemType: string) => Promise<void>;
-  refreshAll: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -42,8 +36,6 @@ export const useContentStore = create<ContentState>((set, get) => ({
   apps: [],
   recentItems: [],
   frequentItems: [],
-  allItems: [],
-  favoriteItems: [],
   isLoading: false,
   error: null,
 
@@ -107,39 +99,6 @@ export const useContentStore = create<ContentState>((set, get) => ({
     }
   },
 
-  loadAllItems: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await window.electronAPI.content.getRecent() as IPCResponse<ContentItem[]>;
-
-      if (response.success && response.data) {
-        set({ allItems: response.data, isLoading: false });
-        // Cache for offline use
-        window.electronAPI.cache.saveOfflineContent(response.data);
-      } else {
-        // Try to load from offline cache
-        const offlineResponse = await window.electronAPI.cache.getOfflineContent() as IPCResponse<ContentItem[]>;
-        if (offlineResponse.success && offlineResponse.data && offlineResponse.data.length > 0) {
-          set({ allItems: offlineResponse.data, isLoading: false });
-        } else {
-          set({ isLoading: false });
-        }
-      }
-    } catch (error) {
-      // Try to load from offline cache on error
-      try {
-        const offlineResponse = await window.electronAPI.cache.getOfflineContent() as IPCResponse<ContentItem[]>;
-        if (offlineResponse.success && offlineResponse.data && offlineResponse.data.length > 0) {
-          set({ allItems: offlineResponse.data, isLoading: false, error: 'Using cached data (offline)' });
-          return;
-        }
-      } catch {
-        // Ignore cache error
-      }
-      set({ isLoading: false, error: String(error) });
-    }
-  },
-
   loadRecentItems: async () => {
     try {
       const response = await window.electronAPI.usage.getRecent() as IPCResponse<ContentItem[]>;
@@ -176,55 +135,6 @@ export const useContentStore = create<ContentState>((set, get) => ({
       await get().loadFrequentItems();
     } catch (error) {
       console.error('Failed to record item opened:', error);
-    }
-  },
-
-  loadFavorites: async () => {
-    try {
-      const response = await window.electronAPI.content.getFavorites() as IPCResponse<ContentItem[]>;
-
-      if (response.success && response.data) {
-        set({ favoriteItems: response.data });
-      }
-    } catch (error) {
-      console.error('Failed to load favorites:', error);
-    }
-  },
-
-  toggleFavorite: async (itemId: string, itemType: string) => {
-    const { favoriteItems } = get();
-    const isFavorite = favoriteItems.some((item) => item.id === itemId);
-
-    try {
-      if (isFavorite) {
-        await window.electronAPI.content.removeFavorite(itemId);
-        set({
-          favoriteItems: favoriteItems.filter((item) => item.id !== itemId),
-        });
-      } else {
-        await window.electronAPI.content.addFavorite(itemId, itemType);
-        // Refresh favorites to get the updated list
-        await get().loadFavorites();
-      }
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    }
-  },
-
-  refreshAll: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      await Promise.all([
-        get().loadWorkspaces(),
-        get().loadApps(),
-        get().loadAllItems(),
-        get().loadRecentItems(),
-        get().loadFrequentItems(),
-        get().loadFavorites(),
-      ]);
-      set({ isLoading: false });
-    } catch (error) {
-      set({ isLoading: false, error: String(error) });
     }
   },
 

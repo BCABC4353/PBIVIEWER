@@ -8,10 +8,12 @@ interface SettingsStore {
 const defaultSettings: AppSettings = {
   theme: 'system',
   sidebarCollapsed: false,
-  slideshowInterval: 10,
+  slideshowInterval: 30, // 30 seconds default
   slideshowMode: 'pages',
   autoStartSlideshow: false,
   autoStartReportId: undefined,
+  autoRefreshEnabled: true,
+  autoRefreshInterval: 30, // 30 minutes default
 };
 
 const store = new Store<SettingsStore>({

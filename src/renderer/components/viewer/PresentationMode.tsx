@@ -10,7 +10,7 @@ import {
   SettingsRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { IPCResponse, EmbedToken } from '../../../shared/types';
+import type { IPCResponse, EmbedToken, AppSettings } from '../../../shared/types';
 
 const powerbiService = new pbi.service.Service(
   pbi.factories.hpmFactory,
@@ -45,6 +45,25 @@ export const PresentationMode: React.FC = () => {
   const [intervalSeconds, setIntervalSeconds] = useState(10);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
+
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await window.electronAPI.settings.get() as IPCResponse<AppSettings>;
+        if (response.success && response.data) {
+          setIntervalSeconds(response.data.slideshowInterval);
+          setAutoRefreshEnabled(response.data.autoRefreshEnabled);
+          setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   // Exit function - navigates back to report viewer
   const doExit = () => {
@@ -221,22 +240,25 @@ export const PresentationMode: React.FC = () => {
     }
   }, [currentPageIndex, pages]);
 
-  // Auto-refresh data every 30 seconds to pick up dataset changes
+  // Auto-refresh data based on settings - only when visible
   useEffect(() => {
-    const autoRefreshInterval = setInterval(() => {
-      if (reportRef.current && !isLoading && !error) {
+    if (!autoRefreshEnabled) return;
+
+    const refreshIntervalId = setInterval(() => {
+      // Only refresh if document is visible (not in background tab)
+      if (reportRef.current && !isLoading && !error && document.visibilityState === 'visible') {
         reportRef.current.refresh().catch((err) => {
           // Some visuals (like FlowVisual) may throw authorization errors
           // during refresh - these are non-fatal and the report still works
           console.warn('[PresentationMode] Auto-refresh warning (non-fatal):', err?.message || err);
         });
       }
-    }, 30000); // 30 seconds
+    }, autoRefreshIntervalMinutes * 60 * 1000); // Convert minutes to milliseconds
 
     return () => {
-      clearInterval(autoRefreshInterval);
+      clearInterval(refreshIntervalId);
     };
-  }, [isLoading, error]);
+  }, [isLoading, error, autoRefreshEnabled, autoRefreshIntervalMinutes]);
 
   // Hide controls after inactivity
   useEffect(() => {
