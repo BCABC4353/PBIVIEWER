@@ -55,7 +55,9 @@
       "Bash(cmd /c \"tasklist | findstr -i vite\")",
       "Bash(cmd /c \"taskkill /F /IM electron.exe 2>nul & taskkill /F /IM node.exe 2>nul\")",
       "Bash(cmd /c \"taskkill /F /IM electron.exe 2>nul & taskkill /F /IM node.exe 2>nul & echo Processes killed\")",
-      "Bash(cmd /c \"taskkill /F /IM electron.exe 2>nul & taskkill /F /IM node.exe 2>nul & echo Done\")"
+      "Bash(cmd /c \"taskkill /F /IM electron.exe 2>nul & taskkill /F /IM node.exe 2>nul & echo Done\")",
+      "Bash(git push:*)",
+      "Bash(cmd /c \"dir /b /s \"\"C:\\Users\\Brendan Cameron\\desktop\\powerbi-viewer\\build-output\"\" 2>&1\")"
     ],
     "deny": [],
     "ask": []
