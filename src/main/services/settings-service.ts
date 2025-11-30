@@ -6,7 +6,7 @@ interface SettingsStore {
 }
 
 const defaultSettings: AppSettings = {
-  theme: 'system',
+  theme: 'dark',
   sidebarCollapsed: false,
   slideshowInterval: 60, // 60 seconds (1 minute) default
   slideshowMode: 'pages',

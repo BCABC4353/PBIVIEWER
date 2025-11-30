@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { FluentProvider, webLightTheme, webDarkTheme } from '@fluentui/react-components';
 import App from './App';
 import './styles/globals.css';
+import { useSettingsStore } from './stores/settings-store';
 import type { AppSettings, IPCResponse } from '../shared/types';
 
 // Type declaration for electron API
@@ -60,6 +61,7 @@ declare global {
       };
       app: {
         getPartitionName: () => Promise<string | null>;
+        getVersion: () => Promise<string>;
       };
     };
   }
@@ -67,21 +69,11 @@ declare global {
 
 // Theme provider component that responds to settings changes
 const ThemedApp: React.FC = () => {
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  const { settings, loadSettings } = useSettingsStore();
   const [systemDark, setSystemDark] = useState(false);
 
   useEffect(() => {
-    // Load initial settings
-    const loadSettings = async () => {
-      try {
-        const response = await window.electronAPI.settings.get();
-        if (response.success && response.data) {
-          setTheme(response.data.theme);
-        }
-      } catch (error) {
-        console.error('Failed to load settings:', error);
-      }
-    };
+    // Load initial settings from the store
     loadSettings();
 
     // Listen for system theme changes
@@ -93,27 +85,12 @@ const ThemedApp: React.FC = () => {
     };
     mediaQuery.addEventListener('change', handleChange);
 
-    // Refresh settings when window becomes visible (instead of constant polling)
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        try {
-          const response = await window.electronAPI.settings.get();
-          if (response.success && response.data) {
-            setTheme(response.data.theme);
-          }
-        } catch {
-          // Ignore errors
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [loadSettings]);
 
+  const theme = settings.theme;
   const isDark = theme === 'dark' || (theme === 'system' && systemDark);
   const fluentTheme = isDark ? webDarkTheme : webLightTheme;
 

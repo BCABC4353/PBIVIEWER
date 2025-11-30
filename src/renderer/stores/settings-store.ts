@@ -13,14 +13,14 @@ interface SettingsState {
 }
 
 const defaultSettings: AppSettings = {
-  theme: 'system',
+  theme: 'dark',
   sidebarCollapsed: false,
-  slideshowInterval: 10,
+  slideshowInterval: 60,
   slideshowMode: 'pages',
   autoStartSlideshow: false,
   autoStartReportId: undefined,
   autoRefreshEnabled: true,
-  autoRefreshInterval: 30,
+  autoRefreshInterval: 1,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
