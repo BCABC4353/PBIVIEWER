@@ -3,7 +3,6 @@ import {
   Card,
   CardHeader,
   Text,
-  Badge,
   Button,
   Menu,
   MenuTrigger,
@@ -69,13 +68,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               >
                 {item.name}
               </Text>
-              <Text
-                size={200}
-                className="text-neutral-foreground-3 truncate block"
-                title={item.workspaceName}
-              >
-                {item.workspaceName}
-              </Text>
             </div>
             <div className="flex items-center gap-1">
               <Button
@@ -112,15 +104,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               </Menu>
             </div>
           </div>
-        }
-        description={
-          <Badge
-            appearance="outline"
-            size="small"
-            color={item.type === 'report' ? 'informative' : 'success'}
-          >
-            {item.type === 'report' ? 'Report' : 'Dashboard'}
-          </Badge>
         }
       />
     </Card>

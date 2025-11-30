@@ -202,9 +202,6 @@ export const WorkspacesPage: React.FC = () => {
                     <Text weight="semibold" className="text-neutral-foreground-1 block truncate">
                       {workspace.name}
                     </Text>
-                    <Text size={200} className="text-neutral-foreground-3">
-                      {workspace.type === 'PersonalGroup' ? 'Personal' : 'Workspace'}
-                    </Text>
                   </div>
                   {workspace.isExpanded && !workspace.isLoading && (
                     <Badge appearance="outline" size="small">

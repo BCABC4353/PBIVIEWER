@@ -124,11 +124,6 @@ export const AppsPage: React.FC = () => {
                       <Text weight="semibold" size={400} className="text-neutral-foreground-1 block truncate">
                         {app.name}
                       </Text>
-                      {app.description && (
-                        <Text size={200} className="text-neutral-foreground-3 block mt-1 line-clamp-2">
-                          {app.description}
-                        </Text>
-                      )}
                     </div>
                   </div>
 

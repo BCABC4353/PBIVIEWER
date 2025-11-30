@@ -154,13 +154,16 @@ export const SettingsPage: React.FC = () => {
                     <Text className="text-neutral-foreground-2">Auto-advance interval</Text>
                     <Text weight="semibold">{settings.slideshowInterval} seconds</Text>
                   </div>
-                  <Slider
-                    min={3}
-                    max={120}
-                    step={1}
-                    value={settings.slideshowInterval}
-                    onChange={(_, data) => handleSlideshowIntervalChange(data.value)}
-                  />
+                  <div className="w-full">
+                    <Slider
+                      min={3}
+                      max={120}
+                      step={1}
+                      value={settings.slideshowInterval}
+                      onChange={(_, data) => handleSlideshowIntervalChange(data.value)}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
                   <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
                     <span>3s</span>
                     <span>120s</span>
