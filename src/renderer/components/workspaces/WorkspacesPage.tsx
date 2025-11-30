@@ -1,0 +1,264 @@
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Spinner, Text, Button, Card, Badge } from '@fluentui/react-components';
+import {
+  FolderRegular,
+  DocumentRegular,
+  BoardRegular,
+  ChevronRightRegular,
+  ArrowSyncRegular,
+} from '@fluentui/react-icons';
+import type { Workspace, Report, Dashboard, IPCResponse } from '../../../shared/types';
+
+interface WorkspaceWithContent extends Workspace {
+  reports: Report[];
+  dashboards: Dashboard[];
+  isExpanded: boolean;
+  isLoading: boolean;
+}
+
+export const WorkspacesPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [workspaces, setWorkspaces] = useState<WorkspaceWithContent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
+
+  const loadWorkspaces = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await window.electronAPI.content.getWorkspaces() as IPCResponse<Workspace[]>;
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to load workspaces');
+      }
+
+      setWorkspaces(
+        response.data.map((ws) => ({
+          ...ws,
+          reports: [],
+          dashboards: [],
+          isExpanded: false,
+          isLoading: false,
+        }))
+      );
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleWorkspace = async (workspaceId: string) => {
+    const workspace = workspaces.find((ws) => ws.id === workspaceId);
+    if (!workspace) return;
+
+    if (workspace.isExpanded) {
+      // Collapse
+      setWorkspaces((prev) =>
+        prev.map((ws) =>
+          ws.id === workspaceId ? { ...ws, isExpanded: false } : ws
+        )
+      );
+    } else {
+      // Expand and load content if not already loaded
+      if (workspace.reports.length === 0 && workspace.dashboards.length === 0) {
+        setWorkspaces((prev) =>
+          prev.map((ws) =>
+            ws.id === workspaceId ? { ...ws, isLoading: true, isExpanded: true } : ws
+          )
+        );
+
+        try {
+          const [reportsRes, dashboardsRes] = await Promise.all([
+            window.electronAPI.content.getReports(workspaceId) as Promise<IPCResponse<Report[]>>,
+            window.electronAPI.content.getDashboards(workspaceId) as Promise<IPCResponse<Dashboard[]>>,
+          ]);
+
+          setWorkspaces((prev) =>
+            prev.map((ws) =>
+              ws.id === workspaceId
+                ? {
+                    ...ws,
+                    reports: reportsRes.data || [],
+                    dashboards: dashboardsRes.data || [],
+                    isLoading: false,
+                  }
+                : ws
+            )
+          );
+        } catch (err) {
+          setWorkspaces((prev) =>
+            prev.map((ws) =>
+              ws.id === workspaceId ? { ...ws, isLoading: false } : ws
+            )
+          );
+        }
+      } else {
+        setWorkspaces((prev) =>
+          prev.map((ws) =>
+            ws.id === workspaceId ? { ...ws, isExpanded: true } : ws
+          )
+        );
+      }
+    }
+  };
+
+  const openReport = (workspaceId: string, reportId: string) => {
+    navigate(`/report/${workspaceId}/${reportId}`);
+  };
+
+  const openDashboard = (workspaceId: string, dashboardId: string) => {
+    navigate(`/dashboard/${workspaceId}/${dashboardId}`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Spinner size="large" />
+          <Text className="mt-4 text-neutral-foreground-2 block">
+            Loading workspaces...
+          </Text>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-status-error/10 border border-status-error rounded-lg p-4">
+          <Text className="text-status-error">{error}</Text>
+          <Button appearance="subtle" size="small" onClick={loadWorkspaces} className="mt-2">
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold text-neutral-foreground-1">
+            Workspaces
+          </h1>
+          <Button
+            appearance="subtle"
+            icon={<ArrowSyncRegular />}
+            onClick={loadWorkspaces}
+          >
+            Refresh
+          </Button>
+        </div>
+
+        {workspaces.length === 0 ? (
+          <div className="bg-neutral-background-2 rounded-lg p-8 text-center">
+            <Text className="text-neutral-foreground-3">
+              No workspaces found. Make sure you have access to Power BI workspaces.
+            </Text>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {workspaces.map((workspace) => (
+              <div key={workspace.id} className="border border-neutral-stroke-2 rounded-lg overflow-hidden">
+                {/* Workspace header */}
+                <button
+                  className="w-full flex items-center gap-3 p-4 hover:bg-neutral-background-3 transition-colors text-left"
+                  onClick={() => toggleWorkspace(workspace.id)}
+                >
+                  <ChevronRightRegular
+                    className={`text-neutral-foreground-2 transition-transform ${
+                      workspace.isExpanded ? 'rotate-90' : ''
+                    }`}
+                  />
+                  <FolderRegular className="text-brand-primary text-xl" />
+                  <div className="flex-1 min-w-0">
+                    <Text weight="semibold" className="text-neutral-foreground-1 block truncate">
+                      {workspace.name}
+                    </Text>
+                    <Text size={200} className="text-neutral-foreground-3">
+                      {workspace.type === 'PersonalGroup' ? 'Personal' : 'Workspace'}
+                    </Text>
+                  </div>
+                  {workspace.isExpanded && !workspace.isLoading && (
+                    <Badge appearance="outline" size="small">
+                      {workspace.reports.length + workspace.dashboards.length} items
+                    </Badge>
+                  )}
+                </button>
+
+                {/* Workspace content */}
+                {workspace.isExpanded && (
+                  <div className="border-t border-neutral-stroke-2 bg-neutral-background-2">
+                    {workspace.isLoading ? (
+                      <div className="p-4 flex items-center justify-center">
+                        <Spinner size="small" />
+                        <Text className="ml-2 text-neutral-foreground-2">Loading content...</Text>
+                      </div>
+                    ) : workspace.reports.length === 0 && workspace.dashboards.length === 0 ? (
+                      <div className="p-4 text-center">
+                        <Text className="text-neutral-foreground-3">
+                          No reports or dashboards in this workspace.
+                        </Text>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-neutral-stroke-2">
+                        {/* Reports */}
+                        {workspace.reports.map((report) => (
+                          <button
+                            key={report.id}
+                            className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
+                            onClick={() => openReport(workspace.id, report.id)}
+                          >
+                            <DocumentRegular className="text-accent-primary" />
+                            <div className="flex-1 min-w-0">
+                              <Text className="text-neutral-foreground-1 block truncate">
+                                {report.name}
+                              </Text>
+                            </div>
+                            <Badge appearance="outline" size="small" color="informative">
+                              Report
+                            </Badge>
+                          </button>
+                        ))}
+
+                        {/* Dashboards */}
+                        {workspace.dashboards.map((dashboard) => (
+                          <button
+                            key={dashboard.id}
+                            className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
+                            onClick={() => openDashboard(workspace.id, dashboard.id)}
+                          >
+                            <BoardRegular className="text-status-success" />
+                            <div className="flex-1 min-w-0">
+                              <Text className="text-neutral-foreground-1 block truncate">
+                                {dashboard.name}
+                              </Text>
+                            </div>
+                            <Badge appearance="outline" size="small" color="success">
+                              Dashboard
+                            </Badge>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default WorkspacesPage;
