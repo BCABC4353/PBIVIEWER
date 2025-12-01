@@ -337,11 +337,13 @@ export const PresentationMode: React.FC = () => {
 
   // Hide controls after inactivity
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let timeout: NodeJS.Timeout | undefined;
 
     const handleMouseMove = () => {
       setShowControls(true);
-      clearTimeout(timeout);
+      if (timeout) {
+        clearTimeout(timeout);
+      }
       timeout = setTimeout(() => {
         if (isPlaying) {
           setShowControls(false);
@@ -349,10 +351,19 @@ export const PresentationMode: React.FC = () => {
       }, 3000);
     };
 
+    // Initial call to set up the timeout
+    handleMouseMove();
+
+    // Attach to both window and document to catch all mouse movements
     window.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mousemove', handleMouseMove);
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
-      clearTimeout(timeout);
+      document.removeEventListener('mousemove', handleMouseMove);
+      if (timeout) {
+        clearTimeout(timeout);
+      }
     };
   }, [isPlaying]);
 
@@ -504,11 +515,26 @@ export const PresentationMode: React.FC = () => {
         style={{ visibility: isLoading || error ? 'hidden' : 'visible' }}
       />
 
+      {/* Transparent overlay to detect mouse movement over iframe */}
+      {!isLoading && !error && !showControls && (
+        <div
+          className="absolute inset-0"
+          onMouseMove={() => {
+            setShowControls(true);
+          }}
+          style={{
+            zIndex: 5,
+            background: 'transparent',
+            cursor: 'default'
+          }}
+        />
+      )}
+
       {/* Controls overlay */}
       {showControls && !isLoading && !error && (
         <>
           {/* Top bar */}
-          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent">
+          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent" style={{ zIndex: 10 }}>
             <div className="flex items-center justify-between">
               <Text className="text-white text-shadow">
                 {slides[currentSlideIndex]?.displayName || 'Slide'}
@@ -553,7 +579,7 @@ export const PresentationMode: React.FC = () => {
           )}
 
           {/* Bottom controls */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent" style={{ zIndex: 10 }}>
             <div className="flex items-center justify-center gap-4">
               <Button
                 appearance="subtle"
