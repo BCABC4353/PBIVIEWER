@@ -289,10 +289,54 @@ export const ReportViewer: React.FC = () => {
         }
       });
 
-      // Handle error event
-      report.on('error', () => {
-        setError('Failed to load report. Please try again.');
-        setIsLoading(false);
+      // Handle error event - log details but don't show error UI for non-fatal errors
+      report.on('error', (event) => {
+        const errorDetail = event?.detail;
+        console.error('[ReportViewer] Power BI Error:', errorDetail);
+
+        // Don't show error UI - let Power BI handle errors internally
+        // Most errors during navigation/drillthrough are recoverable
+      });
+
+      // DEBUG: Log all page-related events
+      report.on('pageChanged', (event) => {
+        console.log('[ReportViewer] DEBUG - Page Changed:', event?.detail);
+      });
+
+      report.on('dataSelected', (event) => {
+        console.log('[ReportViewer] DEBUG - Data Selected:', event?.detail);
+      });
+
+      report.on('rendered', () => {
+        console.log('[ReportViewer] DEBUG - Report Rendered');
+      });
+
+      report.on('commandTriggered', (event) => {
+        console.log('[ReportViewer] DEBUG - Command Triggered:', event?.detail);
+      });
+
+      report.on('swipeStart', (event) => {
+        console.log('[ReportViewer] DEBUG - Swipe Start:', event?.detail);
+      });
+
+      report.on('swipeEnd', (event) => {
+        console.log('[ReportViewer] DEBUG - Swipe End:', event?.detail);
+      });
+
+      report.on('buttonClicked', (event) => {
+        console.log('[ReportViewer] DEBUG - Button Clicked:', event?.detail);
+      });
+
+      report.on('filtersApplied', (event) => {
+        console.log('[ReportViewer] DEBUG - Filters Applied:', event?.detail);
+      });
+
+      report.on('visualClicked', (event) => {
+        console.log('[ReportViewer] DEBUG - Visual Clicked:', event?.detail);
+      });
+
+      report.on('visualRendered', (event) => {
+        console.log('[ReportViewer] DEBUG - Visual Rendered:', event?.detail);
       });
 
     } catch (err) {
