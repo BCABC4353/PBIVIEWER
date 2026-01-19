@@ -29,6 +29,13 @@ const electronAPI = {
       ipcRenderer.invoke('content:get-app-dashboards', appId),
     getEmbedToken: (reportId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-embed-token', reportId, workspaceId),
+    exportReportToPdf: (
+      reportId: string,
+      workspaceId: string,
+      pageName?: string,
+      bookmarkState?: string,
+      filePath?: string
+    ) => ipcRenderer.invoke('content:export-report-pdf', reportId, workspaceId, pageName, bookmarkState, filePath),
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
       ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
@@ -65,6 +72,16 @@ const electronAPI = {
     getRecent: () => ipcRenderer.invoke('usage:get-recent'),
     getFrequent: () => ipcRenderer.invoke('usage:get-frequent'),
     clear: () => ipcRenderer.invoke('usage:clear'),
+  },
+
+  // Export
+  export: {
+    choosePdfPath: () => ipcRenderer.invoke('export:choose-pdf-path'),
+    currentViewToPdf: (options?: {
+      bounds?: { x: number; y: number; width: number; height: number };
+      insets?: { top?: number; right?: number; bottom?: number; left?: number };
+      filePath?: string;
+    }) => ipcRenderer.invoke('export:current-view-pdf', options),
   },
 
   // App info

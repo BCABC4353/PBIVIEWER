@@ -47,6 +47,8 @@ export const PresentationMode: React.FC = () => {
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<pbi.Report | null>(null);
   const isLoadingRef = useRef(false);
+  const tokenExpirationRef = useRef<string | null>(null);
+  const tokenRefreshInProgressRef = useRef(false);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
   const hasEnteredFullscreen = useRef(false);
@@ -66,6 +68,72 @@ export const PresentationMode: React.FC = () => {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [slidesReady, setSlidesReady] = useState(false);
+
+  const getErrorMessage = (detail: unknown): string => {
+    if (!detail) return '';
+    if (typeof detail === 'string') return detail;
+    if (detail instanceof Error) return detail.message;
+    if (typeof detail === 'object') {
+      const anyDetail = detail as Record<string, unknown>;
+      const nestedError = anyDetail.error as Record<string, unknown> | undefined;
+      return String(
+        anyDetail.message ??
+          anyDetail.detailedMessage ??
+          nestedError?.message ??
+          nestedError?.code ??
+          anyDetail.errorCode ??
+          ''
+      );
+    }
+    return '';
+  };
+
+  const isTokenExpiredError = (detail: unknown): boolean => {
+    const message = getErrorMessage(detail).toLowerCase();
+    return (
+      message.includes('tokenexpired') ||
+      message.includes('token expired') ||
+      message.includes('accesstokenexpired') ||
+      message.includes('invalidauthenticationtoken')
+    );
+  };
+
+  const isTokenExpiringSoon = () => {
+    if (!tokenExpirationRef.current) return false;
+    const expiration = new Date(tokenExpirationRef.current).getTime();
+    return Number.isFinite(expiration) && Date.now() >= expiration - 2 * 60 * 1000;
+  };
+
+  const refreshEmbedToken = async () => {
+    if (!workspaceId || !reportId || tokenRefreshInProgressRef.current) return;
+    tokenRefreshInProgressRef.current = true;
+    try {
+      const tokenResponse = await window.electronAPI.content.getEmbedToken(
+        reportId,
+        workspaceId
+      ) as IPCResponse<EmbedToken>;
+
+      if (!tokenResponse.success || !tokenResponse.data) {
+        throw new Error(tokenResponse.error?.message || 'Failed to refresh access token');
+      }
+
+      tokenExpirationRef.current = tokenResponse.data.expiration;
+      const token = tokenResponse.data.token;
+
+      if (reportRef.current) {
+        await reportRef.current.setAccessToken(token);
+        await reportRef.current.refresh();
+      } else {
+        isLoadingRef.current = false;
+        loadReport();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Session expired. Please log in again.');
+      setIsLoading(false);
+    } finally {
+      tokenRefreshInProgressRef.current = false;
+    }
+  };
 
   // Load settings on mount
   useEffect(() => {
@@ -335,6 +403,19 @@ export const PresentationMode: React.FC = () => {
     };
   }, [isLoading, error, autoRefreshEnabled, autoRefreshIntervalMinutes]);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isTokenExpiringSoon()) {
+        refreshEmbedToken();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [workspaceId, reportId]);
+
   // Hide controls after inactivity
   useEffect(() => {
     let timeout: NodeJS.Timeout | undefined;
@@ -393,6 +474,7 @@ export const PresentationMode: React.FC = () => {
       }
 
       const token = tokenResponse.data.token;
+      tokenExpirationRef.current = tokenResponse.data.expiration;
 
       const embedConfig: pbi.IReportEmbedConfiguration = {
         type: 'report',
@@ -453,7 +535,12 @@ export const PresentationMode: React.FC = () => {
       });
 
       report.on('error', (event) => {
-        console.error('[PresentationMode] Report error:', event);
+        const errorDetail = event?.detail;
+        console.error('[PresentationMode] Report error:', errorDetail);
+        if (isTokenExpiredError(errorDetail)) {
+          refreshEmbedToken();
+          return;
+        }
         setError('Failed to load report. Please try again.');
         setIsLoading(false);
       });
@@ -511,21 +598,15 @@ export const PresentationMode: React.FC = () => {
       {/* Report embed container */}
       <div
         ref={embedContainerRef}
-        className="w-full h-full"
-        style={{ visibility: isLoading || error ? 'hidden' : 'visible' }}
+        className={`w-full h-full ${isLoading || error ? 'invisible' : 'visible'}`}
       />
 
       {/* Transparent overlay to detect mouse movement over iframe */}
       {!isLoading && !error && !showControls && (
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 z-[5] bg-transparent cursor-default"
           onMouseMove={() => {
             setShowControls(true);
-          }}
-          style={{
-            zIndex: 5,
-            background: 'transparent',
-            cursor: 'default'
           }}
         />
       )}
@@ -534,7 +615,7 @@ export const PresentationMode: React.FC = () => {
       {showControls && !isLoading && !error && (
         <>
           {/* Top bar */}
-          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent" style={{ zIndex: 10 }}>
+          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-10">
             <div className="flex items-center justify-between">
               <Text className="text-white text-shadow">
                 {slides[currentSlideIndex]?.displayName || 'Slide'}
@@ -546,14 +627,14 @@ export const PresentationMode: React.FC = () => {
                   appearance="subtle"
                   icon={<SettingsRegular />}
                   onClick={() => setShowSettings(!showSettings)}
-                  style={{ color: 'white' }}
+                  className="text-white"
                   title="Settings"
                 />
                 <Button
                   appearance="subtle"
                   icon={<DismissRegular />}
                   onClick={doExit}
-                  style={{ color: 'white' }}
+                  className="text-white"
                   title="Exit (Esc)"
                 />
               </div>
@@ -571,7 +652,7 @@ export const PresentationMode: React.FC = () => {
                   max={60}
                   value={intervalSeconds}
                   onChange={(_, data) => setIntervalSeconds(data.value)}
-                  style={{ width: '120px' }}
+                  className="w-[120px]"
                 />
                 <Text size={200}>{intervalSeconds}s</Text>
               </div>
@@ -579,13 +660,13 @@ export const PresentationMode: React.FC = () => {
           )}
 
           {/* Bottom controls */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent" style={{ zIndex: 10 }}>
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent z-10">
             <div className="flex items-center justify-center gap-4">
               <Button
                 appearance="subtle"
                 icon={<ChevronLeftRegular />}
                 onClick={prevSlide}
-                style={{ color: 'white' }}
+                className="text-white"
                 size="large"
                 title="Previous slide"
               />
@@ -601,7 +682,7 @@ export const PresentationMode: React.FC = () => {
                 appearance="subtle"
                 icon={<ChevronRightRegular />}
                 onClick={nextSlide}
-                style={{ color: 'white' }}
+                className="text-white"
                 size="large"
                 title="Next slide"
               />

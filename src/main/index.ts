@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { PARTITION_NAME, APP_NAME } from '../shared/constants';
 import { authService } from './auth/auth-service';
@@ -211,6 +212,66 @@ ipcMain.handle('content:get-embed-token', async (_event, reportId: string, works
   return await powerbiApiService.getEmbedToken(reportId, workspaceId);
 });
 
+ipcMain.handle(
+  'content:export-report-pdf',
+  async (
+    _event,
+    reportId: string,
+    workspaceId: string,
+    pageName?: string,
+    bookmarkState?: string,
+    filePath?: string
+  ) => {
+    const exportResponse = await powerbiApiService.exportReportToPdf(
+      reportId,
+      workspaceId,
+      pageName,
+      bookmarkState
+    );
+
+    if (!exportResponse.success || !exportResponse.data) {
+      return exportResponse;
+    }
+
+    if (!filePath) {
+      return {
+        success: false,
+        error: { code: 'NO_PATH', message: 'No export path provided' },
+      };
+    }
+
+    await fs.writeFile(filePath, exportResponse.data);
+    return { success: true, data: { path: filePath } };
+  }
+);
+
+ipcMain.handle('export:choose-pdf-path', async () => {
+  if (!mainWindow) {
+    return {
+      success: false,
+      error: { code: 'NO_WINDOW', message: 'Main window not available' },
+    };
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const defaultPath = path.join(app.getPath('downloads'), `powerbi-export-${timestamp}.pdf`);
+
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export to PDF',
+    defaultPath,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+
+  if (canceled || !filePath) {
+    return {
+      success: false,
+      error: { code: 'CANCELLED', message: 'Export cancelled' },
+    };
+  }
+
+  return { success: true, data: { path: filePath } };
+});
+
 ipcMain.handle('content:get-dataset-refresh-info', async (_event, datasetId: string, workspaceId?: string) => {
   return await powerbiApiService.getDatasetRefreshInfo(datasetId, workspaceId);
 });
@@ -258,6 +319,114 @@ ipcMain.handle('settings:update', async (_event, updates: Partial<AppSettings>) 
 
 ipcMain.handle('settings:reset', async () => {
   return settingsService.resetSettings();
+});
+
+// ============================================
+// IPC HANDLERS - Export
+// ============================================
+
+ipcMain.handle(
+  'export:current-view-pdf',
+  async (
+    _event,
+    options?: {
+      bounds?: { x: number; y: number; width: number; height: number };
+      insets?: { top?: number; right?: number; bottom?: number; left?: number };
+      filePath?: string;
+    }
+  ) => {
+  if (!mainWindow) {
+    return {
+      success: false,
+      error: { code: 'NO_WINDOW', message: 'Main window not available' },
+    };
+  }
+
+  const targetPath = options?.filePath;
+  if (!targetPath) {
+    return {
+      success: false,
+      error: { code: 'NO_PATH', message: 'No export path provided' },
+    };
+  }
+
+  let pdfWindow: BrowserWindow | null = null;
+  try {
+    let captureRect: Electron.Rectangle | undefined;
+    const bounds = options?.bounds;
+    const insets = options?.insets;
+    if (bounds && Number.isFinite(bounds.width) && Number.isFinite(bounds.height)) {
+      const baseX = Math.max(0, Math.round(bounds.x));
+      const baseY = Math.max(0, Math.round(bounds.y));
+      const baseWidth = Math.max(0, Math.round(bounds.width));
+      const baseHeight = Math.max(0, Math.round(bounds.height));
+      const insetLeft = Math.max(0, Math.round(insets?.left ?? 0));
+      const insetTop = Math.max(0, Math.round(insets?.top ?? 0));
+      const insetRight = Math.max(0, Math.round(insets?.right ?? 0));
+      const insetBottom = Math.max(0, Math.round(insets?.bottom ?? 0));
+      const width = Math.max(0, baseWidth - insetLeft - insetRight);
+      const height = Math.max(0, baseHeight - insetTop - insetBottom);
+      if (width > 0 && height > 0) {
+        captureRect = {
+          x: baseX + insetLeft,
+          y: baseY + insetTop,
+          width,
+          height,
+        };
+      }
+    }
+
+    const image = await mainWindow.webContents.capturePage(captureRect);
+    const { width, height } = image.getSize();
+    const dataUrl = image.toDataURL();
+    pdfWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: true,
+      },
+    });
+
+    const isLandscape = width >= height;
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            @page { margin: 0; }
+            html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #ffffff; }
+            img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" />
+        </body>
+      </html>
+    `;
+
+    await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    const pdfBuffer = await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'Letter',
+      landscape: isLandscape,
+    });
+
+    await fs.writeFile(targetPath, pdfBuffer);
+
+    return { success: true, data: { path: targetPath } };
+  } catch (error) {
+    return {
+      success: false,
+      error: { code: 'EXPORT_FAILED', message: String(error) },
+    };
+  } finally {
+    if (pdfWindow) {
+      pdfWindow.close();
+    }
+  }
 });
 
 // ============================================

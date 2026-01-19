@@ -4,6 +4,7 @@ import { Spinner, Button, Text } from '@fluentui/react-components';
 import {
   ArrowLeftRegular,
   ArrowSyncRegular,
+  ArrowDownloadRegular,
   FullScreenMaximizeRegular,
   PlayRegular,
 } from '@fluentui/react-icons';
@@ -35,12 +36,18 @@ export const ReportViewer: React.FC = () => {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
   const datasetIdRef = useRef<string | null>(null);
+  const tokenExpirationRef = useRef<string | null>(null);
+  const tokenRefreshInProgressRef = useRef(false);
+  const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fullscreen keyboard navigation state
   const [pages, setPages] = useState<PageInfo[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenHint, setShowFullscreenHint] = useState(false);
   const pagesRef = useRef<PageInfo[]>([]);
   const currentPageIndexRef = useRef(0);
 
@@ -93,6 +100,103 @@ export const ReportViewer: React.FC = () => {
     };
   }, [workspaceId, reportId]);
 
+  useEffect(() => {
+    return () => {
+      if (exportTimeoutRef.current) {
+        clearTimeout(exportTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showExportStatus = (message: string) => {
+    setExportStatus(message);
+    if (exportTimeoutRef.current) {
+      clearTimeout(exportTimeoutRef.current);
+    }
+    exportTimeoutRef.current = setTimeout(() => {
+      setExportStatus(null);
+    }, 4000);
+  };
+
+  const getErrorMessage = (detail: unknown): string => {
+    if (!detail) return '';
+    if (typeof detail === 'string') return detail;
+    if (detail instanceof Error) return detail.message;
+    if (typeof detail === 'object') {
+      const anyDetail = detail as Record<string, unknown>;
+      const nestedError = anyDetail.error as Record<string, unknown> | undefined;
+      return String(
+        anyDetail.message ??
+          anyDetail.detailedMessage ??
+          nestedError?.message ??
+          nestedError?.code ??
+          anyDetail.errorCode ??
+          ''
+      );
+    }
+    return '';
+  };
+
+  const isTokenExpiredError = (detail: unknown): boolean => {
+    const message = getErrorMessage(detail).toLowerCase();
+    return (
+      message.includes('tokenexpired') ||
+      message.includes('token expired') ||
+      message.includes('accesstokenexpired') ||
+      message.includes('invalidauthenticationtoken')
+    );
+  };
+
+  const isTokenExpiringSoon = () => {
+    if (!tokenExpirationRef.current) return false;
+    const expiration = new Date(tokenExpirationRef.current).getTime();
+    return Number.isFinite(expiration) && Date.now() >= expiration - 2 * 60 * 1000;
+  };
+
+  const refreshEmbedToken = async () => {
+    if (!workspaceId || !reportId || tokenRefreshInProgressRef.current) return;
+    tokenRefreshInProgressRef.current = true;
+    try {
+      const tokenResponse = await window.electronAPI.content.getEmbedToken(
+        reportId,
+        workspaceId
+      ) as IPCResponse<EmbedToken>;
+
+      if (!tokenResponse.success || !tokenResponse.data) {
+        throw new Error(tokenResponse.error?.message || 'Failed to refresh access token');
+      }
+
+      tokenExpirationRef.current = tokenResponse.data.expiration;
+      const token = tokenResponse.data.token;
+
+      if (reportRef.current) {
+        await reportRef.current.setAccessToken(token);
+        await reportRef.current.refresh();
+      } else {
+        isLoadingRef.current = false;
+        loadReport();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Session expired. Please log in again.');
+      setIsLoading(false);
+    } finally {
+      tokenRefreshInProgressRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isTokenExpiringSoon()) {
+        refreshEmbedToken();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [workspaceId, reportId]);
+
   // Auto-refresh based on settings - only when visible
   useEffect(() => {
     if (!autoRefreshEnabled) return;
@@ -133,9 +237,20 @@ export const ReportViewer: React.FC = () => {
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
-      // Focus the container when entering fullscreen to receive keyboard events
-      if (isNowFullscreen && embedContainerRef.current) {
-        embedContainerRef.current.focus();
+
+      if (isNowFullscreen) {
+        // Focus the container when entering fullscreen to receive keyboard events
+        if (embedContainerRef.current) {
+          embedContainerRef.current.focus();
+        }
+
+        // Show hint for 5 seconds when entering fullscreen
+        if (pages.length > 1) {
+          setShowFullscreenHint(true);
+          setTimeout(() => setShowFullscreenHint(false), 5000);
+        }
+      } else {
+        setShowFullscreenHint(false);
       }
     };
 
@@ -143,18 +258,22 @@ export const ReportViewer: React.FC = () => {
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, []);
+  }, [pages.length]);
 
   // Keyboard navigation for fullscreen mode
   // Use capture phase to intercept events before the iframe consumes them
   useEffect(() => {
+    let focusCheckInterval: NodeJS.Timeout | null = null;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle navigation when in fullscreen
       if (!document.fullscreenElement) return;
 
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        // CRITICAL: Stop event propagation BEFORE anything else
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
 
         const currentPages = pagesRef.current;
         const currentIdx = currentPageIndexRef.current;
@@ -170,15 +289,63 @@ export const ReportViewer: React.FC = () => {
           const prevIndex = (currentIdx - 1 + currentPages.length) % currentPages.length;
           navigateToPage(prevIndex);
         }
+
+        // Re-focus the container to prevent iframe from receiving future events
+        if (embedContainerRef.current) {
+          embedContainerRef.current.focus();
+        }
       }
     };
 
+    // Prevent iframe from stealing focus on mouse clicks in fullscreen
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!document.fullscreenElement) return;
+
+      // If clicking inside the embed container, allow the click but refocus after
+      if (embedContainerRef.current?.contains(e.target as Node)) {
+        // Use multiple timeouts to ensure we regain focus
+        setTimeout(() => {
+          if (embedContainerRef.current && document.fullscreenElement) {
+            embedContainerRef.current.focus();
+          }
+        }, 10);
+        setTimeout(() => {
+          if (embedContainerRef.current && document.fullscreenElement) {
+            embedContainerRef.current.focus();
+          }
+        }, 100);
+      }
+    };
+
+    // When in fullscreen, periodically check and reclaim focus if needed
+    // This prevents the iframe from permanently stealing keyboard control
+    const maintainFocus = () => {
+      if (document.fullscreenElement && embedContainerRef.current) {
+        const activeElement = document.activeElement;
+        // If focus is not on our container, reclaim it
+        if (activeElement !== embedContainerRef.current) {
+          embedContainerRef.current.focus();
+        }
+      }
+    };
+
+    // Start focus monitoring when in fullscreen
+    if (isFullscreen) {
+      focusCheckInterval = setInterval(maintainFocus, 200);
+    }
+
     // Use capture phase to intercept events before they reach the iframe
     document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('mousedown', handleMouseDown, true);
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      if (focusCheckInterval) {
+        clearInterval(focusCheckInterval);
+      }
     };
-  }, [navigateToPage]);
+  }, [navigateToPage, isFullscreen]);
 
   const loadReport = async () => {
     if (!embedContainerRef.current || !workspaceId || !reportId) return;
@@ -216,6 +383,7 @@ export const ReportViewer: React.FC = () => {
       }
 
       const token = tokenResponse.data.token;
+      tokenExpirationRef.current = tokenResponse.data.expiration;
 
       // Configure embed settings
       const embedConfig: pbi.IReportEmbedConfiguration = {
@@ -294,13 +462,32 @@ export const ReportViewer: React.FC = () => {
         const errorDetail = event?.detail;
         console.error('[ReportViewer] Power BI Error:', errorDetail);
 
+        if (isTokenExpiredError(errorDetail)) {
+          refreshEmbedToken();
+          return;
+        }
+
         // Don't show error UI - let Power BI handle errors internally
         // Most errors during navigation/drillthrough are recoverable
       });
 
-      // DEBUG: Log all page-related events
-      report.on('pageChanged', (event) => {
+      // Track page changes to keep keyboard navigation in sync
+      report.on('pageChanged', async (event) => {
         console.log('[ReportViewer] DEBUG - Page Changed:', event?.detail);
+
+        // Update current page index when user navigates via tabs or other means
+        try {
+          const currentPages = await report.getPages();
+          const activePage = currentPages.find((p: pbi.Page) => p.isActive);
+          if (activePage && pagesRef.current.length > 0) {
+            const activeIndex = pagesRef.current.findIndex((p) => p.name === activePage.name);
+            if (activeIndex >= 0) {
+              setCurrentPageIndex(activeIndex);
+            }
+          }
+        } catch {
+          // Page tracking failure is non-critical
+        }
       });
 
       report.on('dataSelected', (event) => {
@@ -357,6 +544,121 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      if (!reportRef.current || !workspaceId || !reportId) {
+        showExportStatus('Report not ready');
+        return;
+      }
+
+      const pathResponse = await window.electronAPI.export.choosePdfPath() as IPCResponse<{ path: string }>;
+      if (!pathResponse.success || !pathResponse.data?.path) {
+        if (pathResponse.error?.code === 'CANCELLED') {
+          showExportStatus('Export cancelled');
+          return;
+        }
+        showExportStatus(pathResponse.error?.message || 'Export cancelled');
+        return;
+      }
+
+      const filePath = pathResponse.data.path;
+
+      const isExportFeatureUnavailable = (message?: string) => {
+        if (!message) return false;
+        const lower = message.toLowerCase();
+        return lower.includes('featurenotavailable') || lower.includes('feature not available') || lower.includes('404');
+      };
+
+      let pageName: string | undefined;
+      try {
+        const reportPages = await reportRef.current.getPages();
+        pageName = reportPages.find((p: pbi.Page) => p.isActive)?.name;
+      } catch {
+        // Page name is optional for export
+      }
+
+      let bookmarkState: string | undefined;
+      try {
+        const captured = await reportRef.current.bookmarksManager.capture({ personalizeVisuals: true });
+        bookmarkState = captured?.state;
+      } catch {
+        // Bookmark capture is optional for export
+      }
+
+      const apiResponse = await window.electronAPI.content.exportReportToPdf(
+        reportId,
+        workspaceId,
+        pageName,
+        bookmarkState,
+        filePath
+      ) as IPCResponse<{ path: string }>;
+
+      if (apiResponse.success) {
+        showExportStatus('Exported to PDF');
+        return;
+      }
+
+      if (apiResponse.error?.code === 'CANCELLED') {
+        showExportStatus('Export cancelled');
+        return;
+      }
+
+      const apiErrorMessage = apiResponse.error?.message || 'Export failed';
+      if (!isExportFeatureUnavailable(apiErrorMessage)) {
+        showExportStatus(apiErrorMessage);
+        return;
+      }
+
+      // Fallback: capture the embed area and crop off panes/tabs
+      let previousSettings: pbi.ISettings | null = null;
+      try {
+        previousSettings = await reportRef.current.getSettings();
+        await reportRef.current.updateSettings({
+          panes: {
+            filters: { visible: false, expanded: false },
+            pageNavigation: { visible: false },
+          },
+          navContentPaneEnabled: false,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch {
+        // Proceed with fallback capture even if settings update fails
+      }
+
+      const rect = embedContainerRef.current?.getBoundingClientRect();
+      const bounds = rect && rect.width > 0 && rect.height > 0
+        ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+        : undefined;
+
+      const fallbackResponse = await window.electronAPI.export.currentViewToPdf({
+        bounds,
+        insets: { right: 40, bottom: 40 },
+        filePath,
+      }) as IPCResponse<{ path: string }>;
+
+      if (fallbackResponse.success) {
+        showExportStatus('Exported to PDF');
+      } else if (fallbackResponse.error?.code === 'CANCELLED') {
+        showExportStatus('Export cancelled');
+      } else {
+        showExportStatus(fallbackResponse.error?.message || 'Export failed');
+      }
+
+      if (previousSettings) {
+        try {
+          await reportRef.current.updateSettings(previousSettings);
+        } catch {
+          // Ignore restore errors
+        }
+      }
+    } catch (err) {
+      showExportStatus(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleFullScreen = () => {
     // Use our own fullscreen implementation instead of Power BI's SDK fullscreen()
     // This keeps our app in control and allows keyboard event handling
@@ -410,6 +712,11 @@ export const ReportViewer: React.FC = () => {
               Data refreshed: {formatDateTime(lastDataRefresh)}
             </Text>
           )}
+          {exportStatus && (
+            <Text className="text-neutral-foreground-3 text-sm mr-2">
+              {exportStatus}
+            </Text>
+          )}
           <Button
             appearance="subtle"
             icon={<ArrowSyncRegular />}
@@ -417,6 +724,15 @@ export const ReportViewer: React.FC = () => {
             title="Refresh report data"
           >
             Refresh
+          </Button>
+          <Button
+            appearance="subtle"
+            icon={<ArrowDownloadRegular />}
+            onClick={handleExportPdf}
+            title="Export current view to PDF"
+            disabled={isExporting}
+          >
+            {isExporting ? 'Exporting...' : 'Export PDF'}
           </Button>
           <Button
             appearance="subtle"
@@ -461,11 +777,20 @@ export const ReportViewer: React.FC = () => {
           </div>
         )}
 
+        {/* Fullscreen keyboard hint - shows for 5 seconds when entering fullscreen */}
+        {isFullscreen && pages.length > 1 && showFullscreenHint && (
+          <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-md text-sm z-20 pointer-events-none animate-fade-in">
+            <div className="flex items-center gap-2">
+              <span>← → Arrow keys to navigate pages</span>
+              <span className="text-white/60">({currentPageIndex + 1}/{pages.length})</span>
+            </div>
+          </div>
+        )}
+
         <div
           ref={embedContainerRef}
-          className="w-full h-full outline-none"
-          style={{ visibility: isLoading || error ? 'hidden' : 'visible' }}
-          tabIndex={-1}
+          className={`w-full h-full outline-none ${isLoading || error ? 'invisible' : 'visible'}`}
+          tabIndex={0}
         />
       </div>
     </div>

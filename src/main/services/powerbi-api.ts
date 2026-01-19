@@ -381,6 +381,115 @@ class PowerBIApiService {
     }
   }
 
+  async exportReportToPdf(
+    reportId: string,
+    workspaceId: string,
+    pageName?: string,
+    bookmarkState?: string
+  ): Promise<IPCResponse<Buffer>> {
+    try {
+      const tokenResponse = await authService.getAccessToken();
+
+      if (!tokenResponse.success || !tokenResponse.data) {
+        throw new Error(tokenResponse.error?.message || 'Failed to get access token');
+      }
+
+      const accessToken = tokenResponse.data;
+      const baseUrl = `${POWERBI_API_BASE}/groups/${workspaceId}/reports/${reportId}`;
+
+      const reportConfig: Record<string, unknown> = {
+        settings: { includeHiddenPages: false },
+      };
+
+      if (bookmarkState) {
+        reportConfig.defaultBookmark = { state: bookmarkState };
+      }
+
+      if (pageName) {
+        const page: Record<string, unknown> = { pageName };
+        if (bookmarkState) {
+          page.bookmark = { state: bookmarkState };
+        }
+        reportConfig.pages = [page];
+      }
+
+      const exportResponse = await fetch(`${baseUrl}/ExportTo`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          format: 'PDF',
+          powerBIReportConfiguration: reportConfig,
+        }),
+      });
+
+      if (!exportResponse.ok) {
+        const errorText = await exportResponse.text();
+        throw new Error(`Export request failed: ${exportResponse.status} - ${errorText}`);
+      }
+
+      const exportJson = await exportResponse.json() as { id?: string };
+      const exportId = exportJson.id;
+      if (!exportId) {
+        throw new Error('Export request did not return an export id');
+      }
+
+      let attempts = 0;
+      const maxAttempts = 30;
+      let status: string | undefined;
+
+      while (attempts < maxAttempts) {
+        const statusResponse = await fetch(`${baseUrl}/exports/${exportId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!statusResponse.ok) {
+          const errorText = await statusResponse.text();
+          throw new Error(`Export status failed: ${statusResponse.status} - ${errorText}`);
+        }
+
+        const statusJson = await statusResponse.json() as { status?: string; error?: { message?: string } };
+        status = statusJson.status;
+
+        if (status === 'Succeeded') {
+          break;
+        }
+
+        if (status === 'Failed') {
+          throw new Error(statusJson.error?.message || 'Export failed');
+        }
+
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      if (status !== 'Succeeded') {
+        throw new Error('Export timed out');
+      }
+
+      const fileResponse = await fetch(`${baseUrl}/exports/${exportId}/file`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!fileResponse.ok) {
+        const errorText = await fileResponse.text();
+        throw new Error(`Export file failed: ${fileResponse.status} - ${errorText}`);
+      }
+
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      return { success: true, data: buffer };
+    } catch (error) {
+      return {
+        success: false,
+        error: { code: 'EXPORT_REPORT_FAILED', message: String(error) },
+      };
+    }
+  }
+
   /**
    * Fetches all available reports and dashboards from all workspaces.
    * For actual "recent" items based on user activity, use usage-tracking-service.

@@ -109,6 +109,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
         error: null,
       });
+      // Navigate to login page after successful logout
+      window.location.hash = '#/login';
     } catch (error) {
       set({
         isLoading: false,

@@ -29,6 +29,13 @@ declare global {
         getAppReports: (appId: string) => Promise<unknown>;
         getAppDashboards: (appId: string) => Promise<unknown>;
         getEmbedToken: (reportId: string, workspaceId: string) => Promise<unknown>;
+        exportReportToPdf: (
+          reportId: string,
+          workspaceId: string,
+          pageName?: string,
+          bookmarkState?: string,
+          filePath?: string
+        ) => Promise<unknown>;
         getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<unknown>;
         getAllItems: () => Promise<unknown>;
         getRecent: () => Promise<unknown>;
@@ -56,6 +63,14 @@ declare global {
         getRecent: () => Promise<unknown>;
         getFrequent: () => Promise<unknown>;
         clear: () => Promise<unknown>;
+      };
+      export: {
+        choosePdfPath: () => Promise<unknown>;
+        currentViewToPdf: (options?: {
+          bounds?: { x: number; y: number; width: number; height: number };
+          insets?: { top?: number; right?: number; bottom?: number; left?: number };
+          filePath?: string;
+        }) => Promise<unknown>;
       };
       app: {
         getPartitionName: () => Promise<string | null>;
