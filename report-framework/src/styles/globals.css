@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-page: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --bg-muted: #F4F4F5;
+  --bg-hover: #F4F4F5;
+  --bg-selected: #EFF6FF;
+  --text-primary: #18181B;
+  --text-secondary: #52525B;
+  --text-muted: #A1A1AA;
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-light: #EFF6FF;
+  --positive: #10B981;
+  --positive-light: #ECFDF5;
+  --negative: #EF4444;
+  --negative-light: #FEF2F2;
+  --warning: #F59E0B;
+  --warning-light: #FFFBEB;
+  --border: #E4E4E7;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-md: 0 1px 2px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.04), 0 8px 16px rgba(0,0,0,0.02);
+  --shadow-lg: 0 1px 2px rgba(0,0,0,0.04), 0 8px 16px rgba(0,0,0,0.06), 0 16px 32px rgba(0,0,0,0.04);
+  --chart-1: #2563EB;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #EF4444;
+  --chart-5: #8B5CF6;
+  --chart-6: #EC4899;
+  --chart-7: #06B6D4;
+  --chart-8: #84CC16;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@media print {
+  /* Hide navigation and interactive elements */
+  nav,
+  button,
+  [data-print-hide],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Remove shadows for cleaner printing */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Force color printing */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Prevent page breaks inside cards */
+  .card,
+  [data-card],
+  [class*="card"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure backgrounds print */
+  body {
+    background-color: white !important;
+  }
+}
