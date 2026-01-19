@@ -1,2 +1,5 @@
 export { DataTable } from './DataTable'
 export { CompactTable } from './CompactTable'
+export { Sparkline } from './Sparkline'
+export { Heatmap } from './Heatmap'
+export { StackedBarChart } from './StackedBarChart'
