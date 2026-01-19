@@ -1,12 +1,13 @@
 import { cn } from '../../lib/utils'
 import { fmt } from '../../lib/utils'
 
+// Hex colors for email/export compatibility (CSS vars don't work in inline styles in emails)
 const defaultColors = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-  'var(--chart-5)',
+  '#2563EB',  // --chart-1
+  '#10B981',  // --chart-2
+  '#F59E0B',  // --chart-3
+  '#EF4444',  // --chart-4
+  '#8B5CF6',  // --chart-5
 ]
 
 export function FunnelChart({
