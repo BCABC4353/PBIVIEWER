@@ -134,10 +134,11 @@ export function MobileDrawer({ id, open, onClose, links = [] }) {
                     onClose()
                   }}
                   className={cn(
-                    'block py-3 text-lg border-b border-[var(--border-light)]',
-                    'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                    'flex items-center min-h-[44px] py-3 text-lg border-b border-[var(--border-light)]',
+                    'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]',
                     'transition-colors duration-150',
-                    'focus-visible:outline-none focus-visible:bg-[var(--bg-hover)]'
+                    'focus-visible:outline-none focus-visible:bg-[var(--bg-hover)]',
+                    '-mx-4 px-4'
                   )}
                 >
                   {link.label}

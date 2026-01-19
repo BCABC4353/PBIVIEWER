@@ -9,11 +9,11 @@ export function SectionHeader({ title, subtitle, action, className }) {
       )}
     >
       <div>
-        <h2 className="text-xl md:text-2xl font-semibold text-zinc-900">
+        <h2 className="text-xl md:text-2xl font-semibold text-[var(--text-primary)]">
           {title}
         </h2>
         {subtitle && (
-          <p className="text-sm text-zinc-500">{subtitle}</p>
+          <p className="text-sm text-[var(--text-secondary)]">{subtitle}</p>
         )}
       </div>
       {action && <div className="mt-3 sm:mt-0">{action}</div>}

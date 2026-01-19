@@ -1,7 +1,7 @@
 import { cn } from '../../lib/utils'
 
 const variantStyles = {
-  default: 'bg-zinc-100 text-zinc-700 ring-zinc-200/50',
+  default: 'bg-[var(--bg-muted)] text-[var(--text-secondary)] ring-[var(--border)]',
   primary: 'bg-blue-50 text-blue-700 ring-blue-200/50',
   success: 'bg-emerald-50 text-emerald-700 ring-emerald-200/50',
   warning: 'bg-amber-50 text-amber-700 ring-amber-200/50',
@@ -39,7 +39,7 @@ export function Badge({
           variant === 'danger' && 'bg-red-500',
           variant === 'primary' && 'bg-blue-500',
           variant === 'info' && 'bg-cyan-500',
-          variant === 'default' && 'bg-zinc-500',
+          variant === 'default' && 'bg-[var(--text-muted)]',
         )} />
       )}
       {children}

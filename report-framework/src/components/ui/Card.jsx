@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
 const paddingClasses = {
@@ -20,6 +20,8 @@ export const Card = forwardRef(function Card(
   },
   ref
 ) {
+  const shouldReduceMotion = useReducedMotion()
+
   const baseClasses = cn(
     'bg-[var(--bg-card)] rounded-xl border border-[var(--border)]',
     'shadow-[var(--shadow-sm)]',
@@ -31,15 +33,23 @@ export const Card = forwardRef(function Card(
     return (
       <motion.div
         ref={ref}
-        className={cn(baseClasses, 'cursor-pointer')}
-        whileHover={{
+        className={cn(
+          baseClasses,
+          'cursor-pointer',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2'
+        )}
+        whileHover={shouldReduceMotion ? {} : {
           y: -2,
           boxShadow: 'var(--shadow-lg)',
         }}
-        transition={{
+        whileFocus={shouldReduceMotion ? {} : {
+          boxShadow: 'var(--shadow-lg)',
+        }}
+        transition={shouldReduceMotion ? { duration: 0 } : {
           duration: 0.15,
           ease: [0.33, 1, 0.68, 1],
         }}
+        tabIndex={0}
         data-card
         {...props}
       >

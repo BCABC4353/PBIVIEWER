@@ -8,19 +8,19 @@ const variants = {
     'active:bg-[var(--accent-hover)]'
   ),
   secondary: cn(
-    'bg-zinc-100 text-zinc-900',
-    'hover:bg-zinc-200',
-    'active:bg-zinc-200'
+    'bg-[var(--bg-muted)] text-[var(--text-primary)]',
+    'hover:bg-[var(--bg-hover)] hover:border-[var(--border)]',
+    'active:bg-[var(--bg-hover)]'
   ),
   ghost: cn(
-    'bg-transparent text-zinc-600',
-    'hover:bg-zinc-100 hover:text-zinc-900',
-    'active:bg-zinc-100'
+    'bg-transparent text-[var(--text-secondary)]',
+    'hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]',
+    'active:bg-[var(--bg-hover)]'
   ),
   danger: cn(
     'bg-[var(--negative)] text-white',
-    'hover:bg-red-600',
-    'active:bg-red-700'
+    'hover:bg-[var(--negative)]/90',
+    'active:bg-[var(--negative)]/80'
   ),
 }
 
