@@ -47,6 +47,24 @@
 #### Fixed
 - **CompactTable**: Added `hover:bg-[var(--bg-hover)]` and `transition-colors` to table rows (parity with DataTable)
 
+### Export Feature
+
+#### Added
+- **exportHtml.js**: New utility for exporting reports as self-contained inline HTML
+  - `exportToHtml(target, options)` - Downloads HTML file with all styles inlined
+  - `getHtmlString(target, options)` - Returns HTML string for programmatic use
+  - Resolves CSS variables to actual values for email compatibility
+  - Converts SVG charts to PNG images for broader email client support
+  - Respects `.no-print` and `data-print-hide` attributes
+
+- **ExportButton**: Full-featured export button component
+  - Loading, success, and error states with visual feedback
+  - Variants: `primary`, `secondary`, `ghost`
+  - Sizes: `sm`, `md`, `lg`
+  - 44px touch targets
+
+- **ExportIconButton**: Compact icon-only variant for toolbars
+
 ---
 
 ## [Previous] - Quality Audit & Fixes

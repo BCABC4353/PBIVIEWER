@@ -136,3 +136,6 @@ export const date = {
     return format(d, 'yyyy-MM-dd')
   },
 }
+
+// Re-export HTML export utilities
+export { exportToHtml, getHtmlString } from './exportHtml'
