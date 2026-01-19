@@ -12,7 +12,7 @@
 - **MultiLineChart**: Replaced hardcoded `#E4E4E7` grid stroke with `var(--border)`
 - **MultiLineChart**: Replaced hardcoded `#71717A` tick fill with `var(--text-muted)`
 - **Badge**: Converted all variant colors from Tailwind classes (`bg-blue-50`, `text-blue-700`, etc.) to CSS variables
-- **Heatmap**: Replaced hardcoded `rgba(37, 99, 235, alpha)` with CSS variable-based `color-mix(in oklch, var(--accent), transparent)`
+- **Heatmap**: Uses `rgba(37, 99, 235, alpha)` for maximum browser/email compatibility
 
 #### Added
 - **globals.css**: Added `--info: #06B6D4` and `--info-light: #ECFEFF` CSS variables for info state

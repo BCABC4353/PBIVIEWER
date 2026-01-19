@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { cn } from '../../lib/utils'
 
 function getColor(value, min, max, colorScale) {
@@ -26,6 +26,7 @@ export function Heatmap({
   className,
   'aria-label': ariaLabel = 'Heatmap',
 }) {
+  const instanceId = useId()
   const [hoveredCell, setHoveredCell] = useState(null)
   const [focusedCell, setFocusedCell] = useState(null)
 
@@ -72,7 +73,7 @@ export function Heatmap({
 
     setFocusedCell({ row: newRow, col: newCol })
     // Focus the new cell
-    const cellId = `heatmap-cell-${newRow}-${newCol}`
+    const cellId = `heatmap-${instanceId}-${newRow}-${newCol}`
     document.getElementById(cellId)?.focus()
   }
 
@@ -99,7 +100,7 @@ export function Heatmap({
                 row.map((value, colIndex) => (
                   <div
                     key={`${rowIndex}-${colIndex}`}
-                    id={`heatmap-cell-${rowIndex}-${colIndex}`}
+                    id={`heatmap-${instanceId}-${rowIndex}-${colIndex}`}
                     className={cn(
                       'relative h-8 rounded-sm transition-all duration-150 cursor-pointer',
                       'hover:ring-2 hover:ring-[var(--accent)] hover:ring-offset-1',

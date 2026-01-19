@@ -164,9 +164,27 @@ async function svgsToImages(container) {
         img.crossOrigin = 'anonymous'
 
         await new Promise((resolve, reject) => {
-          img.onload = resolve
-          img.onerror = reject
-          setTimeout(reject, 5000) // 5s timeout
+          let settled = false
+          const timeout = setTimeout(() => {
+            if (!settled) {
+              settled = true
+              reject(new Error('Image load timeout'))
+            }
+          }, 5000)
+          img.onload = () => {
+            if (!settled) {
+              settled = true
+              clearTimeout(timeout)
+              resolve()
+            }
+          }
+          img.onerror = () => {
+            if (!settled) {
+              settled = true
+              clearTimeout(timeout)
+              reject(new Error('Image load failed'))
+            }
+          }
           img.src = dataUrl
         })
 
