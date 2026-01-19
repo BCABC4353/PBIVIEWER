@@ -15,7 +15,7 @@ export function Tabs({ tabs, activeTab, onChange, className }) {
               id={`tab-${tab.id}`}
               onClick={() => onChange(tab.id)}
               className={cn(
-                'px-4 py-3 text-sm font-medium whitespace-nowrap',
+                'px-4 py-3 min-h-[44px] text-sm font-medium whitespace-nowrap',
                 'border-b-2 -mb-px transition-colors duration-150',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-inset',
                 isActive

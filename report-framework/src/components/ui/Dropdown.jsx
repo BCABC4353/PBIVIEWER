@@ -114,7 +114,7 @@ export function Dropdown({
                 onMouseEnter={() => setFocusedIndex(index)}
                 onFocus={() => setFocusedIndex(index)}
                 className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
+                  'w-full flex items-center gap-2 px-3 py-2 min-h-[44px] text-sm text-left',
                   'transition-colors duration-150',
                   'focus:outline-none',
                   focusedIndex === index && 'bg-[var(--bg-hover)]',

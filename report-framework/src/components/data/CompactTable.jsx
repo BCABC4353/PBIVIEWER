@@ -40,7 +40,10 @@ export function CompactTable({
         </thead>
         <tbody className="divide-y divide-[var(--border-light)]">
           {data.map((row, rowIndex) => (
-            <tr key={getRowKey(row, rowIndex)}>
+            <tr
+              key={getRowKey(row, rowIndex)}
+              className="hover:bg-[var(--bg-hover)] transition-colors duration-150"
+            >
               {columns.map((col) => (
                 <td
                   key={col.key}

@@ -1,6 +1,55 @@
 # Changelog
 
-## [Unreleased] - Quality Audit & Fixes
+## [Unreleased] - Senior Developer Audit
+
+### Design Tokens & Theming
+
+#### Fixed
+- **AreaChartComponent**: Replaced hardcoded `#E4E4E7` grid stroke with `var(--border)`
+- **AreaChartComponent**: Replaced hardcoded `#71717A` tick fill with `var(--text-muted)`
+- **BarChartComponent**: Replaced hardcoded `#E4E4E7` grid stroke with `var(--border)`
+- **BarChartComponent**: Replaced hardcoded `#71717A` tick fill with `var(--text-muted)`
+- **MultiLineChart**: Replaced hardcoded `#E4E4E7` grid stroke with `var(--border)`
+- **MultiLineChart**: Replaced hardcoded `#71717A` tick fill with `var(--text-muted)`
+- **Badge**: Converted all variant colors from Tailwind classes (`bg-blue-50`, `text-blue-700`, etc.) to CSS variables
+- **Heatmap**: Replaced hardcoded `rgba(37, 99, 235, alpha)` with CSS variable-based `color-mix(in oklch, var(--accent), transparent)`
+
+#### Added
+- **globals.css**: Added `--info: #06B6D4` and `--info-light: #ECFEFF` CSS variables for info state
+- **globals.css**: Added semantic badge text colors for better contrast:
+  - `--accent-text: #1D4ED8`
+  - `--positive-text: #047857`
+  - `--negative-text: #DC2626`
+  - `--warning-text: #B45309`
+  - `--info-text: #0E7490`
+
+### Accessibility
+
+#### Fixed
+- **GaugeChart**: Added `role="meter"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, and auto-generated `aria-label`
+- **GaugeChart**: Added `aria-hidden="true"` to decorative SVG element
+- **FunnelChart**: Added `role="img"` and descriptive `aria-label` that includes data summary for screen readers
+- **Sparkline**: Added `role="img"` and auto-generated `aria-label` with data range (min, max, current value)
+- **Heatmap**: Added `role="grid"` and `aria-label` to container
+- **Heatmap**: Added full keyboard navigation (arrow keys) for cell traversal
+- **Heatmap**: Added visible focus states with ring indicator
+- **Heatmap**: Tooltip now shows on both hover AND keyboard focus
+
+### Mobile / Touch Targets
+
+#### Fixed
+- **Dropdown**: Added `min-h-[44px]` to menu items for WCAG-compliant touch targets
+- **Tabs**: Added `min-h-[44px]` to tab buttons for proper touch targets
+- **Modal**: Increased close button from 40px to 44px (`h-11 w-11`) for proper touch targets
+
+### Interactions
+
+#### Fixed
+- **CompactTable**: Added `hover:bg-[var(--bg-hover)]` and `transition-colors` to table rows (parity with DataTable)
+
+---
+
+## [Previous] - Quality Audit & Fixes
 
 ### Summary
 

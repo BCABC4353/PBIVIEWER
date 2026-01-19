@@ -15,6 +15,7 @@ export function GaugeChart({
   label,
   size = 200,
   className,
+  'aria-label': ariaLabel,
 }) {
   // Normalize value to 0-100 range
   const normalizedValue = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
@@ -60,8 +61,16 @@ export function GaugeChart({
   const strokeWidth = 16
 
   return (
-    <div className={cn('relative inline-flex flex-col items-center', className)}>
+    <div
+      className={cn('relative inline-flex flex-col items-center', className)}
+      role="meter"
+      aria-valuenow={value}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-label={ariaLabel || (label ? `${label}: ${fmt.number(value)}` : `Gauge showing ${fmt.number(value)} of ${fmt.number(max)}`)}
+    >
       <svg
+        aria-hidden="true"
         width={size}
         height={size / 2 + 20}
         viewBox={`0 0 ${size} ${size / 2 + 20}`}

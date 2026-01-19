@@ -29,7 +29,7 @@ export function BarChartComponent({
       >
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="#E4E4E7"
+          stroke="var(--border)"
           horizontal={!horizontal}
           vertical={horizontal}
         />
@@ -39,14 +39,14 @@ export function BarChartComponent({
               type="number"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: '#71717A' }}
+              tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
             />
             <YAxis
               type="category"
               dataKey={xKey}
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: '#71717A' }}
+              tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
             />
           </>
         ) : (
@@ -55,13 +55,13 @@ export function BarChartComponent({
               dataKey={xKey}
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: '#71717A' }}
+              tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
               dy={10}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: '#71717A' }}
+              tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
               dx={-10}
             />
           </>

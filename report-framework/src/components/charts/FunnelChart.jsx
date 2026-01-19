@@ -14,6 +14,7 @@ export function FunnelChart({
   height = 300,
   showConversion = true,
   className,
+  'aria-label': ariaLabel = 'Funnel chart',
 }) {
   if (!data.length) {
     return (
@@ -28,8 +29,20 @@ export function FunnelChart({
 
   const maxValue = Math.max(...data.map((d) => d.value))
 
+  // Generate screen reader summary
+  const srSummary = data.map((item, index) => {
+    const prevValue = index > 0 ? data[index - 1].value : null
+    const conversionRate = prevValue ? ((item.value / prevValue) * 100).toFixed(1) : null
+    return `${item.name}: ${fmt.compact(item.value)}${conversionRate ? ` (${conversionRate}% conversion)` : ''}`
+  }).join(', ')
+
   return (
-    <div className={cn('flex flex-col gap-2', className)} style={{ minHeight: height }}>
+    <div
+      className={cn('flex flex-col gap-2', className)}
+      style={{ minHeight: height }}
+      role="img"
+      aria-label={`${ariaLabel}. ${srSummary}`}
+    >
       {data.map((item, index) => {
         const widthPercent = (item.value / maxValue) * 100
         const prevValue = index > 0 ? data[index - 1].value : null

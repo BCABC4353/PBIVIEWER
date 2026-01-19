@@ -19,20 +19,20 @@ export function MultiLineChart({ data, xKey, lines }) {
       >
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="#E4E4E7"
+          stroke="var(--border)"
           vertical={false}
         />
         <XAxis
           dataKey={xKey}
           axisLine={false}
           tickLine={false}
-          tick={{ fontSize: 12, fill: '#71717A' }}
+          tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
           dy={10}
         />
         <YAxis
           axisLine={false}
           tickLine={false}
-          tick={{ fontSize: 12, fill: '#71717A' }}
+          tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
           dx={-10}
         />
         <Tooltip content={<CustomTooltip />} />

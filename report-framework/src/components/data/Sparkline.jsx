@@ -7,6 +7,7 @@ export function Sparkline({
   height = 32,
   showDot = false,
   className,
+  'aria-label': ariaLabel,
 }) {
   // Convert array of numbers to Recharts format
   const chartData = data.map((value, index) => ({ index, value }))
@@ -20,8 +21,19 @@ export function Sparkline({
     )
   }
 
+  // Generate accessible label
+  const minVal = Math.min(...data)
+  const maxVal = Math.max(...data)
+  const lastVal = data[data.length - 1]
+  const defaultLabel = `Sparkline chart with ${data.length} points. Range: ${minVal} to ${maxVal}. Current: ${lastVal}`
+
   return (
-    <div className={className} style={{ height, width: '100%' }}>
+    <div
+      className={className}
+      style={{ height, width: '100%' }}
+      role="img"
+      aria-label={ariaLabel || defaultLabel}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData}>
           <Line
