@@ -284,8 +284,18 @@ function generateHtmlDocument(content, title, options = {}) {
  * @param {string} options.title - Document title
  * @param {boolean} options.convertSvgs - Convert SVGs to images (default: true)
  * @param {boolean} options.includeTimestamp - Add generation timestamp (default: true)
+ *
+ * NOTE: Exported HTML uses CSS flexbox/grid which have limited support in email clients.
+ * For maximum email compatibility, use simple table-based layouts or view in browser.
+ * Supported: Gmail (web), Apple Mail, Outlook 2019+. Limited: Outlook 2007-2016.
  */
 export async function exportToHtml(target, options = {}) {
+  // Warn about email client limitations in development
+  if (import.meta.env?.DEV) {
+    console.warn(
+      '[exportToHtml] Note: HTML export uses flexbox/grid which may not render correctly in older email clients (Outlook 2007-2016). For best results, view in browser or modern email clients.'
+    )
+  }
   const {
     filename = 'report.html',
     title = 'Report',

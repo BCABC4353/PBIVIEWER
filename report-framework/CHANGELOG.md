@@ -1,6 +1,39 @@
 # Changelog
 
-## [Unreleased] - Senior Developer Audit
+## [Unreleased] - Bug Fixes & Hardening
+
+### Error Handling
+
+#### Added
+- **ErrorBoundary**: New component to catch React errors and display fallback UI
+  - `ErrorBoundary` class component with customizable fallback
+  - `withErrorBoundary` HOC for wrapping any component
+  - `onError` and `onReset` callbacks for error tracking
+  - Configurable error message and reset button
+
+### Data Validation
+
+#### Fixed
+- **Sparkline**: Filters out null, undefined, and NaN values before rendering
+- **DonutChartComponent**: Validates data array and filters invalid entries, shows empty state
+- **AreaChartComponent**: Validates data array and filters invalid entries, shows empty state
+- **BarChartComponent**: Validates data array and filters invalid entries, shows empty state
+- **MultiLineChart**: Validates data and lines arrays, shows empty state
+
+### Export Feature
+
+#### Fixed
+- **exportHtml.js**: Added console warning about flexbox/grid email client limitations in development mode
+- **exportHtml.js**: Added JSDoc documentation noting email client compatibility (Gmail, Apple Mail, Outlook 2019+ supported)
+
+### Unique IDs
+
+#### Fixed
+- **Heatmap**: Uses `useId()` hook for unique instance IDs, preventing DOM conflicts with multiple heatmaps
+
+---
+
+## [Previous] - Senior Developer Audit
 
 ### Design Tokens & Theming
 

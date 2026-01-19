@@ -21,11 +21,24 @@ export function DonutChartComponent({
   nameKey,
   colors = DEFAULT_COLORS,
 }) {
+  // Validate data - filter out entries with invalid values
+  const validData = Array.isArray(data)
+    ? data.filter((d) => d && d[dataKey] != null && !Number.isNaN(d[dataKey]))
+    : []
+
+  if (!validData.length) {
+    return (
+      <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+        No data available
+      </div>
+    )
+  }
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <PieChart>
         <Pie
-          data={data}
+          data={validData}
           dataKey={dataKey}
           nameKey={nameKey}
           cx="50%"
@@ -34,7 +47,7 @@ export function DonutChartComponent({
           outerRadius="80%"
           paddingAngle={2}
         >
-          {data.map((entry, index) => (
+          {validData.map((entry, index) => (
             <Cell
               key={`cell-${index}`}
               fill={colors[index % colors.length]}

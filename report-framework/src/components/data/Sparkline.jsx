@@ -9,10 +9,13 @@ export function Sparkline({
   className,
   'aria-label': ariaLabel,
 }) {
-  // Convert array of numbers to Recharts format
-  const chartData = data.map((value, index) => ({ index, value }))
+  // Filter out invalid values (null, undefined, NaN)
+  const validData = data.filter((v) => v != null && !Number.isNaN(v))
 
-  if (!data.length) {
+  // Convert array of numbers to Recharts format
+  const chartData = validData.map((value, index) => ({ index, value }))
+
+  if (!validData.length) {
     return (
       <div
         className={cn('bg-[var(--bg-muted)] rounded', className)}
@@ -22,9 +25,9 @@ export function Sparkline({
   }
 
   // Generate accessible label
-  const minVal = Math.min(...data)
-  const maxVal = Math.max(...data)
-  const lastVal = data[data.length - 1]
+  const minVal = Math.min(...validData)
+  const maxVal = Math.max(...validData)
+  const lastVal = validData[validData.length - 1]
   const defaultLabel = `Sparkline chart with ${data.length} points. Range: ${minVal} to ${maxVal}. Current: ${lastVal}`
 
   return (

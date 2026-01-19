@@ -15,12 +15,25 @@ export function AreaChartComponent({
   yKey,
   color = 'var(--chart-1)',
 }) {
+  // Validate data
+  const validData = Array.isArray(data)
+    ? data.filter((d) => d && d[yKey] != null && !Number.isNaN(d[yKey]))
+    : []
+
+  if (!validData.length) {
+    return (
+      <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+        No data available
+      </div>
+    )
+  }
+
   const gradientId = `area-gradient-${yKey}`
 
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart
-        data={data}
+        data={validData}
         margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
       >
         <defs>

@@ -16,6 +16,19 @@ export function BarChartComponent({
   color = 'var(--chart-1)',
   horizontal = false,
 }) {
+  // Validate data
+  const validData = Array.isArray(data)
+    ? data.filter((d) => d && d[yKey] != null && !Number.isNaN(d[yKey]))
+    : []
+
+  if (!validData.length) {
+    return (
+      <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+        No data available
+      </div>
+    )
+  }
+
   const margin = horizontal
     ? { top: 10, right: 10, left: 80, bottom: 0 }
     : { top: 10, right: 10, left: 0, bottom: 0 }
@@ -23,7 +36,7 @@ export function BarChartComponent({
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
-        data={data}
+        data={validData}
         layout={horizontal ? 'vertical' : 'horizontal'}
         margin={margin}
       >

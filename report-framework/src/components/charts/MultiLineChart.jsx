@@ -11,10 +11,22 @@ import {
 import { CustomTooltip } from './CustomTooltip'
 
 export function MultiLineChart({ data, xKey, lines }) {
+  // Validate data - ensure array with valid entries
+  const validData = Array.isArray(data) ? data.filter((d) => d != null) : []
+  const validLines = Array.isArray(lines) ? lines : []
+
+  if (!validData.length || !validLines.length) {
+    return (
+      <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
+        No data available
+      </div>
+    )
+  }
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
-        data={data}
+        data={validData}
         margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
       >
         <CartesianGrid
@@ -37,7 +49,7 @@ export function MultiLineChart({ data, xKey, lines }) {
         />
         <Tooltip content={<CustomTooltip />} />
         <Legend />
-        {lines.map((line) => (
+        {validLines.map((line) => (
           <Line
             key={line.key}
             type="monotone"
