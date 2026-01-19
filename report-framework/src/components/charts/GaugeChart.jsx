@@ -1,11 +1,26 @@
 import { cn } from '../../lib/utils'
 import { fmt } from '../../lib/utils'
 
+// Using hex colors for SVG compatibility (CSS vars don't serialize well to canvas)
 const defaultThresholds = [
-  { value: 33, color: 'var(--negative)' },
-  { value: 66, color: 'var(--warning)' },
-  { value: 100, color: 'var(--positive)' },
+  { value: 33, color: '#EF4444' },  // --negative
+  { value: 66, color: '#F59E0B' },  // --warning
+  { value: 100, color: '#10B981' }, // --positive
 ]
+
+// Fallback colors for CSS variable resolution
+const COLOR_MAP = {
+  'var(--negative)': '#EF4444',
+  'var(--warning)': '#F59E0B',
+  'var(--positive)': '#10B981',
+  'var(--accent)': '#2563EB',
+  'var(--chart-1)': '#2563EB',
+  'var(--bg-muted)': '#F4F4F5',
+  'var(--text-primary)': '#18181B',
+  'var(--text-muted)': '#A1A1AA',
+}
+
+const resolveColor = (color) => COLOR_MAP[color] || color
 
 export function GaugeChart({
   value = 0,
@@ -17,8 +32,9 @@ export function GaugeChart({
   className,
   'aria-label': ariaLabel,
 }) {
-  // Normalize value to 0-100 range
-  const normalizedValue = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
+  // Normalize value to 0-100 range (guard against division by zero)
+  const range = max - min
+  const normalizedValue = range === 0 ? 0 : Math.max(0, Math.min(100, ((value - min) / range) * 100))
 
   // Calculate needle angle (0 = left, 180 = right, we want -90 to 90 degrees)
   const needleAngle = (normalizedValue / 100) * 180 - 90
@@ -80,7 +96,7 @@ export function GaugeChart({
         <path
           d={createArcPath(0, 100, radius, strokeWidth)}
           fill="none"
-          stroke="var(--bg-muted)"
+          stroke={resolveColor('var(--bg-muted)')}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
@@ -93,7 +109,7 @@ export function GaugeChart({
               key={index}
               d={createArcPath(prevValue, threshold.value, radius, strokeWidth)}
               fill="none"
-              stroke={threshold.color}
+              stroke={resolveColor(threshold.color)}
               strokeWidth={strokeWidth}
               strokeLinecap="round"
               opacity={0.3}
@@ -105,7 +121,7 @@ export function GaugeChart({
         <path
           d={createArcPath(0, normalizedValue, radius, strokeWidth)}
           fill="none"
-          stroke={currentColor}
+          stroke={resolveColor(currentColor)}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
@@ -117,7 +133,7 @@ export function GaugeChart({
             y1={size / 2}
             x2={size / 2}
             y2={size / 2 - radius + 10}
-            stroke="var(--text-primary)"
+            stroke={resolveColor('var(--text-primary)')}
             strokeWidth={3}
             strokeLinecap="round"
           />
@@ -125,7 +141,7 @@ export function GaugeChart({
             cx={size / 2}
             cy={size / 2}
             r={6}
-            fill="var(--text-primary)"
+            fill={resolveColor('var(--text-primary)')}
           />
         </g>
 
