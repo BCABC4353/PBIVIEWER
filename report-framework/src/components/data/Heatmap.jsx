@@ -3,11 +3,11 @@ import { cn } from '../../lib/utils'
 
 function getColor(value, min, max, colorScale) {
   if (!colorScale || colorScale.length === 0) {
-    // Default blue scale using CSS variable color
+    // Default blue scale - using rgba for maximum browser/email compatibility
+    // Accent color #2563EB = rgb(37, 99, 235)
     const intensity = (value - min) / (max - min || 1)
     const alpha = Math.max(0.1, intensity)
-    // Using oklch for better color interpolation (accent color #2563EB = oklch(0.55 0.22 264))
-    return `color-mix(in oklch, var(--accent) ${alpha * 100}%, transparent)`
+    return `rgba(37, 99, 235, ${alpha})`
   }
 
   const intensity = (value - min) / (max - min || 1)

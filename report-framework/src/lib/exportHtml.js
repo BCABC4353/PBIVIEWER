@@ -137,43 +137,67 @@ function cloneWithInlineStyles(element, variables) {
 
 /**
  * Convert SVG charts to inline images for better email compatibility
+ * Falls back to inline SVG with explicit dimensions if canvas fails
  */
 async function svgsToImages(container) {
-  const svgs = container.querySelectorAll('svg')
+  const svgs = Array.from(container.querySelectorAll('svg'))
 
   for (const svg of svgs) {
     try {
-      const svgData = new XMLSerializer().serializeToString(svg)
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(svgBlob)
+      // Get dimensions before any manipulation
+      const width = svg.clientWidth || svg.getBoundingClientRect().width || 300
+      const height = svg.clientHeight || svg.getBoundingClientRect().height || 200
 
-      const img = new Image()
-      img.src = url
+      // Clone SVG and set explicit dimensions (needed for serialization)
+      const svgClone = svg.cloneNode(true)
+      svgClone.setAttribute('width', width)
+      svgClone.setAttribute('height', height)
+      svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
 
-      await new Promise((resolve, reject) => {
-        img.onload = resolve
-        img.onerror = reject
-      })
+      // Try canvas conversion first
+      try {
+        const svgData = new XMLSerializer().serializeToString(svgClone)
+        const svgBase64 = btoa(unescape(encodeURIComponent(svgData)))
+        const dataUrl = `data:image/svg+xml;base64,${svgBase64}`
 
-      const canvas = document.createElement('canvas')
-      canvas.width = svg.clientWidth || 300
-      canvas.height = svg.clientHeight || 200
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
 
-      const ctx = canvas.getContext('2d')
-      ctx.fillStyle = 'white'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0)
+        await new Promise((resolve, reject) => {
+          img.onload = resolve
+          img.onerror = reject
+          setTimeout(reject, 5000) // 5s timeout
+          img.src = dataUrl
+        })
 
-      const imgElement = document.createElement('img')
-      imgElement.src = canvas.toDataURL('image/png')
-      imgElement.style.cssText = svg.style?.cssText || ''
-      imgElement.style.width = `${canvas.width}px`
-      imgElement.style.height = `${canvas.height}px`
+        const canvas = document.createElement('canvas')
+        canvas.width = width * 2 // 2x for retina
+        canvas.height = height * 2
 
-      svg.parentNode?.replaceChild(imgElement, svg)
-      URL.revokeObjectURL(url)
+        const ctx = canvas.getContext('2d')
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.scale(2, 2)
+        ctx.drawImage(img, 0, 0, width, height)
+
+        const imgElement = document.createElement('img')
+        imgElement.src = canvas.toDataURL('image/png', 0.95)
+        imgElement.alt = 'Chart'
+        imgElement.style.cssText = `width: ${width}px; height: ${height}px; display: block;`
+
+        svg.parentNode?.replaceChild(imgElement, svg)
+      } catch (canvasError) {
+        // Fallback: keep SVG but inline it with explicit styles
+        console.warn('Canvas conversion failed, using inline SVG:', canvasError)
+
+        // Add inline styles to SVG for email compatibility
+        svgClone.style.cssText = `width: ${width}px; height: ${height}px; display: block;`
+
+        svg.parentNode?.replaceChild(svgClone, svg)
+      }
     } catch (e) {
-      console.warn('Could not convert SVG to image:', e)
+      console.warn('SVG processing failed, keeping original:', e)
+      // Keep original SVG - better than nothing
     }
   }
 }
