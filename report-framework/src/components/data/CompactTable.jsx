@@ -1,16 +1,34 @@
 import { cn } from '../../lib/utils'
 
-export function CompactTable({ columns, data, className }) {
+function getRowKey(row, index) {
+  return row.id ?? row.key ?? index
+}
+
+export function CompactTable({
+  columns,
+  data,
+  className,
+  'aria-label': ariaLabel = 'Data table',
+}) {
+  if (!data || data.length === 0) {
+    return (
+      <div className={cn('py-8 text-center text-[var(--text-muted)] text-sm', className)}>
+        No data available
+      </div>
+    )
+  }
+
   return (
-    <div className={cn('overflow-x-auto -mx-6', className)}>
-      <table className="w-full min-w-[500px]">
+    <div className={cn('overflow-x-auto -mx-6 scrollbar-thin', className)}>
+      <table className="w-full min-w-[500px]" aria-label={ariaLabel}>
         <thead>
-          <tr className="border-b border-zinc-200 bg-zinc-50">
+          <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)]">
             {columns.map((col) => (
               <th
                 key={col.key}
+                scope="col"
                 className={cn(
-                  'px-4 py-2 text-left text-xs font-semibold text-zinc-600',
+                  'px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)]',
                   col.align === 'right' && 'text-right',
                   col.align === 'center' && 'text-center'
                 )}
@@ -20,14 +38,14 @@ export function CompactTable({ columns, data, className }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100">
+        <tbody className="divide-y divide-[var(--border-light)]">
           {data.map((row, rowIndex) => (
-            <tr key={rowIndex}>
+            <tr key={getRowKey(row, rowIndex)}>
               {columns.map((col) => (
                 <td
                   key={col.key}
                   className={cn(
-                    'px-4 py-2 text-sm text-zinc-700',
+                    'px-4 py-2 text-sm text-[var(--text-secondary)]',
                     col.align === 'right' && 'text-right tabular-nums',
                     col.align === 'center' && 'text-center',
                     col.mono && 'font-mono'
@@ -35,7 +53,7 @@ export function CompactTable({ columns, data, className }) {
                 >
                   {col.render
                     ? col.render(row[col.key], row)
-                    : row[col.key]}
+                    : row[col.key] ?? '-'}
                 </td>
               ))}
             </tr>

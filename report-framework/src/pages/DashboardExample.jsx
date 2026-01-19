@@ -19,10 +19,10 @@ import {
 
 export function DashboardExample() {
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen bg-[var(--bg-page)]">
       <TopNav logo="Dashboard" links={navLinks} actions={null} />
 
-      <main className="pt-20">
+      <main id="main" className="pt-[var(--nav-height)]">
         <PageContainer size="wide">
           {/* Overview Section */}
           <Section>
@@ -102,7 +102,11 @@ export function DashboardExample() {
               title="Recent Transactions"
               subtitle="Latest invoices and their status"
             >
-              <DataTable columns={tableColumns} data={tableData} />
+              <DataTable
+                columns={tableColumns}
+                data={tableData}
+                aria-label="Recent transactions"
+              />
             </InfoCard>
           </Section>
         </PageContainer>

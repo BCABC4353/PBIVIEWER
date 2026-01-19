@@ -13,16 +13,16 @@ export function InfoCard({
     <Card padding="none" className={className}>
       {/* Header */}
       {(title || action) && (
-        <div className="p-6 border-b border-zinc-100 flex items-start justify-between">
-          <div>
+        <div className="p-6 border-b border-[var(--border-light)] flex items-start justify-between gap-4">
+          <div className="min-w-0">
             {title && (
-              <h3 className="font-semibold text-zinc-900">{title}</h3>
+              <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
             )}
             {subtitle && (
-              <p className="text-sm text-zinc-500 mt-1">{subtitle}</p>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">{subtitle}</p>
             )}
           </div>
-          {action && <div>{action}</div>}
+          {action && <div className="flex-shrink-0">{action}</div>}
         </div>
       )}
 
@@ -31,7 +31,7 @@ export function InfoCard({
 
       {/* Footer */}
       {footer && (
-        <div className="px-6 py-4 bg-zinc-50 border-t border-zinc-100 rounded-b-xl">
+        <div className="px-6 py-4 bg-[var(--bg-muted)] border-t border-[var(--border-light)] rounded-b-xl">
           {footer}
         </div>
       )}
