@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, screen } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { PARTITION_NAME, APP_NAME } from '../shared/constants';
@@ -377,41 +377,58 @@ ipcMain.handle(
     }
 
     const image = await mainWindow.webContents.capturePage(captureRect);
-    const { width, height } = image.getSize();
-    const dataUrl = image.toDataURL();
+    const { width: imgWidth, height: imgHeight } = image.getSize();
+    
+    // Convert pixel dimensions to microns for PDF page size
+    // 1 inch = 25400 microns, 96 DPI standard screen resolution
+    const MICRONS_PER_INCH = 25400;
+    const pageWidthMicrons = Math.round((imgWidth / 96) * MICRONS_PER_INCH);
+    const pageHeightMicrons = Math.round((imgHeight / 96) * MICRONS_PER_INCH);
+    
+    // Convert image to base64 PNG
+    const pngBuffer = image.toPNG();
+    const base64 = pngBuffer.toString('base64');
+    const dataUrl = `data:image/png;base64,${base64}`;
+    
     pdfWindow = new BrowserWindow({
       show: false,
+      width: imgWidth,
+      height: imgHeight,
       webPreferences: {
         contextIsolation: true,
         sandbox: true,
       },
     });
 
-    const isLandscape = width >= height;
+    // HTML with viewport meta and image sized to viewport
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=${imgWidth}, height=${imgHeight}">
+  <style>
+    @page { margin: 0; size: ${imgWidth}px ${imgHeight}px; }
+    * { margin: 0; padding: 0; }
+    html, body { width: ${imgWidth}px; height: ${imgHeight}px; overflow: hidden; }
+    img { width: ${imgWidth}px; height: ${imgHeight}px; display: block; }
+  </style>
+</head>
+<body>
+  <img src="${dataUrl}">
+</body>
+</html>`;
 
-    const html = `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <style>
-            @page { margin: 0; }
-            html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #ffffff; }
-            img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
-          </style>
-        </head>
-        <body>
-          <img src="${dataUrl}" />
-        </body>
-      </html>
-    `;
-
-    await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    // Use did-finish-load event - critical for ensuring content loads before PDF generation
+    await new Promise<void>((resolve, reject) => {
+      pdfWindow!.webContents.on('did-finish-load', () => resolve());
+      pdfWindow!.webContents.on('did-fail-load', (_e, code, desc) => reject(new Error(`Load failed: ${code} ${desc}`)));
+      pdfWindow!.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    });
 
     const pdfBuffer = await pdfWindow.webContents.printToPDF({
       printBackground: true,
-      pageSize: 'Letter',
-      landscape: isLandscape,
+      pageSize: { width: pageWidthMicrons, height: pageHeightMicrons },
+      preferCSSPageSize: true,
     });
 
     await fs.writeFile(targetPath, pdfBuffer);
