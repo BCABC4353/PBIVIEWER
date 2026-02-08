@@ -1,0 +1,90 @@
+{
+  "game": {
+    "spread": {
+      "favorite": "SEA",
+      "line": -4.5,
+      "patriots_spread": 4.5,
+      "seahawks_spread": -4.5
+    },
+    "total": {
+      "over_under": 45.5
+    },
+    "moneyline": {
+      "patriots": 185,
+      "seahawks": -220
+    },
+    "implied_probability": {
+      "patriots": 0.351,
+      "seahawks": 0.649
+    }
+  },
+  "player_props": [
+    {
+      "player": "Drake Maye",
+      "team": "NE",
+      "prop": "rushing_yards",
+      "line": 37.5,
+      "over_odds": -110,
+      "under_odds": -110,
+      "notes": "Dual-threat QB with 450 rush yards in regular season. Shoulder may limit designed runs."
+    },
+    {
+      "player": "Drake Maye",
+      "team": "NE",
+      "prop": "passing_yards",
+      "line": 265.5,
+      "over_odds": -110,
+      "under_odds": -110
+    },
+    {
+      "player": "Drake Maye",
+      "team": "NE",
+      "prop": "passing_tds",
+      "line": 1.5,
+      "over_odds": -130,
+      "under_odds": 110
+    },
+    {
+      "player": "Drake Maye",
+      "team": "NE",
+      "prop": "anytime_td",
+      "line": null,
+      "odds": 120,
+      "notes": "Rushing TD probability based on goal-line usage"
+    },
+    {
+      "player": "Stefon Diggs",
+      "team": "NE",
+      "prop": "receiving_yards",
+      "line": 62.5,
+      "over_odds": -110,
+      "under_odds": -110
+    },
+    {
+      "player": "Stefon Diggs",
+      "team": "NE",
+      "prop": "receptions",
+      "line": 5.5,
+      "over_odds": -115,
+      "under_odds": -105
+    },
+    {
+      "player": "Sam Darnold",
+      "team": "SEA",
+      "prop": "passing_yards",
+      "line": 245.5,
+      "over_odds": -110,
+      "under_odds": -110
+    },
+    {
+      "player": "Sam Darnold",
+      "team": "SEA",
+      "prop": "passing_tds",
+      "line": 1.5,
+      "over_odds": -140,
+      "under_odds": 120
+    }
+  ],
+  "source": "Composite from DraftKings/FanDuel/BetMGM",
+  "as_of": "2026-02-08T06:00:00"
+}

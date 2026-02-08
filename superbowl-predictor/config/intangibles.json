@@ -1,0 +1,152 @@
+{
+  "patriots": {
+    "injuries": [
+      {
+        "player": "Robert Spillane",
+        "position": "LB",
+        "injury": "ankle",
+        "status": "questionable",
+        "impact_score": -1.2,
+        "confidence": 0.85,
+        "notes": "Team leading tackler, defensive signal caller. Left AFC Championship early. Limited practice. If playing at 70% effectiveness, significant defensive downgrade."
+      },
+      {
+        "player": "Harold Landry",
+        "position": "EDGE",
+        "injury": "knee",
+        "status": "questionable",
+        "impact_score": -1.5,
+        "confidence": 0.85,
+        "notes": "Team sack leader. Snap counts declining drastically: 26 → 11 → 0 through playoffs. Even if active, likely on severe pitch count."
+      },
+      {
+        "player": "Drake Maye",
+        "position": "QB",
+        "injury": "right_shoulder",
+        "status": "cleared",
+        "impact_score": -0.3,
+        "confidence": 0.85,
+        "notes": "Throwing shoulder. Cleared and full participant, but risk against elite pass rush."
+      }
+    ],
+    "off_field": [
+      {
+        "factor": "Stefon Diggs legal issues",
+        "impact_score": -1.0,
+        "confidence": 0.35,
+        "notes": "Felony strangulation charge. Called it 'a very emotional time.' Arraignment delayed to 5 days post-Super Bowl."
+      },
+      {
+        "factor": "Christian Barmore legal issues",
+        "impact_score": -0.5,
+        "confidence": 0.35,
+        "notes": "Domestic assault charge. Arraignment delayed."
+      },
+      {
+        "factor": "Tom Brady controversy",
+        "impact_score": 0.0,
+        "confidence": 0.30,
+        "notes": "Franchise GOAT said 'no dog in the fight.' Spillane: 'makes me sick.' Could be motivator OR distraction. Net neutral with wide variance.",
+        "scenarios": {
+          "motivator": 2.0,
+          "distraction": -2.0
+        }
+      },
+      {
+        "factor": "Robert Kraft/Epstein files",
+        "impact_score": -0.5,
+        "confidence": 0.15,
+        "notes": "Owner's name in documents. Background noise."
+      },
+      {
+        "factor": "Drake Curse",
+        "impact_score": -1.0,
+        "confidence": 0.05,
+        "notes": "Rapper Drake placed $1M bet on Patriots. Historical track record of Drake-backed teams/athletes losing. Meme-tier but include for fun."
+      }
+    ],
+    "total_injury_score": -3.0,
+    "total_off_field_score": -2.0
+  },
+  "seahawks": {
+    "injuries": [
+      {
+        "player": "Nick Emmanwori",
+        "position": "S",
+        "injury": "ankle",
+        "status": "cleared",
+        "impact_score": 0.0,
+        "confidence": 0.85,
+        "notes": "DROY candidate. Ankle scare in practice but fully cleared."
+      }
+    ],
+    "off_field": [],
+    "total_injury_score": 0.0,
+    "total_off_field_score": 0.0
+  },
+  "momentum": {
+    "patriots": {
+      "score": -1.5,
+      "confidence": 0.40,
+      "notes": "Won three straight but margins declining: 13, 12, 3. AFC Championship 10-7 in snow — survival mode."
+    },
+    "seahawks": {
+      "score": 2.0,
+      "confidence": 0.40,
+      "notes": "Beat 49ers 41-6 (dominant), then Rams 31-27. Offense is explosive and rolling."
+    }
+  },
+  "coaching": {
+    "patriots": {
+      "coach": "Mike Vrabel",
+      "score": 1.5,
+      "confidence": 0.50,
+      "notes": "AP Coach of the Year. Former Patriot (3 SB rings as player). First year HC, historic turnaround. Motivational edge and Super Bowl experience."
+    },
+    "seahawks": {
+      "coach": "Mike Macdonald",
+      "score": 1.0,
+      "confidence": 0.50,
+      "notes": "Young, innovative defensive mind. Scheme complexity could be X-factor. Strong playoff defensive adjustments."
+    },
+    "edge": "slight_patriots"
+  },
+  "historical": {
+    "sb_xlix_rematch": {
+      "notes": "Patriots beat Seahawks in Super Bowl XLIX (2015). Revenge narrative but different rosters entirely.",
+      "impact_score": 0.0,
+      "confidence": 0.15
+    },
+    "patriots_sb_history": {
+      "notes": "11 appearances, 6 wins — most in NFL history. Franchise pedigree.",
+      "impact_score": 0.5,
+      "confidence": 0.15
+    },
+    "neutral_site": {
+      "notes": "Santa Clara, CA. West Coast slightly favors Seattle travel, but neutral site game. Minimal impact.",
+      "impact_score": -0.2,
+      "confidence": 0.15
+    }
+  },
+  "weather": {
+    "location": "Levi's Stadium, Santa Clara, CA",
+    "forecast": {
+      "temperature_f": 58,
+      "conditions": "clear",
+      "wind_mph": 8,
+      "precipitation": "none"
+    },
+    "impact_score": 0.0,
+    "confidence": 0.20,
+    "notes": "Open-air stadium, clear and moderate temps. Favors passing games slightly. Light wind, no meaningful impact on kicking or deep passing."
+  },
+  "confidence_weights": {
+    "injuries": 0.85,
+    "off_field": 0.35,
+    "momentum": 0.40,
+    "coaching": 0.50,
+    "historical": 0.15,
+    "drake_curse": 0.05,
+    "weather": 0.20
+  }
+}

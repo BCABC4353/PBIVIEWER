@@ -1,0 +1,1300 @@
+{
+  "patriots": {
+    "offense": [
+      {
+        "name": "Drake Maye",
+        "position": "QB",
+        "team": "NE",
+        "age": 23,
+        "experience": "2nd year",
+        "regular_season": {
+          "games_played": 16,
+          "games_started": 16,
+          "passing": {
+            "completions": 378,
+            "attempts": 525,
+            "yards": 4394,
+            "touchdowns": 31,
+            "interceptions": 12,
+            "completion_percentage": 72.0,
+            "yards_per_attempt": 8.37,
+            "adjusted_yards_per_attempt": 8.12,
+            "passer_rating": 102.5,
+            "qbr": 68.4,
+            "epa_per_dropback": 0.18,
+            "epa_per_play_action": 0.35,
+            "play_action_rate": 0.28,
+            "sacks_taken": 30,
+            "sack_yards_lost": 210,
+            "pressure_rate_faced": 0.30,
+            "passer_rating_under_pressure": 62.3,
+            "passer_rating_clean_pocket": 112.8,
+            "time_to_throw_avg_seconds": 2.72,
+            "air_yards_per_attempt": 8.1,
+            "completed_air_yards_per_attempt": 5.9,
+            "yards_after_catch_per_completion": 4.8,
+            "deep_ball_completion_rate": 0.42,
+            "deep_ball_attempts": 68,
+            "red_zone_tds": 22,
+            "red_zone_ints": 2,
+            "fourth_quarter_comebacks": 3,
+            "game_winning_drives": 4
+          },
+          "rushing": {
+            "attempts": 82,
+            "yards": 450,
+            "touchdowns": 5,
+            "yards_per_carry": 5.49,
+            "first_downs": 28,
+            "fumbles": 3,
+            "fumbles_lost": 1,
+            "designed_runs": 38,
+            "scrambles": 44,
+            "epa_per_rush": 0.08
+          }
+        },
+        "playoff": {
+          "games_played": 3,
+          "passing": {
+            "completions": 58,
+            "attempts": 92,
+            "yards": 630,
+            "touchdowns": 4,
+            "interceptions": 2,
+            "completion_percentage": 63.0,
+            "yards_per_attempt": 6.85,
+            "passer_rating": 82.7,
+            "qbr": 52.1,
+            "sacks_taken": 14,
+            "sack_yards_lost": 98,
+            "pressure_rate_faced": 0.42,
+            "time_to_throw_avg_seconds": 2.45
+          },
+          "rushing": {
+            "attempts": 18,
+            "yards": 72,
+            "touchdowns": 1,
+            "yards_per_carry": 4.0
+          },
+          "game_log": [
+            { "opponent": "LAC", "result": "W 16-3", "pass_yds": 185, "pass_tds": 1, "ints": 0, "rush_yds": 32, "sacks": 3, "passer_rating": 88.2 },
+            { "opponent": "HOU", "result": "W 28-16", "pass_yds": 278, "pass_tds": 2, "ints": 1, "rush_yds": 28, "sacks": 4, "passer_rating": 95.4 },
+            { "opponent": "DEN", "result": "W 10-7", "pass_yds": 167, "pass_tds": 1, "ints": 1, "rush_yds": 12, "sacks": 7, "passer_rating": 64.5, "notes": "Snow game. Heavy pressure all game. Right shoulder took multiple hits." }
+          ]
+        },
+        "injury_status": {
+          "current_injury": "right_shoulder",
+          "status": "cleared",
+          "full_participant_in_practice": true,
+          "games_missed_this_season": 0,
+          "notes": "Throwing shoulder. Took significant hits in AFC Championship (7 sacks in snow). Cleared by team doctors and independent neurologist. Full practice participant all week. Risk factor: elite Seahawks pass rush could re-aggravate. Shoulder historically affects deep ball accuracy and velocity."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean off-field record. Strong locker room leader. Focused and composed in media availability."
+        },
+        "notes": "Second-year franchise QB making first Super Bowl start. Strong regular season but playoff performance has declined under pressure. 14 sacks in 3 playoff games is alarming against Seattle's elite pass rush. Dual-threat ability a key asset but shoulder may limit designed runs."
+      },
+      {
+        "name": "Stefon Diggs",
+        "position": "WR",
+        "team": "NE",
+        "age": 32,
+        "experience": "11th year",
+        "regular_season": {
+          "games_played": 15,
+          "targets": 118,
+          "receptions": 82,
+          "receiving_yards": 970,
+          "touchdowns": 4,
+          "yards_per_reception": 11.83,
+          "yards_per_target": 8.22,
+          "catch_rate": 0.695,
+          "yards_after_catch_per_reception": 3.8,
+          "first_downs": 48,
+          "contested_catch_rate": 0.52,
+          "drops": 5,
+          "target_share": 0.22,
+          "air_yards_share": 0.28,
+          "epa_per_target": 0.10,
+          "slot_rate": 0.45,
+          "average_depth_of_target": 10.2,
+          "separation_avg_yards": 2.4
+        },
+        "playoff": {
+          "games_played": 3,
+          "targets": 22,
+          "receptions": 13,
+          "receiving_yards": 148,
+          "touchdowns": 1,
+          "yards_per_reception": 11.38,
+          "catch_rate": 0.591
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy. Returned from ACL tear (suffered in 2024 with Houston) and performed well in comeback season."
+        },
+        "off_field_status": {
+          "issues": [
+            {
+              "type": "legal",
+              "description": "Felony strangulation charge",
+              "status": "pending",
+              "arraignment_date": "2026-02-13",
+              "notes": "Arraignment delayed to 5 days post-Super Bowl. Diggs described it as 'a very emotional time.' Potential distraction factor. No suspension or restriction from NFL as of game day."
+            }
+          ],
+          "impact_assessment": "Potential mental distraction. Media circus surrounding the charge. Diggs has history of emotional volatility (Buffalo trade drama). Could underperform under combined pressure of Super Bowl spotlight and legal issues."
+        },
+        "notes": "WR1 in comeback season after ACL. Production dipped from elite peaks but still reliable. Legal situation is major off-field concern. Chemistry with Maye strong in regular season but playoff targets trending down."
+      },
+      {
+        "name": "Rhamondre Stevenson",
+        "position": "RB",
+        "team": "NE",
+        "age": 26,
+        "experience": "5th year",
+        "regular_season": {
+          "games_played": 16,
+          "rushing": {
+            "attempts": 245,
+            "yards": 1085,
+            "touchdowns": 8,
+            "yards_per_carry": 4.43,
+            "first_downs": 58,
+            "yards_after_contact_per_carry": 3.1,
+            "broken_tackles": 32,
+            "fumbles": 4,
+            "fumbles_lost": 2,
+            "epa_per_rush": -0.02
+          },
+          "receiving": {
+            "targets": 52,
+            "receptions": 42,
+            "receiving_yards": 310,
+            "touchdowns": 2,
+            "yards_per_reception": 7.38
+          }
+        },
+        "playoff": {
+          "games_played": 3,
+          "rushing": {
+            "attempts": 58,
+            "yards": 215,
+            "touchdowns": 2,
+            "yards_per_carry": 3.71
+          },
+          "receiving": {
+            "targets": 10,
+            "receptions": 8,
+            "receiving_yards": 52,
+            "touchdowns": 0
+          }
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy. Bell-cow workload all season."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Workhorse back. Fumble issues a concern (4 in regular season). Power runner who grinds yards after contact. Facing #3 run defense in Seattle."
+      },
+      {
+        "name": "Hunter Henry",
+        "position": "TE",
+        "team": "NE",
+        "age": 31,
+        "experience": "10th year",
+        "regular_season": {
+          "games_played": 16,
+          "targets": 95,
+          "receptions": 72,
+          "receiving_yards": 785,
+          "touchdowns": 7,
+          "yards_per_reception": 10.90,
+          "catch_rate": 0.758,
+          "yards_after_catch_per_reception": 4.2,
+          "first_downs": 42,
+          "red_zone_targets": 18,
+          "red_zone_tds": 5
+        },
+        "playoff": {
+          "games_played": 3,
+          "targets": 18,
+          "receptions": 12,
+          "receiving_yards": 118,
+          "touchdowns": 1
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean. Veteran leader."
+        },
+        "notes": "Reliable security blanket for Maye. Red zone weapon. Could be key target if Seattle brackets Diggs. Strong blocker in run game."
+      },
+      {
+        "name": "DeMario Douglas",
+        "position": "WR",
+        "team": "NE",
+        "age": 24,
+        "experience": "3rd year",
+        "regular_season": {
+          "games_played": 16,
+          "targets": 92,
+          "receptions": 68,
+          "receiving_yards": 720,
+          "touchdowns": 5,
+          "yards_per_reception": 10.59,
+          "catch_rate": 0.739,
+          "slot_rate": 0.82,
+          "yards_after_catch_per_reception": 5.8
+        },
+        "playoff": {
+          "games_played": 3,
+          "targets": 14,
+          "receptions": 10,
+          "receiving_yards": 95,
+          "touchdowns": 0
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Slot receiver and YAC threat. Quick route runner who provides Maye with easy completions underneath. Could be key against Seattle blitz packages."
+      },
+      {
+        "name": "David Andrews",
+        "position": "C",
+        "team": "NE",
+        "age": 32,
+        "experience": "10th year",
+        "regular_season": {
+          "games_played": 16,
+          "games_started": 16,
+          "pass_block_grade": 78.5,
+          "run_block_grade": 72.0,
+          "snaps": 1052,
+          "sacks_allowed": 1,
+          "pressures_allowed": 14,
+          "penalties": 3
+        },
+        "playoff": {
+          "games_played": 3,
+          "sacks_allowed": 1,
+          "pressures_allowed": 6
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Captain. Veteran anchor of the offensive line."
+        },
+        "notes": "Veteran center and line communicator. Critical for protection calls against Seattle's complex fronts. OL struggled in playoffs (15 sacks allowed in 3 games)."
+      },
+      {
+        "name": "Mike Onwenu",
+        "position": "OT",
+        "team": "NE",
+        "age": 27,
+        "experience": "6th year",
+        "regular_season": {
+          "games_played": 16,
+          "games_started": 16,
+          "pass_block_grade": 82.3,
+          "run_block_grade": 76.8,
+          "snaps": 1068,
+          "sacks_allowed": 3,
+          "pressures_allowed": 22,
+          "penalties": 5
+        },
+        "playoff": {
+          "games_played": 3,
+          "sacks_allowed": 2,
+          "pressures_allowed": 10
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Best OL on the Patriots. Will likely face DeMarcus Lawrence on pass rush snaps. Must win that matchup to keep Maye upright."
+      }
+    ],
+    "defense": [
+      {
+        "name": "Robert Spillane",
+        "position": "LB",
+        "team": "NE",
+        "age": 28,
+        "experience": "7th year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": {
+            "total": 142,
+            "solo": 88,
+            "assists": 54,
+            "for_loss": 12,
+            "missed_tackles": 14,
+            "missed_tackle_rate": 0.090
+          },
+          "sacks": 3.5,
+          "interceptions": 2,
+          "passes_defended": 8,
+          "forced_fumbles": 2,
+          "fumble_recoveries": 1,
+          "defensive_snaps": 1020,
+          "snap_percentage": 0.95,
+          "coverage_grade": 68.2,
+          "run_defense_grade": 82.5,
+          "passer_rating_allowed": 88.5,
+          "tackles_per_game": 8.88,
+          "stops": 48
+        },
+        "playoff": {
+          "games_played": 3,
+          "tackles": {
+            "total": 28,
+            "solo": 18,
+            "assists": 10,
+            "for_loss": 3
+          },
+          "sacks": 1.0,
+          "interceptions": 1,
+          "passes_defended": 2,
+          "snap_counts": [62, 58, 34],
+          "notes": "Left AFC Championship game early with ankle injury. Snap count dropped from 62 to 34 in final game."
+        },
+        "injury_status": {
+          "current_injury": "ankle",
+          "status": "questionable",
+          "severity": "moderate",
+          "limited_in_practice": true,
+          "practice_participation": ["limited", "limited", "limited"],
+          "notes": "Team leading tackler and defensive signal caller. Left AFC Championship early. Limited practice all week. If playing, likely at 70% effectiveness — significant defensive downgrade. Backup is a steep drop-off in play recognition and communication."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Vocal leader. Called out Tom Brady's 'no dog in the fight' comment — 'makes me sick.' Strong motivational presence."
+        },
+        "notes": "Heart of the defense. His absence or diminished play would be the single biggest defensive loss for New England. Defensive play-caller and signal-caller. Without him at full strength, Patriots run defense and coverage communication suffer significantly."
+      },
+      {
+        "name": "Harold Landry",
+        "position": "EDGE",
+        "team": "NE",
+        "age": 28,
+        "experience": "7th year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": {
+            "total": 58,
+            "solo": 42,
+            "assists": 16,
+            "for_loss": 18
+          },
+          "sacks": 13.0,
+          "quarterback_hits": 22,
+          "pressures": 62,
+          "hurries": 38,
+          "forced_fumbles": 3,
+          "fumble_recoveries": 1,
+          "pass_rush_grade": 85.2,
+          "pass_rush_win_rate": 0.18,
+          "defensive_snaps": 890,
+          "snap_percentage": 0.83,
+          "run_defense_grade": 72.0
+        },
+        "playoff": {
+          "games_played": 3,
+          "tackles": {
+            "total": 5,
+            "solo": 4,
+            "assists": 1,
+            "for_loss": 1
+          },
+          "sacks": 1.0,
+          "pressures": 4,
+          "snap_counts": [26, 11, 0],
+          "notes": "Snap counts declining drastically through playoffs: 26, 11, then DNP in AFC Championship. Knee clearly limiting him despite being listed as active."
+        },
+        "injury_status": {
+          "current_injury": "knee",
+          "status": "questionable",
+          "severity": "significant",
+          "limited_in_practice": true,
+          "practice_participation": ["limited", "DNP", "limited"],
+          "notes": "Team sack leader. Snap count regression from 26 to 11 to 0 through three playoff games tells the full story. Even if active for the Super Bowl, expect a severe pitch count — possibly 10-15 snaps in obvious passing situations only. Cannot be relied upon as a consistent pass rush threat."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "When healthy, the Patriots' most dangerous pass rusher. But the knee has effectively taken him out of the playoff run. His absence removes a critical element of the Patriots' ability to pressure Darnold. Backup edge rushers have not generated consistent pressure."
+      },
+      {
+        "name": "Christian Barmore",
+        "position": "DT",
+        "team": "NE",
+        "age": 25,
+        "experience": "5th year",
+        "regular_season": {
+          "games_played": 14,
+          "tackles": {
+            "total": 48,
+            "solo": 30,
+            "assists": 18,
+            "for_loss": 10
+          },
+          "sacks": 6.5,
+          "quarterback_hits": 15,
+          "pressures": 42,
+          "hurries": 28,
+          "pass_rush_grade": 78.8,
+          "run_defense_grade": 75.5,
+          "defensive_snaps": 680,
+          "snap_percentage": 0.62,
+          "stops": 22,
+          "double_team_rate": 0.38
+        },
+        "playoff": {
+          "games_played": 3,
+          "tackles": {
+            "total": 10,
+            "solo": 6,
+            "assists": 4,
+            "for_loss": 2
+          },
+          "sacks": 2.0,
+          "pressures": 8
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy. Remarkable comeback after blood clot scare in 2024 offseason."
+        },
+        "off_field_status": {
+          "issues": [
+            {
+              "type": "legal",
+              "description": "Domestic assault charge",
+              "status": "pending",
+              "arraignment_date": "2026-02-13",
+              "notes": "Arraignment delayed. Lower profile than Diggs situation but still a potential distraction."
+            }
+          ],
+          "impact_assessment": "Moderate distraction potential. Less media scrutiny than Diggs case but combined with team's other off-field issues creates a challenging environment."
+        },
+        "notes": "Interior pass rush threat. Important for collapsing the pocket against Darnold. Double-teamed frequently which helps edge rushers. Legal issues add to locker room tension."
+      },
+      {
+        "name": "Kyle Dugger",
+        "position": "S",
+        "team": "NE",
+        "age": 30,
+        "experience": "6th year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": {
+            "total": 95,
+            "solo": 62,
+            "assists": 33,
+            "for_loss": 6
+          },
+          "sacks": 2.0,
+          "interceptions": 3,
+          "passes_defended": 10,
+          "forced_fumbles": 1,
+          "coverage_grade": 72.5,
+          "run_defense_grade": 78.0,
+          "passer_rating_allowed": 82.0,
+          "defensive_snaps": 985
+        },
+        "playoff": {
+          "games_played": 3,
+          "tackles": { "total": 18, "solo": 12, "assists": 6 },
+          "interceptions": 1,
+          "passes_defended": 3
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Versatile safety who plays in the box and deep. Key run defender who will need to help against Seattle's dominant ground game. If Spillane is limited, Dugger takes on even more responsibility."
+      },
+      {
+        "name": "Jonathan Jones",
+        "position": "CB",
+        "team": "NE",
+        "age": 31,
+        "experience": "10th year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": { "total": 68, "solo": 52, "assists": 16 },
+          "interceptions": 4,
+          "passes_defended": 14,
+          "coverage_grade": 75.8,
+          "passer_rating_allowed": 78.5,
+          "targets_allowed": 72,
+          "completions_allowed": 42,
+          "yards_allowed": 480,
+          "tds_allowed": 2
+        },
+        "playoff": {
+          "games_played": 3,
+          "tackles": { "total": 12, "solo": 9, "assists": 3 },
+          "interceptions": 1,
+          "passes_defended": 4
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean. Captain."
+        },
+        "notes": "CB1 and defensive captain. Will likely shadow Seattle's top receiver. Veteran presence critical for a secondary facing a play-action heavy attack."
+      },
+      {
+        "name": "Keion White",
+        "position": "EDGE",
+        "team": "NE",
+        "age": 25,
+        "experience": "3rd year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": { "total": 52, "solo": 38, "assists": 14, "for_loss": 14 },
+          "sacks": 9.0,
+          "quarterback_hits": 18,
+          "pressures": 48,
+          "pass_rush_grade": 76.5,
+          "run_defense_grade": 70.2
+        },
+        "playoff": {
+          "games_played": 3,
+          "tackles": { "total": 8, "solo": 6, "assists": 2 },
+          "sacks": 2.0,
+          "pressures": 7,
+          "notes": "Took on bigger role as Landry's snaps declined. Performed well but less polished."
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Second edge rusher who has stepped up as Landry faded. Explosive athlete. If Landry is limited again, White becomes the primary pass rusher — big responsibility for a young player on the Super Bowl stage."
+      }
+    ],
+    "special_teams": [
+      {
+        "name": "Joey Slye",
+        "position": "K",
+        "team": "NE",
+        "regular_season": {
+          "field_goals_made": 26,
+          "field_goals_attempted": 30,
+          "fg_percentage": 0.867,
+          "fg_under_40": { "made": 18, "attempted": 19 },
+          "fg_40_49": { "made": 5, "attempted": 6 },
+          "fg_50_plus": { "made": 3, "attempted": 5 },
+          "extra_points_made": 38,
+          "extra_points_attempted": 40,
+          "long": 54
+        },
+        "playoff": {
+          "field_goals_made": 5,
+          "field_goals_attempted": 7,
+          "extra_points_made": 3,
+          "extra_points_attempted": 3
+        },
+        "injury_status": { "current_injury": "none", "status": "active" },
+        "off_field_status": { "issues": [] },
+        "notes": "Reliable kicker. Missed 2 FGs in playoffs but both were 50+. Could be decisive in a tight game."
+      }
+    ]
+  },
+  "seahawks": {
+    "offense": [
+      {
+        "name": "Sam Darnold",
+        "position": "QB",
+        "team": "SEA",
+        "age": 28,
+        "experience": "8th year",
+        "regular_season": {
+          "games_played": 17,
+          "games_started": 17,
+          "passing": {
+            "completions": 345,
+            "attempts": 510,
+            "yards": 3995,
+            "touchdowns": 28,
+            "interceptions": 10,
+            "completion_percentage": 67.6,
+            "yards_per_attempt": 7.83,
+            "adjusted_yards_per_attempt": 7.95,
+            "passer_rating": 100.2,
+            "qbr": 72.1,
+            "epa_per_dropback": 0.20,
+            "epa_per_play_action": 0.42,
+            "play_action_rate": 0.35,
+            "play_action_rank": 1,
+            "play_action_passer_rating": 118.5,
+            "sacks_taken": 24,
+            "sack_yards_lost": 158,
+            "pressure_rate_faced": 0.26,
+            "passer_rating_under_pressure": 72.8,
+            "passer_rating_clean_pocket": 115.2,
+            "time_to_throw_avg_seconds": 2.65,
+            "air_yards_per_attempt": 7.8,
+            "completed_air_yards_per_attempt": 5.5,
+            "yards_after_catch_per_completion": 5.2,
+            "deep_ball_completion_rate": 0.45,
+            "deep_ball_attempts": 72,
+            "red_zone_tds": 20,
+            "red_zone_ints": 1,
+            "fourth_quarter_comebacks": 2,
+            "game_winning_drives": 3
+          },
+          "rushing": {
+            "attempts": 42,
+            "yards": 165,
+            "touchdowns": 2,
+            "yards_per_carry": 3.93,
+            "scrambles": 30,
+            "designed_runs": 12
+          }
+        },
+        "playoff": {
+          "games_played": 2,
+          "passing": {
+            "completions": 42,
+            "attempts": 60,
+            "yards": 500,
+            "touchdowns": 4,
+            "interceptions": 1,
+            "completion_percentage": 70.0,
+            "yards_per_attempt": 8.33,
+            "passer_rating": 112.5,
+            "qbr": 78.3,
+            "sacks_taken": 3,
+            "play_action_rate": 0.38,
+            "play_action_passer_rating": 125.0
+          },
+          "rushing": {
+            "attempts": 6,
+            "yards": 22,
+            "touchdowns": 0
+          },
+          "game_log": [
+            { "opponent": "SF", "result": "W 41-6", "pass_yds": 285, "pass_tds": 3, "ints": 0, "rush_yds": 8, "sacks": 1, "passer_rating": 128.5, "notes": "Dominant play-action game. 49ers defense dismantled." },
+            { "opponent": "LAR", "result": "W 31-27", "pass_yds": 215, "pass_tds": 1, "ints": 1, "rush_yds": 14, "sacks": 2, "passer_rating": 88.2, "notes": "Tighter game. Ground game took over in second half." }
+          ]
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "full_participant_in_practice": true,
+          "notes": "Fully healthy. No injury concerns."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Career renaissance narrative. Journeyman-to-contender story. Poised and confident in media availability."
+        },
+        "notes": "#1 EPA per play-action pass in the NFL. Seattle's offense is built around heavy play-action off their dominant run game (48.7% run rate, NFL-leading). Darnold thrives when the run game sets up play-action — when facing light boxes, his efficiency drops. Key matchup: can NE force Seattle into obvious passing situations?"
+      },
+      {
+        "name": "Kenneth Walker III",
+        "position": "RB",
+        "team": "SEA",
+        "age": 24,
+        "experience": "4th year",
+        "regular_season": {
+          "games_played": 16,
+          "rushing": {
+            "attempts": 278,
+            "yards": 1320,
+            "touchdowns": 12,
+            "yards_per_carry": 4.75,
+            "first_downs": 72,
+            "yards_after_contact_per_carry": 3.4,
+            "broken_tackles": 42,
+            "fumbles": 2,
+            "fumbles_lost": 1,
+            "epa_per_rush": 0.04,
+            "rush_yards_over_expected_per_carry": 0.8
+          },
+          "receiving": {
+            "targets": 45,
+            "receptions": 38,
+            "receiving_yards": 295,
+            "touchdowns": 2,
+            "yards_per_reception": 7.76
+          }
+        },
+        "playoff": {
+          "games_played": 2,
+          "rushing": {
+            "attempts": 48,
+            "yards": 240,
+            "touchdowns": 3,
+            "yards_per_carry": 5.0
+          },
+          "receiving": {
+            "targets": 6,
+            "receptions": 5,
+            "receiving_yards": 42,
+            "touchdowns": 0
+          },
+          "game_log": [
+            { "opponent": "SF", "rush_att": 22, "rush_yds": 128, "rush_tds": 2 },
+            { "opponent": "LAR", "rush_att": 26, "rush_yds": 112, "rush_tds": 1 }
+          ]
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy. Fresh legs relative to workload."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Explosive runner who fuels Seattle's play-action attack. NFL-leading 48.7% run rate feeds through Walker. If he can establish the ground game early, Darnold's play-action becomes lethal. Key matchup against NE's front seven, especially if Spillane is limited."
+      },
+      {
+        "name": "Zach Charbonnet",
+        "position": "RB",
+        "team": "SEA",
+        "age": 25,
+        "experience": "3rd year",
+        "regular_season": {
+          "games_played": 17,
+          "rushing": {
+            "attempts": 142,
+            "yards": 680,
+            "touchdowns": 7,
+            "yards_per_carry": 4.79,
+            "yards_after_contact_per_carry": 3.6,
+            "broken_tackles": 28,
+            "goal_line_attempts": 22,
+            "goal_line_tds": 5
+          },
+          "receiving": {
+            "targets": 32,
+            "receptions": 28,
+            "receiving_yards": 210,
+            "touchdowns": 1
+          }
+        },
+        "playoff": {
+          "games_played": 2,
+          "rushing": {
+            "attempts": 18,
+            "yards": 92,
+            "touchdowns": 2,
+            "yards_per_carry": 5.11
+          }
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Thunder to Walker's lightning. Goal-line specialist. Fresh legs as change-of-pace back. Two-headed rushing attack keeps both backs fresh."
+      },
+      {
+        "name": "DK Metcalf",
+        "position": "WR",
+        "team": "SEA",
+        "age": 28,
+        "experience": "7th year",
+        "regular_season": {
+          "games_played": 17,
+          "targets": 130,
+          "receptions": 78,
+          "receiving_yards": 1120,
+          "touchdowns": 8,
+          "yards_per_reception": 14.36,
+          "catch_rate": 0.600,
+          "yards_after_catch_per_reception": 4.5,
+          "contested_catch_rate": 0.58,
+          "first_downs": 55,
+          "drops": 4,
+          "target_share": 0.25,
+          "average_depth_of_target": 13.8,
+          "separation_avg_yards": 2.1
+        },
+        "playoff": {
+          "games_played": 2,
+          "targets": 14,
+          "receptions": 9,
+          "receiving_yards": 145,
+          "touchdowns": 2,
+          "yards_per_reception": 16.11
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Prototypical big-play deep threat. Physical mismatch against most corners. Primary beneficiary of play-action deep shots. If NE sells out to stop the run, Metcalf can burn them over the top."
+      },
+      {
+        "name": "Jaxon Smith-Njigba",
+        "position": "WR",
+        "team": "SEA",
+        "age": 23,
+        "experience": "3rd year",
+        "regular_season": {
+          "games_played": 17,
+          "targets": 112,
+          "receptions": 82,
+          "receiving_yards": 950,
+          "touchdowns": 6,
+          "yards_per_reception": 11.59,
+          "catch_rate": 0.732,
+          "yards_after_catch_per_reception": 5.5,
+          "slot_rate": 0.72,
+          "first_downs": 50,
+          "average_depth_of_target": 9.2,
+          "separation_avg_yards": 3.2
+        },
+        "playoff": {
+          "games_played": 2,
+          "targets": 12,
+          "receptions": 9,
+          "receiving_yards": 105,
+          "touchdowns": 1
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Emerging star in the slot. Best route runner on the team. Creates natural separation. Complements Metcalf's deep threat with intermediate route mastery."
+      },
+      {
+        "name": "Charles Cross",
+        "position": "OT",
+        "team": "SEA",
+        "age": 24,
+        "experience": "4th year",
+        "regular_season": {
+          "games_played": 17,
+          "games_started": 17,
+          "pass_block_grade": 80.5,
+          "run_block_grade": 78.2,
+          "snaps": 1105,
+          "sacks_allowed": 3,
+          "pressures_allowed": 20,
+          "penalties": 4
+        },
+        "playoff": {
+          "games_played": 2,
+          "sacks_allowed": 0,
+          "pressures_allowed": 3
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Left tackle and blindside protector. Strong pass protection allows Darnold time for play-action development. Key to Seattle's run-heavy scheme."
+      },
+      {
+        "name": "Abe Lucas",
+        "position": "OT",
+        "team": "SEA",
+        "age": 26,
+        "experience": "4th year",
+        "regular_season": {
+          "games_played": 15,
+          "games_started": 15,
+          "pass_block_grade": 76.2,
+          "run_block_grade": 80.5,
+          "snaps": 980,
+          "sacks_allowed": 4,
+          "pressures_allowed": 18,
+          "penalties": 3
+        },
+        "playoff": {
+          "games_played": 2,
+          "sacks_allowed": 1,
+          "pressures_allowed": 4
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy after knee issues in prior seasons."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Right tackle. Strong run blocker who anchors Seattle's zone-run scheme. Healthy season after prior knee concerns."
+      }
+    ],
+    "defense": [
+      {
+        "name": "Nick Emmanwori",
+        "position": "S",
+        "team": "SEA",
+        "age": 22,
+        "experience": "Rookie",
+        "regular_season": {
+          "games_played": 17,
+          "tackles": {
+            "total": 112,
+            "solo": 78,
+            "assists": 34,
+            "for_loss": 8
+          },
+          "sacks": 2.0,
+          "interceptions": 4,
+          "passes_defended": 12,
+          "forced_fumbles": 3,
+          "fumble_recoveries": 1,
+          "defensive_snaps": 1050,
+          "snap_percentage": 0.96,
+          "coverage_grade": 82.5,
+          "run_defense_grade": 85.0,
+          "passer_rating_allowed": 72.5,
+          "stops": 42,
+          "tackles_per_game": 6.59,
+          "droy_candidate": true
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": {
+            "total": 16,
+            "solo": 11,
+            "assists": 5,
+            "for_loss": 2
+          },
+          "interceptions": 1,
+          "passes_defended": 3,
+          "forced_fumbles": 1
+        },
+        "injury_status": {
+          "current_injury": "ankle",
+          "status": "cleared",
+          "full_participant_in_practice": true,
+          "notes": "Ankle scare in practice during Super Bowl week. Fully cleared. No limitations expected."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean. Strong rookie mentality. Mature beyond his years."
+        },
+        "notes": "DROY candidate. Instant-impact rookie who anchors Seattle's #1 scoring defense. Elite range, physicality, and ball-hawking instincts. Equally effective against the run and pass. His ankle clearance is massive for Seattle — he is the defensive heartbeat."
+      },
+      {
+        "name": "DeMarcus Lawrence",
+        "position": "EDGE",
+        "team": "SEA",
+        "age": 33,
+        "experience": "12th year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": {
+            "total": 55,
+            "solo": 40,
+            "assists": 15,
+            "for_loss": 15
+          },
+          "sacks": 11.0,
+          "quarterback_hits": 20,
+          "pressures": 58,
+          "hurries": 35,
+          "forced_fumbles": 4,
+          "pass_rush_grade": 82.0,
+          "pass_rush_win_rate": 0.17,
+          "defensive_snaps": 850,
+          "run_defense_grade": 78.5
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": { "total": 8, "solo": 6, "assists": 2, "for_loss": 3 },
+          "sacks": 2.5,
+          "pressures": 8,
+          "quarterback_hits": 5
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy and rested for the Super Bowl."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Veteran leader. Respected voice in the locker room."
+        },
+        "notes": "Veteran pass rusher having a resurgent season. Key matchup against NE's offensive tackles. With Maye already taking 14 sacks in 3 playoff games, Lawrence could be a game-wrecker. Elite against the run as well."
+      },
+      {
+        "name": "Boye Mafe",
+        "position": "EDGE",
+        "team": "SEA",
+        "age": 26,
+        "experience": "4th year",
+        "regular_season": {
+          "games_played": 17,
+          "tackles": {
+            "total": 50,
+            "solo": 36,
+            "assists": 14,
+            "for_loss": 12
+          },
+          "sacks": 10.5,
+          "quarterback_hits": 18,
+          "pressures": 52,
+          "hurries": 32,
+          "forced_fumbles": 2,
+          "pass_rush_grade": 79.5,
+          "pass_rush_win_rate": 0.16,
+          "run_defense_grade": 68.0
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": { "total": 6, "solo": 5, "assists": 1 },
+          "sacks": 1.5,
+          "pressures": 5
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Complement to Lawrence on the opposite edge. Explosive speed rusher. Lawrence and Mafe combined for 21.5 regular season sacks — Seattle's edge rush is a major strength against NE's struggling OL."
+      },
+      {
+        "name": "Leonard Williams",
+        "position": "DT",
+        "team": "SEA",
+        "age": 31,
+        "experience": "11th year",
+        "regular_season": {
+          "games_played": 17,
+          "tackles": {
+            "total": 62,
+            "solo": 42,
+            "assists": 20,
+            "for_loss": 11
+          },
+          "sacks": 7.0,
+          "quarterback_hits": 16,
+          "pressures": 45,
+          "pass_rush_grade": 80.2,
+          "run_defense_grade": 82.5,
+          "double_team_rate": 0.42,
+          "stops": 28
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": { "total": 10, "solo": 7, "assists": 3 },
+          "sacks": 1.5,
+          "pressures": 6
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Anchor of the interior defensive line. Dominant run stuffer who also generates interior pressure. Key to maintaining #3 run defense against Stevenson."
+      },
+      {
+        "name": "Devon Witherspoon",
+        "position": "CB",
+        "team": "SEA",
+        "age": 24,
+        "experience": "3rd year",
+        "regular_season": {
+          "games_played": 16,
+          "tackles": { "total": 72, "solo": 58, "assists": 14 },
+          "interceptions": 3,
+          "passes_defended": 16,
+          "forced_fumbles": 2,
+          "coverage_grade": 85.5,
+          "passer_rating_allowed": 68.2,
+          "targets_allowed": 65,
+          "completions_allowed": 34,
+          "yards_allowed": 385,
+          "tds_allowed": 1,
+          "man_coverage_grade": 88.0,
+          "zone_coverage_grade": 82.0,
+          "press_rate": 0.48
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": { "total": 8, "solo": 6, "assists": 2 },
+          "interceptions": 1,
+          "passes_defended": 4
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Lockdown CB1. Elite in both man and zone coverage. Will likely shadow Diggs. Physical at the line of scrimmage. One of the best young corners in the NFL."
+      },
+      {
+        "name": "Riq Woolen",
+        "position": "CB",
+        "team": "SEA",
+        "age": 26,
+        "experience": "4th year",
+        "regular_season": {
+          "games_played": 17,
+          "tackles": { "total": 58, "solo": 48, "assists": 10 },
+          "interceptions": 5,
+          "passes_defended": 15,
+          "coverage_grade": 78.0,
+          "passer_rating_allowed": 75.5,
+          "targets_allowed": 78,
+          "completions_allowed": 42,
+          "yards_allowed": 520,
+          "tds_allowed": 3
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": { "total": 6, "solo": 5, "assists": 1 },
+          "interceptions": 0,
+          "passes_defended": 2
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Long, athletic CB2 with elite ball-hawking skills (5 INTs). Length disrupts timing routes. Pairs with Witherspoon to give Seattle a top-5 cornerback duo."
+      },
+      {
+        "name": "Tyrel Dodson",
+        "position": "LB",
+        "team": "SEA",
+        "age": 27,
+        "experience": "6th year",
+        "regular_season": {
+          "games_played": 17,
+          "tackles": {
+            "total": 128,
+            "solo": 82,
+            "assists": 46,
+            "for_loss": 10
+          },
+          "sacks": 3.0,
+          "interceptions": 2,
+          "passes_defended": 6,
+          "forced_fumbles": 1,
+          "coverage_grade": 70.5,
+          "run_defense_grade": 80.0,
+          "stops": 45
+        },
+        "playoff": {
+          "games_played": 2,
+          "tackles": { "total": 18, "solo": 12, "assists": 6 },
+          "sacks": 0.5,
+          "interceptions": 0
+        },
+        "injury_status": {
+          "current_injury": "none",
+          "status": "active",
+          "notes": "Healthy."
+        },
+        "off_field_status": {
+          "issues": [],
+          "notes": "Clean."
+        },
+        "notes": "Team leading tackler. Sideline-to-sideline linebacker who anchors the middle of the defense. Key for containing Maye scrambles and Stevenson runs."
+      }
+    ],
+    "special_teams": [
+      {
+        "name": "Jason Myers",
+        "position": "K",
+        "team": "SEA",
+        "regular_season": {
+          "field_goals_made": 30,
+          "field_goals_attempted": 33,
+          "fg_percentage": 0.909,
+          "fg_under_40": { "made": 18, "attempted": 18 },
+          "fg_40_49": { "made": 8, "attempted": 9 },
+          "fg_50_plus": { "made": 4, "attempted": 6 },
+          "extra_points_made": 45,
+          "extra_points_attempted": 46,
+          "long": 56
+        },
+        "playoff": {
+          "field_goals_made": 3,
+          "field_goals_attempted": 3,
+          "extra_points_made": 8,
+          "extra_points_attempted": 8
+        },
+        "injury_status": { "current_injury": "none", "status": "active" },
+        "off_field_status": { "issues": [] },
+        "notes": "One of the most reliable kickers in the league. Perfect in the playoffs. Strong leg for 50+ yard attempts."
+      }
+    ]
+  }
+}
