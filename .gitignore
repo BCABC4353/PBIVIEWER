@@ -33,3 +33,7 @@ npm-debug.log*
 
 # Electron builder cache
 .electron-builder-cache/
+
+# Python
+__pycache__/
+*.pyc
