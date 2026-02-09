@@ -1,0 +1,92 @@
+{
+  "eagles": {
+    "injuries": [
+      {
+        "player": "Brandon Graham",
+        "position": "DE",
+        "injury": "knee",
+        "status": "active",
+        "impact_score": 0.0,
+        "confidence": 0.85,
+        "notes": "Previously questionable but officially active for the game."
+      }
+    ],
+    "off_field": [
+      {
+        "factor": "Revenge motivation",
+        "impact_score": 1.5,
+        "confidence": 0.40,
+        "notes": "Hurts lost SB to Chiefs 38-35 two years prior. Intense personal motivation. 'I couldn't escape the emptiness.'"
+      },
+      {
+        "factor": "Saquon Barkley 2000-yard narrative",
+        "impact_score": 0.5,
+        "confidence": 0.20,
+        "notes": "Historic 2000-yard rushing season. Team riding wave of Barkley's dominance."
+      }
+    ],
+    "total_injury_score": 0.0,
+    "total_off_field_score": 2.0
+  },
+  "chiefs": {
+    "injuries": [],
+    "off_field": [
+      {
+        "factor": "Three-peat pressure",
+        "impact_score": -1.0,
+        "confidence": 0.35,
+        "notes": "Pursuing first three-peat in 59 years of Super Bowls. Historic pressure and public target."
+      },
+      {
+        "factor": "Taylor Swift circus / public backlash",
+        "impact_score": -0.5,
+        "confidence": 0.25,
+        "notes": "Chiefs became public enemy #1. Swift booed at stadium. Massive media distraction all season. KC hadn't lost when she attended — streak ended in SB."
+      },
+      {
+        "factor": "Kelce retirement rumors",
+        "impact_score": -0.3,
+        "confidence": 0.30,
+        "notes": "Travis Kelce undecided on 2025 return. $100M podcast deal. Potential last game distraction."
+      },
+      {
+        "factor": "17-game one-score win streak",
+        "impact_score": -0.5,
+        "confidence": 0.50,
+        "notes": "NFL record 17 straight one-score wins. Statistical regression candidate — unsustainable luck in close games."
+      }
+    ],
+    "total_injury_score": 0.0,
+    "total_off_field_score": -2.3
+  },
+  "momentum": {
+    "eagles": {"score": 2.0, "confidence": 0.40, "notes": "Won 16 of last 17 games. Playoff margins increasing: 12, 6, 32. Defense peaking — best 6 games by DVOA to end season."},
+    "chiefs": {"score": 0.5, "confidence": 0.40, "notes": "Won 9 straight playoff games. But regular season margins were thin — SRS only 10th despite 15-2 record."}
+  },
+  "coaching": {
+    "eagles": {"coach": "Nick Sirianni / Vic Fangio (DC)", "score": 1.5, "confidence": 0.50, "notes": "Fangio's zero-blitz scheme was revolutionary. Mahomes was 8-0 vs Fangio before this. Fangio's hometown team, first season as Eagles DC."},
+    "chiefs": {"coach": "Andy Reid", "score": 1.0, "confidence": 0.50, "notes": "Hall of Fame coach. Super Bowl experience unmatched. But scheme was vulnerable to Fangio's approach."},
+    "edge": "slight_eagles"
+  },
+  "historical": {
+    "sb_rematch": {"notes": "Eagles lost to Chiefs 38-35 in SB LVII two years prior. Strong revenge narrative.", "impact_score": 0.5, "confidence": 0.25},
+    "three_peat_history": {"notes": "No NFL team has ever three-peated in SB era. Historical precedent strongly against it.", "impact_score": 0.5, "confidence": 0.30},
+    "chiefs_dynasty": {"notes": "Chiefs in 5th SB in 6 years. Dynasty fatigue is real.", "impact_score": -0.3, "confidence": 0.20}
+  },
+  "weather": {
+    "location": "Caesars Superdome, New Orleans, LA",
+    "forecast": {"temperature_f": 72, "conditions": "indoor", "wind_mph": 0, "precipitation": "none"},
+    "impact_score": 0.0,
+    "confidence": 0.0,
+    "notes": "Indoor dome. No weather factor."
+  },
+  "confidence_weights": {
+    "injuries": 0.85,
+    "off_field": 0.35,
+    "momentum": 0.40,
+    "coaching": 0.50,
+    "historical": 0.15,
+    "drake_curse": 0.05,
+    "weather": 0.20
+  }
+}
