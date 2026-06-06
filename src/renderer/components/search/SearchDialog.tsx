@@ -62,12 +62,14 @@ export const SearchDialog: React.FC = () => {
     setSelectedIndex(0);
   }, [results]);
 
-  const handleNavigate = useCallback(async (result: typeof results[0]) => {
+  const handleNavigate = useCallback((result: typeof results[0]) => {
     closeSearch();
 
-    // Record usage for reports and dashboards
+    // Record usage for reports and dashboards. recordItemOpened is
+    // fire-and-forget — do NOT await it; the navigate() below must fire
+    // synchronously so the user sees instant feedback.
     if ((result.type === 'report' || result.type === 'dashboard') && result.workspaceId) {
-      await recordItemOpened({
+      recordItemOpened({
         id: result.id,
         name: result.name,
         type: result.type,

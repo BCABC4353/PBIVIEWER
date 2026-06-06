@@ -13,6 +13,7 @@ import * as pbi from 'powerbi-client';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
 import { usePowerBIService } from '../../hooks/usePowerBIService';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface ReportPage {
   name: string;
@@ -55,32 +56,26 @@ export const PresentationMode: React.FC = () => {
   const [slides, setSlides] = useState<SlideItem[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [intervalSeconds, setIntervalSeconds] = useState(30);
-  const [slideshowMode, setSlideshowMode] = useState<'pages' | 'bookmarks' | 'both'>('pages');
-  const [autoStartSlideshow, setAutoStartSlideshow] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [slidesReady, setSlidesReady] = useState(false);
 
-  // Load settings on mount
+  // Subscribe to the settings store so changes made in SettingsPage while
+  // the slideshow is open take effect immediately — no remount needed.
+  // Selectors return primitives so a single field change only re-renders
+  // the slice that cares about it.
+  const intervalSeconds = useSettingsStore((s) => s.settings.slideshowInterval);
+  const slideshowMode = useSettingsStore((s) => s.settings.slideshowMode);
+  const autoStartSlideshow = useSettingsStore((s) => s.settings.autoStartSlideshow);
+  const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
+  const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
+
+  // Defensive bootstrap: ensure the store has fetched once. Idempotent if
+  // App bootstrap already ran it. We can't edit App.tsx in this sprint
+  // (DEV-D scope), so each viewer self-bootstraps. Real values come from
+  // the store subscriptions above.
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const response = await window.electronAPI.settings.get();
-        if (response.success) {
-          setIntervalSeconds(response.data.slideshowInterval);
-          setSlideshowMode(response.data.slideshowMode);
-          setAutoStartSlideshow(response.data.autoStartSlideshow);
-          setAutoRefreshEnabled(response.data.autoRefreshEnabled);
-          setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
-        }
-      } catch (error) {
-        console.error('Failed to load settings:', error);
-      }
-    };
-    loadSettings();
+    void useSettingsStore.getState().loadSettings();
   }, []);
 
   // Flush any pending debounced interval-persist timer on unmount
@@ -517,10 +512,20 @@ export const PresentationMode: React.FC = () => {
                   step={SLIDESHOW_INTERVAL.STEP}
                   value={intervalSeconds}
                   onChange={(_, data) => {
-                    setIntervalSeconds(data.value);
+                    // Optimistic local update: push the new value into the
+                    // store immediately so the slider thumb and the
+                    // slideshow's interval effect track the drag without
+                    // waiting on the IPC. The debounced updateSettings call
+                    // below persists to disk and (re-)sets store state with
+                    // the canonical response.
+                    useSettingsStore.setState((prev) => ({
+                      settings: { ...prev.settings, slideshowInterval: data.value },
+                    }));
                     if (persistIntervalRef.current) clearTimeout(persistIntervalRef.current);
                     persistIntervalRef.current = setTimeout(() => {
-                      void window.electronAPI.settings.update({ slideshowInterval: data.value });
+                      void useSettingsStore
+                        .getState()
+                        .updateSettings({ slideshowInterval: data.value });
                     }, 300);
                   }}
                   className="w-[120px]"

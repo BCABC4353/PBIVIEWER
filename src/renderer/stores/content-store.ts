@@ -24,7 +24,7 @@ interface ContentState {
   loadApps: () => Promise<void>;
   loadRecentItems: () => Promise<void>;
   loadFrequentItems: () => Promise<void>;
-  recordItemOpened: (item: ContentItem) => Promise<void>;
+  recordItemOpened: (item: ContentItem) => void;
   clearError: () => void;
   reset: () => void;
 }
@@ -121,21 +121,30 @@ export const useContentStore = create<ContentState>((set, get) => ({
     }
   },
 
-  recordItemOpened: async (item: ContentItem) => {
-    try {
-      await window.electronAPI.usage.recordOpen({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        workspaceId: item.workspaceId,
-        workspaceName: item.workspaceName || 'Unknown',
-      });
-      // Refresh recent and frequent lists
-      await get().loadRecentItems();
-      await get().loadFrequentItems();
-    } catch (error) {
-      console.error('Failed to record item opened:', error);
-    }
+  recordItemOpened: (item: ContentItem) => {
+    // Fire-and-forget: usage bookkeeping must NOT block the navigation
+    // hot path. Callers should call this and immediately navigate; the
+    // recent/frequent lists will reflect the open on the next paint cycle
+    // (or shortly after) once these awaits resolve.
+    void (async () => {
+      try {
+        await window.electronAPI.usage.recordOpen({
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          workspaceId: item.workspaceId,
+          workspaceName: item.workspaceName || 'Unknown',
+        });
+        // Refresh recent and frequent lists in parallel — neither depends
+        // on the other and they can race the user's next click freely.
+        await Promise.all([
+          get().loadRecentItems(),
+          get().loadFrequentItems(),
+        ]);
+      } catch (error) {
+        console.error('Failed to record item opened:', error);
+      }
+    })();
   },
 
   clearError: () => {

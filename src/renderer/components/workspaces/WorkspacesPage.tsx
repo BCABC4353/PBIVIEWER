@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spinner, Text, Button, Card, Badge } from '@fluentui/react-components';
 import {
@@ -17,6 +17,12 @@ interface WorkspaceWithContent extends Workspace {
   dashboards: Dashboard[];
   isExpanded: boolean;
   isLoading: boolean;
+  // Per-workspace error surfacing for partial failures during expand.
+  // null when both halves loaded (or neither has been attempted yet);
+  // 'reports' or 'dashboards' when only that half failed; 'both' when
+  // the whole expand failed (existing error UI handles 'both' via the
+  // empty-state path).
+  loadWarning?: 'reports' | 'dashboards' | null;
 }
 
 export const WorkspacesPage: React.FC = () => {
@@ -27,10 +33,18 @@ export const WorkspacesPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastExpandedId, setLastExpandedId] = useState<string | null>(null);
+  // Track which workspaces have already had their content fetched (success
+  // OR failure). Prevents re-fetching every time the user collapses and
+  // re-expands a workspace — especially important for empty workspaces
+  // that would otherwise round-trip on each toggle.
+  const contentLoadedRef = useRef<Set<string>>(new Set());
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
     setError(null);
+    // Refreshing the workspace list invalidates per-workspace content
+    // bookkeeping — a previously-loaded workspace may now have new items.
+    contentLoadedRef.current = new Set();
 
     // Drop only the search-store's module-level cache so the next search
     // re-fetches; do NOT clear the search dialog's current query/results,
@@ -62,6 +76,12 @@ export const WorkspacesPage: React.FC = () => {
   };
 
   const toggleWorkspace = useCallback(async (workspaceId: string) => {
+    // Decide whether this toggle needs a content fetch. We gate on a
+    // per-workspace contentLoaded set rather than checking reports.length /
+    // dashboards.length, because a truly-empty workspace would otherwise
+    // re-fetch on every expand.
+    const needsFetch = !contentLoadedRef.current.has(workspaceId);
+
     setWorkspaces((prevWorkspaces) => {
       const workspace = prevWorkspaces.find((ws) => ws.id === workspaceId);
       if (!workspace) return prevWorkspaces;
@@ -71,51 +91,89 @@ export const WorkspacesPage: React.FC = () => {
         return prevWorkspaces.map((ws) =>
           ws.id === workspaceId ? { ...ws, isExpanded: false } : ws
         );
-      } else {
-        // Expand - if content not loaded, mark as loading
-        if (workspace.reports.length === 0 && workspace.dashboards.length === 0) {
-          return prevWorkspaces.map((ws) =>
-            ws.id === workspaceId ? { ...ws, isLoading: true, isExpanded: true } : ws
-          );
-        } else {
-          return prevWorkspaces.map((ws) =>
-            ws.id === workspaceId ? { ...ws, isExpanded: true } : ws
-          );
-        }
       }
+
+      // Expand — show the spinner only if we actually need to fetch.
+      if (needsFetch) {
+        return prevWorkspaces.map((ws) =>
+          ws.id === workspaceId
+            ? { ...ws, isLoading: true, isExpanded: true, loadWarning: null }
+            : ws
+        );
+      }
+      return prevWorkspaces.map((ws) =>
+        ws.id === workspaceId ? { ...ws, isExpanded: true } : ws
+      );
     });
 
-    // Load content if needed (check current state)
-    setWorkspaces((prevWorkspaces) => {
-      const workspace = prevWorkspaces.find((ws) => ws.id === workspaceId);
-      if (workspace && workspace.isLoading) {
-        // Trigger content loading asynchronously
-        Promise.all([
-          window.electronAPI.content.getReports(workspaceId),
-          window.electronAPI.content.getDashboards(workspaceId),
-        ]).then(([reportsRes, dashboardsRes]) => {
-          setWorkspaces((prev) =>
-            prev.map((ws) =>
-              ws.id === workspaceId
-                ? {
-                    ...ws,
-                    reports: reportsRes.success ? reportsRes.data : [],
-                    dashboards: dashboardsRes.success ? dashboardsRes.data : [],
-                    isLoading: false,
-                  }
-                : ws
-            )
-          );
-        }).catch(() => {
-          setWorkspaces((prev) =>
-            prev.map((ws) =>
-              ws.id === workspaceId ? { ...ws, isLoading: false } : ws
-            )
-          );
-        });
-      }
-      return prevWorkspaces;
-    });
+    if (!needsFetch) return;
+
+    // Mark as in-flight up front so re-entrant toggles don't fire a second
+    // request. We add to the set BEFORE the await — even on failure we
+    // don't want a re-expand to keep retrying; the user can hit the
+    // top-level Refresh button to retry.
+    contentLoadedRef.current.add(workspaceId);
+
+    // Promise.allSettled instead of Promise.all: a failure on one half
+    // must not erase what the other half successfully returned.
+    const [reportsSettled, dashboardsSettled] = await Promise.allSettled([
+      window.electronAPI.content.getReports(workspaceId),
+      window.electronAPI.content.getDashboards(workspaceId),
+    ]);
+
+    const reportsOk =
+      reportsSettled.status === 'fulfilled' && reportsSettled.value.success;
+    const dashboardsOk =
+      dashboardsSettled.status === 'fulfilled' && dashboardsSettled.value.success;
+
+    const reports =
+      reportsSettled.status === 'fulfilled' && reportsSettled.value.success
+        ? reportsSettled.value.data
+        : [];
+    const dashboards =
+      dashboardsSettled.status === 'fulfilled' && dashboardsSettled.value.success
+        ? dashboardsSettled.value.data
+        : [];
+
+    // Log rejected reasons so they aren't silently swallowed.
+    if (reportsSettled.status === 'rejected') {
+      console.warn('[WorkspacesPage] getReports failed:', reportsSettled.reason);
+    } else if (!reportsSettled.value.success) {
+      console.warn(
+        '[WorkspacesPage] getReports returned error:',
+        reportsSettled.value.error
+      );
+    }
+    if (dashboardsSettled.status === 'rejected') {
+      console.warn('[WorkspacesPage] getDashboards failed:', dashboardsSettled.reason);
+    } else if (!dashboardsSettled.value.success) {
+      console.warn(
+        '[WorkspacesPage] getDashboards returned error:',
+        dashboardsSettled.value.error
+      );
+    }
+
+    // loadWarning: 'reports' when reports failed but dashboards succeeded,
+    // 'dashboards' when only dashboards failed. When both failed we leave
+    // warning null and let the existing empty-state UI handle it (the user
+    // sees an empty workspace, which matches the legacy behavior).
+    let loadWarning: 'reports' | 'dashboards' | null = null;
+    if (!reportsOk && dashboardsOk) loadWarning = 'reports';
+    else if (reportsOk && !dashboardsOk) loadWarning = 'dashboards';
+
+    setWorkspaces((prev) =>
+      prev.map((ws) =>
+        ws.id === workspaceId
+          ? {
+              ...ws,
+              reports,
+              dashboards,
+              isLoading: false,
+              loadWarning,
+            }
+          : ws
+      )
+    );
   }, []);
 
   useEffect(() => {
@@ -135,9 +193,10 @@ export const WorkspacesPage: React.FC = () => {
     }
   }, [workspaces, searchParams, lastExpandedId, toggleWorkspace]);
 
-  const openReport = async (workspace: WorkspaceWithContent, report: Report) => {
-    // Record usage before navigating
-    await recordItemOpened({
+  const openReport = (workspace: WorkspaceWithContent, report: Report) => {
+    // recordItemOpened is fire-and-forget; navigate must fire on the same
+    // tick so the user doesn't perceive lag while usage bookkeeping awaits.
+    recordItemOpened({
       id: report.id,
       name: report.name,
       type: 'report',
@@ -147,9 +206,8 @@ export const WorkspacesPage: React.FC = () => {
     navigate(`/report/${workspace.id}/${report.id}`);
   };
 
-  const openDashboard = async (workspace: WorkspaceWithContent, dashboard: Dashboard) => {
-    // Record usage before navigating
-    await recordItemOpened({
+  const openDashboard = (workspace: WorkspaceWithContent, dashboard: Dashboard) => {
+    recordItemOpened({
       id: dashboard.id,
       name: dashboard.name,
       type: 'dashboard',
@@ -250,6 +308,18 @@ export const WorkspacesPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="divide-y divide-neutral-stroke-2">
+                        {/* Partial-failure warning: render what succeeded
+                            with an inline note about the half that didn't. */}
+                        {workspace.loadWarning && (
+                          <div
+                            role="status"
+                            className="px-4 py-2 bg-status-warning/10"
+                          >
+                            <Text size={200} className="text-status-warning">
+                              Could not load {workspace.loadWarning} for this workspace.
+                            </Text>
+                          </div>
+                        )}
                         {/* Reports */}
                         {workspace.reports.map((report) => (
                           <button

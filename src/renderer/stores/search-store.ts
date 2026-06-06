@@ -65,10 +65,21 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   },
 
   closeSearch: () => {
-    set({ isOpen: false, query: '', results: [] });
+    // Bump the generation so any in-flight search() whose results would
+    // otherwise stream back into a now-closed dialog discards itself.
+    currentSearchId++;
+    set({ isOpen: false, query: '', results: [], isSearching: false });
   },
 
   setQuery: (query: string) => {
+    // When the user clears the query (e.g. clicks the X button), any
+    // in-flight search must be discarded — otherwise its late-returning
+    // results would repopulate the now-empty list.
+    if (!query) {
+      currentSearchId++;
+      set({ query, results: [], isSearching: false });
+      return;
+    }
     set({ query });
   },
 
@@ -260,6 +271,9 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   },
 
   clearResults: () => {
-    set({ results: [], query: '' });
+    // Bump generation so a search() still in flight cannot repopulate the
+    // list after we've intentionally cleared it.
+    currentSearchId++;
+    set({ results: [], query: '', isSearching: false });
   },
 }));

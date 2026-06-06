@@ -10,6 +10,7 @@ import {
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
+import { useSettingsStore } from '../../stores/settings-store';
 
 interface PageInfo {
   name: string;
@@ -22,8 +23,11 @@ export const ReportViewer: React.FC = () => {
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
 
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
+  // Subscribe to the settings store so changes made in SettingsPage while
+  // this viewer is open take effect without a remount. Selectors return
+  // primitives so we re-render only when the relevant fields change.
+  const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
+  const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
   const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -47,20 +51,13 @@ export const ReportViewer: React.FC = () => {
     currentPageIndexRef.current = currentPageIndex;
   }, [currentPageIndex]);
 
-  // Load settings on mount
+  // Defensive bootstrap: ensure the settings store has fetched once. If the
+  // app already loaded settings elsewhere, loadSettings just re-fetches and
+  // overwrites with identical data — idempotent. The actual values we render
+  // come from the store subscription above, which auto-updates when
+  // SettingsPage writes through useSettingsStore.updateSettings.
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const response = await window.electronAPI.settings.get();
-        if (response.success) {
-          setAutoRefreshEnabled(response.data.autoRefreshEnabled);
-          setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
-        }
-      } catch (error) {
-        console.warn('[ReportViewer] Settings load failed, using defaults:', error);
-      }
-    };
-    loadSettings();
+    void useSettingsStore.getState().loadSettings();
   }, []);
 
   // Fetch report metadata (datasetId) — used by the loaded handler to pull
