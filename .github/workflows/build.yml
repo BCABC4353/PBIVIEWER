@@ -53,10 +53,10 @@ jobs:
           retention-days: 30
 
   build-mac:
-    # Intel runner: the arm64 macos-latest runners intermittently fail DMG
-    # creation via hdiutil on APFS (electron-builder #9155). Intel macOS uses
-    # HFS+ for the DMG and builds reliably.
-    runs-on: macos-13
+    # macos-latest is fine because we build a ZIP (not a DMG), so the arm64/APFS
+    # hdiutil bug (electron-builder #9155) doesn't apply. ZIP creation needs no
+    # hdiutil and works on any macOS runner.
+    runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -105,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-installer
-          path: build-output/*.dmg
+          path: build-output/*.zip
           retention-days: 30
 
   release:

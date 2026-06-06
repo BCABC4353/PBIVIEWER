@@ -42,13 +42,18 @@ nsis:
 
 # macOS Configuration
 mac:
+  # ZIP target instead of DMG: the DMG path calls `hdiutil` which fails
+  # intermittently on GitHub's arm64 macOS runners (electron-builder #9155),
+  # and the Intel runners that work reliably are queue-starved. A ZIP needs no
+  # hdiutil, builds anywhere, and the resulting .zip extracts to a runnable
+  # .app — a normal pattern for unsigned macOS distribution.
   target:
-    - target: dmg
+    - target: zip
       arch:
         - x64
         - arm64
   icon: assets/icons/icon.icns
-  artifactName: ${productName}-${version}-Mac.${ext}
+  artifactName: ${productName}-${version}-Mac-${arch}.${ext}
   category: public.app-category.business
   hardenedRuntime: true
   gatekeeperAssess: false
