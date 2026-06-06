@@ -38,6 +38,8 @@ export const ReportViewer: React.FC = () => {
   const tokenExpirationRef = useRef<string | null>(null);
   const tokenRefreshInProgressRef = useRef(false);
   const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasLoadedRef = useRef(false);
+  const loadWatchdogRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fullscreen keyboard navigation state
   const [pages, setPages] = useState<PageInfo[]>([]);
@@ -87,12 +89,21 @@ export const ReportViewer: React.FC = () => {
     loadReport();
 
     return () => {
-      // Cleanup: reset the container to allow fresh embed
+      try {
+        (['loaded', 'error', 'pageChanged'] as const).forEach((e) => reportRef.current?.off(e));
+      } catch {
+        // ignore detach errors
+      }
+      if (loadWatchdogRef.current) {
+        clearTimeout(loadWatchdogRef.current);
+        loadWatchdogRef.current = null;
+      }
       if (embedContainerRef.current) {
         powerbiService.reset(embedContainerRef.current);
       }
       reportRef.current = null;
       isLoadingRef.current = false;
+      hasLoadedRef.current = false;
     };
   }, [workspaceId, reportId]);
 
@@ -287,18 +298,19 @@ export const ReportViewer: React.FC = () => {
     // When in fullscreen, periodically check and reclaim focus if needed
     // This prevents the iframe from permanently stealing keyboard control
     const maintainFocus = () => {
-      if (document.fullscreenElement && embedContainerRef.current) {
-        const activeElement = document.activeElement;
-        // If focus is not on our container, reclaim it
-        if (activeElement !== embedContainerRef.current) {
-          embedContainerRef.current.focus();
-        }
+      if (!document.fullscreenElement || !embedContainerRef.current) return;
+      const active = document.activeElement;
+      // Reclaim focus ONLY when it was genuinely lost to the body — NEVER when the user
+      // is interacting with the Power BI iframe (active === the iframe element), or we
+      // fight the iframe and slicer/dropdown clicks won't stick.
+      if (active === document.body || active === null) {
+        embedContainerRef.current.focus();
       }
     };
 
     // Start focus monitoring when in fullscreen
     if (isFullscreen) {
-      focusCheckInterval = setInterval(maintainFocus, 200);
+      focusCheckInterval = setInterval(maintainFocus, 500);
     }
 
     // Use capture phase to intercept events before they reach the iframe
@@ -382,8 +394,19 @@ export const ReportViewer: React.FC = () => {
 
       reportRef.current = report;
 
+      hasLoadedRef.current = false;
+      if (loadWatchdogRef.current) clearTimeout(loadWatchdogRef.current);
+      loadWatchdogRef.current = setTimeout(() => {
+        if (isLoadingRef.current && !hasLoadedRef.current) {
+          setError('This report is taking too long to load. Check your connection and try again.');
+          setIsLoading(false);
+        }
+      }, 45000);
+
       // Handle loaded event
       report.on('loaded', async () => {
+        hasLoadedRef.current = true;
+        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
         setIsLoading(false);
 
         // Fetch pages for keyboard navigation in fullscreen
@@ -424,7 +447,6 @@ export const ReportViewer: React.FC = () => {
         }
       });
 
-      // Handle error event - log details but don't show error UI for non-fatal errors
       report.on('error', (event) => {
         const errorDetail = event?.detail;
         console.error('[ReportViewer] Power BI Error:', errorDetail);
@@ -434,14 +456,19 @@ export const ReportViewer: React.FC = () => {
           return;
         }
 
-        // Don't show error UI - let Power BI handle errors internally
-        // Most errors during navigation/drillthrough are recoverable
+        // If the report never finished loading, a fatal error here would leave the user
+        // staring at a spinner forever — surface it so the Try-again overlay renders.
+        if (!hasLoadedRef.current) {
+          if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
+          const msg = getErrorMessage(errorDetail);
+          setError(msg || 'This report could not be loaded. You may not have access, or it may have been removed.');
+          setIsLoading(false);
+        }
+        // After load, transient navigation/drillthrough errors remain non-fatal.
       });
 
       // Track page changes to keep keyboard navigation in sync
-      report.on('pageChanged', async (event) => {
-        console.log('[ReportViewer] DEBUG - Page Changed:', event?.detail);
-
+      report.on('pageChanged', async () => {
         // Update current page index when user navigates via tabs or other means
         try {
           const currentPages = await report.getPages();
@@ -455,42 +482,6 @@ export const ReportViewer: React.FC = () => {
         } catch (error) {
           console.warn('[ReportViewer] Page tracking failed:', error);
         }
-      });
-
-      report.on('dataSelected', (event) => {
-        console.log('[ReportViewer] DEBUG - Data Selected:', event?.detail);
-      });
-
-      report.on('rendered', () => {
-        console.log('[ReportViewer] DEBUG - Report Rendered');
-      });
-
-      report.on('commandTriggered', (event) => {
-        console.log('[ReportViewer] DEBUG - Command Triggered:', event?.detail);
-      });
-
-      report.on('swipeStart', (event) => {
-        console.log('[ReportViewer] DEBUG - Swipe Start:', event?.detail);
-      });
-
-      report.on('swipeEnd', (event) => {
-        console.log('[ReportViewer] DEBUG - Swipe End:', event?.detail);
-      });
-
-      report.on('buttonClicked', (event) => {
-        console.log('[ReportViewer] DEBUG - Button Clicked:', event?.detail);
-      });
-
-      report.on('filtersApplied', (event) => {
-        console.log('[ReportViewer] DEBUG - Filters Applied:', event?.detail);
-      });
-
-      report.on('visualClicked', (event) => {
-        console.log('[ReportViewer] DEBUG - Visual Clicked:', event?.detail);
-      });
-
-      report.on('visualRendered', (event) => {
-        console.log('[ReportViewer] DEBUG - Visual Rendered:', event?.detail);
       });
 
     } catch (err) {

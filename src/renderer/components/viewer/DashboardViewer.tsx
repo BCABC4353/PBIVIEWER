@@ -30,6 +30,8 @@ export const DashboardViewer: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasLoadedRef = useRef(false);
+  const loadWatchdogRef = useRef<NodeJS.Timeout | null>(null);
 
   const isTokenExpiringSoon = () => {
     if (!tokenExpirationRef.current) return false;
@@ -113,11 +115,21 @@ export const DashboardViewer: React.FC = () => {
     loadDashboard();
 
     return () => {
+      try {
+        (['loaded', 'error', 'tileClicked'] as const).forEach((e) => dashboardRef.current?.off(e));
+      } catch {
+        // ignore detach errors
+      }
+      if (loadWatchdogRef.current) {
+        clearTimeout(loadWatchdogRef.current);
+        loadWatchdogRef.current = null;
+      }
       if (embedContainerRef.current) {
         powerbiService.reset(embedContainerRef.current);
       }
       dashboardRef.current = null;
       isLoadingRef.current = false;
+      hasLoadedRef.current = false;
     };
   }, [workspaceId, dashboardId]);
 
@@ -176,7 +188,18 @@ export const DashboardViewer: React.FC = () => {
 
       dashboardRef.current = dashboard;
 
+      hasLoadedRef.current = false;
+      if (loadWatchdogRef.current) clearTimeout(loadWatchdogRef.current);
+      loadWatchdogRef.current = setTimeout(() => {
+        if (isLoadingRef.current && !hasLoadedRef.current) {
+          setError('This dashboard is taking too long to load. Check your connection and try again.');
+          setIsLoading(false);
+        }
+      }, 45000);
+
       dashboard.on('loaded', () => {
+        hasLoadedRef.current = true;
+        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
         setIsLoading(false);
       });
 
@@ -187,6 +210,7 @@ export const DashboardViewer: React.FC = () => {
           refreshEmbedToken();
           return;
         }
+        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
         setError('Failed to load dashboard. Please try again.');
         setIsLoading(false);
       });

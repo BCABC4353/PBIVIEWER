@@ -12,6 +12,7 @@ import {
 import * as pbi from 'powerbi-client';
 import type { EmbedToken, AppSettings } from '../../../shared/types';
 import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
+import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 import { usePowerBIService } from '../../hooks/usePowerBIService';
 
 interface ReportPage {
@@ -49,6 +50,9 @@ export const PresentationMode: React.FC = () => {
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
   const hasEnteredFullscreen = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const loadWatchdogRef = useRef<NodeJS.Timeout | null>(null);
+  const persistIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +126,16 @@ export const PresentationMode: React.FC = () => {
     loadSettings();
   }, []);
 
+  // Flush any pending debounced interval-persist timer on unmount
+  useEffect(() => {
+    return () => {
+      if (persistIntervalRef.current) {
+        clearTimeout(persistIntervalRef.current);
+        persistIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   // Build slides list based on slideshowMode when pages/bookmarks change
   useEffect(() => {
     const newSlides: SlideItem[] = [];
@@ -183,6 +197,15 @@ export const PresentationMode: React.FC = () => {
     }
 
     // Clean up Power BI
+    try {
+      (['loaded', 'error'] as const).forEach((e) => reportRef.current?.off(e));
+    } catch {
+      // ignore detach errors
+    }
+    if (loadWatchdogRef.current) {
+      clearTimeout(loadWatchdogRef.current);
+      loadWatchdogRef.current = null;
+    }
     if (embedContainerRef.current) {
       try {
         powerbiService.reset(embedContainerRef.current);
@@ -229,6 +252,15 @@ export const PresentationMode: React.FC = () => {
         clearInterval(slideshowIntervalRef.current);
         slideshowIntervalRef.current = null;
       }
+      try {
+        (['loaded', 'error'] as const).forEach((e) => reportRef.current?.off(e));
+      } catch {
+        // ignore detach errors
+      }
+      if (loadWatchdogRef.current) {
+        clearTimeout(loadWatchdogRef.current);
+        loadWatchdogRef.current = null;
+      }
       if (embedContainerRef.current) {
         try {
           powerbiService.reset(embedContainerRef.current);
@@ -238,6 +270,7 @@ export const PresentationMode: React.FC = () => {
       }
       reportRef.current = null;
       isLoadingRef.current = false;
+      hasLoadedRef.current = false;
     };
   }, [workspaceId, reportId]);
 
@@ -257,6 +290,15 @@ export const PresentationMode: React.FC = () => {
         }
 
         // Clean up Power BI
+        try {
+          (['loaded', 'error'] as const).forEach((e) => reportRef.current?.off(e));
+        } catch {
+          // ignore detach errors
+        }
+        if (loadWatchdogRef.current) {
+          clearTimeout(loadWatchdogRef.current);
+          loadWatchdogRef.current = null;
+        }
         if (embedContainerRef.current) {
           try {
             powerbiService.reset(embedContainerRef.current);
@@ -468,7 +510,18 @@ export const PresentationMode: React.FC = () => {
 
       reportRef.current = report;
 
+      hasLoadedRef.current = false;
+      if (loadWatchdogRef.current) clearTimeout(loadWatchdogRef.current);
+      loadWatchdogRef.current = setTimeout(() => {
+        if (isLoadingRef.current && !hasLoadedRef.current) {
+          setError('This report is taking too long to load. Check your connection and try again.');
+          setIsLoading(false);
+        }
+      }, 45000);
+
       report.on('loaded', async () => {
+        hasLoadedRef.current = true;
+        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
         setIsLoading(false);
 
         // Get all pages
@@ -509,6 +562,7 @@ export const PresentationMode: React.FC = () => {
           refreshEmbedToken();
           return;
         }
+        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
         setError('Failed to load report. Please try again.');
         setIsLoading(false);
       });
@@ -616,10 +670,17 @@ export const PresentationMode: React.FC = () => {
               <div className="flex items-center gap-3">
                 <Text size={200}>Interval:</Text>
                 <Slider
-                  min={3}
-                  max={60}
+                  min={SLIDESHOW_INTERVAL.MIN}
+                  max={SLIDESHOW_INTERVAL.MAX}
+                  step={SLIDESHOW_INTERVAL.STEP}
                   value={intervalSeconds}
-                  onChange={(_, data) => setIntervalSeconds(data.value)}
+                  onChange={(_, data) => {
+                    setIntervalSeconds(data.value);
+                    if (persistIntervalRef.current) clearTimeout(persistIntervalRef.current);
+                    persistIntervalRef.current = setTimeout(() => {
+                      void window.electronAPI.settings.update({ slideshowInterval: data.value });
+                    }, 300);
+                  }}
                   className="w-[120px]"
                 />
                 <Text size={200}>{intervalSeconds}s</Text>
