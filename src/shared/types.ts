@@ -80,6 +80,17 @@ export type IPCResponse<T> =
   | { success: true; data: T }
   | { success: false; error: { code: string; message: string } };
 
+/**
+ * Result of acquiring an access token. The expiresOn field carries MSAL's
+ * authoritative expiry so callers (powerbi-client, embed refresh) can schedule
+ * proactive refresh instead of guessing +1h from now.
+ */
+export interface TokenResult {
+  accessToken: string;
+  /** ISO 8601 timestamp; null if MSAL did not provide one (callers fall back to +1h). */
+  expiresOn: string | null;
+}
+
 // ============================================
 // APP SETTINGS TYPES
 // ============================================

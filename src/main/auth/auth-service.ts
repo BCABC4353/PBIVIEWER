@@ -4,10 +4,10 @@ import {
   InteractionRequiredAuthError,
   CryptoProvider,
 } from '@azure/msal-node';
-import { shell, BrowserWindow } from 'electron';
+import { shell, BrowserWindow, session } from 'electron';
 import { msalConfig, loginRequest, silentRequest } from './msal-config';
 import { tokenCache, CachedUserInfo } from './token-cache';
-import { UserInfo, AuthResult, IPCResponse } from '../../shared/types';
+import { UserInfo, AuthResult, IPCResponse, TokenResult } from '../../shared/types';
 
 class AuthService {
   private pca: PublicClientApplication;
@@ -261,7 +261,7 @@ class AuthService {
     });
   }
 
-  async getAccessToken(): Promise<IPCResponse<string>> {
+  async getAccessToken(): Promise<IPCResponse<TokenResult>> {
     try {
       if (!this.account) {
         await this.initializeCache();
@@ -290,7 +290,13 @@ class AuthService {
         });
 
         await this.persistCache();
-        return { success: true, data: result.accessToken };
+        return {
+          success: true,
+          data: {
+            accessToken: result.accessToken,
+            expiresOn: result.expiresOn ? result.expiresOn.toISOString() : null,
+          },
+        };
       } catch (error) {
         if (error instanceof InteractionRequiredAuthError) {
           // Token expired or scopes changed. Do NOT clear the cache — just report that
@@ -319,6 +325,12 @@ class AuthService {
       const accounts = await this.pca.getTokenCache().getAllAccounts();
       for (const account of accounts) {
         await this.pca.getTokenCache().removeAccount(account);
+      }
+
+      try {
+        await session.defaultSession.clearStorageData({ storages: ['cookies'] });
+      } catch (cookieErr) {
+        console.warn('[Auth] Cookie clear on logout failed (non-fatal):', cookieErr);
       }
 
       return { success: true, data: undefined };
