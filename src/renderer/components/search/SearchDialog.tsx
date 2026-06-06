@@ -165,6 +165,7 @@ export const SearchDialog: React.FC = () => {
                 <button
                   onClick={() => setQuery('')}
                   className="p-1 hover:bg-neutral-background-3 rounded"
+                  aria-label="Clear search"
                 >
                   <DismissRegular className="text-sm" />
                 </button>
@@ -175,6 +176,7 @@ export const SearchDialog: React.FC = () => {
             onChange={(_, data) => setQuery(data.value)}
             onKeyDown={handleKeyDown}
             role="combobox"
+            aria-label="Search Power BI content"
             aria-expanded={results.length > 0}
             aria-activedescendant={results.length > 0 ? `search-result-${selectedIndex}` : undefined}
             aria-controls="search-results-listbox"
@@ -187,6 +189,7 @@ export const SearchDialog: React.FC = () => {
         {partialFailureWarning && (
           <div
             role="status"
+            aria-live="polite"
             className="px-4 py-2 border-b border-neutral-stroke-2 bg-status-warning/10"
           >
             <Text size={200} className="text-status-warning">
@@ -205,19 +208,29 @@ export const SearchDialog: React.FC = () => {
           )}
 
           {!isSearching && query && results.length === 0 && (
-            <div className="py-8 text-center text-neutral-foreground-3">
+            <div
+              role="status"
+              aria-live="polite"
+              className="py-8 text-center text-neutral-foreground-3"
+            >
               <Text>No results found for "{query}"</Text>
             </div>
           )}
 
           {!isSearching && results.length > 0 && (
-            <div className="py-2" role="listbox" aria-label="Search results">
+            <div
+              id="search-results-listbox"
+              className="py-2"
+              role="listbox"
+              aria-label="Search results"
+            >
               {results.map((result, index) => (
                 <div
                   key={`${result.type}-${result.id}`}
                   id={`search-result-${index}`}
                   role="option"
                   aria-selected={index === selectedIndex}
+                  aria-label={`Open ${getTypeLabel(result.type).toLowerCase()} ${result.name}${result.workspaceName ? ` in workspace ${result.workspaceName}` : ''}`}
                   className={`px-4 py-3 cursor-pointer flex items-center gap-3 ${
                     index === selectedIndex
                       ? 'bg-neutral-background-3'

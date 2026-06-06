@@ -429,8 +429,13 @@ export const ReportViewer: React.FC = () => {
       }
 
       const rect = embedContainerRef.current?.getBoundingClientRect();
+      // HiDPI: multiply width/height (NOT x/y) by devicePixelRatio so the main
+      // process captures at native pixel resolution instead of 96-DPI CSS pixels.
+      // Offsets stay in CSS pixels because capturePage's rect origin is CSS-px;
+      // only the size needs to scale up to land a sharper PDF on Retina/4K.
+      const dpr = window.devicePixelRatio || 1;
       const bounds = rect && rect.width > 0 && rect.height > 0
-        ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+        ? { x: rect.left, y: rect.top, width: rect.width * dpr, height: rect.height * dpr }
         : undefined;
 
       const fallbackResponse = await window.electronAPI.export.currentViewToPdf({
@@ -575,7 +580,11 @@ export const ReportViewer: React.FC = () => {
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10"
+          >
             <div className="text-center max-w-md">
               <Text className="text-status-error block mb-4">{error}</Text>
               <Button appearance="primary" onClick={reload}>

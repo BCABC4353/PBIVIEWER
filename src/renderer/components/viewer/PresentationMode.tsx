@@ -46,6 +46,8 @@ export const PresentationMode: React.FC = () => {
   const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
   const hasEnteredFullscreen = useRef(false);
@@ -305,6 +307,61 @@ export const PresentationMode: React.FC = () => {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, [workspaceId, reportId, navigate, powerbiService]);
 
+  // Focus management: save previously-focused element on mount, restore on unmount.
+  // Keeps screen-reader / keyboard users from being stranded after exit.
+  useEffect(() => {
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    return () => {
+      const prev = previouslyFocusedRef.current;
+      if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
+        try { prev.focus(); } catch { /* ignore */ }
+      }
+    };
+  }, []);
+
+  // Simple focus trap: cycle Tab / Shift+Tab among focusable elements inside
+  // the overlay. Avoids dragging in a focus-trap library for this single use.
+  useEffect(() => {
+    const handleTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const root = overlayRef.current;
+      if (!root) return;
+
+      const focusables = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null);
+
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      // noUncheckedIndexedAccess narrows these to T | undefined, but the
+      // length>0 guard above means both are defined here.
+      if (!first || !last) return;
+      const active = document.activeElement as HTMLElement | null;
+
+      if (e.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active === last || !root.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTrap, true);
+    return () => document.removeEventListener('keydown', handleTrap, true);
+  }, []);
+
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -429,7 +486,13 @@ export const PresentationMode: React.FC = () => {
   void reload;
 
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-background-1">
+    <div
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Presentation mode"
+      className="fixed inset-0 z-50 bg-neutral-background-1"
+    >
       {/* Loading overlay */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-20">
@@ -488,6 +551,8 @@ export const PresentationMode: React.FC = () => {
                   onClick={() => setShowSettings(!showSettings)}
                   className="text-white"
                   title="Settings"
+                  aria-label="Settings"
+                  aria-expanded={showSettings}
                 />
                 <Button
                   appearance="subtle"
@@ -495,6 +560,7 @@ export const PresentationMode: React.FC = () => {
                   onClick={doExit}
                   className="text-white"
                   title="Exit (Esc)"
+                  aria-label="Exit presentation"
                 />
               </div>
             </div>
@@ -545,12 +611,14 @@ export const PresentationMode: React.FC = () => {
                 className="text-white"
                 size="large"
                 title="Previous slide"
+                aria-label="Previous slide"
               />
               <Button
                 appearance="primary"
                 icon={isPlaying ? <PauseRegular /> : <PlayRegular />}
                 onClick={togglePlayPause}
                 size="large"
+                aria-label={isPlaying ? 'Pause slideshow' : 'Play slideshow'}
               >
                 {isPlaying ? 'Pause' : 'Play'}
               </Button>
@@ -561,6 +629,7 @@ export const PresentationMode: React.FC = () => {
                 className="text-white"
                 size="large"
                 title="Next slide"
+                aria-label="Next slide"
               />
             </div>
 
@@ -575,6 +644,7 @@ export const PresentationMode: React.FC = () => {
                     } ${slide.type === 'bookmark' ? 'ring-1 ring-white/60' : ''}`}
                     onClick={() => setCurrentSlideIndex(index)}
                     aria-label={`Go to slide ${index + 1}: ${slide.displayName}`}
+                    aria-current={index === currentSlideIndex ? 'true' : undefined}
                     title={`Go to ${slide.type === 'bookmark' ? 'bookmark' : 'page'} ${index + 1}: ${slide.displayName}`}
                   />
                 ))}
