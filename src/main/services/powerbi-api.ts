@@ -16,52 +16,136 @@ interface PowerBIApiResponse<T> {
   '@odata.nextLink'?: string;
 }
 
+const FETCH_TIMEOUT_MS = 20000;
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs: number = FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+interface WithRetryOptions {
+  maxAttempts?: number;
+  baseDelayMs?: number;
+}
+async function withRetry<T>(fn: () => Promise<T>, opts: WithRetryOptions = {}): Promise<T> {
+  const max = opts.maxAttempts ?? 3;
+  const base = opts.baseDelayMs ?? 500;
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    attempt++;
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isRetriable = err && (err.name === 'RetriableHttpError' || err.name === 'AbortError');
+      if (!isRetriable || attempt >= max) throw err;
+      const retryAfter = (err.retryAfterMs as number | undefined);
+      const delay = retryAfter !== undefined ? retryAfter : Math.min(base * Math.pow(2, attempt - 1), 8000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+}
+
+class RetriableHttpError extends Error {
+  constructor(public status: number, message: string, public retryAfterMs?: number) {
+    super(message);
+    this.name = 'RetriableHttpError';
+  }
+}
+
+/**
+ * Parse a Retry-After header value. Returns milliseconds, or undefined if unparseable.
+ * Supports both numeric seconds and HTTP-date forms per RFC 7231.
+ */
+function parseRetryAfter(headerValue: string | null): number | undefined {
+  if (!headerValue) return undefined;
+  const trimmed = headerValue.trim();
+  if (!trimmed) return undefined;
+  const asInt = Number(trimmed);
+  if (Number.isFinite(asInt) && asInt >= 0) {
+    return Math.round(asInt * 1000);
+  }
+  const dateMs = Date.parse(trimmed);
+  if (!Number.isNaN(dateMs)) {
+    return Math.max(0, dateMs - Date.now());
+  }
+  return undefined;
+}
+
+/**
+ * Classify a non-OK response and throw an appropriate error. 429 and 5xx
+ * variants are thrown as RetriableHttpError so withRetry can back off; other
+ * 4xx responses throw a plain Error and short-circuit the retry loop.
+ */
+async function throwForStatus(response: Response, contextLabel: string): Promise<never> {
+  const errorText = await response.text();
+  const message = `${contextLabel}: ${response.status} - ${errorText}`;
+  if (response.status === 429) {
+    const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'));
+    throw new RetriableHttpError(429, message, retryAfterMs);
+  }
+  if (response.status === 500 || response.status === 503 || response.status === 504) {
+    throw new RetriableHttpError(response.status, message);
+  }
+  throw new Error(message);
+}
+
 class PowerBIApiService {
   private async makeRequest<T>(endpoint: string): Promise<T> {
-    const tokenResponse = await authService.getAccessToken();
+    return withRetry(async () => {
+      const tokenResponse = await authService.getAccessToken();
 
-    if (!tokenResponse.success) {
-      throw new Error(tokenResponse.error.message || 'Failed to get access token');
-    }
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get access token');
+      }
 
-    const response = await fetch(`${POWERBI_API_BASE}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${tokenResponse.data}`,
-        'Content-Type': 'application/json',
-      },
+      const response = await fetchWithTimeout(`${POWERBI_API_BASE}${endpoint}`, {
+        headers: {
+          Authorization: `Bearer ${tokenResponse.data.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        await throwForStatus(response, 'Power BI API error');
+      }
+
+      return response.json() as Promise<T>;
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Power BI API error: ${response.status} - ${errorText}`);
-    }
-
-    return response.json();
   }
 
   /**
    * Makes a request to a full URL (used for pagination with @odata.nextLink)
    */
   private async makeRequestWithUrl<T>(fullUrl: string): Promise<T> {
-    const tokenResponse = await authService.getAccessToken();
+    return withRetry(async () => {
+      const tokenResponse = await authService.getAccessToken();
 
-    if (!tokenResponse.success) {
-      throw new Error(tokenResponse.error.message || 'Failed to get access token');
-    }
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get access token');
+      }
 
-    const response = await fetch(fullUrl, {
-      headers: {
-        Authorization: `Bearer ${tokenResponse.data}`,
-        'Content-Type': 'application/json',
-      },
+      const response = await fetchWithTimeout(fullUrl, {
+        headers: {
+          Authorization: `Bearer ${tokenResponse.data.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        await throwForStatus(response, 'Power BI API error');
+      }
+
+      return response.json() as Promise<T>;
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Power BI API error: ${response.status} - ${errorText}`);
-    }
-
-    return response.json();
   }
 
   /**
@@ -364,13 +448,17 @@ class PowerBIApiService {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
       }
 
+      // Prefer MSAL's authoritative expiry; fall back to +1h only when null.
+      const expiration =
+        tokenResponse.data.expiresOn ?? new Date(Date.now() + 3600000).toISOString();
+
       // Return the access token as the embed token for user-owns-data scenario
       return {
         success: true,
         data: {
-          token: tokenResponse.data,
+          token: tokenResponse.data.accessToken,
           tokenId: '', // Not used in user-owns-data
-          expiration: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          expiration,
         },
       };
     } catch (error) {
@@ -394,7 +482,7 @@ class PowerBIApiService {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
       }
 
-      const accessToken = tokenResponse.data;
+      const accessToken = tokenResponse.data.accessToken;
       const baseUrl = `${POWERBI_API_BASE}/groups/${workspaceId}/reports/${reportId}`;
 
       const reportConfig: Record<string, unknown> = {
@@ -413,7 +501,7 @@ class PowerBIApiService {
         reportConfig.pages = [page];
       }
 
-      const exportResponse = await fetch(`${baseUrl}/ExportTo`, {
+      const exportResponse = await fetchWithTimeout(`${baseUrl}/ExportTo`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -441,9 +529,13 @@ class PowerBIApiService {
       let status: string | undefined;
 
       while (attempts < maxAttempts) {
-        const statusResponse = await fetch(`${baseUrl}/exports/${exportId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        // Shorter per-call timeout for the polling loop — the 30-iteration cap
+        // bounds total wait time; we don't want each poll holding the default 20s.
+        const statusResponse = await fetchWithTimeout(
+          `${baseUrl}/exports/${exportId}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+          10000
+        );
 
         if (!statusResponse.ok) {
           const errorText = await statusResponse.text();
@@ -469,7 +561,7 @@ class PowerBIApiService {
         throw new Error('Export timed out');
       }
 
-      const fileResponse = await fetch(`${baseUrl}/exports/${exportId}/file`, {
+      const fileResponse = await fetchWithTimeout(`${baseUrl}/exports/${exportId}/file`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -493,10 +585,18 @@ class PowerBIApiService {
   /**
    * Fetches all available reports and dashboards from all workspaces.
    * For actual "recent" items based on user activity, use usage-tracking-service.
+   *
+   * Per-workspace failures do NOT abort the whole call: successful workspaces
+   * still contribute to the result, and the failures are surfaced via
+   * `failedWorkspaces` / `partialFailure` so the renderer can warn the user.
+   * If every workspace fails, the call returns success:false.
    */
   async getAllItems(): Promise<IPCResponse<{
+    workspaces: Workspace[];
     reports: Report[];
     dashboards: Dashboard[];
+    partialFailure: boolean;
+    failedWorkspaces: Array<{ id: string; name: string; error: string }>;
   }>> {
     try {
       // Get all workspaces first
@@ -510,6 +610,7 @@ class PowerBIApiService {
 
       const allReports: Report[] = [];
       const allDashboards: Dashboard[] = [];
+      const failedWorkspaces: Array<{ id: string; name: string; error: string }> = [];
 
       // Fetch reports and dashboards from all workspaces in parallel batches
       const workspaces = workspacesResponse.data;
@@ -523,25 +624,51 @@ class PowerBIApiService {
               this.getReports(workspace.id),
               this.getDashboards(workspace.id),
             ]);
-            return { reportsResponse, dashboardsResponse };
+            return { workspace, reportsResponse, dashboardsResponse };
           })
         );
 
-        for (const { reportsResponse, dashboardsResponse } of batchResults) {
+        for (const { workspace, reportsResponse, dashboardsResponse } of batchResults) {
           if (reportsResponse.success && reportsResponse.data) {
             allReports.push(...reportsResponse.data);
           }
           if (dashboardsResponse.success && dashboardsResponse.data) {
             allDashboards.push(...dashboardsResponse.data);
           }
+          if (!reportsResponse.success || !dashboardsResponse.success) {
+            const parts: string[] = [];
+            if (!reportsResponse.success) {
+              parts.push(`reports: ${reportsResponse.error.message}`);
+            }
+            if (!dashboardsResponse.success) {
+              parts.push(`dashboards: ${dashboardsResponse.error.message}`);
+            }
+            failedWorkspaces.push({
+              id: workspace.id,
+              name: workspace.name,
+              error: parts.join('; '),
+            });
+          }
         }
+      }
+
+      // If every workspace failed, surface a hard failure rather than an
+      // empty success — the renderer should not silently render "no content".
+      if (workspaces.length > 0 && failedWorkspaces.length === workspaces.length) {
+        return {
+          success: false,
+          error: { code: 'BULK_FETCH_FAILED', message: 'All workspaces failed to load.' },
+        };
       }
 
       return {
         success: true,
         data: {
+          workspaces,
           reports: allReports,
           dashboards: allDashboards,
+          partialFailure: failedWorkspaces.length > 0,
+          failedWorkspaces,
         },
       };
     } catch (error) {
@@ -585,11 +712,13 @@ class PowerBIApiService {
         data: {},
       };
     } catch (error) {
+      // Surface real failures honestly so callers can distinguish "no refresh
+      // history yet" (success with empty data) from "the API call failed".
+      // Viewers already render gracefully when lastRefreshTime is missing.
       console.warn('[PowerBI] Dataset refresh info unavailable:', error);
-      // Return success with empty data - don't break the app for this non-critical feature
       return {
-        success: true,
-        data: {},
+        success: false,
+        error: { code: 'REFRESH_INFO_FAILED', message: String(error) },
       };
     }
   }
