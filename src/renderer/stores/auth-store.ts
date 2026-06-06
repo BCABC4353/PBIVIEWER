@@ -89,6 +89,11 @@ export const useAuthStore = create<AuthState>((set) => ({
           isAuthenticated: true,
           isLoading: false,
         });
+      } else if (!response.success && response.error.code === 'LOGIN_IN_PROGRESS') {
+        // A previous click is still mid-flight. Not a real error — just
+        // ignore this duplicate invocation and let the in-flight login
+        // continue to drive isLoading/user/error state.
+        return;
       } else {
         const errorMessage = !response.success
           ? response.error.message

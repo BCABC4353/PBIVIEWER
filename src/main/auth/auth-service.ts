@@ -20,6 +20,14 @@ class AuthService {
   // refresh window is close). We short-circuit when we already know the cached
   // token is far from expiry.
   private lastKnownExpiry: number | null = null;
+  // Captures AAD-returned error_description so login() can surface the real
+  // reason (consent_required, access_denied, etc.) instead of generic
+  // LOGIN_FAILED. Cleared after consumption.
+  private lastAuthError: string | null = null;
+  // Single-flight lock for getAccessToken(): concurrent IPC calls used to race
+  // two acquireTokenSilent + persistCache cycles against each other, which can
+  // corrupt the MSAL cache. All callers now await the same in-flight promise.
+  private tokenAcquisitionInFlight: Promise<IPCResponse<TokenResult>> | null = null;
 
   constructor() {
     this.pca = new PublicClientApplication(msalConfig);
@@ -133,6 +141,17 @@ class AuthService {
 
   async login(): Promise<IPCResponse<AuthResult>> {
     try {
+      // A fast double-click on the Sign-in button used to overwrite
+      // pendingAuthState mid-flight, which then tripped the CSRF check on the
+      // first window's redirect. Treat the second click as a no-op so the
+      // in-flight login can complete; the renderer ignores LOGIN_IN_PROGRESS.
+      if (this.pendingAuthState !== null) {
+        return {
+          success: false,
+          error: { code: 'LOGIN_IN_PROGRESS', message: 'A sign-in is already in progress' },
+        };
+      }
+
       // Generate PKCE codes
       const { verifier, challenge } = await this.cryptoProvider.generatePkceCodes();
 
@@ -157,18 +176,29 @@ class AuthService {
 
       if (!authResult) {
         this.pendingAuthState = null;
+        // If openAuthWindow captured an AAD error_description (consent_required,
+        // access_denied, etc.), surface it instead of the generic cancel path.
+        if (this.lastAuthError !== null) {
+          const message = this.lastAuthError;
+          this.lastAuthError = null;
+          return {
+            success: false,
+            error: { code: 'AAD_AUTH_ERROR', message },
+          };
+        }
         return {
           success: false,
           error: { code: 'LOGIN_CANCELLED', message: 'Login was cancelled by user' },
         };
       }
 
-      // Validate state to prevent CSRF
+      // Validate state to prevent CSRF. Softened user-facing message — the most
+      // common cause in practice is a self-inflicted race, not an attack.
       if (authResult.state !== this.pendingAuthState) {
         this.pendingAuthState = null;
         return {
           success: false,
-          error: { code: 'CSRF_VALIDATION_FAILED', message: 'State mismatch - possible CSRF attack' },
+          error: { code: 'CSRF_VALIDATION_FAILED', message: 'Sign-in could not be verified. Please try again.' },
         };
       }
 
@@ -228,21 +258,53 @@ class AuthService {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
+          // Auth window only loads Microsoft origins (enforced by the
+          // will-navigate allowlist); sandbox is appropriate and defends
+          // against renderer compromise reaching Node APIs.
+          sandbox: true,
         },
       });
 
       const ALLOWED_AUTH_HOSTS = ['login.microsoftonline.com', 'login.live.com', 'aadcdn.msftauth.net', 'aadcdn.msauth.net', 'localhost'];
+
+      // settled-guard: the 120s timer, the redirect handler, and the
+      // window-closed event can all race. settle() ensures only the first
+      // one resolves and the timer is always cleared.
+      let settled = false;
+      const settle = (value: { code: string; state: string } | null) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(value);
+      };
+      const timer = setTimeout(() => {
+        if (!settled) {
+          try { authWindow.close(); } catch { /* already gone */ }
+          settle(null);
+        }
+      }, 120000);
 
       const handleRedirect = (url: string) => {
         const urlObj = new URL(url);
         if (urlObj.hostname === 'localhost') {
           const code = urlObj.searchParams.get('code');
           const state = urlObj.searchParams.get('state');
+          // AAD reports user-facing failures (consent_required, access_denied,
+          // interaction_required, etc.) by redirecting to the redirect_uri with
+          // error + error_description query params instead of a code. Capture
+          // the description so login() can surface it as AAD_AUTH_ERROR.
+          const aadError = urlObj.searchParams.get('error');
+          const aadErrorDescription = urlObj.searchParams.get('error_description');
           authWindow.close();
+          if (aadError) {
+            this.lastAuthError = aadErrorDescription || aadError;
+            settle(null);
+            return;
+          }
           if (code && state) {
-            resolve({ code, state });
+            settle({ code, state });
           } else {
-            resolve(null);
+            settle(null);
           }
         }
       };
@@ -266,7 +328,7 @@ class AuthService {
       });
 
       authWindow.on('closed', () => {
-        resolve(null);
+        settle(null);
       });
 
       authWindow.loadURL(authUrl);
@@ -274,59 +336,77 @@ class AuthService {
   }
 
   async getAccessToken(): Promise<IPCResponse<TokenResult>> {
-    try {
-      if (!this.account) {
-        await this.initializeCache();
-        const accounts = await this.pca.getTokenCache().getAllAccounts();
-        if (accounts.length === 0) {
-          return {
-            success: false,
-            error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
-          };
-        }
-        const firstAccount = accounts[0];
-        if (!firstAccount) {
-          return {
-            success: false,
-            error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
-          };
-        }
-        this.account = firstAccount;
-      }
+    // Single-flight: parallel IPC callers (e.g. workspace expansion firing many
+    // getEmbedToken requests at once) used to race two acquireTokenSilent +
+    // persistCache cycles, which can corrupt the MSAL cache. Coalesce them.
+    if (this.tokenAcquisitionInFlight !== null) {
+      return await this.tokenAcquisitionInFlight;
+    }
 
-      // Try silent token acquisition first
+    const work = (async (): Promise<IPCResponse<TokenResult>> => {
       try {
-        const result = await this.pca.acquireTokenSilent({
-          ...silentRequest,
-          account: this.account,
-        });
-
-        await this.persistCache();
-        // Record expiry so the next validateToken() can short-circuit.
-        this.lastKnownExpiry = result.expiresOn ? result.expiresOn.getTime() : null;
-        return {
-          success: true,
-          data: {
-            accessToken: result.accessToken,
-            expiresOn: result.expiresOn ? result.expiresOn.toISOString() : null,
-          },
-        };
-      } catch (error) {
-        if (error instanceof InteractionRequiredAuthError) {
-          // Token expired or scopes changed. Do NOT clear the cache — just report that
-          // interactive sign-in is needed; the renderer routes to the login screen.
-          return {
-            success: false,
-            error: { code: 'INTERACTION_REQUIRED', message: 'Session expired. Please sign in again.' },
-          };
+        if (!this.account) {
+          await this.initializeCache();
+          const accounts = await this.pca.getTokenCache().getAllAccounts();
+          if (accounts.length === 0) {
+            return {
+              success: false,
+              error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
+            };
+          }
+          const firstAccount = accounts[0];
+          if (!firstAccount) {
+            return {
+              success: false,
+              error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
+            };
+          }
+          this.account = firstAccount;
         }
-        throw error;
+
+        // Try silent token acquisition first
+        try {
+          const result = await this.pca.acquireTokenSilent({
+            ...silentRequest,
+            account: this.account,
+          });
+
+          await this.persistCache();
+          // Record expiry so the next validateToken() can short-circuit.
+          this.lastKnownExpiry = result.expiresOn ? result.expiresOn.getTime() : null;
+          return {
+            success: true,
+            data: {
+              accessToken: result.accessToken,
+              expiresOn: result.expiresOn ? result.expiresOn.toISOString() : null,
+            },
+          };
+        } catch (error) {
+          if (error instanceof InteractionRequiredAuthError) {
+            // Token expired or scopes changed. Do NOT clear the cache — just report that
+            // interactive sign-in is needed; the renderer routes to the login screen.
+            return {
+              success: false,
+              error: { code: 'INTERACTION_REQUIRED', message: 'Session expired. Please sign in again.' },
+            };
+          }
+          throw error;
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: { code: 'TOKEN_FAILED', message: String(error) },
+        };
       }
-    } catch (error) {
-      return {
-        success: false,
-        error: { code: 'TOKEN_FAILED', message: String(error) },
-      };
+    })();
+
+    this.tokenAcquisitionInFlight = work;
+    try {
+      return await work;
+    } finally {
+      // Always release the lock — success OR throw — so a failed acquisition
+      // does not permanently wedge every future caller.
+      this.tokenAcquisitionInFlight = null;
     }
   }
 
