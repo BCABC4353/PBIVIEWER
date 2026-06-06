@@ -65,6 +65,14 @@ function createUsageStore(): UsageStoreLike {
 const store = createUsageStore();
 
 const MAX_RECORDS = 50; // Keep track of last 50 items
+const NAME_MAX_LENGTH = 256; // Cap stored name/workspaceName to prevent store/log bloat
+
+// Defensively coerce + cap a name field. Tolerates non-string callers (legacy
+// or in-process) by stringifying, then trims and slices to NAME_MAX_LENGTH.
+function capName(value: unknown): string {
+  const s = typeof value === 'string' ? value : String(value ?? '');
+  return s.trim().slice(0, NAME_MAX_LENGTH);
+}
 
 export const usageTrackingService = {
   /**
@@ -79,6 +87,12 @@ export const usageTrackingService = {
   }): void {
     const records = store.get('usageRecords', []);
 
+    // Belt-and-braces: even though the IPC handler validates and caps these
+    // fields, re-cap here to protect against legacy callers and any future
+    // module-internal call site that bypasses the IPC boundary.
+    const cappedName = capName(item.name);
+    const cappedWorkspaceName = capName(item.workspaceName);
+
     // Find existing record
     const existingIndex = records.findIndex((r) => r.id === item.id);
 
@@ -88,8 +102,8 @@ export const usageTrackingService = {
       records.splice(existingIndex, 1);
       records.unshift({
         ...existingRecord,
-        name: item.name, // Update name in case it changed
-        workspaceName: item.workspaceName,
+        name: cappedName, // Update name in case it changed
+        workspaceName: cappedWorkspaceName,
         lastOpened: new Date().toISOString(),
         openCount: existingRecord.openCount + 1,
       });
@@ -97,10 +111,10 @@ export const usageTrackingService = {
       // Add new record at front
       records.unshift({
         id: item.id,
-        name: item.name,
+        name: cappedName,
         type: item.type,
         workspaceId: item.workspaceId,
-        workspaceName: item.workspaceName,
+        workspaceName: cappedWorkspaceName,
         lastOpened: new Date().toISOString(),
         openCount: 1,
       });
