@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from '../../stores/auth-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useContentStore } from '../../stores/content-store';
+import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -169,16 +170,16 @@ export const SettingsPage: React.FC = () => {
                   </div>
                   <div className="w-full">
                     <Slider
-                      min={30}
-                      max={300}
-                      step={10}
+                      min={SLIDESHOW_INTERVAL.MIN}
+                      max={SLIDESHOW_INTERVAL.MAX}
+                      step={SLIDESHOW_INTERVAL.STEP}
                       value={settings.slideshowInterval}
                       onChange={(_, data) => handleSlideshowIntervalChange(data.value)}
                       style={{ width: '100%' }}
                     />
                   </div>
                   <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
-                    <span>30s</span>
+                    <span>{SLIDESHOW_INTERVAL.MIN}s</span>
                     <span>5 min</span>
                   </div>
                 </div>
