@@ -49,11 +49,14 @@ export const useAuthStore = create<AuthState>((set) => ({
             });
           }
         } else {
-          // Token validation failed - need to re-login
+          // Account existed but token validation failed - the session expired
+          // or is invalid. Surface a friendly message instead of silently
+          // bouncing to the login screen with no explanation.
           set({
             user: null,
             isAuthenticated: false,
             isLoading: false,
+            error: 'Your session expired. Please sign in again.',
           });
         }
       } else {

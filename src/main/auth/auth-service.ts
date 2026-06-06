@@ -79,16 +79,7 @@ class AuthService {
   async validateToken(): Promise<IPCResponse<boolean>> {
     try {
       const tokenResult = await this.getAccessToken();
-
-      if (tokenResult.success) {
-        return { success: true, data: true };
-      } else {
-        // If we can't get a token, clear the cache so user is prompted to login
-        if (tokenResult.error.code === 'INTERACTION_REQUIRED' || tokenResult.error.code === 'NO_ACCOUNT') {
-          await this.logout();
-        }
-        return { success: true, data: false };
-      }
+      return { success: true, data: tokenResult.success };
     } catch (error) {
       console.warn('[Auth] Token validation failed:', error);
       return { success: true, data: false };
@@ -144,6 +135,7 @@ class AuthService {
         codeChallenge: challenge,
         codeChallengeMethod: 'S256',
         state: state,
+        prompt: 'select_account',
       };
 
       const authCodeUrl = await this.pca.getAuthCodeUrl(authCodeUrlParams);
@@ -301,12 +293,11 @@ class AuthService {
         return { success: true, data: result.accessToken };
       } catch (error) {
         if (error instanceof InteractionRequiredAuthError) {
-          // Token expired or scopes changed, need interactive login
-          // Clear the cache and trigger re-login
-          await this.logout();
+          // Token expired or scopes changed. Do NOT clear the cache — just report that
+          // interactive sign-in is needed; the renderer routes to the login screen.
           return {
             success: false,
-            error: { code: 'INTERACTION_REQUIRED', message: 'Session expired. Please log in again.' },
+            error: { code: 'INTERACTION_REQUIRED', message: 'Session expired. Please sign in again.' },
           };
         }
         throw error;
