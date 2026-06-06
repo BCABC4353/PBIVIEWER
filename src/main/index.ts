@@ -8,6 +8,16 @@ import { powerbiApiService } from './services/powerbi-api';
 import { settingsService } from './services/settings-service';
 import { usageTrackingService } from './services/usage-tracking-service';
 import type { ContentItem, AppSettings, DatasetRefreshInfo } from '../shared/types';
+import log from 'electron-log/main';
+
+// File log to userData (per-OS standard location). Console + DevTools also.
+log.initialize();
+log.transports.file.level = 'info';
+log.transports.console.level = 'debug';
+log.errorHandler.startCatching({
+  showDialog: false,
+  onError: ({ error }: { error: Error }) => log.error('[main:unhandled]', error?.stack ?? String(error)),
+});
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -126,8 +136,8 @@ function createWindow(): void {
 }
 
 // Global error handlers
-process.on('unhandledRejection', (reason) => console.error('[Main] Unhandled rejection:', reason));
-process.on('uncaughtException', (error) => console.error('[Main] Uncaught exception:', error));
+process.on('unhandledRejection', (reason) => log.error('[main:unhandledRejection]', reason instanceof Error ? reason.stack ?? reason.message : String(reason)));
+process.on('uncaughtException', (error) => log.error('[main:uncaughtException]', error?.stack ?? String(error)));
 
 // App lifecycle
 if (!app.requestSingleInstanceLock()) {
@@ -645,4 +655,14 @@ ipcMain.handle('app:get-partition-name', () => {
 ipcMain.handle('app:get-version', () => {
   // Returns the version from package.json - single source of truth
   return app.getVersion();
+});
+
+ipcMain.handle('log:open-folder', async () => {
+  try {
+    const dir = log.transports.file.getFile().path.replace(/[\\/][^\\/]+$/, '');
+    await shell.openPath(dir);
+    return { success: true, data: undefined };
+  } catch (err) {
+    return { success: false, error: { code: 'LOG_OPEN_FAILED', message: String(err) } };
+  }
 });

@@ -15,8 +15,11 @@ declare global {
 }
 
 // Global unhandled rejection handler for the renderer process
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('[Renderer] Unhandled promise rejection:', event.reason);
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[renderer:unhandledRejection]', e.reason);
+});
+window.addEventListener('error', (e) => {
+  console.error('[renderer:error]', e.message, e.error?.stack);
 });
 
 // Theme provider component that responds to settings changes

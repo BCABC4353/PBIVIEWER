@@ -82,6 +82,10 @@ const electronAPI: ElectronAPI = {
     }) => ipcRenderer.invoke('export:current-view-pdf', options),
   },
 
+  log: {
+    openFolder: () => ipcRenderer.invoke('log:open-folder'),
+  },
+
   app: {
     getPartitionName: () => ipcRenderer.invoke('app:get-partition-name'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),
