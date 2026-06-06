@@ -1,6 +1,3 @@
-# Windows reserved names
-nul
-
 # Dependencies
 node_modules/
 

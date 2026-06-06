@@ -171,6 +171,10 @@ export const SearchDialog: React.FC = () => {
             value={query}
             onChange={(_, data) => setQuery(data.value)}
             onKeyDown={handleKeyDown}
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-activedescendant={results.length > 0 ? `search-result-${selectedIndex}` : undefined}
+            aria-controls="search-results-listbox"
             className="w-full"
             size="large"
           />
@@ -192,10 +196,13 @@ export const SearchDialog: React.FC = () => {
           )}
 
           {!isSearching && results.length > 0 && (
-            <div className="py-2">
+            <div className="py-2" role="listbox" aria-label="Search results">
               {results.map((result, index) => (
                 <div
                   key={`${result.type}-${result.id}`}
+                  id={`search-result-${index}`}
+                  role="option"
+                  aria-selected={index === selectedIndex}
                   className={`px-4 py-3 cursor-pointer flex items-center gap-3 ${
                     index === selectedIndex
                       ? 'bg-neutral-background-3'

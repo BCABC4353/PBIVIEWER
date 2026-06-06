@@ -42,11 +42,11 @@ class AuthService {
         // Try to get cached account
         const accounts = await this.pca.getTokenCache().getAllAccounts();
         if (accounts.length > 0) {
-          this.account = accounts[0];
+          this.account = accounts[0] ?? null;
         }
       }
-    } catch {
-      // Cache initialization failure is non-critical, will start fresh
+    } catch (error) {
+      console.warn('[Auth] Cache initialization failed, starting fresh:', error);
     }
   }
 
@@ -54,8 +54,8 @@ class AuthService {
     try {
       const cache = this.pca.getTokenCache().serialize();
       await tokenCache.saveCache(cache);
-    } catch {
-      // Cache persistence failure is non-critical
+    } catch (error) {
+      console.warn('[Auth] Cache persistence failed:', error);
     }
   }
 
@@ -80,16 +80,17 @@ class AuthService {
     try {
       const tokenResult = await this.getAccessToken();
 
-      if (tokenResult.success && tokenResult.data) {
+      if (tokenResult.success) {
         return { success: true, data: true };
       } else {
         // If we can't get a token, clear the cache so user is prompted to login
-        if (tokenResult.error?.code === 'INTERACTION_REQUIRED' || tokenResult.error?.code === 'NO_ACCOUNT') {
+        if (tokenResult.error.code === 'INTERACTION_REQUIRED' || tokenResult.error.code === 'NO_ACCOUNT') {
           await this.logout();
         }
         return { success: true, data: false };
       }
-    } catch {
+    } catch (error) {
+      console.warn('[Auth] Token validation failed:', error);
       return { success: true, data: false };
     }
   }
@@ -226,6 +227,8 @@ class AuthService {
         },
       });
 
+      const ALLOWED_AUTH_HOSTS = ['login.microsoftonline.com', 'login.live.com', 'aadcdn.msftauth.net', 'aadcdn.msauth.net', 'localhost'];
+
       const handleRedirect = (url: string) => {
         const urlObj = new URL(url);
         if (urlObj.hostname === 'localhost') {
@@ -245,6 +248,16 @@ class AuthService {
       });
 
       authWindow.webContents.on('will-navigate', (event, url) => {
+        try {
+          const hostname = new URL(url).hostname;
+          if (!ALLOWED_AUTH_HOSTS.some((d) => hostname === d || hostname.endsWith('.' + d))) {
+            event.preventDefault();
+            return;
+          }
+        } catch {
+          event.preventDefault();
+          return;
+        }
         handleRedirect(url);
       });
 
@@ -267,7 +280,14 @@ class AuthService {
             error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
           };
         }
-        this.account = accounts[0];
+        const firstAccount = accounts[0];
+        if (!firstAccount) {
+          return {
+            success: false,
+            error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
+          };
+        }
+        this.account = firstAccount;
       }
 
       // Try silent token acquisition first
@@ -310,7 +330,7 @@ class AuthService {
         await this.pca.getTokenCache().removeAccount(account);
       }
 
-      return { success: true };
+      return { success: true, data: undefined };
     } catch (error) {
       return {
         success: false,

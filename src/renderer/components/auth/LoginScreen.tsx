@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import logoUrl from '../../assets/logo.png';
 import {
   Button,
   Spinner,
@@ -39,7 +40,7 @@ export const LoginScreen: React.FC = () => {
           {/* Logo/Icon */}
           <div className="flex justify-center mb-6">
             <img
-              src="../../assets/logo.png"
+              src={logoUrl}
               alt="Logo"
               className="w-20 h-20 object-contain"
             />

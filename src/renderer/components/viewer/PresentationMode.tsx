@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text, Slider } from '@fluentui/react-components';
 import {
@@ -10,13 +10,9 @@ import {
   SettingsRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { IPCResponse, EmbedToken, AppSettings } from '../../../shared/types';
-
-const powerbiService = new pbi.service.Service(
-  pbi.factories.hpmFactory,
-  pbi.factories.wpmpFactory,
-  pbi.factories.routerFactory
-);
+import type { EmbedToken, AppSettings } from '../../../shared/types';
+import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
+import { usePowerBIService } from '../../hooks/usePowerBIService';
 
 interface ReportPage {
   name: string;
@@ -43,6 +39,7 @@ export const PresentationMode: React.FC = () => {
     reportId: string;
   }>();
   const navigate = useNavigate();
+  const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<pbi.Report | null>(null);
@@ -69,35 +66,6 @@ export const PresentationMode: React.FC = () => {
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [slidesReady, setSlidesReady] = useState(false);
 
-  const getErrorMessage = (detail: unknown): string => {
-    if (!detail) return '';
-    if (typeof detail === 'string') return detail;
-    if (detail instanceof Error) return detail.message;
-    if (typeof detail === 'object') {
-      const anyDetail = detail as Record<string, unknown>;
-      const nestedError = anyDetail.error as Record<string, unknown> | undefined;
-      return String(
-        anyDetail.message ??
-          anyDetail.detailedMessage ??
-          nestedError?.message ??
-          nestedError?.code ??
-          anyDetail.errorCode ??
-          ''
-      );
-    }
-    return '';
-  };
-
-  const isTokenExpiredError = (detail: unknown): boolean => {
-    const message = getErrorMessage(detail).toLowerCase();
-    return (
-      message.includes('tokenexpired') ||
-      message.includes('token expired') ||
-      message.includes('accesstokenexpired') ||
-      message.includes('invalidauthenticationtoken')
-    );
-  };
-
   const isTokenExpiringSoon = () => {
     if (!tokenExpirationRef.current) return false;
     const expiration = new Date(tokenExpirationRef.current).getTime();
@@ -111,10 +79,10 @@ export const PresentationMode: React.FC = () => {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         reportId,
         workspaceId
-      ) as IPCResponse<EmbedToken>;
+      );
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to refresh access token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to refresh access token');
       }
 
       tokenExpirationRef.current = tokenResponse.data.expiration;
@@ -139,8 +107,8 @@ export const PresentationMode: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const response = await window.electronAPI.settings.get() as IPCResponse<AppSettings>;
-        if (response.success && response.data) {
+        const response = await window.electronAPI.settings.get();
+        if (response.success) {
           setIntervalSeconds(response.data.slideshowInterval);
           setSlideshowMode(response.data.slideshowMode);
           setAutoStartSlideshow(response.data.autoStartSlideshow);
@@ -203,7 +171,7 @@ export const PresentationMode: React.FC = () => {
   }, [slidesReady, autoStartSlideshow, isLoading, error]);
 
   // Exit function - navigates back to report viewer
-  const doExit = () => {
+  const doExit = useCallback(() => {
     if (isExitingRef.current) return;
     isExitingRef.current = true;
 
@@ -235,7 +203,7 @@ export const PresentationMode: React.FC = () => {
     } else {
       navigate('/', { replace: true });
     }
-  };
+  }, [workspaceId, reportId, navigate]);
 
   // Load report on mount
   useEffect(() => {
@@ -343,7 +311,7 @@ export const PresentationMode: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [slides.length, workspaceId, reportId]);
+  }, [slides.length, doExit]);
 
   // Handle slideshow auto-advance
   useEffect(() => {
@@ -467,10 +435,10 @@ export const PresentationMode: React.FC = () => {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         reportId,
         workspaceId
-      ) as IPCResponse<EmbedToken>;
+      );
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to get embed token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get embed token');
       }
 
       const token = tokenResponse.data.token;
@@ -698,7 +666,8 @@ export const PresentationMode: React.FC = () => {
                       index === currentSlideIndex ? 'bg-white' : 'bg-white/40'
                     } ${slide.type === 'bookmark' ? 'ring-1 ring-white/60' : ''}`}
                     onClick={() => setCurrentSlideIndex(index)}
-                    title={`Go to ${slide.type === 'bookmark' ? 'bookmark' : 'page'} ${index + 1}`}
+                    aria-label={`Go to slide ${index + 1}: ${slide.displayName}`}
+                    title={`Go to ${slide.type === 'bookmark' ? 'bookmark' : 'page'} ${index + 1}: ${slide.displayName}`}
                   />
                 ))}
               </div>

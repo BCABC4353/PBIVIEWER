@@ -5,80 +5,19 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles/globals.css';
 import { useSettingsStore } from './stores/settings-store';
-import type { AppSettings, IPCResponse } from '../shared/types';
+import type { ElectronAPI } from '../shared/ipc-types';
 
-// Type declaration for electron API
+// Type declaration for the preload-injected API — references the shared typed interface.
 declare global {
   interface Window {
-    electronAPI: {
-      auth: {
-        login: () => Promise<unknown>;
-        logout: () => Promise<unknown>;
-        getUser: () => Promise<unknown>;
-        getAccessToken: () => Promise<unknown>;
-        isAuthenticated: () => Promise<unknown>;
-        validateToken: () => Promise<unknown>;
-      };
-      content: {
-        getWorkspaces: () => Promise<unknown>;
-        getReports: (workspaceId: string) => Promise<unknown>;
-        getDashboards: (workspaceId: string) => Promise<unknown>;
-        getDashboard: (workspaceId: string, dashboardId: string) => Promise<unknown>;
-        getApps: () => Promise<unknown>;
-        getApp: (appId: string) => Promise<unknown>;
-        getAppReports: (appId: string) => Promise<unknown>;
-        getAppDashboards: (appId: string) => Promise<unknown>;
-        getEmbedToken: (reportId: string, workspaceId: string) => Promise<unknown>;
-        exportReportToPdf: (
-          reportId: string,
-          workspaceId: string,
-          pageName?: string,
-          bookmarkState?: string,
-          filePath?: string
-        ) => Promise<unknown>;
-        getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<unknown>;
-        getAllItems: () => Promise<unknown>;
-        getRecent: () => Promise<unknown>;
-      };
-      window: {
-        minimize: () => Promise<void>;
-        maximize: () => Promise<void>;
-        close: () => Promise<void>;
-        isMaximized: () => Promise<boolean>;
-        setTitleBarOverlay: (options: { color: string; symbolColor: string }) => Promise<void>;
-      };
-      settings: {
-        get: () => Promise<IPCResponse<AppSettings>>;
-        update: (updates: Partial<AppSettings>) => Promise<IPCResponse<AppSettings>>;
-        reset: () => Promise<IPCResponse<AppSettings>>;
-      };
-      usage: {
-        recordOpen: (item: {
-          id: string;
-          name: string;
-          type: 'report' | 'dashboard';
-          workspaceId: string;
-          workspaceName: string;
-        }) => Promise<unknown>;
-        getRecent: () => Promise<unknown>;
-        getFrequent: () => Promise<unknown>;
-        clear: () => Promise<unknown>;
-      };
-      export: {
-        choosePdfPath: () => Promise<unknown>;
-        currentViewToPdf: (options?: {
-          bounds?: { x: number; y: number; width: number; height: number };
-          insets?: { top?: number; right?: number; bottom?: number; left?: number };
-          filePath?: string;
-        }) => Promise<unknown>;
-      };
-      app: {
-        getPartitionName: () => Promise<string | null>;
-        getVersion: () => Promise<string>;
-      };
-    };
+    electronAPI: ElectronAPI;
   }
 }
+
+// Global unhandled rejection handler for the renderer process
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[Renderer] Unhandled promise rejection:', event.reason);
+});
 
 // Theme provider component that responds to settings changes
 const ThemedApp: React.FC = () => {
@@ -106,6 +45,11 @@ const ThemedApp: React.FC = () => {
   const theme = settings.theme;
   const isDark = theme === 'dark' || (theme === 'system' && systemDark);
   const fluentTheme = isDark ? webDarkTheme : webLightTheme;
+
+  // Toggle dark class on root element for Tailwind dark: classes
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
 
   // Update title bar overlay colors when theme changes
   useEffect(() => {

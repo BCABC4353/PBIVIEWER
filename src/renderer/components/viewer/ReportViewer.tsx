@@ -9,23 +9,19 @@ import {
   PlayRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { IPCResponse, EmbedToken, AppSettings, Report, DatasetRefreshInfo } from '../../../shared/types';
+import type { EmbedToken, AppSettings, Report, DatasetRefreshInfo } from '../../../shared/types';
+import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
+import { usePowerBIService } from '../../hooks/usePowerBIService';
 
 interface PageInfo {
   name: string;
   displayName: string;
 }
 
-// Create a single instance of the Power BI service
-const powerbiService = new pbi.service.Service(
-  pbi.factories.hpmFactory,
-  pbi.factories.wpmpFactory,
-  pbi.factories.routerFactory
-);
-
 export const ReportViewer: React.FC = () => {
   const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
   const navigate = useNavigate();
+  const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<pbi.Report | null>(null);
@@ -64,13 +60,13 @@ export const ReportViewer: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const response = await window.electronAPI.settings.get() as IPCResponse<AppSettings>;
-        if (response.success && response.data) {
+        const response = await window.electronAPI.settings.get();
+        if (response.success) {
           setAutoRefreshEnabled(response.data.autoRefreshEnabled);
           setAutoRefreshIntervalMinutes(response.data.autoRefreshInterval);
         }
-      } catch {
-        // Settings load failure is non-critical, use defaults
+      } catch (error) {
+        console.warn('[ReportViewer] Settings load failed, using defaults:', error);
       }
     };
     loadSettings();
@@ -118,35 +114,6 @@ export const ReportViewer: React.FC = () => {
     }, 4000);
   };
 
-  const getErrorMessage = (detail: unknown): string => {
-    if (!detail) return '';
-    if (typeof detail === 'string') return detail;
-    if (detail instanceof Error) return detail.message;
-    if (typeof detail === 'object') {
-      const anyDetail = detail as Record<string, unknown>;
-      const nestedError = anyDetail.error as Record<string, unknown> | undefined;
-      return String(
-        anyDetail.message ??
-          anyDetail.detailedMessage ??
-          nestedError?.message ??
-          nestedError?.code ??
-          anyDetail.errorCode ??
-          ''
-      );
-    }
-    return '';
-  };
-
-  const isTokenExpiredError = (detail: unknown): boolean => {
-    const message = getErrorMessage(detail).toLowerCase();
-    return (
-      message.includes('tokenexpired') ||
-      message.includes('token expired') ||
-      message.includes('accesstokenexpired') ||
-      message.includes('invalidauthenticationtoken')
-    );
-  };
-
   const isTokenExpiringSoon = () => {
     if (!tokenExpirationRef.current) return false;
     const expiration = new Date(tokenExpirationRef.current).getTime();
@@ -160,10 +127,10 @@ export const ReportViewer: React.FC = () => {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         reportId,
         workspaceId
-      ) as IPCResponse<EmbedToken>;
+      );
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to refresh access token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to refresh access token');
       }
 
       tokenExpirationRef.current = tokenResponse.data.expiration;
@@ -226,8 +193,8 @@ export const ReportViewer: React.FC = () => {
       try {
         await reportRef.current.setPage(targetPage.name);
         setCurrentPageIndex(targetIndex);
-      } catch {
-        // Page navigation errors are non-fatal
+      } catch (error) {
+        console.warn('[ReportViewer] Page navigation failed:', error);
       }
     }
   }, []);
@@ -364,7 +331,7 @@ export const ReportViewer: React.FC = () => {
       powerbiService.reset(embedContainerRef.current);
 
       // Fetch report details to get datasetId
-      const reportsResponse = await window.electronAPI.content.getReports(workspaceId) as IPCResponse<Report[]>;
+      const reportsResponse = await window.electronAPI.content.getReports(workspaceId);
       if (reportsResponse.success && reportsResponse.data) {
         const reportData = reportsResponse.data.find(r => r.id === reportId);
         if (reportData?.datasetId) {
@@ -376,10 +343,10 @@ export const ReportViewer: React.FC = () => {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         reportId,
         workspaceId
-      ) as IPCResponse<EmbedToken>;
+      );
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to get embed token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get embed token');
       }
 
       const token = tokenResponse.data.token;
@@ -437,8 +404,8 @@ export const ReportViewer: React.FC = () => {
               setCurrentPageIndex(activeIndex);
             }
           }
-        } catch {
-          // Page fetch failure is non-critical
+        } catch (error) {
+          console.warn('[ReportViewer] Page fetch failed:', error);
         }
 
         // Fetch dataset refresh info after report loads
@@ -447,12 +414,12 @@ export const ReportViewer: React.FC = () => {
             const refreshResponse = await window.electronAPI.content.getDatasetRefreshInfo(
               datasetIdRef.current,
               workspaceId
-            ) as IPCResponse<DatasetRefreshInfo>;
+            );
             if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
               setLastDataRefresh(refreshResponse.data.lastRefreshTime);
             }
-          } catch {
-            // Dataset refresh info fetch failure is non-critical
+          } catch (error) {
+            console.warn('[ReportViewer] Dataset refresh info unavailable:', error);
           }
         }
       });
@@ -485,8 +452,8 @@ export const ReportViewer: React.FC = () => {
               setCurrentPageIndex(activeIndex);
             }
           }
-        } catch {
-          // Page tracking failure is non-critical
+        } catch (error) {
+          console.warn('[ReportViewer] Page tracking failed:', error);
         }
       });
 
@@ -552,13 +519,13 @@ export const ReportViewer: React.FC = () => {
         return;
       }
 
-      const pathResponse = await window.electronAPI.export.choosePdfPath() as IPCResponse<{ path: string }>;
-      if (!pathResponse.success || !pathResponse.data?.path) {
-        if (pathResponse.error?.code === 'CANCELLED') {
+      const pathResponse = await window.electronAPI.export.choosePdfPath();
+      if (!pathResponse.success) {
+        if (pathResponse.error.code === 'CANCELLED') {
           showExportStatus('Export cancelled');
           return;
         }
-        showExportStatus(pathResponse.error?.message || 'Export cancelled');
+        showExportStatus(pathResponse.error.message || 'Export cancelled');
         return;
       }
 
@@ -574,16 +541,16 @@ export const ReportViewer: React.FC = () => {
       try {
         const reportPages = await reportRef.current.getPages();
         pageName = reportPages.find((p: pbi.Page) => p.isActive)?.name;
-      } catch {
-        // Page name is optional for export
+      } catch (error) {
+        console.warn('[ReportViewer] Page name fetch for export failed:', error);
       }
 
       let bookmarkState: string | undefined;
       try {
         const captured = await reportRef.current.bookmarksManager.capture({ personalizeVisuals: true });
         bookmarkState = captured?.state;
-      } catch {
-        // Bookmark capture is optional for export
+      } catch (error) {
+        console.warn('[ReportViewer] Bookmark capture for export failed:', error);
       }
 
       const apiResponse = await window.electronAPI.content.exportReportToPdf(
@@ -592,28 +559,27 @@ export const ReportViewer: React.FC = () => {
         pageName,
         bookmarkState,
         filePath
-      ) as IPCResponse<{ path: string }>;
+      );
 
       if (apiResponse.success) {
         showExportStatus('Exported to PDF');
         return;
       }
 
-      if (apiResponse.error?.code === 'CANCELLED') {
+      if (apiResponse.error.code === 'CANCELLED') {
         showExportStatus('Export cancelled');
         return;
       }
 
-      const apiErrorMessage = apiResponse.error?.message || 'Export failed';
+      const apiErrorMessage = apiResponse.error.message || 'Export failed';
       if (!isExportFeatureUnavailable(apiErrorMessage)) {
         showExportStatus(apiErrorMessage);
         return;
       }
 
       // Fallback: capture the embed area and crop off panes/tabs
-      let previousSettings: pbi.ISettings | null = null;
+      let hidPanes = false;
       try {
-        previousSettings = await reportRef.current.getSettings();
         await reportRef.current.updateSettings({
           panes: {
             filters: { visible: false, expanded: false },
@@ -621,9 +587,10 @@ export const ReportViewer: React.FC = () => {
           },
           navContentPaneEnabled: false,
         });
+        hidPanes = true;
         await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch {
-        // Proceed with fallback capture even if settings update fails
+      } catch (error) {
+        console.warn('[ReportViewer] Settings update for export failed:', error);
       }
 
       const rect = embedContainerRef.current?.getBoundingClientRect();
@@ -635,21 +602,27 @@ export const ReportViewer: React.FC = () => {
         bounds,
         insets: { right: 40, bottom: 40 },
         filePath,
-      }) as IPCResponse<{ path: string }>;
+      });
 
       if (fallbackResponse.success) {
         showExportStatus('Exported to PDF');
-      } else if (fallbackResponse.error?.code === 'CANCELLED') {
+      } else if (fallbackResponse.error.code === 'CANCELLED') {
         showExportStatus('Export cancelled');
       } else {
-        showExportStatus(fallbackResponse.error?.message || 'Export failed');
+        showExportStatus(fallbackResponse.error.message || 'Export failed');
       }
 
-      if (previousSettings) {
+      if (hidPanes) {
         try {
-          await reportRef.current.updateSettings(previousSettings);
-        } catch {
-          // Ignore restore errors
+          await reportRef.current.updateSettings({
+            panes: {
+              filters: { visible: true, expanded: false },
+              pageNavigation: { visible: true },
+            },
+            navContentPaneEnabled: true,
+          });
+        } catch (error) {
+          console.warn('[ReportViewer] Settings restore after export failed:', error);
         }
       }
     } catch (err) {

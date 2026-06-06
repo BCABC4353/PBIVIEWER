@@ -41,7 +41,7 @@ export const usageTrackingService = {
 
     if (existingIndex >= 0) {
       // Update existing record - remove from current position and add to front
-      const existingRecord = records[existingIndex];
+      const existingRecord = records[existingIndex]!;
       records.splice(existingIndex, 1);
       records.unshift({
         ...existingRecord,

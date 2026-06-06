@@ -10,7 +10,8 @@
     "resolveJsonModule": true,
     "outDir": "dist/main",
     "rootDir": "src",
-    "declaration": true
+    "declaration": true,
+    "noUncheckedIndexedAccess": true
   },
   "include": ["src/main/**/*", "src/preload/**/*", "src/shared/**/*"],
   "exclude": ["node_modules"]

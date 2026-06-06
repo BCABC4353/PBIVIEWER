@@ -1,8 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { ElectronAPI } from '../shared/ipc-types';
+import type { AppSettings } from '../shared/types';
 
-// Type-safe API exposed to renderer
-const electronAPI = {
-  // Authentication
+// Type-safe API exposed to renderer.
+// The return type annotations reference ElectronAPI so that `ipcRenderer.invoke`
+// (which returns Promise<any>) is narrowed to the correct typed response.
+const electronAPI: ElectronAPI = {
   auth: {
     login: () => ipcRenderer.invoke('auth:login'),
     logout: () => ipcRenderer.invoke('auth:logout'),
@@ -12,7 +15,6 @@ const electronAPI = {
     validateToken: () => ipcRenderer.invoke('auth:validate-token'),
   },
 
-  // Power BI Content
   content: {
     getWorkspaces: () => ipcRenderer.invoke('content:get-workspaces'),
     getReports: (workspaceId: string) =>
@@ -34,7 +36,7 @@ const electronAPI = {
       workspaceId: string,
       pageName?: string,
       bookmarkState?: string,
-      filePath?: string
+      filePath?: string,
     ) => ipcRenderer.invoke('content:export-report-pdf', reportId, workspaceId, pageName, bookmarkState, filePath),
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
       ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
@@ -42,7 +44,6 @@ const electronAPI = {
     getRecent: () => ipcRenderer.invoke('content:get-recent'),
   },
 
-  // Window controls
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     maximize: () => ipcRenderer.invoke('window:maximize'),
@@ -52,15 +53,13 @@ const electronAPI = {
       ipcRenderer.invoke('window:set-title-bar-overlay', options),
   },
 
-  // Settings
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
-    update: (updates: Record<string, unknown>) =>
+    update: (updates: Partial<AppSettings>) =>
       ipcRenderer.invoke('settings:update', updates),
     reset: () => ipcRenderer.invoke('settings:reset'),
   },
 
-  // Usage Tracking
   usage: {
     recordOpen: (item: {
       id: string;
@@ -74,7 +73,6 @@ const electronAPI = {
     clear: () => ipcRenderer.invoke('usage:clear'),
   },
 
-  // Export
   export: {
     choosePdfPath: () => ipcRenderer.invoke('export:choose-pdf-path'),
     currentViewToPdf: (options?: {
@@ -84,15 +82,10 @@ const electronAPI = {
     }) => ipcRenderer.invoke('export:current-view-pdf', options),
   },
 
-  // App info
   app: {
     getPartitionName: () => ipcRenderer.invoke('app:get-partition-name'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),
   },
 };
 
-// Expose to renderer
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
-
-// Type declaration for renderer
-export type ElectronAPI = typeof electronAPI;

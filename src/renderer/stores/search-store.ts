@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ContentItem, App, Workspace, Report, Dashboard, IPCResponse } from '../../shared/types';
+import type { App, Workspace, Report, Dashboard } from '../../shared/types';
 
 interface SearchResult {
   id: string;
@@ -104,9 +104,9 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         // - apps
         // - all reports and dashboards from all workspaces
         const [workspacesResponse, appsResponse, allItemsResponse] = await Promise.all([
-          window.electronAPI.content.getWorkspaces() as Promise<IPCResponse<Workspace[]>>,
-          window.electronAPI.content.getApps() as Promise<IPCResponse<App[]>>,
-          window.electronAPI.content.getAllItems() as Promise<IPCResponse<{ reports: Report[]; dashboards: Dashboard[] }>>,
+          window.electronAPI.content.getWorkspaces(),
+          window.electronAPI.content.getApps(),
+          window.electronAPI.content.getAllItems(),
         ]);
 
         // Check if this search is still current
@@ -114,10 +114,10 @@ export const useSearchStore = create<SearchState>((set, get) => ({
           return; // Stale search, abort
         }
 
-        workspaces = workspacesResponse.success ? workspacesResponse.data || [] : [];
-        apps = appsResponse.success ? appsResponse.data || [] : [];
-        reports = allItemsResponse.success && allItemsResponse.data ? allItemsResponse.data.reports : [];
-        dashboards = allItemsResponse.success && allItemsResponse.data ? allItemsResponse.data.dashboards : [];
+        workspaces = workspacesResponse.success ? workspacesResponse.data : [];
+        apps = appsResponse.success ? appsResponse.data : [];
+        reports = allItemsResponse.success ? allItemsResponse.data.reports : [];
+        dashboards = allItemsResponse.success ? allItemsResponse.data.dashboards : [];
 
         // Update cache
         searchCache = {

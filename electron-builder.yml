@@ -1,6 +1,6 @@
 appId: com.bcabc.powerbi-viewer
 productName: Power BI Viewer
-copyright: Copyright © 2024
+copyright: Copyright © 2024-2026
 
 # Disable auto-publish - let GitHub Actions handle releases
 publish: null

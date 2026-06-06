@@ -25,6 +25,12 @@ jobs:
           npm_config_platform: win32
           npm_config_arch: x64
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
+
       - name: Build and package Windows
         run: npm run package:win
         env:
@@ -53,6 +59,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
 
       - name: Build and package macOS
         run: npm run package:mac
@@ -88,7 +100,7 @@ jobs:
           path: ./artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./artifacts/*
           generate_release_notes: true

@@ -20,23 +20,26 @@ export interface CachedUserInfo {
 }
 
 function encrypt(value: string): string {
-  if (safeStorage.isEncryptionAvailable()) {
-    const encrypted = safeStorage.encryptString(value);
-    return encrypted.toString('base64');
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('OS-level encryption unavailable — refusing to store tokens in plaintext');
   }
-  return value;
+  const encrypted = safeStorage.encryptString(value);
+  return encrypted.toString('base64');
 }
 
 function decrypt(value: string): string {
-  if (safeStorage.isEncryptionAvailable()) {
-    try {
-      const buffer = Buffer.from(value, 'base64');
-      return safeStorage.decryptString(buffer);
-    } catch {
-      return value;
-    }
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('OS-level encryption unavailable');
   }
-  return value;
+  try {
+    const buffer = Buffer.from(value, 'base64');
+    return safeStorage.decryptString(buffer);
+  } catch (error) {
+    console.error('[TokenCache] Failed to decrypt, clearing corrupted entry:', error);
+    store.delete('msalCache');
+    store.delete('userInfo');
+    return '';
+  }
 }
 
 export const tokenCache = {
@@ -67,7 +70,8 @@ export const tokenCache = {
     try {
       const decrypted = decrypt(encrypted);
       return JSON.parse(decrypted);
-    } catch {
+    } catch (error) {
+      console.warn('[TokenCache] Failed to load user info:', error);
       return null;
     }
   },

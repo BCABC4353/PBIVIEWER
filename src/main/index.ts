@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, screen, session, shell } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { PARTITION_NAME, APP_NAME } from '../shared/constants';
 import { authService } from './auth/auth-service';
 import { powerbiApiService } from './services/powerbi-api';
@@ -8,23 +9,38 @@ import { settingsService } from './services/settings-service';
 import { usageTrackingService } from './services/usage-tracking-service';
 import type { ContentItem, AppSettings, DatasetRefreshInfo } from '../shared/types';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling
-try {
-  if (require('electron-squirrel-startup')) {
-    app.quit();
-  }
-} catch {
-  // electron-squirrel-startup not available, continue
-}
-
 let mainWindow: BrowserWindow | null = null;
 
 const isDev = !app.isPackaged;
 
+// ============================================
+// SECURITY HELPERS
+// ============================================
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUUID(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return UUID_REGEX.test(value) ? value : null;
+}
+
+function isValidExportPath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  const home = os.homedir();
+  const downloads = app.getPath('downloads');
+  const desktop = app.getPath('desktop');
+  const documents = app.getPath('documents');
+  const allowedRoots = [home, downloads, desktop, documents];
+  return (
+    allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root) &&
+    resolved.toLowerCase().endsWith('.pdf')
+  );
+}
+
 function createWindow(): void {
   // Get initial theme setting to set correct colors
   const settingsResult = settingsService.getSettings();
-  const initialTheme = settingsResult.success && settingsResult.data ? settingsResult.data.theme : 'light';
+  const initialTheme = settingsResult.success ? settingsResult.data.theme : 'light';
   // Check if dark theme: either explicit 'dark' or 'system' with native dark mode
   const nativeTheme = require('electron').nativeTheme;
   const isDarkTheme = initialTheme === 'dark' || (initialTheme === 'system' && nativeTheme.shouldUseDarkColors);
@@ -46,8 +62,7 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // Needed for electron-store
-      webSecurity: !isDev, // Disable web security in dev for localhost
+      sandbox: true,
       webviewTag: true, // Enable webview tag for Power BI App viewing
     },
     icon: path.join(__dirname, '../../../assets/icons/icon.png'),
@@ -68,13 +83,36 @@ function createWindow(): void {
     mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
   }
 
+  // Navigation guard - prevent main window from navigating to external sites
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('file://') && !url.startsWith('http://localhost')) {
+      event.preventDefault();
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
+// Global error handlers
+process.on('unhandledRejection', (reason) => console.error('[Main] Unhandled rejection:', reason));
+process.on('uncaughtException', (error) => console.error('[Main] Uncaught exception:', error));
+
 // App lifecycle
 app.whenReady().then(async () => {
+  // Content Security Policy
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self'; frame-src https://app.powerbi.com https://login.microsoftonline.com; connect-src https://api.powerbi.com https://login.microsoftonline.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
+        ],
+      },
+    });
+  });
+
   // Initialize auth service
   await authService.initialize();
 
@@ -101,11 +139,30 @@ app.on('window-all-closed', () => {
 app.on('web-contents-created', (_, contents) => {
   // Only handle webviews, not the main window
   if (contents.getType() === 'webview') {
-    // Handle new windows/popups - open in system browser
+    // Handle new windows/popups - open in system browser with URL validation
     contents.setWindowOpenHandler(({ url }) => {
-      // Open all popups in system browser (for auth flows, external links, etc.)
-      require('electron').shell.openExternal(url);
-      return { action: 'deny' }; // Don't open in electron, open in system browser
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+          shell.openExternal(url);
+        }
+      } catch {
+        // Invalid URL, ignore
+      }
+      return { action: 'deny' };
+    });
+
+    // Restrict webview navigation to allowed domains
+    contents.on('will-navigate', (event, url) => {
+      try {
+        const allowed = ['app.powerbi.com', 'login.microsoftonline.com', 'login.live.com', 'aadcdn.msftauth.net', 'aadcdn.msauth.net'];
+        const hostname = new URL(url).hostname;
+        if (!allowed.some((d) => hostname === d || hostname.endsWith('.' + d))) {
+          event.preventDefault();
+        }
+      } catch {
+        event.preventDefault();
+      }
     });
   }
 });
@@ -181,15 +238,22 @@ ipcMain.handle('content:get-workspaces', async () => {
 });
 
 ipcMain.handle('content:get-reports', async (_event, workspaceId: string) => {
-  return await powerbiApiService.getReports(workspaceId);
+  const id = validateUUID(workspaceId);
+  if (!id) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid workspace ID' } };
+  return await powerbiApiService.getReports(id);
 });
 
 ipcMain.handle('content:get-dashboards', async (_event, workspaceId: string) => {
-  return await powerbiApiService.getDashboards(workspaceId);
+  const id = validateUUID(workspaceId);
+  if (!id) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid workspace ID' } };
+  return await powerbiApiService.getDashboards(id);
 });
 
 ipcMain.handle('content:get-dashboard', async (_event, workspaceId: string, dashboardId: string) => {
-  return await powerbiApiService.getDashboard(workspaceId, dashboardId);
+  const wsId = validateUUID(workspaceId);
+  const dbId = validateUUID(dashboardId);
+  if (!wsId || !dbId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
+  return await powerbiApiService.getDashboard(wsId, dbId);
 });
 
 ipcMain.handle('content:get-apps', async () => {
@@ -197,19 +261,28 @@ ipcMain.handle('content:get-apps', async () => {
 });
 
 ipcMain.handle('content:get-app', async (_event, appId: string) => {
-  return await powerbiApiService.getApp(appId);
+  const id = validateUUID(appId);
+  if (!id) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid app ID' } };
+  return await powerbiApiService.getApp(id);
 });
 
 ipcMain.handle('content:get-app-reports', async (_event, appId: string) => {
-  return await powerbiApiService.getAppReports(appId);
+  const id = validateUUID(appId);
+  if (!id) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid app ID' } };
+  return await powerbiApiService.getAppReports(id);
 });
 
 ipcMain.handle('content:get-app-dashboards', async (_event, appId: string) => {
-  return await powerbiApiService.getAppDashboards(appId);
+  const id = validateUUID(appId);
+  if (!id) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid app ID' } };
+  return await powerbiApiService.getAppDashboards(id);
 });
 
 ipcMain.handle('content:get-embed-token', async (_event, reportId: string, workspaceId: string) => {
-  return await powerbiApiService.getEmbedToken(reportId, workspaceId);
+  const rId = validateUUID(reportId);
+  const wId = validateUUID(workspaceId);
+  if (!rId || !wId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
+  return await powerbiApiService.getEmbedToken(rId, wId);
 });
 
 ipcMain.handle(
@@ -222,22 +295,22 @@ ipcMain.handle(
     bookmarkState?: string,
     filePath?: string
   ) => {
-    const exportResponse = await powerbiApiService.exportReportToPdf(
-      reportId,
-      workspaceId,
-      pageName,
-      bookmarkState
-    );
-
-    if (!exportResponse.success || !exportResponse.data) {
-      return exportResponse;
-    }
+    const rId = validateUUID(reportId);
+    const wId = validateUUID(workspaceId);
+    if (!rId || !wId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
 
     if (!filePath) {
-      return {
-        success: false,
-        error: { code: 'NO_PATH', message: 'No export path provided' },
-      };
+      return { success: false, error: { code: 'NO_PATH', message: 'No export path provided' } };
+    }
+
+    if (!isValidExportPath(filePath)) {
+      return { success: false, error: { code: 'INVALID_PATH', message: 'Export path must be a .pdf under user directory' } };
+    }
+
+    const exportResponse = await powerbiApiService.exportReportToPdf(rId, wId, pageName, bookmarkState);
+
+    if (!exportResponse.success) {
+      return exportResponse;
     }
 
     await fs.writeFile(filePath, exportResponse.data);
@@ -273,7 +346,11 @@ ipcMain.handle('export:choose-pdf-path', async () => {
 });
 
 ipcMain.handle('content:get-dataset-refresh-info', async (_event, datasetId: string, workspaceId?: string) => {
-  return await powerbiApiService.getDatasetRefreshInfo(datasetId, workspaceId);
+  const dId = validateUUID(datasetId);
+  if (!dId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid dataset ID' } };
+  const wId = workspaceId ? validateUUID(workspaceId) : undefined;
+  if (workspaceId && !wId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid workspace ID' } };
+  return await powerbiApiService.getDatasetRefreshInfo(dId, wId ?? undefined);
 });
 
 ipcMain.handle('content:get-all-items', async () => {
@@ -347,6 +424,13 @@ ipcMain.handle(
     return {
       success: false,
       error: { code: 'NO_PATH', message: 'No export path provided' },
+    };
+  }
+
+  if (!isValidExportPath(targetPath)) {
+    return {
+      success: false,
+      error: { code: 'INVALID_PATH', message: 'Export path must be a .pdf under user directory' },
     };
   }
 
@@ -459,7 +543,7 @@ ipcMain.handle('usage:record-open', async (_event, item: {
 }) => {
   try {
     usageTrackingService.recordItemOpened(item);
-    return { success: true };
+    return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: { code: 'USAGE_RECORD_FAILED', message: String(error) } };
   }
@@ -508,7 +592,7 @@ ipcMain.handle('usage:get-frequent', async () => {
 ipcMain.handle('usage:clear', async () => {
   try {
     usageTrackingService.clearUsageData();
-    return { success: true };
+    return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: { code: 'USAGE_CLEAR_FAILED', message: String(error) } };
   }

@@ -23,7 +23,8 @@ export const AppsList: React.FC<AppsListProps> = ({ apps }) => {
         month: 'short',
         day: 'numeric',
       });
-    } catch {
+    } catch (error) {
+      console.warn('[AppsList] Date format failed:', error);
       return dateString;
     }
   };

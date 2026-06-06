@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { UserInfo, IPCResponse, AuthResult } from '../../shared/types';
+import type { UserInfo } from '../../shared/types';
 
 interface AuthState {
   user: UserInfo | null;
@@ -24,18 +24,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       // First check if accounts exist
-      const authResponse = await window.electronAPI.auth.isAuthenticated() as IPCResponse<boolean>;
+      const authResponse = await window.electronAPI.auth.isAuthenticated();
 
       if (authResponse.success && authResponse.data) {
         // Accounts exist - now validate we can actually get a token
         // This catches cases where scopes have changed and re-consent is needed
-        const validateResponse = await window.electronAPI.auth.validateToken() as IPCResponse<boolean>;
+        const validateResponse = await window.electronAPI.auth.validateToken();
 
         if (validateResponse.success && validateResponse.data) {
           // Token is valid, get user info
-          const userResponse = await window.electronAPI.auth.getUser() as IPCResponse<UserInfo | null>;
+          const userResponse = await window.electronAPI.auth.getUser();
 
-          if (userResponse.success && userResponse.data) {
+          if (userResponse.success && userResponse.data != null) {
             set({
               user: userResponse.data,
               isAuthenticated: true,
@@ -76,16 +76,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await window.electronAPI.auth.login() as IPCResponse<AuthResult>;
+      const response = await window.electronAPI.auth.login();
 
-      if (response.success && response.data?.success && response.data.user) {
+      if (response.success && response.data.success) {
         set({
           user: response.data.user,
           isAuthenticated: true,
           isLoading: false,
         });
       } else {
-        const errorMessage = response.error?.message || response.data?.error || 'Login failed';
+        const errorMessage = !response.success
+          ? response.error.message
+          : (!response.data.success ? response.data.error : 'Login failed');
         set({
           isLoading: false,
           error: errorMessage,

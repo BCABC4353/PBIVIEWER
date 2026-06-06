@@ -1,32 +1,22 @@
 import Store from 'electron-store';
 import type { AppSettings, IPCResponse } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../../shared/constants';
 
 interface SettingsStore {
   settings: AppSettings;
 }
 
-const defaultSettings: AppSettings = {
-  theme: 'dark',
-  sidebarCollapsed: true,
-  slideshowInterval: 60, // 60 seconds (1 minute) default
-  slideshowMode: 'pages',
-  autoStartSlideshow: false,
-  autoStartReportId: undefined,
-  autoRefreshEnabled: true,
-  autoRefreshInterval: 1, // 1 minute default
-};
-
 const store = new Store<SettingsStore>({
   name: 'settings',
   defaults: {
-    settings: defaultSettings,
+    settings: DEFAULT_SETTINGS,
   },
 });
 
 export const settingsService = {
   getSettings(): IPCResponse<AppSettings> {
     try {
-      const settings = store.get('settings', defaultSettings);
+      const settings = store.get('settings', DEFAULT_SETTINGS);
       return { success: true, data: settings };
     } catch (error) {
       console.error('[SettingsService] getSettings error:', error);
@@ -39,7 +29,7 @@ export const settingsService = {
 
   updateSettings(updates: Partial<AppSettings>): IPCResponse<AppSettings> {
     try {
-      const currentSettings = store.get('settings', defaultSettings);
+      const currentSettings = store.get('settings', DEFAULT_SETTINGS);
       const newSettings = { ...currentSettings, ...updates };
       store.set('settings', newSettings);
       return { success: true, data: newSettings };
@@ -54,8 +44,8 @@ export const settingsService = {
 
   resetSettings(): IPCResponse<AppSettings> {
     try {
-      store.set('settings', defaultSettings);
-      return { success: true, data: defaultSettings };
+      store.set('settings', DEFAULT_SETTINGS);
+      return { success: true, data: DEFAULT_SETTINGS };
     } catch (error) {
       console.error('[SettingsService] resetSettings error:', error);
       return {

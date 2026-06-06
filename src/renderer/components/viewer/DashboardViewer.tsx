@@ -9,18 +9,14 @@ import {
   HomeRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { IPCResponse, EmbedToken, Dashboard } from '../../../shared/types';
-
-// Create a single instance of the Power BI service
-const powerbiService = new pbi.service.Service(
-  pbi.factories.hpmFactory,
-  pbi.factories.wpmpFactory,
-  pbi.factories.routerFactory
-);
+import type { EmbedToken, Dashboard } from '../../../shared/types';
+import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
+import { usePowerBIService } from '../../hooks/usePowerBIService';
 
 export const DashboardViewer: React.FC = () => {
   const { workspaceId, dashboardId } = useParams<{ workspaceId: string; dashboardId: string }>();
   const navigate = useNavigate();
+  const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const dashboardRef = useRef<pbi.Dashboard | null>(null);
@@ -35,35 +31,6 @@ export const DashboardViewer: React.FC = () => {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const getErrorMessage = (detail: unknown): string => {
-    if (!detail) return '';
-    if (typeof detail === 'string') return detail;
-    if (detail instanceof Error) return detail.message;
-    if (typeof detail === 'object') {
-      const anyDetail = detail as Record<string, unknown>;
-      const nestedError = anyDetail.error as Record<string, unknown> | undefined;
-      return String(
-        anyDetail.message ??
-          anyDetail.detailedMessage ??
-          nestedError?.message ??
-          nestedError?.code ??
-          anyDetail.errorCode ??
-          ''
-      );
-    }
-    return '';
-  };
-
-  const isTokenExpiredError = (detail: unknown): boolean => {
-    const message = getErrorMessage(detail).toLowerCase();
-    return (
-      message.includes('tokenexpired') ||
-      message.includes('token expired') ||
-      message.includes('accesstokenexpired') ||
-      message.includes('invalidauthenticationtoken')
-    );
-  };
-
   const isTokenExpiringSoon = () => {
     if (!tokenExpirationRef.current) return false;
     const expiration = new Date(tokenExpirationRef.current).getTime();
@@ -77,10 +44,10 @@ export const DashboardViewer: React.FC = () => {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         dashboardId,
         workspaceId
-      ) as IPCResponse<EmbedToken>;
+      );
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to refresh access token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to refresh access token');
       }
 
       tokenExpirationRef.current = tokenResponse.data.expiration;
@@ -99,12 +66,16 @@ export const DashboardViewer: React.FC = () => {
     if (!workspaceId || !dashboardId) return;
 
     const loadDashboardDetails = async () => {
-      const response = await window.electronAPI.content.getDashboard(
-        workspaceId,
-        dashboardId
-      ) as IPCResponse<Dashboard>;
-      if (response.success && response.data) {
-        setDashboardName(response.data.name);
+      try {
+        const response = await window.electronAPI.content.getDashboard(
+          workspaceId,
+          dashboardId
+        );
+        if (response.success) {
+          setDashboardName(response.data.name);
+        }
+      } catch (error) {
+        console.warn('[DashboardViewer] Failed to load dashboard details:', error);
       }
     };
     loadDashboardDetails();
@@ -180,10 +151,10 @@ export const DashboardViewer: React.FC = () => {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         dashboardId,
         workspaceId
-      ) as IPCResponse<EmbedToken>;
+      );
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to get embed token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get embed token');
       }
 
       const token = tokenResponse.data.token;
@@ -243,13 +214,13 @@ export const DashboardViewer: React.FC = () => {
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      const pathResponse = await window.electronAPI.export.choosePdfPath() as IPCResponse<{ path: string }>;
-      if (!pathResponse.success || !pathResponse.data?.path) {
-        if (pathResponse.error?.code === 'CANCELLED') {
+      const pathResponse = await window.electronAPI.export.choosePdfPath();
+      if (!pathResponse.success) {
+        if (pathResponse.error.code === 'CANCELLED') {
           showExportStatus('Export cancelled');
           return;
         }
-        showExportStatus(pathResponse.error?.message || 'Export cancelled');
+        showExportStatus(pathResponse.error.message || 'Export cancelled');
         return;
       }
 
@@ -260,13 +231,13 @@ export const DashboardViewer: React.FC = () => {
       const response = await window.electronAPI.export.currentViewToPdf({
         bounds,
         filePath: pathResponse.data.path,
-      }) as IPCResponse<{ path: string }>;
+      });
       if (response.success) {
         showExportStatus('Exported to PDF');
-      } else if (response.error?.code === 'CANCELLED') {
+      } else if (response.error.code === 'CANCELLED') {
         showExportStatus('Export cancelled');
       } else {
-        showExportStatus(response.error?.message || 'Export failed');
+        showExportStatus(response.error.message || 'Export failed');
       }
     } catch (err) {
       showExportStatus(err instanceof Error ? err.message : 'Export failed');

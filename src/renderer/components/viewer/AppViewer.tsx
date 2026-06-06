@@ -7,7 +7,7 @@ import {
   HomeRegular,
   AppsRegular,
 } from '@fluentui/react-icons';
-import type { IPCResponse, App } from '../../../shared/types';
+import type { App } from '../../../shared/types';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -35,9 +35,14 @@ export const AppViewer: React.FC = () => {
   // Load the partition name from main process
   useEffect(() => {
     const loadPartition = async () => {
-      const partition = await window.electronAPI.app.getPartitionName();
-      setPartitionName(partition);
-      setPartitionLoaded(true);
+      try {
+        const partition = await window.electronAPI.app.getPartitionName();
+        setPartitionName(partition);
+      } catch (error) {
+        console.warn('[AppViewer] Failed to load partition name:', error);
+      } finally {
+        setPartitionLoaded(true);
+      }
     };
     loadPartition();
   }, []);
@@ -89,7 +94,7 @@ export const AppViewer: React.FC = () => {
     if (!appId) return;
 
     try {
-      const appResponse = await window.electronAPI.content.getApp(appId) as IPCResponse<App>;
+      const appResponse = await window.electronAPI.content.getApp(appId);
       if (appResponse.success && appResponse.data) {
         setAppName(appResponse.data.name);
       }
@@ -186,7 +191,7 @@ export const AppViewer: React.FC = () => {
               border: 'none',
             }}
             partition={partitionName || undefined}
-            allowpopups="true"
+            allowpopups={true}
           />
         )}
       </div>

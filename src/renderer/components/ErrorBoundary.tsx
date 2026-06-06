@@ -1,7 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button, Text, Card } from '@fluentui/react-components';
 import { ArrowSyncRegular, HomeRegular } from '@fluentui/react-icons';
-import { useNavigate } from 'react-router-dom';
 
 interface Props {
   children: ReactNode;
@@ -28,10 +27,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error to console in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('ErrorBoundary caught an error:', error, errorInfo);
-    }
+    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
 
     this.setState({
       error,
@@ -62,11 +58,9 @@ interface ErrorFallbackProps {
 }
 
 const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onReset }) => {
-  const navigate = useNavigate();
-
   const handleGoHome = () => {
     onReset();
-    navigate('/');
+    window.location.hash = '#/';
   };
 
   return (
@@ -83,15 +77,12 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onReset }) => {
             </Text>
           </div>
 
-          {error && process.env.NODE_ENV === 'development' && (
+          {error && (
             <div className="mb-6 p-4 bg-neutral-background-3 rounded-lg">
-              <Text weight="semibold" className="text-neutral-foreground-1 block mb-2">
-                Error Details (Development Only):
-              </Text>
               <Text size={200} className="text-status-error font-mono break-all">
-                {error.toString()}
+                {error.message}
               </Text>
-              {error.stack && (
+              {process.env.NODE_ENV === 'development' && error.stack && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-neutral-foreground-2 text-sm">
                     Stack Trace

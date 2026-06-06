@@ -20,8 +20,8 @@ class PowerBIApiService {
   private async makeRequest<T>(endpoint: string): Promise<T> {
     const tokenResponse = await authService.getAccessToken();
 
-    if (!tokenResponse.success || !tokenResponse.data) {
-      throw new Error(tokenResponse.error?.message || 'Failed to get access token');
+    if (!tokenResponse.success) {
+      throw new Error(tokenResponse.error.message || 'Failed to get access token');
     }
 
     const response = await fetch(`${POWERBI_API_BASE}${endpoint}`, {
@@ -45,8 +45,8 @@ class PowerBIApiService {
   private async makeRequestWithUrl<T>(fullUrl: string): Promise<T> {
     const tokenResponse = await authService.getAccessToken();
 
-    if (!tokenResponse.success || !tokenResponse.data) {
-      throw new Error(tokenResponse.error?.message || 'Failed to get access token');
+    if (!tokenResponse.success) {
+      throw new Error(tokenResponse.error.message || 'Failed to get access token');
     }
 
     const response = await fetch(fullUrl, {
@@ -264,10 +264,10 @@ class PowerBIApiService {
       // First, get the app to retrieve its actual workspaceId
       // Power BI embedding requires the real workspace GUID, not the app ID
       const appResponse = await this.getApp(appId);
-      if (!appResponse.success || !appResponse.data) {
+      if (!appResponse.success) {
         return {
           success: false,
-          error: appResponse.error || { code: 'APP_FETCH_FAILED', message: 'Failed to fetch app details' },
+          error: appResponse.error,
         };
       }
 
@@ -311,10 +311,10 @@ class PowerBIApiService {
       // First, get the app to retrieve its actual workspaceId
       // Power BI embedding requires the real workspace GUID, not the app ID
       const appResponse = await this.getApp(appId);
-      if (!appResponse.success || !appResponse.data) {
+      if (!appResponse.success) {
         return {
           success: false,
-          error: appResponse.error || { code: 'APP_FETCH_FAILED', message: 'Failed to fetch app details' },
+          error: appResponse.error,
         };
       }
 
@@ -360,8 +360,8 @@ class PowerBIApiService {
       // For app-owns-data, we would generate an embed token
       const tokenResponse = await authService.getAccessToken();
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to get access token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get access token');
       }
 
       // Return the access token as the embed token for user-owns-data scenario
@@ -390,8 +390,8 @@ class PowerBIApiService {
     try {
       const tokenResponse = await authService.getAccessToken();
 
-      if (!tokenResponse.success || !tokenResponse.data) {
-        throw new Error(tokenResponse.error?.message || 'Failed to get access token');
+      if (!tokenResponse.success) {
+        throw new Error(tokenResponse.error.message || 'Failed to get access token');
       }
 
       const accessToken = tokenResponse.data;
@@ -501,7 +501,7 @@ class PowerBIApiService {
     try {
       // Get all workspaces first
       const workspacesResponse = await this.getWorkspaces();
-      if (!workspacesResponse.success || !workspacesResponse.data) {
+      if (!workspacesResponse.success) {
         return {
           success: false,
           error: workspacesResponse.error,
@@ -569,8 +569,8 @@ class PowerBIApiService {
         status: string;
       }>>(endpoint);
 
-      if (response.value && response.value.length > 0) {
-        const lastRefresh = response.value[0];
+      const lastRefresh = response.value?.[0];
+      if (lastRefresh) {
         return {
           success: true,
           data: {
@@ -584,9 +584,9 @@ class PowerBIApiService {
         success: true,
         data: {},
       };
-    } catch {
+    } catch (error) {
+      console.warn('[PowerBI] Dataset refresh info unavailable:', error);
       // Return success with empty data - don't break the app for this non-critical feature
-      // Common reasons: 401 (user lacks write permissions), 403 (access forbidden), DirectQuery/Live datasets
       return {
         success: true,
         data: {},

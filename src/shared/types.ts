@@ -9,11 +9,9 @@ export interface UserInfo {
   profilePicture?: string;
 }
 
-export interface AuthResult {
-  success: boolean;
-  user?: UserInfo;
-  error?: string;
-}
+export type AuthResult =
+  | { success: true; user: UserInfo }
+  | { success: false; error: string };
 
 // ============================================
 // POWER BI TYPES
@@ -78,14 +76,9 @@ export interface DatasetRefreshInfo {
 // IPC TYPES
 // ============================================
 
-export interface IPCResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
+export type IPCResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: { code: string; message: string } };
 
 // ============================================
 // APP SETTINGS TYPES

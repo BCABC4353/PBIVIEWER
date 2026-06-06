@@ -24,8 +24,8 @@ interface SidebarProps {
 }
 
 interface NavItemProps {
-  icon: React.ReactNode;
-  activeIcon: React.ReactNode;
+  icon: React.ReactElement;
+  activeIcon: React.ReactElement;
   label: string;
   active: boolean;
   collapsed: boolean;
@@ -50,8 +50,9 @@ const NavItem: React.FC<NavItemProps> = ({
       }`}
       icon={active ? activeIcon : icon}
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
     >
-      {!collapsed && <span className="ml-2">{label}</span>}
+      {collapsed ? null : <span className="ml-2">{label}</span>}
     </Button>
   );
 
@@ -73,7 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
 }) => {
   return (
-    <div
+    <nav
+      aria-label="Main navigation"
       className={`h-full bg-neutral-background-2 border-r border-neutral-stroke-2 flex flex-col transition-all duration-200 ${
         collapsed ? 'w-12' : 'w-60'
       }`}
@@ -133,7 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={() => onNavigate('settings')}
         />
       </div>
-    </div>
+    </nav>
   );
 };
 

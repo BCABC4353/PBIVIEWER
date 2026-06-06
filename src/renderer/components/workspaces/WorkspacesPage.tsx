@@ -9,7 +9,7 @@ import {
   ArrowSyncRegular,
 } from '@fluentui/react-icons';
 import { useContentStore } from '../../stores/content-store';
-import type { Workspace, Report, Dashboard, IPCResponse } from '../../../shared/types';
+import type { Workspace, Report, Dashboard } from '../../../shared/types';
 
 interface WorkspaceWithContent extends Workspace {
   reports: Report[];
@@ -32,10 +32,10 @@ export const WorkspacesPage: React.FC = () => {
     setError(null);
 
     try {
-      const response = await window.electronAPI.content.getWorkspaces() as IPCResponse<Workspace[]>;
+      const response = await window.electronAPI.content.getWorkspaces();
 
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Failed to load workspaces');
+      if (!response.success) {
+        throw new Error(response.error.message || 'Failed to load workspaces');
       }
 
       setWorkspaces(
@@ -84,16 +84,16 @@ export const WorkspacesPage: React.FC = () => {
       if (workspace && workspace.isLoading) {
         // Trigger content loading asynchronously
         Promise.all([
-          window.electronAPI.content.getReports(workspaceId) as Promise<IPCResponse<Report[]>>,
-          window.electronAPI.content.getDashboards(workspaceId) as Promise<IPCResponse<Dashboard[]>>,
+          window.electronAPI.content.getReports(workspaceId),
+          window.electronAPI.content.getDashboards(workspaceId),
         ]).then(([reportsRes, dashboardsRes]) => {
           setWorkspaces((prev) =>
             prev.map((ws) =>
               ws.id === workspaceId
                 ? {
                     ...ws,
-                    reports: reportsRes.data || [],
-                    dashboards: dashboardsRes.data || [],
+                    reports: reportsRes.success ? reportsRes.data : [],
+                    dashboards: dashboardsRes.success ? dashboardsRes.data : [],
                     isLoading: false,
                   }
                 : ws

@@ -41,8 +41,8 @@ const configContent = `// AUTO-GENERATED FILE - DO NOT EDIT
 // This file is gitignored and should never be committed
 
 export const AZURE_CONFIG = {
-  clientId: '${clientId}',
-  tenantId: '${tenantId}',
+  clientId: ${JSON.stringify(clientId)},
+  tenantId: ${JSON.stringify(tenantId)},
 } as const;
 `;
 

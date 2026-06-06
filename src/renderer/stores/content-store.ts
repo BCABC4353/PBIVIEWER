@@ -5,7 +5,6 @@ import type {
   Dashboard,
   App,
   ContentItem,
-  IPCResponse,
 } from '../../shared/types';
 
 interface ContentState {
@@ -42,14 +41,14 @@ export const useContentStore = create<ContentState>((set, get) => ({
   loadWorkspaces: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await window.electronAPI.content.getWorkspaces() as IPCResponse<Workspace[]>;
+      const response = await window.electronAPI.content.getWorkspaces();
 
-      if (response.success && response.data) {
+      if (response.success) {
         set({ workspaces: response.data, isLoading: false });
       } else {
         set({
           isLoading: false,
-          error: response.error?.message || 'Failed to load workspaces',
+          error: response.error.message || 'Failed to load workspaces',
         });
       }
     } catch (error) {
@@ -59,9 +58,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadReports: async (workspaceId: string) => {
     try {
-      const response = await window.electronAPI.content.getReports(workspaceId) as IPCResponse<Report[]>;
+      const response = await window.electronAPI.content.getReports(workspaceId);
 
-      if (response.success && response.data) {
+      if (response.success) {
         const currentReports = get().reports;
         const newReports = new Map(currentReports);
         newReports.set(workspaceId, response.data);
@@ -74,9 +73,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadDashboards: async (workspaceId: string) => {
     try {
-      const response = await window.electronAPI.content.getDashboards(workspaceId) as IPCResponse<Dashboard[]>;
+      const response = await window.electronAPI.content.getDashboards(workspaceId);
 
-      if (response.success && response.data) {
+      if (response.success) {
         const currentDashboards = get().dashboards;
         const newDashboards = new Map(currentDashboards);
         newDashboards.set(workspaceId, response.data);
@@ -89,9 +88,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadApps: async () => {
     try {
-      const response = await window.electronAPI.content.getApps() as IPCResponse<App[]>;
+      const response = await window.electronAPI.content.getApps();
 
-      if (response.success && response.data) {
+      if (response.success) {
         set({ apps: response.data });
       }
     } catch (error) {
@@ -101,8 +100,8 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadRecentItems: async () => {
     try {
-      const response = await window.electronAPI.usage.getRecent() as IPCResponse<ContentItem[]>;
-      if (response.success && response.data) {
+      const response = await window.electronAPI.usage.getRecent();
+      if (response.success) {
         set({ recentItems: response.data });
       }
     } catch (error) {
@@ -112,8 +111,8 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadFrequentItems: async () => {
     try {
-      const response = await window.electronAPI.usage.getFrequent() as IPCResponse<ContentItem[]>;
-      if (response.success && response.data) {
+      const response = await window.electronAPI.usage.getFrequent();
+      if (response.success) {
         set({ frequentItems: response.data });
       }
     } catch (error) {

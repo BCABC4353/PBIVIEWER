@@ -8,7 +8,7 @@ import {
   CalendarRegular,
   OpenRegular,
 } from '@fluentui/react-icons';
-import type { App, IPCResponse } from '../../../shared/types';
+import type { App } from '../../../shared/types';
 
 export const AppsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -25,10 +25,10 @@ export const AppsPage: React.FC = () => {
     setError(null);
 
     try {
-      const response = await window.electronAPI.content.getApps() as IPCResponse<App[]>;
+      const response = await window.electronAPI.content.getApps();
 
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Failed to load apps');
+      if (!response.success) {
+        throw new Error(response.error.message || 'Failed to load apps');
       }
 
       setApps(response.data);
@@ -52,7 +52,8 @@ export const AppsPage: React.FC = () => {
         month: 'short',
         day: 'numeric',
       });
-    } catch {
+    } catch (error) {
+      console.warn('[AppsPage] Date format failed:', error);
       return dateString;
     }
   };
