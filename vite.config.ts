@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   root: 'src/renderer',
   base: './',
@@ -19,4 +19,5 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
-});
+  esbuild: mode === 'production' ? { drop: ['console', 'debugger'] } : undefined,
+}));
