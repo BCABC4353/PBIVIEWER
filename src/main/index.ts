@@ -37,6 +37,25 @@ function isValidExportPath(filePath: string): boolean {
   );
 }
 
+const APP_CSP =
+  "default-src 'self'; script-src 'self'; " +
+  "frame-src https://app.powerbi.com https://login.microsoftonline.com; " +
+  "connect-src https://api.powerbi.com https://login.microsoftonline.com; " +
+  "style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+  "object-src 'none'; base-uri 'self'";
+
+function installCsp(sess: Electron.Session): void {
+  sess.webRequest.onHeadersReceived((details, callback) => {
+    // Enforce CSP ONLY on our own app document (file://). Never rewrite headers on
+    // remote Power BI / AAD responses (different URLs), or the embeds break.
+    if (details.url.startsWith('file://')) {
+      callback({ responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [APP_CSP] } });
+    } else {
+      callback({ responseHeaders: details.responseHeaders });
+    }
+  });
+}
+
 function createWindow(): void {
   // Get initial theme setting to set correct colors
   const settingsResult = settingsService.getSettings();
@@ -90,6 +109,17 @@ function createWindow(): void {
     }
   });
 
+  // Deny window.open on the main window - open https links in the system browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:') shell.openExternal(url);
+    } catch {
+      // ignore invalid URL
+    }
+    return { action: 'deny' };
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -100,30 +130,34 @@ process.on('unhandledRejection', (reason) => console.error('[Main] Unhandled rej
 process.on('uncaughtException', (error) => console.error('[Main] Uncaught exception:', error));
 
 // App lifecycle
-app.whenReady().then(async () => {
-  // Content Security Policy
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self'; frame-src https://app.powerbi.com https://login.microsoftonline.com; connect-src https://api.powerbi.com https://login.microsoftonline.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
-        ],
-      },
-    });
-  });
-
-  // Initialize auth service
-  await authService.initialize();
-
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
   });
-});
+
+  app.whenReady().then(async () => {
+    // Content Security Policy - register on default session always, and on the
+    // partition session in production (where the packaged renderer is file://).
+    installCsp(session.defaultSession);
+    if (!isDev) installCsp(session.fromPartition(PARTITION_NAME));
+
+    // Initialize auth service
+    await authService.initialize();
+
+    createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

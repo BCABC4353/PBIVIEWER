@@ -14,12 +14,43 @@ interface UsageStore {
   usageRecords: UsageRecord[];
 }
 
-const store = new Store<UsageStore>({
-  name: 'usage-tracking',
-  defaults: {
-    usageRecords: [],
-  },
-});
+// Minimal in-memory fallback used only if the on-disk store cannot be opened.
+// Implements just the get/set surface this module relies on, so a corrupt or
+// unreadable config never crashes app startup.
+function createMemoryStore(): Pick<Store<UsageStore>, 'get' | 'set'> {
+  const data: UsageStore = { usageRecords: [] };
+  return {
+    get(key: string, defaultValue?: unknown) {
+      const value = (data as unknown as Record<string, unknown>)[key];
+      return (value === undefined ? defaultValue : value) as never;
+    },
+    set(key: string, value?: unknown) {
+      if (typeof key === 'string') {
+        (data as unknown as Record<string, unknown>)[key] = value;
+      }
+    },
+  } as Pick<Store<UsageStore>, 'get' | 'set'>;
+}
+
+function createUsageStore(): Pick<Store<UsageStore>, 'get' | 'set'> {
+  try {
+    return new Store<UsageStore>({
+      name: 'usage-tracking',
+      defaults: {
+        usageRecords: [],
+      },
+      // If the on-disk JSON is corrupt, drop it instead of throwing at module load.
+      clearInvalidConfig: true,
+    });
+  } catch (error) {
+    // Construction can still throw (e.g. unreadable file). Degrade gracefully by
+    // falling back to an in-memory store rather than crashing startup.
+    console.warn('[UsageTracking] Failed to load usage store, using in-memory fallback:', error);
+    return createMemoryStore();
+  }
+}
+
+const store = createUsageStore();
 
 const MAX_RECORDS = 50; // Keep track of last 50 items
 
