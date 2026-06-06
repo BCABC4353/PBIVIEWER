@@ -10,6 +10,7 @@ import type {
   DatasetRefreshInfo,
   AppSettings,
   IPCResponse,
+  TokenResult,
 } from './types';
 
 // Typed IPC API surface — the single source of truth for the preload bridge and renderer.
@@ -19,7 +20,7 @@ export interface ElectronAPI {
     login: () => Promise<IPCResponse<AuthResult>>;
     logout: () => Promise<IPCResponse<void>>;
     getUser: () => Promise<IPCResponse<UserInfo | null>>;
-    getAccessToken: () => Promise<IPCResponse<string>>;
+    getAccessToken: () => Promise<IPCResponse<TokenResult>>;
     isAuthenticated: () => Promise<IPCResponse<boolean>>;
     validateToken: () => Promise<IPCResponse<boolean>>;
   };
@@ -85,5 +86,9 @@ export interface ElectronAPI {
   app: {
     getPartitionName: () => Promise<string | null>;
     getVersion: () => Promise<string>;
+  };
+
+  log: {
+    openFolder: () => Promise<IPCResponse<void>>;
   };
 }
