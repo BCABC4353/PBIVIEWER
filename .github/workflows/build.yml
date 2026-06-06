@@ -53,7 +53,10 @@ jobs:
           retention-days: 30
 
   build-mac:
-    runs-on: macos-latest
+    # Intel runner: the arm64 macos-latest runners intermittently fail DMG
+    # creation via hdiutil on APFS (electron-builder #9155). Intel macOS uses
+    # HFS+ for the DMG and builds reliably.
+    runs-on: macos-13
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -81,7 +84,18 @@ jobs:
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
 
       - name: Build and package macOS
-        run: npm run package:mac
+        run: |
+          attempt=1
+          max=3
+          until npm run package:mac; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "package:mac failed after $attempt attempts"
+              exit 1
+            fi
+            echo "package:mac attempt $attempt failed; retrying in 15s..."
+            attempt=$((attempt + 1))
+            sleep 15
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
