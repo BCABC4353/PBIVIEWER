@@ -32,9 +32,11 @@ export const WorkspacesPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
-    // Drop the search store's cached bulk content so the next search
-    // re-fetches after the user explicitly asked for fresh workspace data.
-    useSearchStore.getState().invalidateAll();
+    // Drop only the search-store's module-level cache so the next search
+    // re-fetches; do NOT clear the search dialog's current query/results,
+    // because the user may have it open. Full invalidateAll is reserved
+    // for logout.
+    useSearchStore.getState().invalidateCache();
 
     try {
       const response = await window.electronAPI.content.getWorkspaces();

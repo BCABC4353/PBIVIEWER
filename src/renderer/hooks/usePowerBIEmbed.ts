@@ -182,12 +182,25 @@ export function usePowerBIEmbed(
   const refreshEmbedToken = useCallback(async (): Promise<void> => {
     if (!workspaceId || !itemId) return;
     if (tokenRefreshInProgressRef.current) return;
+    // Capture the generation NOW. If a rapid report-to-report switch bumps
+    // generation while we're awaiting the IPC, this call's result is for the
+    // old embed — discard it instead of writing to refs / triggering reloads
+    // on the new one.
+    const myGen = generationRef.current;
+    // Skip work if the embed isn't actually loaded — visibility-change and
+    // proactive-timer callers can fire mid-load. The reload trigger that used
+    // to live in the !loaded branch is exactly the kind of "stale callback
+    // stomps new load" race we want to avoid.
+    if (!embedRef.current || !hasLoadedRef.current) return;
     tokenRefreshInProgressRef.current = true;
     try {
       const tokenResponse = await window.electronAPI.content.getEmbedToken(
         itemId,
         workspaceId
       );
+
+      // Bail if the generation moved while we were awaiting the IPC.
+      if (myGen !== generationRef.current) return;
 
       if (!tokenResponse.success) {
         throw new Error(
@@ -198,19 +211,21 @@ export function usePowerBIEmbed(
       tokenExpirationRef.current = tokenResponse.data.expiration;
       const token = tokenResponse.data.token;
 
-      if (embedRef.current && hasLoadedRef.current) {
+      // Re-check the embed is still alive and loaded after the await.
+      if (embedRef.current && hasLoadedRef.current && myGen === generationRef.current) {
         // Powerbi-client typings split setAccessToken between Report/Dashboard,
         // but the runtime method exists on all loaded embeds.
         await (embedRef.current as pbi.Report).setAccessToken(token);
         // Same story for refresh().
         await (embedRef.current as pbi.Report).refresh();
+        if (myGen !== generationRef.current) return;
         // Reschedule proactive refresh for the new expiry.
         scheduleProactiveRefresh();
-      } else {
-        // Embed was reset (or never loaded) — kick a fresh load.
-        setReloadNonce((n) => n + 1);
       }
     } catch (err) {
+      // Only surface errors if this refresh is still relevant to the current
+      // embed. A stale failure must not paint over a healthy new load.
+      if (myGen !== generationRef.current) return;
       setError(
         err instanceof Error
           ? err.message
@@ -362,7 +377,7 @@ export function usePowerBIEmbed(
         }
       } catch (err) {
         if (generation !== generationRef.current || cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load');
+        setError(err instanceof Error ? err.message : errorFallbackRef.current);
         setIsLoading(false);
         clearWatchdog();
       }
@@ -432,7 +447,11 @@ export function usePowerBIEmbed(
     }, autoRefreshIntervalMinutes * 60 * 1000);
 
     return () => clearInterval(intervalId);
-  }, [autoRefreshEnabled, autoRefreshIntervalMinutes, error]);
+    // isLoading is in the dep list so the interval restarts cleanly each time
+    // an embed finishes loading; otherwise rapid report switching would let an
+    // existing setInterval fire `refresh()` against the new embed seconds after
+    // it loads (instead of after a full fresh interval).
+  }, [autoRefreshEnabled, autoRefreshIntervalMinutes, error, isLoading]);
 
   const reload = useCallback(() => {
     setReloadNonce((n) => n + 1);

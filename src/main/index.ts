@@ -11,9 +11,14 @@ import type { ContentItem, AppSettings, DatasetRefreshInfo } from '../shared/typ
 import log from 'electron-log/main';
 
 // File log to userData (per-OS standard location). Console + DevTools also.
-log.initialize();
+// `preload: false` so electron-log's renderer preload is NOT injected into the
+// AAD auth-window's session, where it would expose `window.__electronLog` to a
+// remote origin we don't control. The renderer doesn't use electron-log anyway.
+log.initialize({ preload: false });
 log.transports.file.level = 'info';
-log.transports.console.level = 'debug';
+log.transports.console.level = 'info';
+// Note: electron-log's errorHandler installs its own process.on('unhandledRejection'|'uncaughtException')
+// listeners — we do NOT install duplicates below, or each crash would be logged twice.
 log.errorHandler.startCatching({
   showDialog: false,
   onError: ({ error }: { error: Error }) => log.error('[main:unhandled]', error?.stack ?? String(error)),
@@ -135,9 +140,8 @@ function createWindow(): void {
   });
 }
 
-// Global error handlers
-process.on('unhandledRejection', (reason) => log.error('[main:unhandledRejection]', reason instanceof Error ? reason.stack ?? reason.message : String(reason)));
-process.on('uncaughtException', (error) => log.error('[main:uncaughtException]', error?.stack ?? String(error)));
+// Global error handlers are installed by `log.errorHandler.startCatching()` above —
+// do not duplicate them here, or each crash logs twice.
 
 // App lifecycle
 if (!app.requestSingleInstanceLock()) {
@@ -659,7 +663,7 @@ ipcMain.handle('app:get-version', () => {
 
 ipcMain.handle('log:open-folder', async () => {
   try {
-    const dir = log.transports.file.getFile().path.replace(/[\\/][^\\/]+$/, '');
+    const dir = path.dirname(log.transports.file.getFile().path);
     await shell.openPath(dir);
     return { success: true, data: undefined };
   } catch (err) {

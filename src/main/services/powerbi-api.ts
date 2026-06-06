@@ -65,17 +65,23 @@ class RetriableHttpError extends Error {
  * Parse a Retry-After header value. Returns milliseconds, or undefined if unparseable.
  * Supports both numeric seconds and HTTP-date forms per RFC 7231.
  */
+// Cap on any Retry-After we'll honor. A misbehaving (or hostile) upstream
+// could send `Retry-After: 99999999` (~27 hours) and freeze the request for
+// effectively forever. 60s is well above normal Power BI throttling but small
+// enough to bound user-visible delay.
+const MAX_RETRY_AFTER_MS = 60_000;
+
 function parseRetryAfter(headerValue: string | null): number | undefined {
   if (!headerValue) return undefined;
   const trimmed = headerValue.trim();
   if (!trimmed) return undefined;
   const asInt = Number(trimmed);
   if (Number.isFinite(asInt) && asInt >= 0) {
-    return Math.round(asInt * 1000);
+    return Math.min(Math.round(asInt * 1000), MAX_RETRY_AFTER_MS);
   }
   const dateMs = Date.parse(trimmed);
   if (!Number.isNaN(dateMs)) {
-    return Math.max(0, dateMs - Date.now());
+    return Math.min(Math.max(0, dateMs - Date.now()), MAX_RETRY_AFTER_MS);
   }
   return undefined;
 }

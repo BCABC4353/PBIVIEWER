@@ -43,7 +43,13 @@ export interface ElectronAPI {
       filePath?: string,
     ) => Promise<IPCResponse<{ path: string }>>;
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
-    getAllItems: () => Promise<IPCResponse<{ reports: Report[]; dashboards: Dashboard[] }>>;
+    getAllItems: () => Promise<IPCResponse<{
+      workspaces: Workspace[];
+      reports: Report[];
+      dashboards: Dashboard[];
+      partialFailure: boolean;
+      failedWorkspaces: Array<{ id: string; name: string; error: string }>;
+    }>>;
     getRecent: () => Promise<IPCResponse<ContentItem[]>>;
   };
 

@@ -8,6 +8,7 @@ import { shell, BrowserWindow, session } from 'electron';
 import { msalConfig, loginRequest, silentRequest } from './msal-config';
 import { tokenCache, CachedUserInfo } from './token-cache';
 import { UserInfo, AuthResult, IPCResponse, TokenResult } from '../../shared/types';
+import { PARTITION_NAME } from '../../shared/constants';
 
 class AuthService {
   private pca: PublicClientApplication;
@@ -327,8 +328,18 @@ class AuthService {
         await this.pca.getTokenCache().removeAccount(account);
       }
 
+      // Clear cookies from BOTH sessions:
+      // - defaultSession: hosts the AAD interactive auth window (openAuthWindow)
+      // - partition session (PARTITION_NAME): hosts the embedded AppViewer
+      //   <webview> that loads app.powerbi.com / AAD silent-SSO. Missing this
+      //   would leave AAD SSO cookies in the partition so the next sign-in
+      //   silently logs the same user back in. If the auth-window ever moves
+      //   into a partition, this list MUST be revisited.
       try {
-        await session.defaultSession.clearStorageData({ storages: ['cookies'] });
+        await Promise.allSettled([
+          session.defaultSession.clearStorageData({ storages: ['cookies'] }),
+          session.fromPartition(PARTITION_NAME).clearStorageData({ storages: ['cookies'] }),
+        ]);
       } catch (cookieErr) {
         console.warn('[Auth] Cookie clear on logout failed (non-fatal):', cookieErr);
       }
