@@ -22,11 +22,21 @@ win:
         - x64
   icon: assets/icons/icon.ico
   artifactName: ${productName}-${version}-Windows-Setup.${ext}
-  # Code signing - set these environment variables for signing:
-  # CSC_LINK: path to .pfx certificate file
-  # CSC_KEY_PASSWORD: certificate password
-  # Or use Windows Certificate Store:
-  # certificateSubjectName: "Your Company Name"
+  # ============================================================================
+  # TODO: CODE SIGNING (backlog #1 — retires the SmartScreen click-through)
+  # ----------------------------------------------------------------------------
+  # The build is currently UNSIGNED. Windows users see a "Windows protected your
+  # PC / Unknown publisher" SmartScreen warning and must click "More info ->
+  # Run anyway" on first install. Documented for users in docs/INSTALL-GUIDE.md.
+  #
+  # To enable signing, obtain a Windows code-signing certificate (OV or EV; EV
+  # bypasses SmartScreen reputation immediately) and set in CI:
+  #   CSC_LINK              -> base64-encoded .pfx OR path/URL to the cert
+  #   CSC_KEY_PASSWORD      -> the cert's password
+  # Or use Windows Certificate Store via:
+  #   certificateSubjectName: "Your Company Name"
+  # Then verify in CI with `signtool verify /pa <Setup.exe>`.
+  # ============================================================================
   signingHashAlgorithms:
     - sha256
   signDlls: false

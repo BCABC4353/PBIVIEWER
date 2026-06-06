@@ -14,27 +14,33 @@ interface UsageStore {
   usageRecords: UsageRecord[];
 }
 
-// Minimal in-memory fallback used only if the on-disk store cannot be opened.
-// Implements just the get/set surface this module relies on, so a corrupt or
-// unreadable config never crashes app startup.
-function createMemoryStore(): Pick<Store<UsageStore>, 'get' | 'set'> {
-  const data: UsageStore = { usageRecords: [] };
-  return {
-    get(key: string, defaultValue?: unknown) {
-      const value = (data as unknown as Record<string, unknown>)[key];
-      return (value === undefined ? defaultValue : value) as never;
-    },
-    set(key: string, value?: unknown) {
-      if (typeof key === 'string') {
-        (data as unknown as Record<string, unknown>)[key] = value;
-      }
-    },
-  } as Pick<Store<UsageStore>, 'get' | 'set'>;
+// Narrow interface — only the two methods this module actually calls, fully
+// typed. Both the real electron-store and the in-memory fallback satisfy it,
+// so no `as never` / `as unknown` casts are needed at the call sites.
+interface UsageStoreLike {
+  get(key: 'usageRecords', defaultValue: UsageRecord[]): UsageRecord[];
+  set(key: 'usageRecords', value: UsageRecord[]): void;
 }
 
-function createUsageStore(): Pick<Store<UsageStore>, 'get' | 'set'> {
+// In-memory fallback used only if the on-disk store cannot be opened.
+// Initialized empty (matching the default), so the defaultValue argument is
+// effectively a contract reminder rather than a fallback path — the records
+// field always holds a valid array.
+function createMemoryStore(): UsageStoreLike {
+  let records: UsageRecord[] = [];
+  return {
+    get(_key, _defaultValue) {
+      return records;
+    },
+    set(_key, value) {
+      records = value;
+    },
+  };
+}
+
+function createUsageStore(): UsageStoreLike {
   try {
-    return new Store<UsageStore>({
+    const store = new Store<UsageStore>({
       name: 'usage-tracking',
       defaults: {
         usageRecords: [],
@@ -42,6 +48,12 @@ function createUsageStore(): Pick<Store<UsageStore>, 'get' | 'set'> {
       // If the on-disk JSON is corrupt, drop it instead of throwing at module load.
       clearInvalidConfig: true,
     });
+    // Adapter narrows electron-store's broader overload set to the two typed
+    // calls this module actually makes — eliminates type casts at call sites.
+    return {
+      get: (key, defaultValue) => store.get(key, defaultValue),
+      set: (key, value) => store.set(key, value),
+    };
   } catch (error) {
     // Construction can still throw (e.g. unreadable file). Degrade gracefully by
     // falling back to an in-memory store rather than crashing startup.
