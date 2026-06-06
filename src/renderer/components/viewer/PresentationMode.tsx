@@ -233,9 +233,15 @@ export const PresentationMode: React.FC = () => {
 
     // Hard-reset the container so the iframe stops rendering immediately.
     // The hook's cleanup will also reset on unmount, but we want the visual
-    // gone before navigate() runs.
+    // gone before navigate() runs. CRITICAL: detach handlers FIRST so a
+    // late-firing 'error' event from the reset itself can't run on a ghost
+    // embed and call setError/setIsLoading on this about-to-unmount component.
     if (embedContainerRef.current) {
       try {
+        const embed = embedRef.current;
+        if (embed) {
+          try { embed.off('loaded'); embed.off('error'); } catch { /* ignore */ }
+        }
         powerbiService.reset(embedContainerRef.current);
       } catch {
         // Ignore cleanup errors
@@ -277,9 +283,15 @@ export const PresentationMode: React.FC = () => {
 
         // Hook cleanup will detach embed handlers and reset the container
         // on unmount — but force a reset now so the iframe stops painting
-        // before we navigate.
+        // before we navigate. Detach handlers FIRST so a synthetic error
+        // emitted by the reset can't paint a ghost-embed setError onto an
+        // about-to-unmount component.
         if (embedContainerRef.current) {
           try {
+            const embed = embedRef.current;
+            if (embed) {
+              try { embed.off('loaded'); embed.off('error'); } catch { /* ignore */ }
+            }
             powerbiService.reset(embedContainerRef.current);
           } catch {
             // Ignore

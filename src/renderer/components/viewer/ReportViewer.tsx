@@ -236,6 +236,7 @@ export const ReportViewer: React.FC = () => {
 
   // Fullscreen change detection
   useEffect(() => {
+    let hintTimer: NodeJS.Timeout | null = null;
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
@@ -246,7 +247,8 @@ export const ReportViewer: React.FC = () => {
         }
         if (pages.length > 1) {
           setShowFullscreenHint(true);
-          setTimeout(() => setShowFullscreenHint(false), 5000);
+          if (hintTimer) clearTimeout(hintTimer);
+          hintTimer = setTimeout(() => setShowFullscreenHint(false), 5000);
         }
       } else {
         setShowFullscreenHint(false);
@@ -256,6 +258,7 @@ export const ReportViewer: React.FC = () => {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      if (hintTimer) clearTimeout(hintTimer);
     };
   }, [pages.length]);
 

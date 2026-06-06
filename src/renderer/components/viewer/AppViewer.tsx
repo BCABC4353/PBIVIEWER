@@ -84,6 +84,12 @@ export const AppViewer: React.FC = () => {
     webview.addEventListener('did-fail-load', handleDidFailLoad);
 
     return () => {
+      // Remove listeners FIRST so the about:blank navigation we kick off in a
+      // moment doesn't fire `did-start-loading`/`did-stop-loading` into stale
+      // setState calls on an about-to-unmount component (React 18 warns).
+      webview.removeEventListener('did-start-loading', handleDidStartLoading);
+      webview.removeEventListener('did-stop-loading', handleDidStopLoading);
+      webview.removeEventListener('did-fail-load', handleDidFailLoad);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const w = webview as any;
@@ -95,9 +101,6 @@ export const AppViewer: React.FC = () => {
       } catch (err) {
         console.warn('[AppViewer] Webview teardown failed (non-fatal):', err);
       }
-      webview.removeEventListener('did-start-loading', handleDidStartLoading);
-      webview.removeEventListener('did-stop-loading', handleDidStopLoading);
-      webview.removeEventListener('did-fail-load', handleDidFailLoad);
     };
   }, [partitionLoaded]);
 

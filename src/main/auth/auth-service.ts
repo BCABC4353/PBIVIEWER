@@ -15,6 +15,11 @@ class AuthService {
   private account: AccountInfo | null = null;
   private cryptoProvider: CryptoProvider;
   private pendingAuthState: string | null = null; // For CSRF validation
+  // Cached "this token is good through N" — every protected-route check used to
+  // call acquireTokenSilent (which hits MSAL's persistence layer and AAD if the
+  // refresh window is close). We short-circuit when we already know the cached
+  // token is far from expiry.
+  private lastKnownExpiry: number | null = null;
 
   constructor() {
     this.pca = new PublicClientApplication(msalConfig);
@@ -79,6 +84,12 @@ class AuthService {
    */
   async validateToken(): Promise<IPCResponse<boolean>> {
     try {
+      // Short-circuit when we know the cached token is comfortably valid.
+      // The 5-minute buffer keeps proactive refresh in the embed layer from
+      // racing us, and a stale cache simply falls through to the full check.
+      if (this.lastKnownExpiry !== null && this.lastKnownExpiry - Date.now() > 5 * 60 * 1000) {
+        return { success: true, data: true };
+      }
       const tokenResult = await this.getAccessToken();
       return { success: true, data: tokenResult.success };
     } catch (error) {
@@ -291,6 +302,8 @@ class AuthService {
         });
 
         await this.persistCache();
+        // Record expiry so the next validateToken() can short-circuit.
+        this.lastKnownExpiry = result.expiresOn ? result.expiresOn.getTime() : null;
         return {
           success: true,
           data: {
@@ -321,6 +334,7 @@ class AuthService {
     try {
       await tokenCache.clearCache();
       this.account = null;
+      this.lastKnownExpiry = null;
 
       // Clear MSAL cache
       const accounts = await this.pca.getTokenCache().getAllAccounts();

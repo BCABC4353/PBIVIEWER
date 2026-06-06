@@ -27,8 +27,9 @@ class ErrorBoundaryClass extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
-    console.error('[ErrorBoundary]', error.message, errorInfo.componentStack);
+    // Single structured log line — error object + component stack render cleanly
+    // in DevTools and serialize into electron-log's file transport.
+    console.error('[ErrorBoundary]', error.message, error, errorInfo.componentStack);
 
     this.setState({
       error,

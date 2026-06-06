@@ -45,6 +45,11 @@ async function withRetry<T>(fn: () => Promise<T>, opts: WithRetryOptions = {}): 
     try {
       return await fn();
     } catch (err: any) {
+      // AbortError happens BOTH when our own fetchWithTimeout fires (a true
+      // timeout — worth retrying) AND when an external AbortSignal is passed
+      // in (an intentional cancel — must NOT be retried). When `init.signal`
+      // is supported in the future, this check needs to distinguish them.
+      // For now no caller passes an external signal, so AbortError === timeout.
       const isRetriable = err && (err.name === 'RetriableHttpError' || err.name === 'AbortError');
       if (!isRetriable || attempt >= max) throw err;
       const retryAfter = (err.retryAfterMs as number | undefined);
@@ -86,6 +91,27 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
   return undefined;
 }
 
+// Patterns we strip out of upstream HTTP error bodies before composing the
+// thrown message — these end up in logs and (sometimes) user-visible toasts,
+// and we never want a Bearer fragment, a JWT, an email, or a tenant GUID to
+// land in either place. Order-insensitive; redaction is applied before the
+// 256-char truncation cap.
+const REDACT_PATTERNS: Array<[RegExp, string]> = [
+  [/Bearer\s+[A-Za-z0-9._\-]+/gi, 'Bearer [REDACTED]'],
+  [/eyJ[A-Za-z0-9._\-]{20,}/g, '[JWT REDACTED]'],
+  [/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, '[EMAIL REDACTED]'],
+  [/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, '[GUID REDACTED]'],
+];
+
+function sanitizeErrorBody(body: string): string {
+  let cleaned = body;
+  for (const [pattern, replacement] of REDACT_PATTERNS) {
+    cleaned = cleaned.replace(pattern, replacement);
+  }
+  // Truncate so a giant upstream body can't bloat the log line.
+  return cleaned.length > 256 ? cleaned.slice(0, 256) + '…' : cleaned;
+}
+
 /**
  * Classify a non-OK response and throw an appropriate error. 429 and 5xx
  * variants are thrown as RetriableHttpError so withRetry can back off; other
@@ -93,7 +119,7 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
  */
 async function throwForStatus(response: Response, contextLabel: string): Promise<never> {
   const errorText = await response.text();
-  const message = `${contextLabel}: ${response.status} - ${errorText}`;
+  const message = `${contextLabel}: ${response.status} - ${sanitizeErrorBody(errorText)}`;
   if (response.status === 429) {
     const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'));
     throw new RetriableHttpError(429, message, retryAfterMs);
@@ -537,15 +563,44 @@ class PowerBIApiService {
       while (attempts < maxAttempts) {
         // Shorter per-call timeout for the polling loop — the 30-iteration cap
         // bounds total wait time; we don't want each poll holding the default 20s.
-        const statusResponse = await fetchWithTimeout(
-          `${baseUrl}/exports/${exportId}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-          10000
-        );
+        // A transient timeout, 429, or 5xx on a poll is non-fatal: count the
+        // attempt and continue (honoring Retry-After if present). Only a non-
+        // retriable 4xx, a "Failed" status payload, or running out the cap
+        // aborts the export.
+        let statusResponse: Response;
+        try {
+          statusResponse = await fetchWithTimeout(
+            `${baseUrl}/exports/${exportId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+            10000
+          );
+        } catch (pollErr: any) {
+          if (pollErr?.name === 'AbortError') {
+            // Per-poll timeout — keep trying.
+            attempts += 1;
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+          throw pollErr;
+        }
 
         if (!statusResponse.ok) {
+          if (statusResponse.status === 429) {
+            const retryAfterMs =
+              parseRetryAfter(statusResponse.headers.get('Retry-After')) ?? 2000;
+            attempts += 1;
+            await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
+            continue;
+          }
+          if (statusResponse.status >= 500 && statusResponse.status < 600) {
+            attempts += 1;
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
           const errorText = await statusResponse.text();
-          throw new Error(`Export status failed: ${statusResponse.status} - ${errorText}`);
+          throw new Error(
+            `Export status failed: ${statusResponse.status} - ${sanitizeErrorBody(errorText)}`
+          );
         }
 
         const statusJson = await statusResponse.json() as { status?: string; error?: { message?: string } };
@@ -573,7 +628,7 @@ class PowerBIApiService {
 
       if (!fileResponse.ok) {
         const errorText = await fileResponse.text();
-        throw new Error(`Export file failed: ${fileResponse.status} - ${errorText}`);
+        throw new Error(`Export file failed: ${fileResponse.status} - ${sanitizeErrorBody(errorText)}`);
       }
 
       const arrayBuffer = await fileResponse.arrayBuffer();
