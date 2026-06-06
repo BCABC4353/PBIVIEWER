@@ -26,6 +26,7 @@ interface ContentState {
   loadFrequentItems: () => Promise<void>;
   recordItemOpened: (item: ContentItem) => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useContentStore = create<ContentState>((set, get) => ({
@@ -139,5 +140,20 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  reset: () => {
+    // Wipe all cached content so a different signed-in user does not see
+    // the previous account's data. Mirrors the initial store state.
+    set({
+      workspaces: [],
+      reports: new Map(),
+      dashboards: new Map(),
+      apps: [],
+      recentItems: [],
+      frequentItems: [],
+      isLoading: false,
+      error: null,
+    });
   },
 }));

@@ -84,6 +84,17 @@ export const AppViewer: React.FC = () => {
     webview.addEventListener('did-fail-load', handleDidFailLoad);
 
     return () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const w = webview as any;
+        if (w) {
+          if (typeof w.stop === 'function') w.stop();
+          // Drop the heavy SPA so Chromium GCs the guest process promptly.
+          w.src = 'about:blank';
+        }
+      } catch (err) {
+        console.warn('[AppViewer] Webview teardown failed (non-fatal):', err);
+      }
       webview.removeEventListener('did-start-loading', handleDidStartLoading);
       webview.removeEventListener('did-stop-loading', handleDidStopLoading);
       webview.removeEventListener('did-fail-load', handleDidFailLoad);

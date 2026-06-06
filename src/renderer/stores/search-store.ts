@@ -37,6 +37,10 @@ interface SearchState {
   query: string;
   results: SearchResult[];
   isSearching: boolean;
+  error: string | null;
+  // Non-blocking notice surfaced when getAllItems reports partial failure.
+  // Null means no warning; UI may render it inline without blocking results.
+  partialFailureWarning: string | null;
 
   // Actions
   openSearch: () => void;
@@ -45,6 +49,7 @@ interface SearchState {
   search: (query: string) => Promise<void>;
   clearResults: () => void;
   invalidateCache: () => void;
+  invalidateAll: () => void;
 }
 
 export const useSearchStore = create<SearchState>((set, get) => ({
@@ -52,6 +57,8 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   query: '',
   results: [],
   isSearching: false,
+  error: null,
+  partialFailureWarning: null,
 
   openSearch: () => {
     set({ isOpen: true });
@@ -73,6 +80,21 @@ export const useSearchStore = create<SearchState>((set, get) => ({
       dashboards: null,
       lastFetched: 0,
     };
+  },
+
+  invalidateAll: () => {
+    // Drop the module-level cache so the next search re-fetches.
+    searchCache = {
+      workspaces: null,
+      apps: null,
+      reports: null,
+      dashboards: null,
+      lastFetched: 0,
+    };
+    // Discard any in-flight search by bumping the id.
+    currentSearchId++;
+    // Clear surfaced state.
+    set({ results: [], query: '', error: null, partialFailureWarning: null });
   },
 
   search: async (query: string) => {
@@ -118,6 +140,27 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         apps = appsResponse.success ? appsResponse.data : [];
         reports = allItemsResponse.success ? allItemsResponse.data.reports : [];
         dashboards = allItemsResponse.success ? allItemsResponse.data.dashboards : [];
+
+        // Surface partial-failure warning if the bulk fetch couldn't reach
+        // every workspace. DEV-D extended getAllItems' payload with
+        // partialFailure + failedWorkspaces; tolerate older shapes by
+        // reading via an unknown cast.
+        if (allItemsResponse.success) {
+          const bulk = allItemsResponse.data as unknown as {
+            reports: Report[];
+            dashboards: Dashboard[];
+            partialFailure?: boolean;
+            failedWorkspaces?: { id: string; name: string; error: string }[];
+          };
+          if (bulk.partialFailure && bulk.failedWorkspaces && bulk.failedWorkspaces.length > 0) {
+            const names = bulk.failedWorkspaces.map((w) => w.name).join(', ');
+            set({
+              partialFailureWarning: `Some workspaces could not be loaded: ${names}`,
+            });
+          } else {
+            set({ partialFailureWarning: null });
+          }
+        }
 
         // Update cache
         searchCache = {

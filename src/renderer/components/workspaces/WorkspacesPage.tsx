@@ -9,6 +9,7 @@ import {
   ArrowSyncRegular,
 } from '@fluentui/react-icons';
 import { useContentStore } from '../../stores/content-store';
+import { useSearchStore } from '../../stores/search-store';
 import type { Workspace, Report, Dashboard } from '../../../shared/types';
 
 interface WorkspaceWithContent extends Workspace {
@@ -30,6 +31,10 @@ export const WorkspacesPage: React.FC = () => {
   const loadWorkspaces = async () => {
     setIsLoading(true);
     setError(null);
+
+    // Drop the search store's cached bulk content so the next search
+    // re-fetches after the user explicitly asked for fresh workspace data.
+    useSearchStore.getState().invalidateAll();
 
     try {
       const response = await window.electronAPI.content.getWorkspaces();

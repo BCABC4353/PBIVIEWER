@@ -28,6 +28,7 @@ export const SearchDialog: React.FC = () => {
     query,
     results,
     isSearching,
+    partialFailureWarning,
     closeSearch,
     setQuery,
     search,
@@ -179,6 +180,18 @@ export const SearchDialog: React.FC = () => {
             size="large"
           />
         </div>
+
+        {/* Partial-failure warning (non-blocking) */}
+        {partialFailureWarning && (
+          <div
+            role="status"
+            className="px-4 py-2 border-b border-neutral-stroke-2 bg-status-warning/10"
+          >
+            <Text size={200} className="text-status-warning">
+              {partialFailureWarning}
+            </Text>
+          </div>
+        )}
 
         {/* Results */}
         <div className="max-h-96 overflow-auto">
