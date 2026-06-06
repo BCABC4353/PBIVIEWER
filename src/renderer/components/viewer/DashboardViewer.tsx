@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text, Breadcrumb, BreadcrumbItem } from '@fluentui/react-components';
 import {
@@ -9,59 +9,18 @@ import {
   HomeRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { EmbedToken, Dashboard } from '../../../shared/types';
-import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
-import { usePowerBIService } from '../../hooks/usePowerBIService';
+import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
 
 export const DashboardViewer: React.FC = () => {
   const { workspaceId, dashboardId } = useParams<{ workspaceId: string; dashboardId: string }>();
   const navigate = useNavigate();
-  const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
-  const dashboardRef = useRef<pbi.Dashboard | null>(null);
-  const isLoadingRef = useRef(false);
-  const tokenExpirationRef = useRef<string | null>(null);
-  const tokenRefreshInProgressRef = useRef(false);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dashboardName, setDashboardName] = useState<string>('Dashboard');
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hasLoadedRef = useRef(false);
-  const loadWatchdogRef = useRef<NodeJS.Timeout | null>(null);
-
-  const isTokenExpiringSoon = () => {
-    if (!tokenExpirationRef.current) return false;
-    const expiration = new Date(tokenExpirationRef.current).getTime();
-    return Number.isFinite(expiration) && Date.now() >= expiration - 2 * 60 * 1000;
-  };
-
-  const refreshEmbedToken = async () => {
-    if (!workspaceId || !dashboardId || tokenRefreshInProgressRef.current) return;
-    tokenRefreshInProgressRef.current = true;
-    try {
-      const tokenResponse = await window.electronAPI.content.getEmbedToken(
-        dashboardId,
-        workspaceId
-      );
-
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to refresh access token');
-      }
-
-      tokenExpirationRef.current = tokenResponse.data.expiration;
-      isLoadingRef.current = false;
-      loadDashboard();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Session expired. Please log in again.');
-      setIsLoading(false);
-    } finally {
-      tokenRefreshInProgressRef.current = false;
-    }
-  };
 
   // Fetch dashboard details to get the name
   useEffect(() => {
@@ -101,139 +60,52 @@ export const DashboardViewer: React.FC = () => {
     }, 4000);
   };
 
-  useEffect(() => {
-    if (!workspaceId || !dashboardId) {
-      setError('Invalid dashboard parameters');
-      setIsLoading(false);
-      return;
-    }
+  // Build embed configuration. Dashboards use fitToWidth and no extra panes.
+  const buildConfig = useCallback(
+    (token: string): pbi.IDashboardEmbedConfiguration => ({
+      type: 'dashboard',
+      id: dashboardId,
+      embedUrl: `https://app.powerbi.com/dashboardEmbed?dashboardId=${dashboardId}&groupId=${workspaceId}`,
+      accessToken: token,
+      tokenType: pbi.models.TokenType.Aad,
+      pageView: 'fitToWidth',
+    }),
+    [workspaceId, dashboardId]
+  );
 
-    if (isLoadingRef.current) {
-      return;
-    }
-
-    loadDashboard();
-
-    return () => {
-      try {
-        (['loaded', 'error', 'tileClicked'] as const).forEach((e) => dashboardRef.current?.off(e));
-      } catch {
-        // ignore detach errors
-      }
-      if (loadWatchdogRef.current) {
-        clearTimeout(loadWatchdogRef.current);
-        loadWatchdogRef.current = null;
-      }
-      if (embedContainerRef.current) {
-        powerbiService.reset(embedContainerRef.current);
-      }
-      dashboardRef.current = null;
-      isLoadingRef.current = false;
-      hasLoadedRef.current = false;
-    };
-  }, [workspaceId, dashboardId]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isTokenExpiringSoon()) {
-        refreshEmbedToken();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [workspaceId, dashboardId]);
-
-  const loadDashboard = async () => {
-    if (!embedContainerRef.current || !workspaceId || !dashboardId) return;
-
-    if (isLoadingRef.current) {
-      return;
-    }
-    isLoadingRef.current = true;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      powerbiService.reset(embedContainerRef.current);
-
-      const tokenResponse = await window.electronAPI.content.getEmbedToken(
-        dashboardId,
-        workspaceId
-      );
-
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to get embed token');
-      }
-
-      const token = tokenResponse.data.token;
-      tokenExpirationRef.current = tokenResponse.data.expiration;
-
-      const embedConfig: pbi.IDashboardEmbedConfiguration = {
-        type: 'dashboard',
-        id: dashboardId,
-        embedUrl: `https://app.powerbi.com/dashboardEmbed?dashboardId=${dashboardId}&groupId=${workspaceId}`,
-        accessToken: token,
-        tokenType: pbi.models.TokenType.Aad,
-        pageView: 'fitToWidth',
-      };
-
-      const dashboard = powerbiService.embed(
-        embedContainerRef.current,
-        embedConfig
-      ) as pbi.Dashboard;
-
-      dashboardRef.current = dashboard;
-
-      hasLoadedRef.current = false;
-      if (loadWatchdogRef.current) clearTimeout(loadWatchdogRef.current);
-      loadWatchdogRef.current = setTimeout(() => {
-        if (isLoadingRef.current && !hasLoadedRef.current) {
-          setError('This dashboard is taking too long to load. Check your connection and try again.');
-          setIsLoading(false);
-        }
-      }, 45000);
-
-      dashboard.on('loaded', () => {
-        hasLoadedRef.current = true;
-        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-        setIsLoading(false);
-      });
-
-      dashboard.on('error', (event) => {
-        const errorDetail = event?.detail;
-        console.error('[DashboardViewer] Dashboard error:', errorDetail);
-        if (isTokenExpiredError(errorDetail)) {
-          refreshEmbedToken();
-          return;
-        }
-        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-        setError('Failed to load dashboard. Please try again.');
-        setIsLoading(false);
-      });
-
-      dashboard.on('tileClicked', (event) => {
+  // Event handlers — tile-click drill-through into the underlying report.
+  const events = useMemo(
+    () => ({
+      tileClicked: (event: any) => {
         const tileEvent = event.detail as { reportEmbedUrl?: string; reportId?: string };
         if (tileEvent.reportId) {
           navigate(`/report/${workspaceId}/${tileEvent.reportId}`);
         }
-      });
+      },
+    }),
+    [navigate, workspaceId]
+  );
 
-    } catch (err) {
-      console.error('[DashboardViewer] Failed to load dashboard:', err);
-      setError(String(err));
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-    }
-  };
+  const {
+    isLoading,
+    error,
+    embedRef,
+    reload,
+  } = usePowerBIEmbed({
+    workspaceId,
+    itemId: dashboardId,
+    containerRef: embedContainerRef,
+    buildConfig,
+    events,
+    // Dashboards have no auto-refresh in the legacy code path.
+    autoRefreshEnabled: false,
+    errorFallback: 'Failed to load dashboard. Please try again.',
+    // Legacy DashboardViewer surfaced post-load errors too.
+    surfacePostLoadErrors: true,
+  });
 
   const handleRefresh = () => {
-    isLoadingRef.current = false;
-    loadDashboard();
+    reload();
   };
 
   const handleExportPdf = async () => {
@@ -282,6 +154,10 @@ export const DashboardViewer: React.FC = () => {
   const handleBack = () => {
     navigate('/');
   };
+
+  // Silence unused-var noise from embedRef while still exposing it for future
+  // dashboard-specific calls (e.g. dashboard.fullscreen()).
+  void embedRef;
 
   return (
     <div className="h-full flex flex-col">
@@ -357,7 +233,7 @@ export const DashboardViewer: React.FC = () => {
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
             <div className="text-center max-w-md">
               <Text className="text-status-error block mb-4">{error}</Text>
-              <Button appearance="primary" onClick={handleRefresh}>
+              <Button appearance="primary" onClick={reload}>
                 Try again
               </Button>
             </div>

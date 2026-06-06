@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
 import {
@@ -9,9 +9,7 @@ import {
   PlayRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { EmbedToken, AppSettings, Report, DatasetRefreshInfo } from '../../../shared/types';
-import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
-import { usePowerBIService } from '../../hooks/usePowerBIService';
+import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
 
 interface PageInfo {
   name: string;
@@ -21,25 +19,16 @@ interface PageInfo {
 export const ReportViewer: React.FC = () => {
   const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
   const navigate = useNavigate();
-  const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
-  const reportRef = useRef<pbi.Report | null>(null);
-  const isLoadingRef = useRef(false); // Prevent double-loading in Strict Mode
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const datasetIdRef = useRef<string | null>(null);
-  const tokenExpirationRef = useRef<string | null>(null);
-  const tokenRefreshInProgressRef = useRef(false);
   const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hasLoadedRef = useRef(false);
-  const loadWatchdogRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fullscreen keyboard navigation state
   const [pages, setPages] = useState<PageInfo[]>([]);
@@ -74,352 +63,73 @@ export const ReportViewer: React.FC = () => {
     loadSettings();
   }, []);
 
+  // Fetch report metadata (datasetId) — used by the loaded handler to pull
+  // dataset refresh info. Fires once per workspace/report change.
   useEffect(() => {
-    if (!workspaceId || !reportId) {
-      setError('Invalid report parameters');
-      setIsLoading(false);
-      return;
-    }
-
-    // Prevent double-loading in React Strict Mode
-    if (isLoadingRef.current) {
-      return;
-    }
-
-    loadReport();
-
-    return () => {
+    if (!workspaceId || !reportId) return;
+    let cancelled = false;
+    (async () => {
       try {
-        (['loaded', 'error', 'pageChanged'] as const).forEach((e) => reportRef.current?.off(e));
-      } catch {
-        // ignore detach errors
-      }
-      if (loadWatchdogRef.current) {
-        clearTimeout(loadWatchdogRef.current);
-        loadWatchdogRef.current = null;
-      }
-      if (embedContainerRef.current) {
-        powerbiService.reset(embedContainerRef.current);
-      }
-      reportRef.current = null;
-      isLoadingRef.current = false;
-      hasLoadedRef.current = false;
-    };
-  }, [workspaceId, reportId]);
-
-  useEffect(() => {
-    return () => {
-      if (exportTimeoutRef.current) {
-        clearTimeout(exportTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const showExportStatus = (message: string) => {
-    setExportStatus(message);
-    if (exportTimeoutRef.current) {
-      clearTimeout(exportTimeoutRef.current);
-    }
-    exportTimeoutRef.current = setTimeout(() => {
-      setExportStatus(null);
-    }, 4000);
-  };
-
-  const isTokenExpiringSoon = () => {
-    if (!tokenExpirationRef.current) return false;
-    const expiration = new Date(tokenExpirationRef.current).getTime();
-    return Number.isFinite(expiration) && Date.now() >= expiration - 2 * 60 * 1000;
-  };
-
-  const refreshEmbedToken = async () => {
-    if (!workspaceId || !reportId || tokenRefreshInProgressRef.current) return;
-    tokenRefreshInProgressRef.current = true;
-    try {
-      const tokenResponse = await window.electronAPI.content.getEmbedToken(
-        reportId,
-        workspaceId
-      );
-
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to refresh access token');
-      }
-
-      tokenExpirationRef.current = tokenResponse.data.expiration;
-      const token = tokenResponse.data.token;
-
-      if (reportRef.current) {
-        await reportRef.current.setAccessToken(token);
-        await reportRef.current.refresh();
-      } else {
-        isLoadingRef.current = false;
-        loadReport();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Session expired. Please log in again.');
-      setIsLoading(false);
-    } finally {
-      tokenRefreshInProgressRef.current = false;
-    }
-  };
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isTokenExpiringSoon()) {
-        refreshEmbedToken();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [workspaceId, reportId]);
-
-  // Auto-refresh based on settings - only when visible
-  useEffect(() => {
-    if (!autoRefreshEnabled) return;
-
-    const refreshIntervalId = setInterval(() => {
-      // Only refresh if document is visible (not in background tab)
-      if (reportRef.current && !isLoading && !error && document.visibilityState === 'visible') {
-        reportRef.current.refresh().catch(() => {
-          // Auto-refresh errors are non-fatal (some visuals may throw authorization errors)
-        });
-      }
-    }, autoRefreshIntervalMinutes * 60 * 1000); // Convert minutes to milliseconds
-
-    return () => {
-      clearInterval(refreshIntervalId);
-    };
-  }, [isLoading, error, autoRefreshEnabled, autoRefreshIntervalMinutes]);
-
-  // Navigate to a specific page by index
-  const navigateToPage = useCallback(async (pageIndex: number) => {
-    if (!reportRef.current || pagesRef.current.length === 0) return;
-
-    const targetIndex = Math.max(0, Math.min(pageIndex, pagesRef.current.length - 1));
-    const targetPage = pagesRef.current[targetIndex];
-
-    if (targetPage) {
-      try {
-        await reportRef.current.setPage(targetPage.name);
-        setCurrentPageIndex(targetIndex);
+        const reportsResponse = await window.electronAPI.content.getReports(workspaceId);
+        if (cancelled) return;
+        if (reportsResponse.success && reportsResponse.data) {
+          const reportData = reportsResponse.data.find((r) => r.id === reportId);
+          if (reportData?.datasetId) {
+            datasetIdRef.current = reportData.datasetId;
+          }
+        }
       } catch (error) {
-        console.warn('[ReportViewer] Page navigation failed:', error);
+        console.warn('[ReportViewer] Report metadata fetch failed:', error);
       }
-    }
-  }, []);
-
-  // Fullscreen change detection
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isNowFullscreen = !!document.fullscreenElement;
-      setIsFullscreen(isNowFullscreen);
-
-      if (isNowFullscreen) {
-        // Focus the container when entering fullscreen to receive keyboard events
-        if (embedContainerRef.current) {
-          embedContainerRef.current.focus();
-        }
-
-        // Show hint for 5 seconds when entering fullscreen
-        if (pages.length > 1) {
-          setShowFullscreenHint(true);
-          setTimeout(() => setShowFullscreenHint(false), 5000);
-        }
-      } else {
-        setShowFullscreenHint(false);
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    })();
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      cancelled = true;
     };
-  }, [pages.length]);
+  }, [workspaceId, reportId]);
 
-  // Keyboard navigation for fullscreen mode
-  // Use capture phase to intercept events before the iframe consumes them
-  useEffect(() => {
-    let focusCheckInterval: NodeJS.Timeout | null = null;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle navigation when in fullscreen
-      if (!document.fullscreenElement) return;
-
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        // CRITICAL: Stop event propagation BEFORE anything else
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-
-        const currentPages = pagesRef.current;
-        const currentIdx = currentPageIndexRef.current;
-
-        if (currentPages.length === 0) return;
-
-        if (e.key === 'ArrowRight') {
-          // Next page (wrap around)
-          const nextIndex = (currentIdx + 1) % currentPages.length;
-          navigateToPage(nextIndex);
-        } else if (e.key === 'ArrowLeft') {
-          // Previous page (wrap around)
-          const prevIndex = (currentIdx - 1 + currentPages.length) % currentPages.length;
-          navigateToPage(prevIndex);
-        }
-
-        // Re-focus the container to prevent iframe from receiving future events
-        if (embedContainerRef.current) {
-          embedContainerRef.current.focus();
-        }
-      }
-    };
-
-    // Prevent iframe from stealing focus on mouse clicks in fullscreen
-    const handleMouseDown = (e: MouseEvent) => {
-      if (!document.fullscreenElement) return;
-
-      // If clicking inside the embed container, allow the click but refocus after
-      if (embedContainerRef.current?.contains(e.target as Node)) {
-        // Use multiple timeouts to ensure we regain focus
-        setTimeout(() => {
-          if (embedContainerRef.current && document.fullscreenElement) {
-            embedContainerRef.current.focus();
-          }
-        }, 10);
-        setTimeout(() => {
-          if (embedContainerRef.current && document.fullscreenElement) {
-            embedContainerRef.current.focus();
-          }
-        }, 100);
-      }
-    };
-
-    // When in fullscreen, periodically check and reclaim focus if needed
-    // This prevents the iframe from permanently stealing keyboard control
-    const maintainFocus = () => {
-      if (!document.fullscreenElement || !embedContainerRef.current) return;
-      const active = document.activeElement;
-      // Reclaim focus ONLY when it was genuinely lost to the body — NEVER when the user
-      // is interacting with the Power BI iframe (active === the iframe element), or we
-      // fight the iframe and slicer/dropdown clicks won't stick.
-      if (active === document.body || active === null) {
-        embedContainerRef.current.focus();
-      }
-    };
-
-    // Start focus monitoring when in fullscreen
-    if (isFullscreen) {
-      focusCheckInterval = setInterval(maintainFocus, 500);
-    }
-
-    // Use capture phase to intercept events before they reach the iframe
-    document.addEventListener('keydown', handleKeyDown, true);
-    document.addEventListener('mousedown', handleMouseDown, true);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
-      document.removeEventListener('mousedown', handleMouseDown, true);
-      if (focusCheckInterval) {
-        clearInterval(focusCheckInterval);
-      }
-    };
-  }, [navigateToPage, isFullscreen]);
-
-  const loadReport = async () => {
-    if (!embedContainerRef.current || !workspaceId || !reportId) return;
-
-    // Prevent double-loading
-    if (isLoadingRef.current) {
-      return;
-    }
-    isLoadingRef.current = true;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Reset any existing embed first
-      powerbiService.reset(embedContainerRef.current);
-
-      // Fetch report details to get datasetId
-      const reportsResponse = await window.electronAPI.content.getReports(workspaceId);
-      if (reportsResponse.success && reportsResponse.data) {
-        const reportData = reportsResponse.data.find(r => r.id === reportId);
-        if (reportData?.datasetId) {
-          datasetIdRef.current = reportData.datasetId;
-        }
-      }
-
-      // Get embed token
-      const tokenResponse = await window.electronAPI.content.getEmbedToken(
-        reportId,
-        workspaceId
-      );
-
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to get embed token');
-      }
-
-      const token = tokenResponse.data.token;
-      tokenExpirationRef.current = tokenResponse.data.expiration;
-
-      // Configure embed settings
-      const embedConfig: pbi.IReportEmbedConfiguration = {
-        type: 'report',
-        id: reportId,
-        embedUrl: `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${workspaceId}`,
-        accessToken: token,
-        tokenType: pbi.models.TokenType.Aad, // Using AAD token for user-owns-data
-        settings: {
-          panes: {
-            filters: {
-              visible: true,
-              expanded: false,
-            },
-            pageNavigation: {
-              visible: true,
-            },
+  // Build embed configuration. Stable per (workspaceId, reportId).
+  const buildConfig = useCallback(
+    (token: string): pbi.IReportEmbedConfiguration => ({
+      type: 'report',
+      id: reportId,
+      embedUrl: `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${workspaceId}`,
+      accessToken: token,
+      tokenType: pbi.models.TokenType.Aad,
+      settings: {
+        panes: {
+          filters: {
+            visible: true,
+            expanded: false,
           },
-          background: pbi.models.BackgroundType.Default,
-          navContentPaneEnabled: true,
+          pageNavigation: {
+            visible: true,
+          },
         },
-      };
+        background: pbi.models.BackgroundType.Default,
+        navContentPaneEnabled: true,
+      },
+    }),
+    [workspaceId, reportId]
+  );
 
-      // Embed the report
-      const report = powerbiService.embed(
-        embedContainerRef.current,
-        embedConfig
-      ) as pbi.Report;
-
-      reportRef.current = report;
-
-      hasLoadedRef.current = false;
-      if (loadWatchdogRef.current) clearTimeout(loadWatchdogRef.current);
-      loadWatchdogRef.current = setTimeout(() => {
-        if (isLoadingRef.current && !hasLoadedRef.current) {
-          setError('This report is taking too long to load. Check your connection and try again.');
-          setIsLoading(false);
-        }
-      }, 45000);
-
-      // Handle loaded event
-      report.on('loaded', async () => {
-        hasLoadedRef.current = true;
-        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-        setIsLoading(false);
+  // Event handlers passed to the hook. The hook handles lifecycle bookkeeping
+  // for 'loaded' and 'error'; these run after that housekeeping.
+  const events = useMemo(
+    () => ({
+      loaded: async () => {
+        const report = embedRef.current as pbi.Report | null;
+        if (!report) return;
 
         // Fetch pages for keyboard navigation in fullscreen
         try {
           const reportPages = await report.getPages();
-          const visiblePages = reportPages.filter((p: pbi.Page) => p.visibility !== 1); // Filter hidden pages
+          const visiblePages = reportPages.filter((p: pbi.Page) => p.visibility !== 1);
           const pageInfos: PageInfo[] = visiblePages.map((p: pbi.Page) => ({
             name: p.name,
             displayName: p.displayName,
           }));
           setPages(pageInfos);
 
-          // Get current active page index
           const activePage = reportPages.find((p: pbi.Page) => p.isActive);
           if (activePage) {
             const activeIndex = pageInfos.findIndex((p) => p.name === activePage.name);
@@ -445,31 +155,11 @@ export const ReportViewer: React.FC = () => {
             console.warn('[ReportViewer] Dataset refresh info unavailable:', error);
           }
         }
-      });
-
-      report.on('error', (event) => {
-        const errorDetail = event?.detail;
-        console.error('[ReportViewer] Power BI Error:', errorDetail);
-
-        if (isTokenExpiredError(errorDetail)) {
-          refreshEmbedToken();
-          return;
-        }
-
-        // If the report never finished loading, a fatal error here would leave the user
-        // staring at a spinner forever — surface it so the Try-again overlay renders.
-        if (!hasLoadedRef.current) {
-          if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-          const msg = getErrorMessage(errorDetail);
-          setError(msg || 'This report could not be loaded. You may not have access, or it may have been removed.');
-          setIsLoading(false);
-        }
-        // After load, transient navigation/drillthrough errors remain non-fatal.
-      });
-
+      },
       // Track page changes to keep keyboard navigation in sync
-      report.on('pageChanged', async () => {
-        // Update current page index when user navigates via tabs or other means
+      pageChanged: async () => {
+        const report = embedRef.current as pbi.Report | null;
+        if (!report) return;
         try {
           const currentPages = await report.getPages();
           const activePage = currentPages.find((p: pbi.Page) => p.isActive);
@@ -482,31 +172,184 @@ export const ReportViewer: React.FC = () => {
         } catch (error) {
           console.warn('[ReportViewer] Page tracking failed:', error);
         }
-      });
+      },
+    }),
+    // embedRef is mutable — referenced lazily inside handlers.
+    // workspaceId is read inside loaded; include it for correctness.
+    [workspaceId]
+  );
 
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load report');
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
+  const {
+    isLoading,
+    error,
+    embedRef,
+    reload,
+  } = usePowerBIEmbed({
+    workspaceId,
+    itemId: reportId,
+    containerRef: embedContainerRef,
+    buildConfig,
+    events,
+    autoRefreshEnabled,
+    autoRefreshIntervalMinutes,
+    errorFallback:
+      'This report could not be loaded. You may not have access, or it may have been removed.',
+    // Match legacy ReportViewer behavior: post-load errors stay silent.
+    surfacePostLoadErrors: false,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (exportTimeoutRef.current) {
+        clearTimeout(exportTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showExportStatus = (message: string) => {
+    setExportStatus(message);
+    if (exportTimeoutRef.current) {
+      clearTimeout(exportTimeoutRef.current);
     }
+    exportTimeoutRef.current = setTimeout(() => {
+      setExportStatus(null);
+    }, 4000);
   };
 
+  // Navigate to a specific page by index
+  const navigateToPage = useCallback(async (pageIndex: number) => {
+    const report = embedRef.current as pbi.Report | null;
+    if (!report || pagesRef.current.length === 0) return;
+
+    const targetIndex = Math.max(0, Math.min(pageIndex, pagesRef.current.length - 1));
+    const targetPage = pagesRef.current[targetIndex];
+
+    if (targetPage) {
+      try {
+        await report.setPage(targetPage.name);
+        setCurrentPageIndex(targetIndex);
+      } catch (error) {
+        console.warn('[ReportViewer] Page navigation failed:', error);
+      }
+    }
+  }, [embedRef]);
+
+  // Fullscreen change detection
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+
+      if (isNowFullscreen) {
+        if (embedContainerRef.current) {
+          embedContainerRef.current.focus();
+        }
+        if (pages.length > 1) {
+          setShowFullscreenHint(true);
+          setTimeout(() => setShowFullscreenHint(false), 5000);
+        }
+      } else {
+        setShowFullscreenHint(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [pages.length]);
+
+  // Keyboard navigation for fullscreen mode
+  // Use capture phase to intercept events before the iframe consumes them
+  useEffect(() => {
+    let focusCheckInterval: NodeJS.Timeout | null = null;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!document.fullscreenElement) return;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        const currentPages = pagesRef.current;
+        const currentIdx = currentPageIndexRef.current;
+
+        if (currentPages.length === 0) return;
+
+        if (e.key === 'ArrowRight') {
+          const nextIndex = (currentIdx + 1) % currentPages.length;
+          navigateToPage(nextIndex);
+        } else if (e.key === 'ArrowLeft') {
+          const prevIndex = (currentIdx - 1 + currentPages.length) % currentPages.length;
+          navigateToPage(prevIndex);
+        }
+
+        if (embedContainerRef.current) {
+          embedContainerRef.current.focus();
+        }
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!document.fullscreenElement) return;
+      if (embedContainerRef.current?.contains(e.target as Node)) {
+        setTimeout(() => {
+          if (embedContainerRef.current && document.fullscreenElement) {
+            embedContainerRef.current.focus();
+          }
+        }, 10);
+        setTimeout(() => {
+          if (embedContainerRef.current && document.fullscreenElement) {
+            embedContainerRef.current.focus();
+          }
+        }, 100);
+      }
+    };
+
+    // Reclaim focus ONLY when it was genuinely lost to the body — NEVER when the user
+    // is interacting with the Power BI iframe (active === the iframe element), or we
+    // fight the iframe and slicer/dropdown clicks won't stick.
+    const maintainFocus = () => {
+      if (!document.fullscreenElement || !embedContainerRef.current) return;
+      const active = document.activeElement;
+      if (active === document.body || active === null) {
+        embedContainerRef.current.focus();
+      }
+    };
+
+    if (isFullscreen) {
+      focusCheckInterval = setInterval(maintainFocus, 500);
+    }
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('mousedown', handleMouseDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      if (focusCheckInterval) {
+        clearInterval(focusCheckInterval);
+      }
+    };
+  }, [navigateToPage, isFullscreen]);
+
   const handleRefresh = () => {
-    if (reportRef.current) {
-      reportRef.current.refresh().catch(() => {
+    const report = embedRef.current as pbi.Report | null;
+    if (report) {
+      report.refresh().catch(() => {
         // Refresh errors are non-fatal
       });
     } else {
-      isLoadingRef.current = false; // Allow reload
-      loadReport();
+      reload();
     }
   };
 
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      if (!reportRef.current || !workspaceId || !reportId) {
+      const report = embedRef.current as pbi.Report | null;
+      if (!report || !workspaceId || !reportId) {
         showExportStatus('Report not ready');
         return;
       }
@@ -531,7 +374,7 @@ export const ReportViewer: React.FC = () => {
 
       let pageName: string | undefined;
       try {
-        const reportPages = await reportRef.current.getPages();
+        const reportPages = await report.getPages();
         pageName = reportPages.find((p: pbi.Page) => p.isActive)?.name;
       } catch (error) {
         console.warn('[ReportViewer] Page name fetch for export failed:', error);
@@ -539,7 +382,7 @@ export const ReportViewer: React.FC = () => {
 
       let bookmarkState: string | undefined;
       try {
-        const captured = await reportRef.current.bookmarksManager.capture({ personalizeVisuals: true });
+        const captured = await report.bookmarksManager.capture({ personalizeVisuals: true });
         bookmarkState = captured?.state;
       } catch (error) {
         console.warn('[ReportViewer] Bookmark capture for export failed:', error);
@@ -572,7 +415,7 @@ export const ReportViewer: React.FC = () => {
       // Fallback: capture the embed area and crop off panes/tabs
       let hidPanes = false;
       try {
-        await reportRef.current.updateSettings({
+        await report.updateSettings({
           panes: {
             filters: { visible: false, expanded: false },
             pageNavigation: { visible: false },
@@ -606,7 +449,7 @@ export const ReportViewer: React.FC = () => {
 
       if (hidPanes) {
         try {
-          await reportRef.current.updateSettings({
+          await report.updateSettings({
             panes: {
               filters: { visible: true, expanded: false },
               pageNavigation: { visible: true },
@@ -735,7 +578,7 @@ export const ReportViewer: React.FC = () => {
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
             <div className="text-center max-w-md">
               <Text className="text-status-error block mb-4">{error}</Text>
-              <Button appearance="primary" onClick={handleRefresh}>
+              <Button appearance="primary" onClick={reload}>
                 Try again
               </Button>
             </div>

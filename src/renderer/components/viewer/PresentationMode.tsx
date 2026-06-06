@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text, Slider } from '@fluentui/react-components';
 import {
@@ -10,9 +10,8 @@ import {
   SettingsRegular,
 } from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
-import type { EmbedToken, AppSettings } from '../../../shared/types';
-import { getErrorMessage, isTokenExpiredError } from '../../../shared/utils';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
+import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
 import { usePowerBIService } from '../../hooks/usePowerBIService';
 
 interface ReportPage {
@@ -31,7 +30,7 @@ interface SlideItem {
   type: 'page' | 'bookmark';
   name: string;
   displayName: string;
-  pageName?: string; // For bookmarks, which page they belong to
+  pageName?: string;
 }
 
 export const PresentationMode: React.FC = () => {
@@ -40,22 +39,17 @@ export const PresentationMode: React.FC = () => {
     reportId: string;
   }>();
   const navigate = useNavigate();
+  // Kept for the doExit teardown path — we still need to force-reset the
+  // container synchronously when the user pulls the ripcord on the slideshow,
+  // because navigation away handles unmount asynchronously.
   const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
-  const reportRef = useRef<pbi.Report | null>(null);
-  const isLoadingRef = useRef(false);
-  const tokenExpirationRef = useRef<string | null>(null);
-  const tokenRefreshInProgressRef = useRef(false);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
   const hasEnteredFullscreen = useRef(false);
-  const hasLoadedRef = useRef(false);
-  const loadWatchdogRef = useRef<NodeJS.Timeout | null>(null);
   const persistIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [pages, setPages] = useState<ReportPage[]>([]);
   const [bookmarks, setBookmarks] = useState<ReportBookmark[]>([]);
   const [slides, setSlides] = useState<SlideItem[]>([]);
@@ -69,43 +63,6 @@ export const PresentationMode: React.FC = () => {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [autoRefreshIntervalMinutes, setAutoRefreshIntervalMinutes] = useState(1);
   const [slidesReady, setSlidesReady] = useState(false);
-
-  const isTokenExpiringSoon = () => {
-    if (!tokenExpirationRef.current) return false;
-    const expiration = new Date(tokenExpirationRef.current).getTime();
-    return Number.isFinite(expiration) && Date.now() >= expiration - 2 * 60 * 1000;
-  };
-
-  const refreshEmbedToken = async () => {
-    if (!workspaceId || !reportId || tokenRefreshInProgressRef.current) return;
-    tokenRefreshInProgressRef.current = true;
-    try {
-      const tokenResponse = await window.electronAPI.content.getEmbedToken(
-        reportId,
-        workspaceId
-      );
-
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to refresh access token');
-      }
-
-      tokenExpirationRef.current = tokenResponse.data.expiration;
-      const token = tokenResponse.data.token;
-
-      if (reportRef.current) {
-        await reportRef.current.setAccessToken(token);
-        await reportRef.current.refresh();
-      } else {
-        isLoadingRef.current = false;
-        loadReport();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Session expired. Please log in again.');
-      setIsLoading(false);
-    } finally {
-      tokenRefreshInProgressRef.current = false;
-    }
-  };
 
   // Load settings on mount
   useEffect(() => {
@@ -136,12 +93,91 @@ export const PresentationMode: React.FC = () => {
     };
   }, []);
 
+  // Build embed configuration — presentation hides all panes and nav.
+  const buildConfig = useCallback(
+    (token: string): pbi.IReportEmbedConfiguration => ({
+      type: 'report',
+      id: reportId,
+      embedUrl: `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${workspaceId}`,
+      accessToken: token,
+      tokenType: pbi.models.TokenType.Aad,
+      settings: {
+        panes: {
+          filters: { visible: false },
+          pageNavigation: { visible: false },
+        },
+        // Use default background, not transparent
+        background: pbi.models.BackgroundType.Default,
+        navContentPaneEnabled: false,
+      },
+    }),
+    [workspaceId, reportId]
+  );
+
+  // Loaded handler — pull pages and (optionally) bookmarks. Slides list is
+  // rebuilt by a separate effect that watches pages/bookmarks/slideshowMode.
+  const events = useMemo(
+    () => ({
+      loaded: async () => {
+        const report = embedRef.current as pbi.Report | null;
+        if (!report) return;
+
+        try {
+          const reportPages = await report.getPages();
+          const visiblePages = reportPages
+            .filter((p) => p.visibility !== 1)
+            .map((p) => ({
+              name: p.name,
+              displayName: p.displayName,
+            }));
+          setPages(visiblePages);
+        } catch (err) {
+          console.error('Failed to get pages:', err);
+        }
+
+        try {
+          const bookmarksManager = report.bookmarksManager;
+          const reportBookmarks = await bookmarksManager.getBookmarks();
+          const bookmarksList = reportBookmarks.map((b) => ({
+            name: b.name,
+            displayName: b.displayName || b.name,
+            state: b.state,
+          }));
+          setBookmarks(bookmarksList);
+        } catch (err) {
+          // Bookmarks may not be available for all reports
+          console.warn('Failed to get bookmarks (may not be supported):', err);
+          setBookmarks([]);
+        }
+      },
+    }),
+    []
+  );
+
+  const {
+    isLoading,
+    error,
+    embedRef,
+    reload,
+  } = usePowerBIEmbed({
+    workspaceId,
+    itemId: reportId,
+    containerRef: embedContainerRef,
+    buildConfig,
+    events,
+    autoRefreshEnabled,
+    autoRefreshIntervalMinutes,
+    errorFallback: 'Failed to load report. Please try again.',
+    // Presentation mode wants visibility into post-load problems too —
+    // a slideshow stuck on a broken page should surface, not silently fail.
+    surfacePostLoadErrors: true,
+  });
+
   // Build slides list based on slideshowMode when pages/bookmarks change
   useEffect(() => {
     const newSlides: SlideItem[] = [];
 
     if (slideshowMode === 'pages' || slideshowMode === 'both') {
-      // Add all pages
       for (const page of pages) {
         newSlides.push({
           type: 'page',
@@ -152,7 +188,6 @@ export const PresentationMode: React.FC = () => {
     }
 
     if (slideshowMode === 'bookmarks' || slideshowMode === 'both') {
-      // Add all bookmarks
       for (const bookmark of bookmarks) {
         newSlides.push({
           type: 'bookmark',
@@ -182,7 +217,7 @@ export const PresentationMode: React.FC = () => {
     if (slidesReady && autoStartSlideshow && !isPlaying && !isLoading && !error) {
       setIsPlaying(true);
     }
-  }, [slidesReady, autoStartSlideshow, isLoading, error]);
+  }, [slidesReady, autoStartSlideshow, isLoading, error, isPlaying]);
 
   // Exit function - navigates back to report viewer
   const doExit = useCallback(() => {
@@ -196,24 +231,16 @@ export const PresentationMode: React.FC = () => {
       slideshowIntervalRef.current = null;
     }
 
-    // Clean up Power BI
-    try {
-      (['loaded', 'error'] as const).forEach((e) => reportRef.current?.off(e));
-    } catch {
-      // ignore detach errors
-    }
-    if (loadWatchdogRef.current) {
-      clearTimeout(loadWatchdogRef.current);
-      loadWatchdogRef.current = null;
-    }
+    // Hard-reset the container so the iframe stops rendering immediately.
+    // The hook's cleanup will also reset on unmount, but we want the visual
+    // gone before navigate() runs.
     if (embedContainerRef.current) {
       try {
         powerbiService.reset(embedContainerRef.current);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
-    reportRef.current = null;
 
     // Exit fullscreen if active
     if (document.fullscreenElement) {
@@ -226,60 +253,19 @@ export const PresentationMode: React.FC = () => {
     } else {
       navigate('/', { replace: true });
     }
-  }, [workspaceId, reportId, navigate]);
+  }, [workspaceId, reportId, navigate, powerbiService]);
 
-  // Load report on mount
+  // Try to enter fullscreen on mount (don't block if it fails)
   useEffect(() => {
-    if (!workspaceId || !reportId) {
-      setError('Invalid report parameters');
-      setIsLoading(false);
-      return;
-    }
-
-    if (isLoadingRef.current) {
-      return;
-    }
-
-    loadReport();
-
-    // Try to enter fullscreen (don't block if it fails)
     document.documentElement.requestFullscreen?.().then(() => {
       hasEnteredFullscreen.current = true;
     }).catch(() => {});
+  }, []);
 
-    return () => {
-      if (slideshowIntervalRef.current) {
-        clearInterval(slideshowIntervalRef.current);
-        slideshowIntervalRef.current = null;
-      }
-      try {
-        (['loaded', 'error'] as const).forEach((e) => reportRef.current?.off(e));
-      } catch {
-        // ignore detach errors
-      }
-      if (loadWatchdogRef.current) {
-        clearTimeout(loadWatchdogRef.current);
-        loadWatchdogRef.current = null;
-      }
-      if (embedContainerRef.current) {
-        try {
-          powerbiService.reset(embedContainerRef.current);
-        } catch (e) {
-          // Ignore
-        }
-      }
-      reportRef.current = null;
-      isLoadingRef.current = false;
-      hasLoadedRef.current = false;
-    };
-  }, [workspaceId, reportId]);
-
-  // Listen for fullscreen exit - when user presses Escape, browser exits fullscreen
-  // and we need to navigate back to the report
+  // Listen for fullscreen exit — Escape pulls us out of fullscreen, which
+  // is our cue to navigate back to the standard report view.
   useEffect(() => {
     const handleFullscreenChange = () => {
-      // If fullscreen was exited (and we didn't trigger it ourselves via doExit)
-      // and we had successfully entered fullscreen before
       if (!document.fullscreenElement && !isExitingRef.current && hasEnteredFullscreen.current) {
         isExitingRef.current = true;
 
@@ -289,26 +275,17 @@ export const PresentationMode: React.FC = () => {
           slideshowIntervalRef.current = null;
         }
 
-        // Clean up Power BI
-        try {
-          (['loaded', 'error'] as const).forEach((e) => reportRef.current?.off(e));
-        } catch {
-          // ignore detach errors
-        }
-        if (loadWatchdogRef.current) {
-          clearTimeout(loadWatchdogRef.current);
-          loadWatchdogRef.current = null;
-        }
+        // Hook cleanup will detach embed handlers and reset the container
+        // on unmount — but force a reset now so the iframe stops painting
+        // before we navigate.
         if (embedContainerRef.current) {
           try {
             powerbiService.reset(embedContainerRef.current);
-          } catch (e) {
+          } catch {
             // Ignore
           }
         }
-        reportRef.current = null;
 
-        // Navigate back to the report viewer
         if (workspaceId && reportId) {
           navigate(`/report/${workspaceId}/${reportId}`, { replace: true });
         } else {
@@ -319,12 +296,11 @@ export const PresentationMode: React.FC = () => {
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [workspaceId, reportId, navigate]);
+  }, [workspaceId, reportId, navigate, powerbiService]);
 
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent default for our handled keys
       if (['Escape', 'ArrowRight', 'ArrowLeft', ' ', 'p', 'P'].includes(e.key)) {
         e.preventDefault();
       }
@@ -377,54 +353,22 @@ export const PresentationMode: React.FC = () => {
 
   // Navigate to slide (page or bookmark) when index changes
   useEffect(() => {
-    if (reportRef.current && slides.length > 0) {
+    const report = embedRef.current as pbi.Report | null;
+    if (report && slides.length > 0) {
       const slide = slides[currentSlideIndex];
       if (slide) {
         if (slide.type === 'page') {
-          reportRef.current.setPage(slide.name).catch((err) => {
+          report.setPage(slide.name).catch((err) => {
             console.error('Failed to set page:', err);
           });
         } else if (slide.type === 'bookmark') {
-          reportRef.current.bookmarksManager.apply(slide.name).catch((err) => {
+          report.bookmarksManager.apply(slide.name).catch((err) => {
             console.error('Failed to apply bookmark:', err);
           });
         }
       }
     }
-  }, [currentSlideIndex, slides]);
-
-  // Auto-refresh data based on settings - only when visible
-  useEffect(() => {
-    if (!autoRefreshEnabled) return;
-
-    const refreshIntervalId = setInterval(() => {
-      // Only refresh if document is visible (not in background tab)
-      if (reportRef.current && !isLoading && !error && document.visibilityState === 'visible') {
-        reportRef.current.refresh().catch((err) => {
-          // Some visuals (like FlowVisual) may throw authorization errors
-          // during refresh - these are non-fatal and the report still works
-          console.warn('[PresentationMode] Auto-refresh warning (non-fatal):', err?.message || err);
-        });
-      }
-    }, autoRefreshIntervalMinutes * 60 * 1000); // Convert minutes to milliseconds
-
-    return () => {
-      clearInterval(refreshIntervalId);
-    };
-  }, [isLoading, error, autoRefreshEnabled, autoRefreshIntervalMinutes]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isTokenExpiringSoon()) {
-        refreshEmbedToken();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [workspaceId, reportId]);
+  }, [currentSlideIndex, slides, embedRef]);
 
   // Hide controls after inactivity
   useEffect(() => {
@@ -442,10 +386,8 @@ export const PresentationMode: React.FC = () => {
       }, 3000);
     };
 
-    // Initial call to set up the timeout
     handleMouseMove();
 
-    // Attach to both window and document to catch all mouse movements
     window.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mousemove', handleMouseMove);
 
@@ -457,124 +399,6 @@ export const PresentationMode: React.FC = () => {
       }
     };
   }, [isPlaying]);
-
-  const loadReport = async () => {
-    if (!embedContainerRef.current || !workspaceId || !reportId) return;
-
-    if (isLoadingRef.current) {
-      return;
-    }
-    isLoadingRef.current = true;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      powerbiService.reset(embedContainerRef.current);
-
-      const embedUrl = `https://app.powerbi.com/reportEmbed?reportId=${reportId}&groupId=${workspaceId}`;
-
-      const tokenResponse = await window.electronAPI.content.getEmbedToken(
-        reportId,
-        workspaceId
-      );
-
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to get embed token');
-      }
-
-      const token = tokenResponse.data.token;
-      tokenExpirationRef.current = tokenResponse.data.expiration;
-
-      const embedConfig: pbi.IReportEmbedConfiguration = {
-        type: 'report',
-        id: reportId,
-        embedUrl: embedUrl,
-        accessToken: token,
-        tokenType: pbi.models.TokenType.Aad,
-        settings: {
-          panes: {
-            filters: { visible: false },
-            pageNavigation: { visible: false },
-          },
-          // Use default background, not transparent
-          background: pbi.models.BackgroundType.Default,
-          navContentPaneEnabled: false,
-        },
-      };
-
-      const report = powerbiService.embed(
-        embedContainerRef.current,
-        embedConfig
-      ) as pbi.Report;
-
-      reportRef.current = report;
-
-      hasLoadedRef.current = false;
-      if (loadWatchdogRef.current) clearTimeout(loadWatchdogRef.current);
-      loadWatchdogRef.current = setTimeout(() => {
-        if (isLoadingRef.current && !hasLoadedRef.current) {
-          setError('This report is taking too long to load. Check your connection and try again.');
-          setIsLoading(false);
-        }
-      }, 45000);
-
-      report.on('loaded', async () => {
-        hasLoadedRef.current = true;
-        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-        setIsLoading(false);
-
-        // Get all pages
-        try {
-          const reportPages = await report.getPages();
-          const visiblePages = reportPages
-            .filter((p) => p.visibility !== 1) // Filter hidden pages
-            .map((p) => ({
-              name: p.name,
-              displayName: p.displayName,
-            }));
-          setPages(visiblePages);
-        } catch (err) {
-          console.error('Failed to get pages:', err);
-        }
-
-        // Get all bookmarks
-        try {
-          const bookmarksManager = report.bookmarksManager;
-          const reportBookmarks = await bookmarksManager.getBookmarks();
-          const bookmarksList = reportBookmarks.map((b) => ({
-            name: b.name,
-            displayName: b.displayName || b.name,
-            state: b.state,
-          }));
-          setBookmarks(bookmarksList);
-        } catch (err) {
-          // Bookmarks may not be available for all reports
-          console.warn('Failed to get bookmarks (may not be supported):', err);
-          setBookmarks([]);
-        }
-      });
-
-      report.on('error', (event) => {
-        const errorDetail = event?.detail;
-        console.error('[PresentationMode] Report error:', errorDetail);
-        if (isTokenExpiredError(errorDetail)) {
-          refreshEmbedToken();
-          return;
-        }
-        if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-        setError('Failed to load report. Please try again.');
-        setIsLoading(false);
-      });
-
-    } catch (err) {
-      console.error('[PresentationMode] Failed to load report:', err);
-      setError(String(err));
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
-    }
-  };
 
   const nextSlide = () => {
     if (slides.length > 0) {
@@ -591,6 +415,11 @@ export const PresentationMode: React.FC = () => {
   const togglePlayPause = () => {
     setIsPlaying((prev) => !prev);
   };
+
+  // reload is wired to the error overlay's retry path (via doExit fallback);
+  // currently the error UI exits rather than retrying in place. Keep the
+  // reference around in case we want a Try Again button later.
+  void reload;
 
   return (
     <div className="fixed inset-0 z-50 bg-neutral-background-1">
