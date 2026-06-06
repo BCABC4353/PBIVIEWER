@@ -488,6 +488,7 @@ export const ReportViewer: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to load report');
       setIsLoading(false);
       isLoadingRef.current = false;
+      if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
     }
   };
 

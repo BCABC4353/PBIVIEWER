@@ -572,6 +572,7 @@ export const PresentationMode: React.FC = () => {
       setError(String(err));
       setIsLoading(false);
       isLoadingRef.current = false;
+      if (loadWatchdogRef.current) { clearTimeout(loadWatchdogRef.current); loadWatchdogRef.current = null; }
     }
   };
 
