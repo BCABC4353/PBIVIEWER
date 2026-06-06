@@ -22,7 +22,7 @@ interface WorkspaceWithContent extends Workspace {
   // 'reports' or 'dashboards' when only that half failed; 'both' when
   // the whole expand failed (existing error UI handles 'both' via the
   // empty-state path).
-  loadWarning?: 'reports' | 'dashboards' | null;
+  loadWarning?: 'reports' | 'dashboards' | 'both' | null;
 }
 
 export const WorkspacesPage: React.FC = () => {
@@ -56,7 +56,9 @@ export const WorkspacesPage: React.FC = () => {
       const response = await window.electronAPI.content.getWorkspaces();
 
       if (!response.success) {
-        throw new Error(response.error.message || 'Failed to load workspaces');
+        // Prefer the API-02 userMessage (friendly, status-derived) over the raw
+        // upstream body in error.message — that's what reaches the user.
+        throw new Error(response.error.userMessage || response.error.message || 'Failed to load workspaces');
       }
 
       setWorkspaces(
@@ -153,12 +155,13 @@ export const WorkspacesPage: React.FC = () => {
       );
     }
 
-    // loadWarning: 'reports' when reports failed but dashboards succeeded,
-    // 'dashboards' when only dashboards failed. When both failed we leave
-    // warning null and let the existing empty-state UI handle it (the user
-    // sees an empty workspace, which matches the legacy behavior).
-    let loadWarning: 'reports' | 'dashboards' | null = null;
-    if (!reportsOk && dashboardsOk) loadWarning = 'reports';
+    // loadWarning surfaces partial / total failures so a network error never
+    // masquerades as an empty workspace. 'both' = both halves failed (a real
+    // network/permission failure, not an empty workspace); 'reports' /
+    // 'dashboards' = only that half failed.
+    let loadWarning: 'reports' | 'dashboards' | 'both' | null = null;
+    if (!reportsOk && !dashboardsOk) loadWarning = 'both';
+    else if (!reportsOk && dashboardsOk) loadWarning = 'reports';
     else if (reportsOk && !dashboardsOk) loadWarning = 'dashboards';
 
     setWorkspaces((prev) =>
@@ -308,16 +311,33 @@ export const WorkspacesPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="divide-y divide-neutral-stroke-2">
-                        {/* Partial-failure warning: render what succeeded
-                            with an inline note about the half that didn't. */}
+                        {/* Partial / total failure warning. Without this a
+                            both-halves-failed state is indistinguishable from
+                            an empty workspace. */}
                         {workspace.loadWarning && (
                           <div
                             role="status"
-                            className="px-4 py-2 bg-status-warning/10"
+                            className="px-4 py-2 bg-status-warning/10 flex items-center justify-between gap-2"
                           >
                             <Text size={200} className="text-status-warning">
-                              Could not load {workspace.loadWarning} for this workspace.
+                              {workspace.loadWarning === 'both'
+                                ? 'Could not load this workspace. Check your connection or your permissions.'
+                                : `Could not load ${workspace.loadWarning} for this workspace.`}
                             </Text>
+                            {workspace.loadWarning === 'both' && (
+                              <Button
+                                size="small"
+                                appearance="subtle"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  contentLoadedRef.current.delete(workspace.id);
+                                  toggleWorkspace(workspace.id);
+                                  toggleWorkspace(workspace.id);
+                                }}
+                              >
+                                Retry
+                              </Button>
+                            )}
                           </div>
                         )}
                         {/* Reports */}

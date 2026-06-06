@@ -37,10 +37,11 @@ export const HomePage: React.FC = () => {
     return 'Good evening';
   };
 
-  const handleOpenItem = async (item: ContentItem) => {
-    // Record that this item was opened
-    await recordItemOpened(item);
-    // Route based on item type
+  const handleOpenItem = (item: ContentItem) => {
+    // Fire-and-forget — STATE-05 made recordItemOpened return void so the
+    // navigate() fires on the same tick as the click, not after the
+    // usage-bookkeeping IPC + recent/frequent reloads (~100-400ms saved).
+    recordItemOpened(item);
     if (item.type === 'dashboard') {
       navigate(`/dashboard/${item.workspaceId}/${item.id}`);
     } else {
@@ -48,9 +49,8 @@ export const HomePage: React.FC = () => {
     }
   };
 
-  const handlePresentationMode = async (item: ContentItem) => {
-    // Record that this item was opened
-    await recordItemOpened(item);
+  const handlePresentationMode = (item: ContentItem) => {
+    recordItemOpened(item);
     navigate(`/presentation/${item.workspaceId}/${item.id}`);
   };
 

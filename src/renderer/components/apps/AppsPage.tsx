@@ -28,7 +28,8 @@ export const AppsPage: React.FC = () => {
       const response = await window.electronAPI.content.getApps();
 
       if (!response.success) {
-        throw new Error(response.error.message || 'Failed to load apps');
+        // Prefer API-02 userMessage over raw upstream error body.
+        throw new Error(response.error.userMessage || response.error.message || 'Failed to load apps');
       }
 
       setApps(response.data);

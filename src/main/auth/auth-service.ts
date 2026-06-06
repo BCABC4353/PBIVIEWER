@@ -95,7 +95,14 @@ class AuthService {
       // Short-circuit when we know the cached token is comfortably valid.
       // The 5-minute buffer keeps proactive refresh in the embed layer from
       // racing us, and a stale cache simply falls through to the full check.
-      if (this.lastKnownExpiry !== null && this.lastKnownExpiry - Date.now() > 5 * 60 * 1000) {
+      // Defense-in-depth: also require a live account — if logout nulled the
+      // account but a future refactor left lastKnownExpiry behind, the
+      // short-circuit must still refuse to lie.
+      if (
+        this.account !== null &&
+        this.lastKnownExpiry !== null &&
+        this.lastKnownExpiry - Date.now() > 5 * 60 * 1000
+      ) {
         return { success: true, data: true };
       }
       const tokenResult = await this.getAccessToken();
@@ -151,6 +158,10 @@ class AuthService {
           error: { code: 'LOGIN_IN_PROGRESS', message: 'A sign-in is already in progress' },
         };
       }
+
+      // Clear any stale AAD error captured by a previous failed attempt so a
+      // subsequent cancel doesn't surface yesterday's consent_required message.
+      this.lastAuthError = null;
 
       // Generate PKCE codes
       const { verifier, challenge } = await this.cryptoProvider.generatePkceCodes();
@@ -284,6 +295,15 @@ class AuthService {
         }
       }, 120000);
 
+      const isAllowedAuthHost = (url: string): boolean => {
+        try {
+          const hostname = new URL(url).hostname;
+          return ALLOWED_AUTH_HOSTS.some((d) => hostname === d || hostname.endsWith('.' + d));
+        } catch {
+          return false;
+        }
+      };
+
       const handleRedirect = (url: string) => {
         const urlObj = new URL(url);
         if (urlObj.hostname === 'localhost') {
@@ -295,7 +315,7 @@ class AuthService {
           // the description so login() can surface it as AAD_AUTH_ERROR.
           const aadError = urlObj.searchParams.get('error');
           const aadErrorDescription = urlObj.searchParams.get('error_description');
-          authWindow.close();
+          try { authWindow.close(); } catch { /* already gone */ }
           if (aadError) {
             this.lastAuthError = aadErrorDescription || aadError;
             settle(null);
@@ -310,17 +330,18 @@ class AuthService {
       };
 
       authWindow.webContents.on('will-redirect', (event, url) => {
+        // Mirror the will-navigate allowlist: AAD/CDN hosts pass through,
+        // anything else (a redirect bug or a spoofed redirect) is blocked
+        // before it can load arbitrary content into our auth window.
+        if (!isAllowedAuthHost(url)) {
+          event.preventDefault();
+          return;
+        }
         handleRedirect(url);
       });
 
       authWindow.webContents.on('will-navigate', (event, url) => {
-        try {
-          const hostname = new URL(url).hostname;
-          if (!ALLOWED_AUTH_HOSTS.some((d) => hostname === d || hostname.endsWith('.' + d))) {
-            event.preventDefault();
-            return;
-          }
-        } catch {
+        if (!isAllowedAuthHost(url)) {
           event.preventDefault();
           return;
         }
@@ -331,7 +352,14 @@ class AuthService {
         settle(null);
       });
 
-      authWindow.loadURL(authUrl);
+      // Catch loadURL rejections — if the URL fails to load (offline, DNS
+      // failure, force-close during navigation) we end up with an
+      // unhandledRejection without this catch. Settling null routes the
+      // user back to the login screen cleanly.
+      authWindow.loadURL(authUrl).catch((err) => {
+        console.warn('[Auth] Auth window loadURL failed:', err);
+        settle(null);
+      });
     });
   }
 
@@ -393,6 +421,10 @@ class AuthService {
           throw error;
         }
       } catch (error) {
+        // Invalidate the validateToken short-circuit cache so a stale expiry
+        // can't keep returning success:true while the underlying acquisition
+        // is broken.
+        this.lastKnownExpiry = null;
         return {
           success: false,
           error: { code: 'TOKEN_FAILED', message: String(error) },

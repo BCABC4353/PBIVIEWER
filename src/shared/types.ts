@@ -78,7 +78,20 @@ export interface DatasetRefreshInfo {
 
 export type IPCResponse<T> =
   | { success: true; data: T }
-  | { success: false; error: { code: string; message: string } };
+  | {
+      success: false;
+      error: {
+        code: string;
+        /** Raw message — fine for logs, may contain upstream API details */
+        message: string;
+        /**
+         * Friendly, user-safe message derived from the HTTP status code.
+         * Renderer should prefer this when surfacing errors to the user;
+         * fall back to `message` only if `userMessage` is absent.
+         */
+        userMessage?: string;
+      };
+    };
 
 /**
  * Result of acquiring an access token. The expiresOn field carries MSAL's
