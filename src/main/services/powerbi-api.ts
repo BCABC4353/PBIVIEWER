@@ -1,5 +1,6 @@
 import { authService } from '../auth/auth-service';
 import { POWERBI_API_BASE } from '../../shared/constants';
+import { friendlyApiErrorFromMessage } from '../../shared/error-mapping';
 import type {
   Workspace,
   Report,
@@ -9,6 +10,22 @@ import type {
   DatasetRefreshInfo,
   IPCResponse,
 } from '../../shared/types';
+
+/**
+ * Build an IPCResponse error envelope with a friendly `userMessage` derived
+ * from the raw error string. The renderer-facing IPCResponse shape lives in
+ * shared/types.ts; we attach `userMessage` via a type assertion so this main-
+ * side change doesn't touch the shared contract. The renderer can read it as
+ * an optional field — a stricter contract is planned for a later sprint.
+ */
+function buildErrorEnvelope(code: string, error: unknown): { code: string; message: string } {
+  const message = String(error);
+  return {
+    code,
+    message,
+    userMessage: friendlyApiErrorFromMessage(message),
+  } as { code: string; message: string; userMessage: string };
+}
 
 interface PowerBIApiResponse<T> {
   value: T[];
@@ -222,7 +239,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'WORKSPACES_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('WORKSPACES_FETCH_FAILED', error),
       };
     }
   }
@@ -253,7 +270,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'REPORTS_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('REPORTS_FETCH_FAILED', error),
       };
     }
   }
@@ -282,7 +299,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'DASHBOARDS_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('DASHBOARDS_FETCH_FAILED', error),
       };
     }
   }
@@ -309,7 +326,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'DASHBOARD_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('DASHBOARD_FETCH_FAILED', error),
       };
     }
   }
@@ -341,7 +358,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'APPS_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('APPS_FETCH_FAILED', error),
       };
     }
   }
@@ -370,7 +387,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'APP_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('APP_FETCH_FAILED', error),
       };
     }
   }
@@ -395,29 +412,34 @@ class PowerBIApiService {
         };
       }
 
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      interface RawAppReport {
         id: string;
         name: string;
         embedUrl: string;
         datasetId: string;
         reportType: string;
         appId: string;
-      }>>(`/apps/${appId}/reports`);
+      }
 
-      const reports: Report[] = response.value.map((report) => ({
-        id: report.id,
-        name: report.name,
-        workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
-        embedUrl: report.embedUrl,
-        datasetId: report.datasetId,
-        reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
-      }));
+      // Use fetchAllPages so apps with >100 reports paginate via @odata.nextLink
+      // instead of silently truncating to the first page.
+      const reports = await this.fetchAllPages<RawAppReport, Report>(
+        `/apps/${appId}/reports`,
+        (report) => ({
+          id: report.id,
+          name: report.name,
+          workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
+          embedUrl: report.embedUrl,
+          datasetId: report.datasetId,
+          reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
+        })
+      );
 
       return { success: true, data: reports };
     } catch (error) {
       return {
         success: false,
-        error: { code: 'APP_REPORTS_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('APP_REPORTS_FETCH_FAILED', error),
       };
     }
   }
@@ -442,27 +464,32 @@ class PowerBIApiService {
         };
       }
 
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      interface RawAppDashboard {
         id: string;
         displayName: string;
         embedUrl: string;
         isReadOnly: boolean;
         appId: string;
-      }>>(`/apps/${appId}/dashboards`);
+      }
 
-      const dashboards: Dashboard[] = response.value.map((dashboard) => ({
-        id: dashboard.id,
-        name: dashboard.displayName,
-        workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
-        embedUrl: dashboard.embedUrl,
-        isReadOnly: dashboard.isReadOnly,
-      }));
+      // Use fetchAllPages so apps with >100 dashboards paginate via
+      // @odata.nextLink instead of silently truncating to the first page.
+      const dashboards = await this.fetchAllPages<RawAppDashboard, Dashboard>(
+        `/apps/${appId}/dashboards`,
+        (dashboard) => ({
+          id: dashboard.id,
+          name: dashboard.displayName,
+          workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
+          embedUrl: dashboard.embedUrl,
+          isReadOnly: dashboard.isReadOnly,
+        })
+      );
 
       return { success: true, data: dashboards };
     } catch (error) {
       return {
         success: false,
-        error: { code: 'APP_DASHBOARDS_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('APP_DASHBOARDS_FETCH_FAILED', error),
       };
     }
   }
@@ -496,7 +523,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'EMBED_TOKEN_FAILED', message: String(error) },
+        error: buildErrorEnvelope('EMBED_TOKEN_FAILED', error),
       };
     }
   }
@@ -638,7 +665,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'EXPORT_REPORT_FAILED', message: String(error) },
+        error: buildErrorEnvelope('EXPORT_REPORT_FAILED', error),
       };
     }
   }
@@ -718,7 +745,7 @@ class PowerBIApiService {
       if (workspaces.length > 0 && failedWorkspaces.length === workspaces.length) {
         return {
           success: false,
-          error: { code: 'BULK_FETCH_FAILED', message: 'All workspaces failed to load.' },
+          error: buildErrorEnvelope('BULK_FETCH_FAILED', 'All workspaces failed to load.'),
         };
       }
 
@@ -735,7 +762,7 @@ class PowerBIApiService {
     } catch (error) {
       return {
         success: false,
-        error: { code: 'ALL_ITEMS_FETCH_FAILED', message: String(error) },
+        error: buildErrorEnvelope('ALL_ITEMS_FETCH_FAILED', error),
       };
     }
   }
@@ -779,7 +806,7 @@ class PowerBIApiService {
       console.warn('[PowerBI] Dataset refresh info unavailable:', error);
       return {
         success: false,
-        error: { code: 'REFRESH_INFO_FAILED', message: String(error) },
+        error: buildErrorEnvelope('REFRESH_INFO_FAILED', error),
       };
     }
   }
