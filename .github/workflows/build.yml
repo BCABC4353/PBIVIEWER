@@ -29,6 +29,12 @@ jobs:
         run: npm audit --audit-level=high || true
         continue-on-error: true
 
+      - name: Generate config
+        run: npm run generate-config
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
 
@@ -64,6 +70,12 @@ jobs:
       - name: Audit dependencies (report-only)
         run: npm audit --audit-level=high || true
         continue-on-error: true
+
+      - name: Generate config
+        run: npm run generate-config
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
