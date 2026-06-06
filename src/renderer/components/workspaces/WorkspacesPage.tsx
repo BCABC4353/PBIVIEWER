@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Spinner, Text, Button, Card, Badge } from '@fluentui/react-components';
+import { Spinner, Text, Button, Badge } from '@fluentui/react-components';
 import {
   FolderRegular,
   DocumentRegular,

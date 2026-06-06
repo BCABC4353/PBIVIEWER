@@ -52,7 +52,7 @@ interface SearchState {
   invalidateAll: () => void;
 }
 
-export const useSearchStore = create<SearchState>((set, get) => ({
+export const useSearchStore = create<SearchState>((set, _get) => ({
   isOpen: false,
   query: '',
   results: [],

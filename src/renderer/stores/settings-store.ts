@@ -13,7 +13,7 @@ interface SettingsState {
   resetSettings: () => Promise<void>;
 }
 
-export const useSettingsStore = create<SettingsState>((set, get) => ({
+export const useSettingsStore = create<SettingsState>((set, _get) => ({
   settings: DEFAULT_SETTINGS,
   isLoading: false,
   error: null,

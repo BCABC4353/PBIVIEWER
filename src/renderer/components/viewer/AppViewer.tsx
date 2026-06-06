@@ -4,10 +4,8 @@ import { Spinner, Button, Text } from '@fluentui/react-components';
 import {
   ArrowLeftRegular,
   ArrowSyncRegular,
-  HomeRegular,
   AppsRegular,
 } from '@fluentui/react-icons';
-import type { App } from '../../../shared/types';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -126,13 +124,6 @@ export const AppViewer: React.FC = () => {
 
   const handleBack = () => {
     navigate('/apps');
-  };
-
-  const handleGoBack = () => {
-    const webview = webviewRef.current;
-    if (webview && webview.canGoBack()) {
-      webview.goBack();
-    }
   };
 
   // Construct the full Power BI App URL

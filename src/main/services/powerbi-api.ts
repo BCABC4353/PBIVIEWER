@@ -114,9 +114,9 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
 // land in either place. Order-insensitive; redaction is applied before the
 // 256-char truncation cap.
 const REDACT_PATTERNS: Array<[RegExp, string]> = [
-  [/Bearer\s+[A-Za-z0-9._\-]+/gi, 'Bearer [REDACTED]'],
-  [/eyJ[A-Za-z0-9._\-]{20,}/g, '[JWT REDACTED]'],
-  [/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, '[EMAIL REDACTED]'],
+  [/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [REDACTED]'],
+  [/eyJ[A-Za-z0-9._-]{20,}/g, '[JWT REDACTED]'],
+  [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[EMAIL REDACTED]'],
   [/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, '[GUID REDACTED]'],
 ];
 
@@ -495,8 +495,8 @@ class PowerBIApiService {
   }
 
   async getEmbedToken(
-    reportId: string,
-    workspaceId: string
+    _reportId: string,
+    _workspaceId: string
   ): Promise<IPCResponse<EmbedToken>> {
     try {
       // For user-owns-data scenario, we use the access token directly

@@ -1,13 +1,13 @@
-import { app, BrowserWindow, ipcMain, dialog, screen, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, session, shell, nativeTheme } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { PARTITION_NAME, APP_NAME } from '../shared/constants';
+import { PARTITION_NAME, APP_NAME, SLIDESHOW_INTERVAL } from '../shared/constants';
 import { authService } from './auth/auth-service';
 import { powerbiApiService } from './services/powerbi-api';
 import { settingsService } from './services/settings-service';
 import { usageTrackingService } from './services/usage-tracking-service';
-import type { ContentItem, AppSettings, DatasetRefreshInfo } from '../shared/types';
+import type { ContentItem, AppSettings } from '../shared/types';
 import log from 'electron-log/main';
 
 // File log to userData (per-OS standard location). Console + DevTools also.
@@ -52,6 +52,64 @@ function isValidExportPath(filePath: string): boolean {
   );
 }
 
+// Validate + sanitize a Partial<AppSettings> payload from the renderer before
+// it reaches settingsService. Returns null if any *provided* field is invalid;
+// unknown keys are silently dropped (never forwarded, never rejected). Numbers
+// are clamped to their allowed ranges.
+function validateSettingsUpdate(input: unknown): Partial<AppSettings> | null {
+  if (typeof input !== 'object' || input === null) return null;
+  const src = input as Record<string, unknown>;
+  const out: Partial<AppSettings> = {};
+
+  if ('theme' in src) {
+    const v = src.theme;
+    if (v !== 'light' && v !== 'dark' && v !== 'system') return null;
+    out.theme = v;
+  }
+  if ('sidebarCollapsed' in src) {
+    const v = src.sidebarCollapsed;
+    if (typeof v !== 'boolean') return null;
+    out.sidebarCollapsed = v;
+  }
+  if ('slideshowInterval' in src) {
+    const v = src.slideshowInterval;
+    if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+    out.slideshowInterval = Math.min(SLIDESHOW_INTERVAL.MAX, Math.max(SLIDESHOW_INTERVAL.MIN, v));
+  }
+  if ('slideshowMode' in src) {
+    const v = src.slideshowMode;
+    if (v !== 'pages' && v !== 'bookmarks' && v !== 'both') return null;
+    out.slideshowMode = v;
+  }
+  if ('autoStartSlideshow' in src) {
+    const v = src.autoStartSlideshow;
+    if (typeof v !== 'boolean') return null;
+    out.autoStartSlideshow = v;
+  }
+  if ('autoStartReportId' in src) {
+    const v = src.autoStartReportId;
+    if (v === undefined) {
+      out.autoStartReportId = undefined;
+    } else if (typeof v === 'string' && UUID_REGEX.test(v)) {
+      out.autoStartReportId = v;
+    } else {
+      return null;
+    }
+  }
+  if ('autoRefreshEnabled' in src) {
+    const v = src.autoRefreshEnabled;
+    if (typeof v !== 'boolean') return null;
+    out.autoRefreshEnabled = v;
+  }
+  if ('autoRefreshInterval' in src) {
+    const v = src.autoRefreshInterval;
+    if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+    out.autoRefreshInterval = Math.min(60, Math.max(1, v));
+  }
+
+  return out;
+}
+
 const APP_CSP =
   "default-src 'self'; script-src 'self'; " +
   "frame-src https://app.powerbi.com https://login.microsoftonline.com; " +
@@ -76,7 +134,6 @@ function createWindow(): void {
   const settingsResult = settingsService.getSettings();
   const initialTheme = settingsResult.success ? settingsResult.data.theme : 'light';
   // Check if dark theme: either explicit 'dark' or 'system' with native dark mode
-  const nativeTheme = require('electron').nativeTheme;
   const isDarkTheme = initialTheme === 'dark' || (initialTheme === 'system' && nativeTheme.shouldUseDarkColors);
 
   mainWindow = new BrowserWindow({
@@ -439,7 +496,14 @@ ipcMain.handle('settings:get', async () => {
 });
 
 ipcMain.handle('settings:update', async (_event, updates: Partial<AppSettings>) => {
-  return settingsService.updateSettings(updates);
+  // Validate every known field before persisting; drop unknown keys silently.
+  // Reject the whole payload if any provided field has an invalid type/value,
+  // so the renderer can't poison the settings store.
+  const sanitized = validateSettingsUpdate(updates);
+  if (!sanitized) {
+    return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid settings payload' } };
+  }
+  return settingsService.updateSettings(sanitized);
 });
 
 ipcMain.handle('settings:reset', async () => {
@@ -589,8 +653,39 @@ ipcMain.handle('usage:record-open', async (_event, item: {
   workspaceId: string;
   workspaceName: string;
 }) => {
+  // Validate every field; reject the whole payload on any invalid input so the
+  // usage-tracking-service can assume sanitized data. Strings are trimmed and
+  // length-capped at 256 chars to prevent log/store bloat from a hostile renderer.
+  const NAME_MAX = 256;
+  if (typeof item !== 'object' || item === null) {
+    return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid item payload' } };
+  }
+  const id = validateUUID((item as { id?: unknown }).id);
+  const workspaceId = validateUUID((item as { workspaceId?: unknown }).workspaceId);
+  const type = (item as { type?: unknown }).type;
+  const rawName = (item as { name?: unknown }).name;
+  const rawWorkspaceName = (item as { workspaceName?: unknown }).workspaceName;
+  if (!id || !workspaceId) {
+    return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid id or workspaceId' } };
+  }
+  if (type !== 'report' && type !== 'dashboard') {
+    return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid type' } };
+  }
+  if (typeof rawName !== 'string' || typeof rawWorkspaceName !== 'string') {
+    return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid name or workspaceName' } };
+  }
+  // Narrow `type` to the union explicitly — TS doesn't carry the narrowed
+  // literal through the object-shorthand destructure above.
+  const itemType: 'report' | 'dashboard' = type;
+  const sanitized = {
+    id,
+    name: rawName.trim().slice(0, NAME_MAX),
+    type: itemType,
+    workspaceId,
+    workspaceName: rawWorkspaceName.trim().slice(0, NAME_MAX),
+  };
   try {
-    usageTrackingService.recordItemOpened(item);
+    usageTrackingService.recordItemOpened(sanitized);
     return { success: true, data: undefined };
   } catch (error) {
     return { success: false, error: { code: 'USAGE_RECORD_FAILED', message: String(error) } };

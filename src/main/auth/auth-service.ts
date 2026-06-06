@@ -4,7 +4,8 @@ import {
   InteractionRequiredAuthError,
   CryptoProvider,
 } from '@azure/msal-node';
-import { shell, BrowserWindow, session } from 'electron';
+import { BrowserWindow, session } from 'electron';
+import { randomFillSync } from 'crypto';
 import { msalConfig, loginRequest, silentRequest } from './msal-config';
 import { tokenCache, CachedUserInfo } from './token-cache';
 import { UserInfo, AuthResult, IPCResponse, TokenResult } from '../../shared/types';
@@ -39,7 +40,7 @@ class AuthService {
    */
   private generateState(): string {
     const array = new Uint8Array(32);
-    require('crypto').randomFillSync(array);
+    randomFillSync(array);
     return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
@@ -260,7 +261,7 @@ class AuthService {
     }
   }
 
-  private async openAuthWindow(authUrl: string, expectedState: string): Promise<{ code: string; state: string } | null> {
+  private async openAuthWindow(authUrl: string, _expectedState: string): Promise<{ code: string; state: string } | null> {
     return new Promise((resolve) => {
       const authWindow = new BrowserWindow({
         width: 500,
