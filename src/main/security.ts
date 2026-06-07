@@ -1,0 +1,106 @@
+import { app, shell } from 'electron';
+import * as path from 'path';
+
+// ============================================
+// SECURITY HELPERS
+// ============================================
+
+export function isValidExportPath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  // SEC-S3: homedir() is intentionally excluded — exports must target a specific
+  // well-known directory, not the user profile root (which would be too broad).
+  const downloads = app.getPath('downloads');
+  const desktop = app.getPath('desktop');
+  const documents = app.getPath('documents');
+  const allowedRoots = [downloads, desktop, documents];
+  return (
+    allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root) &&
+    resolved.toLowerCase().endsWith('.pdf')
+  );
+}
+
+const APP_CSP =
+  "default-src 'self'; script-src 'self'; " +
+  "frame-src https://app.powerbi.com https://login.microsoftonline.com; " +
+  "connect-src https://api.powerbi.com https://login.microsoftonline.com; " +
+  "style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+  "object-src 'none'; base-uri 'self'";
+
+export function installCsp(sess: Electron.Session): void {
+  sess.webRequest.onHeadersReceived((details, callback) => {
+    // Enforce CSP ONLY on our own app document (file://). Never rewrite headers on
+    // remote Power BI / AAD responses (different URLs), or the embeds break.
+    if (details.url.startsWith('file://')) {
+      callback({ responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [APP_CSP] } });
+    } else {
+      callback({ responseHeaders: details.responseHeaders });
+    }
+  });
+}
+
+// ============================================
+// WEBVIEW SECURITY - Handle popups
+// ============================================
+
+// SEC-S1: Power BI host allowlist — enforced on webview src and navigation.
+const POWERBI_ALLOWED_HOSTS = [
+  'app.powerbi.com',
+  'login.microsoftonline.com',
+  'login.live.com',
+  'aadcdn.msftauth.net',
+  'aadcdn.msauth.net',
+];
+
+export function isAllowedPowerBIHost(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return POWERBI_ALLOWED_HOSTS.some((d) => hostname === d || hostname.endsWith('.' + d));
+  } catch {
+    return false;
+  }
+}
+
+// Handle all webContents creation (including webviews)
+export function registerWebviewSecurity(): void {
+  app.on('web-contents-created', (_, contents) => {
+    // SEC-S1: wire the webview guard onto the embedder's WebContents.
+    // 'will-attach-webview' is a WebContents event (not a Session event), so it
+    // must be registered here on the contents object, not on session.
+    contents.on('will-attach-webview', (event, webPreferences, params) => {
+      // Force-disable node integration and force-enable context isolation.
+      webPreferences.nodeIntegration = false;
+      webPreferences.contextIsolation = true;
+      // Disallow renderer-injected preload scripts — only our controlled preload
+      // (set at BrowserWindow creation) is permitted.
+      delete webPreferences.preload;
+      // Enforce the Power BI host allowlist on the webview src.
+      // params.src is typed as string | undefined in Electron's d.ts.
+      if (!params.src || !isAllowedPowerBIHost(params.src)) {
+        event.preventDefault();
+      }
+    });
+
+    // Only handle webviews, not the main window
+    if (contents.getType() === 'webview') {
+      // Handle new windows/popups - open in system browser with URL validation
+      contents.setWindowOpenHandler(({ url }) => {
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            shell.openExternal(url);
+          }
+        } catch {
+          // Invalid URL, ignore
+        }
+        return { action: 'deny' };
+      });
+
+      // Restrict webview navigation to allowed domains
+      contents.on('will-navigate', (event, url) => {
+        if (!isAllowedPowerBIHost(url)) {
+          event.preventDefault();
+        }
+      });
+    }
+  });
+}
