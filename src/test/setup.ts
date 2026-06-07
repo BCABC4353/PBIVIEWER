@@ -149,7 +149,6 @@ function installMatchMediaStub(): void {
 // Global setup — runs before every test
 // ---------------------------------------------------------------------------
 declare global {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
   interface Window {
     electronAPI: ElectronAPI;
   }

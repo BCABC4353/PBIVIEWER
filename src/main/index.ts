@@ -1,8 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, session, shell, nativeTheme } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import * as os from 'os';
-import { PARTITION_NAME, APP_NAME, SLIDESHOW_INTERVAL } from '../shared/constants';
+import { PARTITION_NAME, APP_NAME, SLIDESHOW_INTERVAL, TITLE_BAR_COLORS } from '../shared/constants';
 import { authService } from './auth/auth-service';
 import { powerbiApiService } from './services/powerbi-api';
 import { settingsService } from './services/settings-service';
@@ -41,11 +40,12 @@ function validateUUID(value: unknown): string | null {
 
 function isValidExportPath(filePath: string): boolean {
   const resolved = path.resolve(filePath);
-  const home = os.homedir();
+  // SEC-S3: homedir() is intentionally excluded — exports must target a specific
+  // well-known directory, not the user profile root (which would be too broad).
   const downloads = app.getPath('downloads');
   const desktop = app.getPath('desktop');
   const documents = app.getPath('documents');
-  const allowedRoots = [home, downloads, desktop, documents];
+  const allowedRoots = [downloads, desktop, documents];
   return (
     allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root) &&
     resolved.toLowerCase().endsWith('.pdf')
@@ -104,7 +104,9 @@ function validateSettingsUpdate(input: unknown): Partial<AppSettings> | null {
   if ('autoRefreshInterval' in src) {
     const v = src.autoRefreshInterval;
     if (typeof v !== 'number' || !Number.isFinite(v)) return null;
-    out.autoRefreshInterval = Math.min(60, Math.max(1, v));
+    // PERF-B1: upper bound raised to 120 min to accommodate the 10-min default
+    // and give operators room to pick longer intervals without being silently clamped.
+    out.autoRefreshInterval = Math.min(120, Math.max(1, v));
   }
 
   return out;
@@ -144,8 +146,8 @@ function createWindow(): void {
     title: APP_NAME,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: isDarkTheme ? '#1f1f1f' : '#f5f5f5',
-      symbolColor: isDarkTheme ? '#ffffff' : '#242424',
+      color: isDarkTheme ? TITLE_BAR_COLORS.dark.background : TITLE_BAR_COLORS.light.background,
+      symbolColor: isDarkTheme ? TITLE_BAR_COLORS.dark.symbol : TITLE_BAR_COLORS.light.symbol,
       height: 40,
     },
     webPreferences: {
@@ -158,7 +160,7 @@ function createWindow(): void {
     },
     icon: path.join(__dirname, '../../../assets/icons/icon.png'),
     show: false,
-    backgroundColor: isDarkTheme ? '#1f1f1f' : '#f5f5f5',
+    backgroundColor: isDarkTheme ? TITLE_BAR_COLORS.dark.background : TITLE_BAR_COLORS.light.background,
   });
 
   // Show window when ready
@@ -217,6 +219,10 @@ if (!app.requestSingleInstanceLock()) {
     installCsp(session.defaultSession);
     if (!isDev) installCsp(session.fromPartition(PARTITION_NAME));
 
+    // SEC-S1: webview guard is wired onto each WebContents in the
+    // web-contents-created handler below (will-attach-webview is a WebContents
+    // event, not a Session event). Nothing to do here.
+
     // Initialize auth service
     await authService.initialize();
 
@@ -240,8 +246,43 @@ app.on('window-all-closed', () => {
 // WEBVIEW SECURITY - Handle popups
 // ============================================
 
+// SEC-S1: Power BI host allowlist — enforced on webview src and navigation.
+const POWERBI_ALLOWED_HOSTS = [
+  'app.powerbi.com',
+  'login.microsoftonline.com',
+  'login.live.com',
+  'aadcdn.msftauth.net',
+  'aadcdn.msauth.net',
+];
+
+function isAllowedPowerBIHost(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return POWERBI_ALLOWED_HOSTS.some((d) => hostname === d || hostname.endsWith('.' + d));
+  } catch {
+    return false;
+  }
+}
+
 // Handle all webContents creation (including webviews)
 app.on('web-contents-created', (_, contents) => {
+  // SEC-S1: wire the webview guard onto the embedder's WebContents.
+  // 'will-attach-webview' is a WebContents event (not a Session event), so it
+  // must be registered here on the contents object, not on session.
+  contents.on('will-attach-webview', (event, webPreferences, params) => {
+    // Force-disable node integration and force-enable context isolation.
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    // Disallow renderer-injected preload scripts — only our controlled preload
+    // (set at BrowserWindow creation) is permitted.
+    delete webPreferences.preload;
+    // Enforce the Power BI host allowlist on the webview src.
+    // params.src is typed as string | undefined in Electron's d.ts.
+    if (!params.src || !isAllowedPowerBIHost(params.src)) {
+      event.preventDefault();
+    }
+  });
+
   // Only handle webviews, not the main window
   if (contents.getType() === 'webview') {
     // Handle new windows/popups - open in system browser with URL validation
@@ -259,13 +300,7 @@ app.on('web-contents-created', (_, contents) => {
 
     // Restrict webview navigation to allowed domains
     contents.on('will-navigate', (event, url) => {
-      try {
-        const allowed = ['app.powerbi.com', 'login.microsoftonline.com', 'login.live.com', 'aadcdn.msftauth.net', 'aadcdn.msauth.net'];
-        const hostname = new URL(url).hostname;
-        if (!allowed.some((d) => hostname === d || hostname.endsWith('.' + d))) {
-          event.preventDefault();
-        }
-      } catch {
+      if (!isAllowedPowerBIHost(url)) {
         event.preventDefault();
       }
     });
@@ -296,9 +331,12 @@ ipcMain.handle('window:is-maximized', () => {
   return mainWindow?.isMaximized() ?? false;
 });
 
-ipcMain.handle('window:set-title-bar-overlay', (_event, options: { color: string; symbolColor: string }) => {
-  if (mainWindow && process.platform === 'win32') {
-    mainWindow.setTitleBarOverlay({
+// UX-B1: fire-and-forget (ipcMain.on, not ipcMain.handle) — the renderer
+// sends this on every theme change and does not wait for a response.
+ipcMain.on('window:set-title-bar-overlay', (event, options: { color: string; symbolColor: string }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && process.platform === 'win32') {
+    win.setTitleBarOverlay({
       color: options.color,
       symbolColor: options.symbolColor,
       height: 40,
@@ -591,9 +629,19 @@ ipcMain.handle(
       width: imgWidth,
       height: imgHeight,
       webPreferences: {
+        // NEW-SEC-2: explicit hardening — this window loads a self-contained
+        // data: URL and must never reach Node or the network.
+        nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
       },
+    });
+
+    // NEW-SEC-2: deny any window.open() or navigation attempts from the
+    // transient PDF render window — it loads only a data: URL.
+    pdfWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    pdfWindow.webContents.on('will-navigate', (event) => {
+      event.preventDefault();
     });
 
     // HTML with viewport meta and image sized to viewport

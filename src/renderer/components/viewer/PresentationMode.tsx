@@ -61,6 +61,7 @@ export const PresentationMode: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [slidesReady, setSlidesReady] = useState(false);
+  const [slideAnnouncement, setSlideAnnouncement] = useState<string>('');
 
   // Subscribe to the settings store so changes made in SettingsPage while
   // the slideshow is open take effect immediately — no remount needed.
@@ -148,6 +149,9 @@ export const PresentationMode: React.FC = () => {
         }
       },
     }),
+    // embedRef is a stable MutableRefObject — its identity never changes between renders,
+    // so omitting it from deps is intentional and correct per React ref semantics.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -256,6 +260,8 @@ export const PresentationMode: React.FC = () => {
     } else {
       navigate('/', { replace: true });
     }
+    // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, reportId, navigate, powerbiService]);
 
   // Try to enter fullscreen on mount (don't block if it fails)
@@ -305,6 +311,8 @@ export const PresentationMode: React.FC = () => {
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, reportId, navigate, powerbiService]);
 
   // Focus management: save previously-focused element on mount, restore on unmount.
@@ -434,6 +442,18 @@ export const PresentationMode: React.FC = () => {
     }
   }, [currentSlideIndex, slides, embedRef]);
 
+  // Announce current slide to screen readers via the persistent live region.
+  // Fires whenever the index or the slides list changes so that auto-advance,
+  // keyboard navigation, and dot-indicator clicks all produce an announcement.
+  useEffect(() => {
+    if (slides.length === 0) return;
+    const slide = slides[currentSlideIndex];
+    if (!slide) return;
+    setSlideAnnouncement(
+      `Slide ${currentSlideIndex + 1} of ${slides.length}: ${slide.displayName}`
+    );
+  }, [currentSlideIndex, slides]);
+
   // Hide controls after inactivity
   useEffect(() => {
     let timeout: NodeJS.Timeout | undefined;
@@ -507,7 +527,10 @@ export const PresentationMode: React.FC = () => {
 
       {/* Error overlay */}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-20">
+        <div
+          role="alert"
+          className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-20"
+        >
           <div className="text-center max-w-md">
             <Text className="text-status-error block mb-4">{error}</Text>
             <Button appearance="primary" onClick={doExit}>
@@ -532,6 +555,17 @@ export const PresentationMode: React.FC = () => {
           }}
         />
       )}
+
+      {/* Persistent slide announcer — always mounted so screen readers reliably
+          receive updates even when the visible controls fade out. The sr-only
+          class hides it visually without removing it from the accessibility tree. */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {slideAnnouncement}
+      </div>
 
       {/* Controls overlay */}
       {showControls && !isLoading && !error && (

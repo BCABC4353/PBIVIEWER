@@ -231,7 +231,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="w-full">
                       <Slider
                         min={1}
-                        max={60}
+                        max={120}
                         step={1}
                         value={settings.autoRefreshInterval}
                         onChange={(_, data) => handleAutoRefreshIntervalChange(data.value)}
@@ -240,7 +240,7 @@ export const SettingsPage: React.FC = () => {
                     </div>
                     <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
                       <span>1 min</span>
-                      <span>1 hour</span>
+                      <span>2 hours</span>
                     </div>
                   </div>
                 )}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogSurface,
+  DialogTitle,
   Input,
   Text,
   Spinner,
@@ -17,6 +18,8 @@ import {
 } from '@fluentui/react-icons';
 import { useSearchStore } from '../../stores/search-store';
 import { useContentStore } from '../../stores/content-store';
+
+const LISTBOX_ID = 'search-results-listbox';
 
 export const SearchDialog: React.FC = () => {
   const navigate = useNavigate();
@@ -152,10 +155,18 @@ export const SearchDialog: React.FC = () => {
     }
   };
 
+  const hasResults = results.length > 0;
+
   return (
     <Dialog open={isOpen} onOpenChange={(_, data) => !data.open && closeSearch()}>
-      <DialogSurface className="!p-0 !max-w-2xl !w-full">
-        {/* Search input */}
+      <DialogSurface className="p-0 max-w-2xl w-full">
+        {/* Screen-reader-only dialog title for accessibility */}
+        <DialogTitle>
+          <span className="sr-only">Search Power BI content</span>
+        </DialogTitle>
+
+        {/* Search input — ARIA combobox attributes land on the inner <input> via the
+            Fluent Input slot override so AT announces the correct role and state. */}
         <div className="p-4 border-b border-neutral-stroke-2">
           <Input
             ref={inputRef}
@@ -175,13 +186,17 @@ export const SearchDialog: React.FC = () => {
             value={query}
             onChange={(_, data) => setQuery(data.value)}
             onKeyDown={handleKeyDown}
-            role="combobox"
             aria-label="Search Power BI content"
-            aria-expanded={results.length > 0}
-            aria-activedescendant={results.length > 0 ? `search-result-${selectedIndex}` : undefined}
-            aria-controls="search-results-listbox"
             className="w-full"
             size="large"
+            input={{
+              role: 'combobox',
+              'aria-expanded': hasResults,
+              'aria-controls': hasResults ? LISTBOX_ID : undefined,
+              'aria-activedescendant': hasResults
+                ? `search-result-${selectedIndex}`
+                : undefined,
+            }}
           />
         </div>
 
@@ -219,7 +234,7 @@ export const SearchDialog: React.FC = () => {
 
           {!isSearching && results.length > 0 && (
             <div
-              id="search-results-listbox"
+              id={LISTBOX_ID}
               className="py-2"
               role="listbox"
               aria-label="Search results"
@@ -283,9 +298,9 @@ export const SearchDialog: React.FC = () => {
         {/* Footer */}
         <div className="px-4 py-2 border-t border-neutral-stroke-2 bg-neutral-background-2 flex items-center justify-between text-xs text-neutral-foreground-3">
           <div className="flex items-center gap-4">
-            <span><kbd className="px-1.5 py-0.5 bg-neutral-background-3 rounded">↑↓</kbd> Navigate</span>
-            <span><kbd className="px-1.5 py-0.5 bg-neutral-background-3 rounded">↵</kbd> Open</span>
-            <span><kbd className="px-1.5 py-0.5 bg-neutral-background-3 rounded">Esc</kbd> Close</span>
+            <span><kbd className="kbd-hint">↑↓</kbd> Navigate</span>
+            <span><kbd className="kbd-hint">↵</kbd> Open</span>
+            <span><kbd className="kbd-hint">Esc</kbd> Close</span>
           </div>
         </div>
       </DialogSurface>

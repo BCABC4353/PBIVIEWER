@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TitleBar } from './TitleBar';
 import { Sidebar } from './Sidebar';
-import { StatusBar } from './StatusBar';
 import { useSettingsStore } from '../../stores/settings-store';
 
 interface AppShellProps {
@@ -40,6 +39,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   return (
     <div className="h-screen flex flex-col bg-neutral-background-2">
+      {/* Skip link — NEW-A11Y-2: visually hidden until focused */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-neutral-background-1 focus:text-neutral-foreground-1 focus:rounded focus:shadow-fluent-4 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+      >
+        Skip to main content
+      </a>
+
       {/* Title bar */}
       <TitleBar />
 
@@ -53,14 +60,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           onNavigate={handleNavigate}
         />
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto bg-neutral-background-1">
+        {/* Content — NEW-A11Y-2: id + tabIndex so skip link and focus management work */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 overflow-auto bg-neutral-background-1 outline-none"
+        >
           {children}
         </main>
       </div>
-
-      {/* Status bar */}
-      <StatusBar />
     </div>
   );
 };

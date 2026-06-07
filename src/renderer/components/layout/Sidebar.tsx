@@ -12,7 +12,8 @@ import {
   AppsFilled,
   SettingsRegular,
   SettingsFilled,
-  NavigationRegular,
+  PanelLeftContractRegular,
+  PanelLeftExpandRegular,
 } from '@fluentui/react-icons';
 
 interface SidebarProps {
@@ -40,19 +41,32 @@ const NavItem: React.FC<NavItemProps> = ({
   onClick,
 }) => {
   const button = (
-    <Button
-      appearance="subtle"
-      className={`w-full justify-start ${
-        active
-          ? 'bg-neutral-background-4 text-accent-primary'
-          : 'text-neutral-foreground-1 hover:bg-neutral-background-3'
-      }`}
-      icon={active ? activeIcon : icon}
-      onClick={onClick}
-      aria-current={active ? 'page' : undefined}
-    >
-      {collapsed ? null : <span className="ml-2">{label}</span>}
-    </Button>
+    /* UX-S7: brand-orange 3px left border indicator for active item.
+       The relative + before: pseudo-element approach keeps layout stable
+       while painting the indicator outside the button's padding box. */
+    <div className="relative">
+      {active && (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r bg-accent-primary"
+        />
+      )}
+      <Button
+        appearance="subtle"
+        /* A11Y-B4: aria-label on icon-only (collapsed) buttons */
+        aria-label={collapsed ? label : undefined}
+        className={`w-full justify-start pl-3 ${
+          active
+            ? 'bg-neutral-background-4 text-accent-primary'
+            : 'text-neutral-foreground-1 hover:bg-neutral-background-3'
+        }`}
+        icon={active ? activeIcon : icon}
+        onClick={onClick}
+        aria-current={active ? 'page' : undefined}
+      >
+        {collapsed ? null : <span className="ml-2">{label}</span>}
+      </Button>
+    </div>
   );
 
   if (collapsed) {
@@ -72,6 +86,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeItem,
   onNavigate,
 }) => {
+  /* UX-S8: different icon when expanded vs collapsed */
+  const toggleIcon = collapsed ? <PanelLeftExpandRegular /> : <PanelLeftContractRegular />;
+  const toggleLabel = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+
   return (
     <nav
       aria-label="Main navigation"
@@ -79,16 +97,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         collapsed ? 'w-12' : 'w-60'
       }`}
     >
-      {/* Toggle button */}
+      {/* Toggle button — A11Y-B4: explicit aria-label */}
       <div className="p-2">
         <Tooltip
-          content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          content={toggleLabel}
           relationship="label"
           positioning="after"
         >
           <Button
             appearance="subtle"
-            icon={<NavigationRegular />}
+            aria-label={toggleLabel}
+            icon={toggleIcon}
             onClick={onToggleCollapse}
             className="w-full justify-start"
           />

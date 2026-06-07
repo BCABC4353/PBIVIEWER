@@ -56,20 +56,20 @@ async function withRetry<T>(fn: () => Promise<T>, opts: WithRetryOptions = {}): 
   const max = opts.maxAttempts ?? 3;
   const base = opts.baseDelayMs ?? 500;
   let attempt = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (;;) {
     attempt++;
     try {
       return await fn();
-    } catch (err: any) {
+    } catch (err: unknown) {
       // AbortError happens BOTH when our own fetchWithTimeout fires (a true
       // timeout — worth retrying) AND when an external AbortSignal is passed
       // in (an intentional cancel — must NOT be retried). When `init.signal`
       // is supported in the future, this check needs to distinguish them.
       // For now no caller passes an external signal, so AbortError === timeout.
-      const isRetriable = err && (err.name === 'RetriableHttpError' || err.name === 'AbortError');
+      const errObj = err as { name?: string; retryAfterMs?: number } | null;
+      const isRetriable = errObj && (errObj.name === 'RetriableHttpError' || errObj.name === 'AbortError');
       if (!isRetriable || attempt >= max) throw err;
-      const retryAfter = (err.retryAfterMs as number | undefined);
+      const retryAfter = (errObj?.retryAfterMs as number | undefined);
       const delay = retryAfter !== undefined ? retryAfter : Math.min(base * Math.pow(2, attempt - 1), 8000);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -601,8 +601,8 @@ class PowerBIApiService {
             { headers: { Authorization: `Bearer ${accessToken}` } },
             10000
           );
-        } catch (pollErr: any) {
-          if (pollErr?.name === 'AbortError') {
+        } catch (pollErr: unknown) {
+          if ((pollErr as { name?: string } | null)?.name === 'AbortError') {
             // Per-poll timeout — keep trying.
             attempts += 1;
             await new Promise((resolve) => setTimeout(resolve, 2000));

@@ -171,8 +171,9 @@ export const ReportViewer: React.FC = () => {
         }
       },
     }),
-    // embedRef is mutable — referenced lazily inside handlers.
+    // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
     // workspaceId is read inside loaded; include it for correctness.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]
   );
 

@@ -2,6 +2,14 @@ import type { AppSettings } from './types';
 
 // App Constants
 export const APP_NAME = 'Power BI Viewer';
+
+// Title bar overlay colors — must visually match Fluent neutral chrome in each theme.
+// Consumed by main.tsx (UX-B1 caller) and Group 2 TitleBar component.
+export const TITLE_BAR_COLORS = {
+  light: { background: '#FAF9F8', symbol: '#201F1E' },
+  dark: { background: '#1F1F1F', symbol: '#FFFFFF' },
+} as const;
+
 // Note: Version is managed in package.json and accessed via app.getVersion() at runtime
 export const PARTITION_NAME = 'persist:powerbi-viewer';
 
@@ -22,5 +30,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoStartSlideshow: false,
   autoStartReportId: undefined,
   autoRefreshEnabled: true,
-  autoRefreshInterval: 1,
+  autoRefreshInterval: 10,
 };

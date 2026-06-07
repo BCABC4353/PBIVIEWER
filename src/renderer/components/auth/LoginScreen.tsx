@@ -11,6 +11,7 @@ import {
 } from '@fluentui/react-components';
 import { PersonRegular } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
+import { TitleBar } from '../layout/TitleBar';
 
 export const LoginScreen: React.FC = () => {
   const { login, isLoading, error, clearError } = useAuthStore();
@@ -27,12 +28,8 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-neutral-background-2">
-      {/* Title bar drag region */}
-      <div className="h-10 title-bar-drag flex items-center px-4">
-        <Text size={200} className="text-neutral-foreground-2">
-          Power BI Viewer
-        </Text>
-      </div>
+      {/* Real title bar — unauthenticated variant: draggable shell only, no avatar/search/nav */}
+      <TitleBar variant="unauthenticated" />
 
       {/* Main content */}
       <div className="flex-1 flex items-center justify-center p-8">
@@ -55,15 +52,17 @@ export const LoginScreen: React.FC = () => {
 
           {/* Error message */}
           {error && (
-            <MessageBar intent="error" className="mb-4">
-              <MessageBarBody>
-                <MessageBarTitle>Sign in failed</MessageBarTitle>
-                {error}
-              </MessageBarBody>
-            </MessageBar>
+            <div role="alert" aria-live="assertive" className="mb-4">
+              <MessageBar intent="error">
+                <MessageBarBody>
+                  <MessageBarTitle>Sign in failed</MessageBarTitle>
+                  {error}
+                </MessageBarBody>
+              </MessageBar>
+            </div>
           )}
 
-          {/* Sign in button */}
+          {/* Sign in button — appearance="primary" uses brand orange from Foundation themes */}
           <Button
             appearance="primary"
             size="large"
@@ -71,7 +70,6 @@ export const LoginScreen: React.FC = () => {
             onClick={handleLogin}
             disabled={isLoading}
             className="w-full"
-            style={{ backgroundColor: '#0078d4' }}
           >
             {isLoading ? 'Signing in...' : 'Sign in with Microsoft'}
           </Button>

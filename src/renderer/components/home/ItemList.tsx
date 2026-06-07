@@ -58,7 +58,14 @@ export const ItemList: React.FC<ItemListProps> = ({
           <TableRow
             key={item.id}
             className="hover:bg-neutral-background-3 cursor-pointer"
+            tabIndex={0}
             onClick={() => onOpen(item)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLTableRowElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen(item);
+              }
+            }}
           >
             <TableCell>
               <TableCellLayout
@@ -84,13 +91,17 @@ export const ItemList: React.FC<ItemListProps> = ({
             </TableCell>
             <TableCell>{item.workspaceName}</TableCell>
             <TableCell>
-              <div onClick={(e) => e.stopPropagation()}>
+              <div
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
                 <Menu>
                   <MenuTrigger disableButtonEnhancement>
                     <Button
                       appearance="subtle"
                       icon={<MoreHorizontalRegular />}
                       size="small"
+                      aria-label={`More options for ${item.name}`}
                     />
                   </MenuTrigger>
                   <MenuPopover>

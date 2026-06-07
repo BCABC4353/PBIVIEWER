@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
 import {
@@ -45,6 +45,19 @@ export const AppViewer: React.FC = () => {
     loadPartition();
   }, []);
 
+  const loadAppDetails = useCallback(async () => {
+    if (!appId) return;
+
+    try {
+      const appResponse = await window.electronAPI.content.getApp(appId);
+      if (appResponse.success && appResponse.data) {
+        setAppName(appResponse.data.name);
+      }
+    } catch (err) {
+      console.error('[AppViewer] Failed to load app details:', err);
+    }
+  }, [appId]);
+
   useEffect(() => {
     if (!appId) {
       setError('Invalid app parameters');
@@ -52,8 +65,8 @@ export const AppViewer: React.FC = () => {
       return;
     }
 
-    loadAppDetails();
-  }, [appId]);
+    void loadAppDetails();
+  }, [appId, loadAppDetails]);
 
   // Set up webview event listeners
   useEffect(() => {
@@ -102,19 +115,6 @@ export const AppViewer: React.FC = () => {
     };
   }, [partitionLoaded]);
 
-  const loadAppDetails = async () => {
-    if (!appId) return;
-
-    try {
-      const appResponse = await window.electronAPI.content.getApp(appId);
-      if (appResponse.success && appResponse.data) {
-        setAppName(appResponse.data.name);
-      }
-    } catch (err) {
-      console.error('[AppViewer] Failed to load app details:', err);
-    }
-  };
-
   const handleRefresh = () => {
     const webview = webviewRef.current;
     if (webview) {
@@ -156,6 +156,7 @@ export const AppViewer: React.FC = () => {
             icon={<ArrowSyncRegular />}
             onClick={handleRefresh}
             title="Refresh"
+            aria-label="Refresh app"
           />
         </div>
       </div>
@@ -174,7 +175,10 @@ export const AppViewer: React.FC = () => {
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
+          <div
+            role="alert"
+            className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10"
+          >
             <div className="text-center max-w-md">
               <Text className="text-status-error block mb-4">{error}</Text>
               <Button appearance="primary" onClick={handleRefresh}>

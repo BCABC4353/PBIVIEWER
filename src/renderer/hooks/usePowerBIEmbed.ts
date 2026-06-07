@@ -10,7 +10,7 @@ import { usePowerBIService } from './usePowerBIService';
  * token-expiry handling). Any other event names (pageChanged, tileClicked,
  * ...) are registered as-is on the embed.
  */
-export type EmbedEventHandlers = Record<string, (event: any) => void>;
+export type EmbedEventHandlers = Record<string, (event: pbi.service.ICustomEvent<unknown>) => void>;
 
 export interface UsePowerBIEmbedOptions {
   workspaceId: string | undefined;
@@ -70,7 +70,8 @@ export function usePowerBIEmbed(
     buildConfig,
     events,
     autoRefreshEnabled = true,
-    autoRefreshIntervalMinutes = 1,
+    // PERF-B1: default raised from 1 to 10 to match DEFAULT_SETTINGS.autoRefreshInterval.
+    autoRefreshIntervalMinutes = 10,
     watchdogMs = DEFAULT_WATCHDOG_MS,
     errorFallback = DEFAULT_ERROR_FALLBACK,
     surfacePostLoadErrors = false,
@@ -177,7 +178,7 @@ export function usePowerBIEmbed(
   // refreshEmbedToken needs to reference itself (re-schedule after success)
   // and is called from setTimeouts created before it's defined. A ref breaks
   // the cycle without forcing a re-render dance.
-  const refreshEmbedTokenRef = useRef<() => Promise<void>>(undefined as any);
+  const refreshEmbedTokenRef = useRef<(() => Promise<void>) | null>(null);
 
   const refreshEmbedToken = useCallback(async (): Promise<void> => {
     if (!workspaceId || !itemId) return;
@@ -320,7 +321,7 @@ export function usePowerBIEmbed(
         registeredEventsRef.current = Array.from(eventNames);
 
         // Built-in loaded handler — housekeeping first, then caller's loaded.
-        embed.on('loaded', (event: any) => {
+        embed.on('loaded', (event: pbi.service.ICustomEvent<unknown>) => {
           if (generation !== generationRef.current) return; // stale load
           hasLoadedRef.current = true;
           clearWatchdog();
@@ -341,10 +342,9 @@ export function usePowerBIEmbed(
         // Built-in error handler — token expiry routes to refresh; pre-load
         // errors surface to UI; post-load errors are silent unless caller
         // opted in via surfacePostLoadErrors.
-        embed.on('error', (event: any) => {
+        embed.on('error', (event: pbi.service.ICustomEvent<unknown>) => {
           if (generation !== generationRef.current) return; // stale load
           const detail = event?.detail;
-          // eslint-disable-next-line no-console
           console.error('[usePowerBIEmbed] embed error:', detail);
 
           if (isTokenExpiredError(detail)) {
@@ -385,6 +385,10 @@ export function usePowerBIEmbed(
 
     void run();
 
+    // Capture containerRef.current now so the cleanup closure uses the value
+    // captured at effect-run time rather than re-reading the ref at teardown
+    // (the ref may have changed by then — react-hooks/exhaustive-deps).
+    const capturedContainer = containerRef.current;
     return () => {
       cancelled = true;
       // Bump generation again so any callbacks fired during teardown are
@@ -393,10 +397,9 @@ export function usePowerBIEmbed(
       detachEmbedHandlers();
       clearWatchdog();
       clearProactiveRefresh();
-      const container = containerRef.current;
-      if (container) {
+      if (capturedContainer) {
         try {
-          powerbiService.reset(container);
+          powerbiService.reset(capturedContainer);
         } catch {
           // ignore reset errors during teardown
         }

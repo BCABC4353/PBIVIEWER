@@ -1,4 +1,5 @@
 import { Configuration, LogLevel } from '@azure/msal-node';
+import log from 'electron-log/main';
 import { AZURE_CONFIG } from './azure-config.generated';
 
 // Azure AD Configuration
@@ -17,16 +18,16 @@ export const msalConfig: Configuration = {
         if (containsPii) return;
         switch (level) {
           case LogLevel.Error:
-            console.error('[MSAL]', message);
+            log.error('[MSAL]', message);
             break;
           case LogLevel.Warning:
-            console.warn('[MSAL]', message);
+            log.warn('[MSAL]', message);
             break;
           case LogLevel.Info:
-            console.info('[MSAL]', message);
+            log.info('[MSAL]', message);
             break;
           case LogLevel.Verbose:
-            console.debug('[MSAL]', message);
+            log.debug('[MSAL]', message);
             break;
         }
       },

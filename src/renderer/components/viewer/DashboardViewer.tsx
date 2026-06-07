@@ -76,7 +76,7 @@ export const DashboardViewer: React.FC = () => {
   // Event handlers — tile-click drill-through into the underlying report.
   const events = useMemo(
     () => ({
-      tileClicked: (event: any) => {
+      tileClicked: (event: pbi.service.ICustomEvent<unknown>) => {
         const tileEvent = event.detail as { reportEmbedUrl?: string; reportId?: string };
         if (tileEvent.reportId) {
           navigate(`/report/${workspaceId}/${tileEvent.reportId}`);
@@ -202,6 +202,7 @@ export const DashboardViewer: React.FC = () => {
             icon={<ArrowSyncRegular />}
             onClick={handleRefresh}
             title="Refresh"
+            aria-label="Refresh dashboard"
           />
           <Button
             appearance="subtle"
@@ -217,6 +218,7 @@ export const DashboardViewer: React.FC = () => {
             icon={<FullScreenMaximizeRegular />}
             onClick={handleFullScreen}
             title="Full screen"
+            aria-label="Full screen"
           />
         </div>
       </div>
@@ -235,7 +237,10 @@ export const DashboardViewer: React.FC = () => {
         )}
 
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
+          <div
+            role="alert"
+            className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10"
+          >
             <div className="text-center max-w-md">
               <Text className="text-status-error block mb-4">{error}</Text>
               <Button appearance="primary" onClick={reload}>

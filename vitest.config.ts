@@ -10,6 +10,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src/renderer'),
     },
   },
+  // Use the automatic JSX runtime (react/jsx-runtime) so .test.tsx files match
+  // tsconfig.renderer.json's "jsx": "react-jsx". Without this, esbuild falls back
+  // to the classic transform (React.createElement) and JSX-using tests throw
+  // "React is not defined" unless they import React — which tsc then rejects as
+  // an unused local (TS6133). Automatic runtime keeps tsc and vitest in agreement.
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
   test: {
     environment: 'jsdom',
     globals: true,

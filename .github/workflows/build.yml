@@ -53,6 +53,12 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
       - name: Build and package Windows
         run: npm run package:win
         env:
@@ -112,6 +118,12 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
 
       - name: Build and package macOS
         run: |

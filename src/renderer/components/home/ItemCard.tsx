@@ -34,10 +34,21 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     onOpen(item);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpen(item);
+    }
+  };
+
   return (
     <Card
       className="w-48 cursor-pointer hover:shadow-fluent-4 transition-shadow"
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      aria-label={`Open ${item.name}`}
     >
       {/* Item icon */}
       <div className="h-28 bg-neutral-background-4 flex items-center justify-center rounded-t-lg">
@@ -66,7 +77,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   appearance="subtle"
                   icon={<MoreHorizontalRegular />}
                   size="small"
+                  aria-label={`More options for ${item.name}`}
                   onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
                 />
               </MenuTrigger>
               <MenuPopover>

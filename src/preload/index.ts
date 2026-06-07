@@ -49,8 +49,13 @@ const electronAPI: ElectronAPI = {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
-    setTitleBarOverlay: (options: { color: string; symbolColor: string }) =>
-      ipcRenderer.invoke('window:set-title-bar-overlay', options),
+    // UX-B1: fire-and-forget — send (no reply channel) matches ipcMain.on.
+    // Returns a resolved Promise<void> to satisfy the ElectronAPI interface
+    // without awaiting a response from the main process.
+    setTitleBarOverlay: (options: { color: string; symbolColor: string }) => {
+      ipcRenderer.send('window:set-title-bar-overlay', options);
+      return Promise.resolve();
+    },
   },
 
   settings: {

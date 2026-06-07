@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Status and brand RGB variables — required for Tailwind /opacity utilities
+  (e.g. bg-status-error/10). Tailwind emits a rule only when the color is defined
+  as 'rgb(var(--x-rgb) / <alpha-value>)'; bare var() doesn't work with opacity modifiers.
+*/
+:root {
+  --status-error-rgb:   209, 52, 56;   /* #D13438 */
+  --status-warning-rgb: 255, 185, 0;   /* #FFB900 */
+  --status-success-rgb: 16, 124, 16;   /* #107C10 */
+  --status-info-rgb:    0, 120, 212;   /* #0078D4 */
+  --brand-rgb:          255, 95, 21;   /* #FF5F15 */
+}
+
 /* Custom scrollbar - uses Fluent UI CSS variables for theming */
 ::-webkit-scrollbar {
   width: 8px;
@@ -49,34 +62,34 @@
 }
 
 .fui-Slider__rail {
-  background-color: var(--colorNeutralStroke1, #d1d1d1) !important;
-  height: var(--slider-rail-size) !important;
+  background-color: var(--colorNeutralStroke1, #d1d1d1);
+  height: var(--slider-rail-size);
 }
 
 .fui-Slider__track {
-  background-color: var(--colorBrandBackground, #0078d4) !important;
-  height: var(--slider-rail-size) !important;
+  background-color: var(--colorBrandBackground, #ff5f15);
+  height: var(--slider-rail-size);
 }
 
 .fui-Slider__thumb {
-  width: var(--slider-thumb-size) !important;
-  height: var(--slider-thumb-size) !important;
-  background-color: var(--colorBrandBackground, #0078d4) !important;
-  border: 2px solid var(--colorNeutralBackground1, #ffffff) !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  width: var(--slider-thumb-size);
+  height: var(--slider-thumb-size);
+  background-color: var(--colorBrandBackground, #ff5f15);
+  border: 2px solid var(--colorNeutralBackground1, #ffffff);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .fui-Slider__thumb:hover {
-  background-color: var(--colorBrandBackgroundHover, #106ebe) !important;
+  background-color: var(--colorBrandBackgroundHover, #f04e06);
 }
 
 .fui-Slider__input {
-  height: var(--slider-thumb-size) !important;
+  height: var(--slider-thumb-size);
 }
 
-/* Fluent focus styles */
+/* Fluent focus styles — use the Fluent token so the ring follows the active brand color */
 *:focus-visible {
-  outline: 2px solid #0078d4;
+  outline: 2px solid var(--colorStrokeFocus2);
   outline-offset: 2px;
 }
 
@@ -90,4 +103,21 @@ body {
 #root {
   height: 100vh;
   width: 100vw;
+}
+
+/* Keyboard-shortcut chip — used by SearchDialog, TitleBar, and any future component
+   that needs to display a hotkey hint inline. Apply class="kbd-hint" to a <kbd> or <span>. */
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 20px;
+  background-color: var(--colorNeutralBackground3, #f0f0f0);
+  border: 1px solid var(--colorNeutralStroke1, #d1d1d1);
+  border-radius: 4px;
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--colorNeutralForeground2, #616161);
+  white-space: nowrap;
 }

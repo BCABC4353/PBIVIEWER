@@ -4,7 +4,7 @@ import {
   InteractionRequiredAuthError,
   CryptoProvider,
 } from '@azure/msal-node';
-import { BrowserWindow, session } from 'electron';
+import { BrowserWindow, session, shell } from 'electron';
 import { randomFillSync } from 'crypto';
 import { msalConfig, loginRequest, silentRequest } from './msal-config';
 import { tokenCache, CachedUserInfo } from './token-cache';
@@ -338,6 +338,24 @@ class AuthService {
         }
       };
 
+      // NEW-SEC-1: deny any attempt by the auth page to open a child window.
+      // Vetted https links are forwarded to the system browser instead.
+      authWindow.webContents.setWindowOpenHandler(({ url }) => {
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol === 'https:') {
+            // Only allow known auth CDN/AAD hosts to pop out; everything else
+            // is silently denied to prevent phishing overlays.
+            if (isAllowedAuthHost(url)) {
+              shell.openExternal(url).catch(() => { /* non-fatal */ });
+            }
+          }
+        } catch {
+          // ignore invalid URL
+        }
+        return { action: 'deny' };
+      });
+
       authWindow.webContents.on('will-redirect', (event, url) => {
         // Mirror the will-navigate allowlist: AAD/CDN hosts pass through,
         // anything else (a redirect bug or a spoofed redirect) is blocked
@@ -420,6 +438,9 @@ class AuthService {
           };
         } catch (error) {
           if (error instanceof InteractionRequiredAuthError) {
+            // SEC-S4: null lastKnownExpiry so the validateToken short-circuit
+            // cannot return success:true for a session that requires interaction.
+            this.lastKnownExpiry = null;
             // Token expired or scopes changed. Do NOT clear the cache — just report that
             // interactive sign-in is needed; the renderer routes to the login screen.
             return {
