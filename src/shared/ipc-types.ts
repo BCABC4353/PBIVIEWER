@@ -45,6 +45,15 @@ export interface TokenResult {
   expiresOn: string | null;
 }
 
+/**
+ * ARCH-S6: config the App webview needs to mount with the correct session.
+ * `partition` is the Electron <webview> partition the App viewer mounts with
+ * (null in dev so the default session is used, PARTITION_NAME in production).
+ */
+export interface AppWebviewConfig {
+  partition: string | null;
+}
+
 // Typed IPC API surface — the single source of truth for the preload bridge and renderer.
 // Every method is explicitly typed so that no `as` casts are needed in consumers.
 export interface ElectronAPI {
@@ -125,7 +134,7 @@ export interface ElectronAPI {
   };
 
   app: {
-    getPartitionName: () => Promise<string | null>;
+    getAppWebviewConfig: () => Promise<AppWebviewConfig>;
     getVersion: () => Promise<string>;
     // PROD-S2: opens the releases page; returns current version + releases URL.
     checkForUpdates: () => Promise<

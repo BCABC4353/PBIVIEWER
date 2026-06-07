@@ -9,10 +9,11 @@ import { isDev } from '../window';
 // avoid directing users to an unrelated repository.
 
 export function registerAppIpc(): void {
-  ipcMain.handle('app:get-partition-name', () => {
-    // Return the partition name used by the main window
-    // In dev mode, we use no partition (undefined/null), in production we use PARTITION_NAME
-    return isDev ? null : PARTITION_NAME;
+  ipcMain.handle('app:get-app-webview-config', () => {
+    // Return the config the App webview needs to mount with the correct session.
+    // partition: the partition name used by the main window. In dev mode we use
+    // no partition (undefined/null), in production we use PARTITION_NAME.
+    return { partition: isDev ? null : PARTITION_NAME };
   });
 
   ipcMain.handle('app:get-version', () => {

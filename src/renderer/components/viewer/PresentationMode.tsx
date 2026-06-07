@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text, Slider } from '@fluentui/react-components';
 import {
@@ -13,25 +13,10 @@ import * as pbi from 'powerbi-client';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
 import { useSettingsStore } from '../../stores/settings-store';
-
-interface ReportPage {
-  name: string;
-  displayName: string;
-}
-
-interface ReportBookmark {
-  name: string;
-  displayName: string;
-  state?: string;
-}
-
-// Unified slide item that can be either a page or bookmark
-interface SlideItem {
-  type: 'page' | 'bookmark';
-  name: string;
-  displayName: string;
-  pageName?: string;
-}
+import { useSlideList } from '../../hooks/presentation/useSlideList';
+import { useFocusTrap } from '../../hooks/presentation/useFocusTrap';
+import { useExitOnFullscreenChange } from '../../hooks/presentation/useExitOnFullscreenChange';
+import { useDebouncedSettings } from '../../hooks/presentation/useDebouncedSettings';
 
 export const PresentationMode: React.FC = () => {
   const { workspaceId, reportId } = useParams<{
@@ -42,24 +27,17 @@ export const PresentationMode: React.FC = () => {
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
-  const hasEnteredFullscreen = useRef(false);
-  const persistIntervalRef = useRef<NodeJS.Timeout | null>(null);
   // NEW-BEH-1: gates the auto-start effect to a single trigger so that
   // pressing Pause after auto-start doesn't immediately re-start the slideshow
   // on the next render cycle (slidesReady / isLoading / error can re-fire).
   const hasAutoStartedRef = useRef(false);
 
-  const [pages, setPages] = useState<ReportPage[]>([]);
-  const [bookmarks, setBookmarks] = useState<ReportBookmark[]>([]);
-  const [slides, setSlides] = useState<SlideItem[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [slidesReady, setSlidesReady] = useState(false);
   const [slideAnnouncement, setSlideAnnouncement] = useState<string>('');
 
   // Subscribe to the settings store so changes made in SettingsPage while
@@ -72,22 +50,16 @@ export const PresentationMode: React.FC = () => {
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
   const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
 
+  // ARCH-S7: debounced interval-persist (slider onChange) lives in a hook that
+  // owns its own pending-timer ref and unmount flush.
+  const { onIntervalChange } = useDebouncedSettings();
+
   // Defensive bootstrap: ensure the store has fetched once. Idempotent if
   // App bootstrap already ran it. We can't edit App.tsx in this sprint
   // (DEV-D scope), so each viewer self-bootstraps. Real values come from
   // the store subscriptions above.
   useEffect(() => {
     void useSettingsStore.getState().loadSettings();
-  }, []);
-
-  // Flush any pending debounced interval-persist timer on unmount
-  useEffect(() => {
-    return () => {
-      if (persistIntervalRef.current) {
-        clearTimeout(persistIntervalRef.current);
-        persistIntervalRef.current = null;
-      }
-    };
   }, []);
 
   // Build embed configuration — presentation hides all panes and nav.
@@ -111,48 +83,10 @@ export const PresentationMode: React.FC = () => {
     [workspaceId, reportId]
   );
 
-  // Loaded handler — pull pages and (optionally) bookmarks. Slides list is
-  // rebuilt by a separate effect that watches pages/bookmarks/slideshowMode.
-  const events = useMemo(
-    () => ({
-      loaded: async () => {
-        const report = embedRef.current as pbi.Report | null;
-        if (!report) return;
-
-        try {
-          const reportPages = await report.getPages();
-          const visiblePages = reportPages
-            .filter((p) => p.visibility !== 1)
-            .map((p) => ({
-              name: p.name,
-              displayName: p.displayName,
-            }));
-          setPages(visiblePages);
-        } catch (err) {
-          console.error('Failed to get pages:', err);
-        }
-
-        try {
-          const bookmarksManager = report.bookmarksManager;
-          const reportBookmarks = await bookmarksManager.getBookmarks();
-          const bookmarksList = reportBookmarks.map((b) => ({
-            name: b.name,
-            displayName: b.displayName || b.name,
-            state: b.state,
-          }));
-          setBookmarks(bookmarksList);
-        } catch (err) {
-          // Bookmarks may not be available for all reports
-          console.warn('Failed to get bookmarks (may not be supported):', err);
-          setBookmarks([]);
-        }
-      },
-    }),
-    // embedRef is a stable MutableRefObject — its identity never changes between renders,
-    // so omitting it from deps is intentional and correct per React ref semantics.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  // ARCH-S7: slide-source data (pages, bookmarks, unified slide list) and the
+  // Power BI `loaded` handler live in useSlideList. The handler reads the live
+  // embed lazily via setEmbedRef (wired below, after usePowerBIEmbed returns).
+  const { slides, slidesReady, events, setEmbedRef } = useSlideList(slideshowMode);
 
   const {
     isLoading,
@@ -174,44 +108,12 @@ export const PresentationMode: React.FC = () => {
     surfacePostLoadErrors: true,
   });
 
-  // Build slides list based on slideshowMode when pages/bookmarks change
-  useEffect(() => {
-    const newSlides: SlideItem[] = [];
-
-    if (slideshowMode === 'pages' || slideshowMode === 'both') {
-      for (const page of pages) {
-        newSlides.push({
-          type: 'page',
-          name: page.name,
-          displayName: page.displayName,
-        });
-      }
-    }
-
-    if (slideshowMode === 'bookmarks' || slideshowMode === 'both') {
-      for (const bookmark of bookmarks) {
-        newSlides.push({
-          type: 'bookmark',
-          name: bookmark.name,
-          displayName: bookmark.displayName,
-        });
-      }
-    }
-
-    // Fallback: if no slides available in bookmark mode, use pages
-    if (newSlides.length === 0 && pages.length > 0) {
-      for (const page of pages) {
-        newSlides.push({
-          type: 'page',
-          name: page.name,
-          displayName: page.displayName,
-        });
-      }
-    }
-
-    setSlides(newSlides);
-    setSlidesReady(newSlides.length > 0);
-  }, [pages, bookmarks, slideshowMode]);
+  // useSlideList needs the embedRef from usePowerBIEmbed, but usePowerBIEmbed
+  // needs the `events` object from useSlideList — a forward reference. Thread the
+  // (stable-identity) embedRef back into the hook so the `loaded` handler reads
+  // the live embed. The original code relied on the same hoisted-ref pattern
+  // (the memo closed over an embedRef declared below it).
+  setEmbedRef(embedRef);
 
   // Auto-start slideshow when slides are ready (if setting enabled).
   // NEW-BEH-1: the hasAutoStartedRef gate ensures we fire exactly once per
@@ -260,97 +162,21 @@ export const PresentationMode: React.FC = () => {
     }
   }, [workspaceId, reportId, navigate, teardownNow]);
 
-  // Try to enter fullscreen on mount (don't block if it fails)
-  useEffect(() => {
-    document.documentElement.requestFullscreen?.().then(() => {
-      hasEnteredFullscreen.current = true;
-    }).catch(() => {});
-  }, []);
+  // ARCH-S7: fullscreen enter-on-mount + exit-on-fullscreenchange teardown.
+  // Shares isExitingRef / slideshowIntervalRef with doExit so both exit paths
+  // coordinate.
+  useExitOnFullscreenChange({
+    workspaceId,
+    reportId,
+    navigate,
+    teardownNow,
+    isExitingRef,
+    slideshowIntervalRef,
+  });
 
-  // Listen for fullscreen exit — Escape pulls us out of fullscreen, which
-  // is our cue to navigate back to the standard report view.
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !isExitingRef.current && hasEnteredFullscreen.current) {
-        isExitingRef.current = true;
-
-        // Stop slideshow
-        if (slideshowIntervalRef.current) {
-          clearInterval(slideshowIntervalRef.current);
-          slideshowIntervalRef.current = null;
-        }
-
-        // PERF-S2 / ARCH-S1: delegate teardown to the hook — no direct
-        // embed.off or powerbiService calls here. Forces iframe to stop
-        // rendering before navigate() runs.
-        teardownNow();
-
-        if (workspaceId && reportId) {
-          navigate(`/report/${workspaceId}/${reportId}`, { replace: true });
-        } else {
-          navigate('/', { replace: true });
-        }
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [workspaceId, reportId, navigate, teardownNow]);
-
-  // Focus management: save previously-focused element on mount, restore on unmount.
-  // Keeps screen-reader / keyboard users from being stranded after exit.
-  useEffect(() => {
-    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
-    return () => {
-      const prev = previouslyFocusedRef.current;
-      if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
-        try { prev.focus(); } catch { /* ignore */ }
-      }
-    };
-  }, []);
-
-  // Simple focus trap: cycle Tab / Shift+Tab among focusable elements inside
-  // the overlay. Avoids dragging in a focus-trap library for this single use.
-  useEffect(() => {
-    const handleTrap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const root = overlayRef.current;
-      if (!root) return;
-
-      const focusables = Array.from(
-        root.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null);
-
-      if (focusables.length === 0) {
-        e.preventDefault();
-        return;
-      }
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      // noUncheckedIndexedAccess narrows these to T | undefined, but the
-      // length>0 guard above means both are defined here.
-      if (!first || !last) return;
-      const active = document.activeElement as HTMLElement | null;
-
-      if (e.shiftKey) {
-        if (active === first || !root.contains(active)) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (active === last || !root.contains(active)) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleTrap, true);
-    return () => document.removeEventListener('keydown', handleTrap, true);
-  }, []);
+  // ARCH-S7: focus management (save/restore previously-focused element + Tab
+  // focus trap scoped to the overlay).
+  useFocusTrap(overlayRef);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -594,23 +420,7 @@ export const PresentationMode: React.FC = () => {
                   max={SLIDESHOW_INTERVAL.MAX}
                   step={SLIDESHOW_INTERVAL.STEP}
                   value={intervalSeconds}
-                  onChange={(_, data) => {
-                    // Optimistic local update: push the new value into the
-                    // store immediately so the slider thumb and the
-                    // slideshow's interval effect track the drag without
-                    // waiting on the IPC. The debounced updateSettings call
-                    // below persists to disk and (re-)sets store state with
-                    // the canonical response.
-                    useSettingsStore.setState((prev) => ({
-                      settings: { ...prev.settings, slideshowInterval: data.value },
-                    }));
-                    if (persistIntervalRef.current) clearTimeout(persistIntervalRef.current);
-                    persistIntervalRef.current = setTimeout(() => {
-                      void useSettingsStore
-                        .getState()
-                        .updateSettings({ slideshowInterval: data.value });
-                    }, 300);
-                  }}
+                  onChange={(_, data) => onIntervalChange(data.value)}
                   className="w-[120px]"
                 />
                 <Text size={200}>{intervalSeconds}s</Text>

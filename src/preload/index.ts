@@ -94,7 +94,7 @@ const electronAPI: ElectronAPI = {
   },
 
   app: {
-    getPartitionName: () => ipcRenderer.invoke('app:get-partition-name'),
+    getAppWebviewConfig: () => ipcRenderer.invoke('app:get-app-webview-config'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),
     // PROD-S2: opens the releases page in the default browser; returns
     // { currentVersion, releasesUrl } on success.

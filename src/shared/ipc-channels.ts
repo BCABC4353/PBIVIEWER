@@ -56,7 +56,7 @@ export const IPC_CHANNELS = {
     currentViewPdf: 'export:current-view-pdf',
   },
   app: {
-    getPartitionName: 'app:get-partition-name',
+    getAppWebviewConfig: 'app:get-app-webview-config',
     getVersion: 'app:get-version',
     // PROD-S2: opens the releases page and returns { currentVersion, releasesUrl }.
     checkForUpdates: 'app:check-for-updates',

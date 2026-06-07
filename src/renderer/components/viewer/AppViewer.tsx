@@ -28,14 +28,14 @@ export const AppViewer: React.FC = () => {
   const [partitionLoaded, setPartitionLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Load the partition name from main process
+  // Load the webview config (partition name) from main process
   useEffect(() => {
     const loadPartition = async () => {
       try {
-        const partition = await window.electronAPI.app.getPartitionName();
-        setPartitionName(partition);
+        const config = await window.electronAPI.app.getAppWebviewConfig();
+        setPartitionName(config.partition);
       } catch (error) {
-        console.warn('[AppViewer] Failed to load partition name:', error);
+        console.warn('[AppViewer] Failed to load webview config:', error);
       } finally {
         setPartitionLoaded(true);
       }

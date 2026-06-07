@@ -3,16 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
 import * as pbi from 'powerbi-client';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
+import { useFullscreenPageNav } from '../../hooks/embed/useFullscreenPageNav';
+import type { PageInfo } from '../../hooks/embed/useFullscreenPageNav';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useContentStore } from '../../stores/content-store';
 import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
 import { useViewerExport } from './useViewerExport';
-
-interface PageInfo {
-  name: string;
-  displayName: string;
-}
 
 export const ReportViewer: React.FC = () => {
   const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
@@ -33,22 +30,19 @@ export const ReportViewer: React.FC = () => {
   // UX-S14: report name visible while loading (breadcrumb)
   const [reportName, setReportName] = useState<string>('');
 
-  // Fullscreen keyboard navigation state
-  const [pages, setPages] = useState<PageInfo[]>([]);
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showFullscreenHint, setShowFullscreenHint] = useState(false);
-  const pagesRef = useRef<PageInfo[]>([]);
-  const currentPageIndexRef = useRef(0);
-
-  // Keep refs in sync with state for use in event handlers
-  useEffect(() => {
-    pagesRef.current = pages;
-  }, [pages]);
-
-  useEffect(() => {
-    currentPageIndexRef.current = currentPageIndex;
-  }, [currentPageIndex]);
+  // ARCH-S8: fullscreen page navigation (pages, current index, fullscreen flag,
+  // arrow-key nav + slicer-click focus reclamation) lives in useFullscreenPageNav.
+  // The embed handle is wired in lazily via setEmbedRef after usePowerBIEmbed.
+  const {
+    pages,
+    setPages,
+    currentPageIndex,
+    setCurrentPageIndex,
+    isFullscreen,
+    showFullscreenHint,
+    pagesRef,
+    setEmbedRef,
+  } = useFullscreenPageNav({ containerRef: embedContainerRef });
 
   // Defensive bootstrap: ensure the settings store has fetched once.
   useEffect(() => {
@@ -199,6 +193,11 @@ export const ReportViewer: React.FC = () => {
     surfacePostLoadErrors: false,
   });
 
+  // ARCH-S8: thread the live embed handle into the fullscreen-nav hook. The
+  // `events` object above is built before embedRef exists (forward reference);
+  // embedRef has stable identity, so wiring it in here is safe.
+  setEmbedRef(embedRef);
+
   // NEW-ARCH-1: export hook
   const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
     containerRef: embedContainerRef,
@@ -227,124 +226,6 @@ export const ReportViewer: React.FC = () => {
       return { pageName, bookmarkState };
     },
   });
-
-  // Navigate to a specific page by index
-  const navigateToPage = useCallback(async (pageIndex: number) => {
-    const report = embedRef.current as pbi.Report | null;
-    if (!report || pagesRef.current.length === 0) return;
-
-    const targetIndex = Math.max(0, Math.min(pageIndex, pagesRef.current.length - 1));
-    const targetPage = pagesRef.current[targetIndex];
-
-    if (targetPage) {
-      try {
-        await report.setPage(targetPage.name);
-        setCurrentPageIndex(targetIndex);
-      } catch (error) {
-        console.warn('[ReportViewer] Page navigation failed:', error);
-      }
-    }
-  }, [embedRef]);
-
-  // Fullscreen change detection
-  useEffect(() => {
-    let hintTimer: ReturnType<typeof setTimeout> | null = null;
-    const handleFullscreenChange = () => {
-      const isNowFullscreen = !!document.fullscreenElement;
-      setIsFullscreen(isNowFullscreen);
-
-      if (isNowFullscreen) {
-        if (embedContainerRef.current) {
-          embedContainerRef.current.focus();
-        }
-        if (pages.length > 1) {
-          setShowFullscreenHint(true);
-          if (hintTimer) clearTimeout(hintTimer);
-          hintTimer = setTimeout(() => setShowFullscreenHint(false), 5000);
-        }
-      } else {
-        setShowFullscreenHint(false);
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      if (hintTimer) clearTimeout(hintTimer);
-    };
-  }, [pages.length]);
-
-  // Keyboard navigation for fullscreen mode
-  useEffect(() => {
-    let focusCheckInterval: ReturnType<typeof setInterval> | null = null;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!document.fullscreenElement) return;
-
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-
-        const currentPages = pagesRef.current;
-        const currentIdx = currentPageIndexRef.current;
-
-        if (currentPages.length === 0) return;
-
-        if (e.key === 'ArrowRight') {
-          const nextIndex = (currentIdx + 1) % currentPages.length;
-          navigateToPage(nextIndex);
-        } else if (e.key === 'ArrowLeft') {
-          const prevIndex = (currentIdx - 1 + currentPages.length) % currentPages.length;
-          navigateToPage(prevIndex);
-        }
-
-        if (embedContainerRef.current) {
-          embedContainerRef.current.focus();
-        }
-      }
-    };
-
-    const handleMouseDown = (e: MouseEvent) => {
-      if (!document.fullscreenElement) return;
-      if (embedContainerRef.current?.contains(e.target as Node)) {
-        setTimeout(() => {
-          if (embedContainerRef.current && document.fullscreenElement) {
-            embedContainerRef.current.focus();
-          }
-        }, 10);
-        setTimeout(() => {
-          if (embedContainerRef.current && document.fullscreenElement) {
-            embedContainerRef.current.focus();
-          }
-        }, 100);
-      }
-    };
-
-    // Reclaim focus ONLY when it was genuinely lost to the body
-    const maintainFocus = () => {
-      if (!document.fullscreenElement || !embedContainerRef.current) return;
-      const active = document.activeElement;
-      if (active === document.body || active === null) {
-        embedContainerRef.current.focus();
-      }
-    };
-
-    if (isFullscreen) {
-      focusCheckInterval = setInterval(maintainFocus, 500);
-    }
-
-    document.addEventListener('keydown', handleKeyDown, true);
-    document.addEventListener('mousedown', handleMouseDown, true);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
-      document.removeEventListener('mousedown', handleMouseDown, true);
-      if (focusCheckInterval) {
-        clearInterval(focusCheckInterval);
-      }
-    };
-  }, [navigateToPage, isFullscreen]);
 
   // NEW-UX-3: Refresh with in-progress state
   const handleRefresh = useCallback(async () => {
