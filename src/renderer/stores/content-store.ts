@@ -6,6 +6,7 @@ import type {
   App,
   ContentItem,
 } from '../../shared/types';
+import { useAuthStore } from './auth-store';
 
 interface ContentState {
   workspaces: Workspace[];
@@ -101,7 +102,10 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadRecentItems: async () => {
     try {
-      const response = await window.electronAPI.usage.getRecent();
+      // BEH-B3: scope the read to the signed-in user so accounts on a shared
+      // machine do not see each other's recent history.
+      const accountId = useAuthStore.getState().user?.id;
+      const response = await window.electronAPI.usage.getRecent(accountId);
       if (response.success) {
         set({ recentItems: response.data });
       }
@@ -112,7 +116,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadFrequentItems: async () => {
     try {
-      const response = await window.electronAPI.usage.getFrequent();
+      // BEH-B3: scope the read to the signed-in user (same rationale as above).
+      const accountId = useAuthStore.getState().user?.id;
+      const response = await window.electronAPI.usage.getFrequent(accountId);
       if (response.success) {
         set({ frequentItems: response.data });
       }
@@ -128,12 +134,17 @@ export const useContentStore = create<ContentState>((set, get) => ({
     // (or shortly after) once these awaits resolve.
     void (async () => {
       try {
+        // BEH-B3: attach the signed-in user's homeAccountId so the record is
+        // scoped to this account; undefined when not yet authenticated (safe
+        // default — record is written as a legacy unscoped row).
+        const accountId = useAuthStore.getState().user?.id;
         await window.electronAPI.usage.recordOpen({
           id: item.id,
           name: item.name,
           type: item.type,
           workspaceId: item.workspaceId,
           workspaceName: item.workspaceName || 'Unknown',
+          accountId,
         });
         // Refresh recent and frequent lists in parallel — neither depends
         // on the other and they can race the user's next click freely.

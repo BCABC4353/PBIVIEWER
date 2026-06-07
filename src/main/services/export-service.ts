@@ -112,10 +112,28 @@ export async function exportCurrentViewPdf(
 </body>
 </html>`;
 
-    // Use did-finish-load event - critical for ensuring content loads before PDF generation
+    // NEW-PERF-1: race a 30 s deadline against the data: URL load so a
+    // stalled/crashed renderer cannot orphan the hidden window and leak memory.
+    // The finally block always closes pdfWindow, but it only runs once the
+    // promise settles — without this race the await above could hang forever.
+    const LOAD_TIMEOUT_MS = 30_000;
     await new Promise<void>((resolve, reject) => {
-      pdfWindow!.webContents.on('did-finish-load', () => resolve());
-      pdfWindow!.webContents.on('did-fail-load', (_e, code, desc) => reject(new Error(`Load failed: ${code} ${desc}`)));
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(loadTimer);
+        fn();
+      };
+
+      const loadTimer = setTimeout(() => {
+        settle(() => reject(new Error('Export window load timed out after 30 s')));
+      }, LOAD_TIMEOUT_MS);
+
+      pdfWindow!.webContents.on('did-finish-load', () => settle(resolve));
+      pdfWindow!.webContents.on('did-fail-load', (_e, code, desc) =>
+        settle(() => reject(new Error(`Load failed: ${code} ${desc}`))),
+      );
       pdfWindow!.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     });
 

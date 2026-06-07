@@ -19,6 +19,24 @@ export interface CachedUserInfo {
   email: string;
 }
 
+// BEH-B2: corruption hooks. When decrypt() detects an undecryptable (corrupt or
+// key-rotated) entry it purges the store AND notifies every registered listener
+// so higher layers (auth-service) can null their in-memory account/expiry rather
+// than continuing to trust a now-empty cache. Honesty over silent recovery: a
+// corrupted cache must not leave validateToken() returning a stale `true`.
+type CorruptionListener = () => void;
+const corruptionListeners = new Set<CorruptionListener>();
+
+function notifyCorruption(): void {
+  for (const listener of corruptionListeners) {
+    try {
+      listener();
+    } catch (err) {
+      console.error('[TokenCache] Corruption listener threw:', err);
+    }
+  }
+}
+
 function encrypt(value: string): string {
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('OS-level encryption unavailable — refusing to store tokens in plaintext');
@@ -38,11 +56,24 @@ function decrypt(value: string): string {
     console.error('[TokenCache] Failed to decrypt, clearing corrupted entry:', error);
     store.delete('msalCache');
     store.delete('userInfo');
+    // BEH-B2: tell listeners the cache is gone so they don't keep trusting an
+    // in-memory account/expiry that the (now-purged) cache can no longer back.
+    notifyCorruption();
     return '';
   }
 }
 
 export const tokenCache = {
+  /**
+   * BEH-B2: register a corruption hook. Fired after decrypt() purges an
+   * undecryptable entry. Returns an unsubscribe function. Idempotent —
+   * registering the same listener twice is a no-op (Set semantics).
+   */
+  onCorruption(listener: CorruptionListener): () => void {
+    corruptionListeners.add(listener);
+    return () => corruptionListeners.delete(listener);
+  },
+
   async saveCache(cache: string): Promise<void> {
     const encrypted = encrypt(cache);
     store.set('msalCache', encrypted);

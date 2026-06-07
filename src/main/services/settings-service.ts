@@ -1,6 +1,7 @@
 import Store from 'electron-store';
 import type { AppSettings, IPCResponse } from '../../shared/types';
-import { DEFAULT_SETTINGS, SLIDESHOW_INTERVAL } from '../../shared/constants';
+import { DEFAULT_SETTINGS, SLIDESHOW_INTERVAL, AUTH } from '../../shared/constants';
+import { UUID_REGEX } from '../../shared/validation';
 
 interface SettingsStore {
   settings: AppSettings;
@@ -12,8 +13,6 @@ const store = new Store<SettingsStore>({
     settings: DEFAULT_SETTINGS,
   },
 });
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Belt-and-braces sanitizer: even if the IPC handler is bypassed (module-internal
 // callers, future code paths), make sure persisted values are within bounds and
@@ -54,7 +53,34 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
     out.autoRefreshEnabled = src.autoRefreshEnabled;
   }
   if (typeof src.autoRefreshInterval === 'number' && Number.isFinite(src.autoRefreshInterval)) {
-    out.autoRefreshInterval = Math.min(60, Math.max(1, src.autoRefreshInterval));
+    // PERF-B1: upper bound raised to AUTH.AUTO_REFRESH_MAX_MINUTES (120).
+    // Previously hard-coded as Math.min(60, ...) which re-clamped values the
+    // shared validator already accepted, silently discarding operator intent.
+    out.autoRefreshInterval = Math.min(
+      AUTH.AUTO_REFRESH_MAX_MINUTES,
+      Math.max(AUTH.AUTO_REFRESH_MIN_MINUTES, src.autoRefreshInterval),
+    );
+  }
+  // PROD-B2: launch-time auto-start behavior.
+  if ('autoStartMode' in src) {
+    const v = src.autoStartMode;
+    if (v === 'off' || v === 'report') out.autoStartMode = v;
+    // Invalid value: silently drop.
+  }
+  if ('autoStartWorkspaceId' in src) {
+    const v = src.autoStartWorkspaceId;
+    if (v === undefined) {
+      out.autoStartWorkspaceId = undefined;
+    } else if (typeof v === 'string' && UUID_REGEX.test(v)) {
+      out.autoStartWorkspaceId = v;
+    }
+    // Invalid value: silently drop.
+  }
+  // BEH-B3: usage-history retention policy on logout.
+  if ('usageClearOnLogout' in src) {
+    const v = src.usageClearOnLogout;
+    if (v === 'always' || v === 'never' || v === 'on-shared-machine') out.usageClearOnLogout = v;
+    // Invalid value: silently drop.
   }
 
   return out;

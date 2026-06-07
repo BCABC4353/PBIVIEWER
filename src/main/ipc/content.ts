@@ -1,10 +1,8 @@
 import { ipcMain } from 'electron';
 import { promises as fs } from 'fs';
 import { powerbiApiService } from '../services/powerbi-api';
-import { usageTrackingService } from '../services/usage-tracking-service';
-import { validateUUID } from '../validation';
+import { validateUUID } from '../../shared/validation';
 import { isValidExportPath } from '../security';
-import type { ContentItem } from '../../shared/types';
 
 export function registerContentIpc(): void {
   ipcMain.handle('content:get-workspaces', async () => {
@@ -104,28 +102,7 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getAllItems();
   });
 
-  ipcMain.handle('content:get-recent', async () => {
-    // Return usage-based recent items instead of enumerating the entire tenant
-    // This is much faster and doesn't cause timeouts on large tenants
-    try {
-      const items = usageTrackingService.getRecentItems();
-
-      const contentItems: ContentItem[] = items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        workspaceId: item.workspaceId,
-        workspaceName: item.workspaceName,
-        lastOpened: item.lastOpened,
-        openCount: item.openCount,
-      }));
-
-      return { success: true, data: contentItems };
-    } catch (error) {
-      return {
-        success: false,
-        error: { code: 'RECENT_FETCH_FAILED', message: String(error) },
-      };
-    }
-  });
+  // ARCH-S5: the dead 'content:get-recent' channel was removed — the renderer
+  // reads recents via 'usage:get-recent' (usageTrackingService), so this handler
+  // (which duplicated that logic) had no consumer.
 }

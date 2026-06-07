@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as pbi from 'powerbi-client';
-import { getErrorMessage, isTokenExpiredError } from '../../shared/utils';
+import { getErrorMessage, isTokenExpiredError } from '../../shared/powerbi-errors';
 import { usePowerBIService } from './usePowerBIService';
 
 /**

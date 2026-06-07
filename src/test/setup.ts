@@ -21,6 +21,7 @@ const defaultUser: UserInfo | null = null;
 const defaultAuthResult: AuthResult = {
   success: true,
   user: { id: '', displayName: '', email: '' },
+  reusedPreviousAccount: false,
 };
 
 const defaultToken: TokenResult = {
@@ -36,6 +37,8 @@ const defaultSettings: AppSettings = {
   autoStartSlideshow: false,
   autoRefreshEnabled: false,
   autoRefreshInterval: 15,
+  autoStartMode: 'off',
+  usageClearOnLogout: 'never',
 };
 
 function createElectronAPIMock(): ElectronAPI {
@@ -83,7 +86,6 @@ function createElectronAPIMock(): ElectronAPI {
           failedWorkspaces: [],
         },
       }),
-      getRecent: vi.fn().mockResolvedValue({ success: true, data: [] }),
     },
 
     window: {

@@ -1,0 +1,71 @@
+// ============================================
+// ARCH-S5: typed IPC channel-name map
+//
+// Single source of truth for every IPC channel string. The preload bridge and
+// the main-process handlers should reference IPC_CHANNELS.* instead of
+// hard-coding string literals, so a rename is caught at compile time and the
+// two sides can never silently drift.
+//
+// The dead 'content:get-recent' channel was removed in Sprint 5 — the renderer
+// reads recents via 'usage:get-recent'. Do not re-add it without a consumer.
+// ============================================
+
+export const IPC_CHANNELS = {
+  auth: {
+    login: 'auth:login',
+    logout: 'auth:logout',
+    getUser: 'auth:get-user',
+    getToken: 'auth:get-token',
+    isAuthenticated: 'auth:is-authenticated',
+    validateToken: 'auth:validate-token',
+  },
+  content: {
+    getWorkspaces: 'content:get-workspaces',
+    getReports: 'content:get-reports',
+    getDashboards: 'content:get-dashboards',
+    getDashboard: 'content:get-dashboard',
+    getApps: 'content:get-apps',
+    getApp: 'content:get-app',
+    getAppReports: 'content:get-app-reports',
+    getAppDashboards: 'content:get-app-dashboards',
+    getEmbedToken: 'content:get-embed-token',
+    exportReportPdf: 'content:export-report-pdf',
+    getDatasetRefreshInfo: 'content:get-dataset-refresh-info',
+    getAllItems: 'content:get-all-items',
+  },
+  window: {
+    minimize: 'window:minimize',
+    maximize: 'window:maximize',
+    close: 'window:close',
+    isMaximized: 'window:is-maximized',
+    setTitleBarOverlay: 'window:set-title-bar-overlay',
+  },
+  settings: {
+    get: 'settings:get',
+    update: 'settings:update',
+    reset: 'settings:reset',
+  },
+  usage: {
+    recordOpen: 'usage:record-open',
+    getRecent: 'usage:get-recent',
+    getFrequent: 'usage:get-frequent',
+    clear: 'usage:clear',
+  },
+  export: {
+    choosePdfPath: 'export:choose-pdf-path',
+    currentViewPdf: 'export:current-view-pdf',
+  },
+  app: {
+    getPartitionName: 'app:get-partition-name',
+    getVersion: 'app:get-version',
+    // PROD-S2: opens the releases page and returns { currentVersion, releasesUrl }.
+    checkForUpdates: 'app:check-for-updates',
+  },
+  log: {
+    openFolder: 'log:open-folder',
+  },
+} as const;
+
+/** Union of every concrete channel string declared in IPC_CHANNELS. */
+type ChannelValues<T> = T extends string ? T : T extends object ? ChannelValues<T[keyof T]> : never;
+export type IpcChannel = ChannelValues<typeof IPC_CHANNELS>;

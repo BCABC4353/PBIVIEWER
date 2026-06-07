@@ -1,3 +1,9 @@
+// ARCH-S3: IPCResponse and TokenResult now live in ipc-types.ts (next to the
+// ElectronAPI surface they shape). Re-exported here as type-only so the many
+// existing `from '../shared/types'` import sites keep working. The re-export is
+// erased at compile time, so it introduces no runtime import cycle.
+export type { IPCResponse, TokenResult } from './ipc-types';
+
 // ============================================
 // USER & AUTH TYPES
 // ============================================
@@ -10,7 +16,16 @@ export interface UserInfo {
 }
 
 export type AuthResult =
-  | { success: true; user: UserInfo }
+  | {
+      success: true;
+      user: UserInfo;
+      /**
+       * BEH-B1: true when this login resolved to the SAME account that was
+       * already signed in (no account switch). Lets the renderer / main decide
+       * whether to preserve or clear per-account state (e.g. usage history).
+       */
+      reusedPreviousAccount: boolean;
+    }
   | { success: false; error: string };
 
 // ============================================
@@ -56,9 +71,13 @@ export interface ContentItem {
   type: 'report' | 'dashboard';
   workspaceId: string;
   workspaceName: string;
-  lastAccessed?: string;
   lastOpened?: string; // ISO date string
   openCount?: number;
+  /**
+   * BEH-B3: home-account id the record belongs to. Optional for backward
+   * compatibility with records persisted before per-account scoping.
+   */
+  accountId?: string;
 }
 
 export interface EmbedToken {
@@ -70,38 +89,6 @@ export interface EmbedToken {
 export interface DatasetRefreshInfo {
   lastRefreshTime?: string; // ISO date string
   lastRefreshStatus?: 'Unknown' | 'Completed' | 'Failed' | 'Disabled';
-}
-
-// ============================================
-// IPC TYPES
-// ============================================
-
-export type IPCResponse<T> =
-  | { success: true; data: T }
-  | {
-      success: false;
-      error: {
-        code: string;
-        /** Raw message — fine for logs, may contain upstream API details */
-        message: string;
-        /**
-         * Friendly, user-safe message derived from the HTTP status code.
-         * Renderer should prefer this when surfacing errors to the user;
-         * fall back to `message` only if `userMessage` is absent.
-         */
-        userMessage?: string;
-      };
-    };
-
-/**
- * Result of acquiring an access token. The expiresOn field carries MSAL's
- * authoritative expiry so callers (powerbi-client, embed refresh) can schedule
- * proactive refresh instead of guessing +1h from now.
- */
-export interface TokenResult {
-  accessToken: string;
-  /** ISO 8601 timestamp; null if MSAL did not provide one (callers fall back to +1h). */
-  expiresOn: string | null;
 }
 
 // ============================================
@@ -117,4 +104,19 @@ export interface AppSettings {
   autoStartReportId?: string;
   autoRefreshEnabled: boolean;
   autoRefreshInterval: number; // in minutes (1-60)
+  /**
+   * PROD-B2: launch-time auto-start behavior.
+   * - 'off'    — normal startup, show the home screen.
+   * - 'report' — open the report identified by autoStartReportId on launch.
+   */
+  autoStartMode: 'off' | 'report';
+  /** PROD-B2: workspace GUID of the auto-start report (paired with autoStartReportId). */
+  autoStartWorkspaceId?: string;
+  /**
+   * BEH-B3: usage-history retention policy on logout.
+   * - 'always'           — clear usage data every logout.
+   * - 'never'            — keep usage data across logouts (default).
+   * - 'on-shared-machine'— clear only when the machine is flagged as shared.
+   */
+  usageClearOnLogout: 'always' | 'never' | 'on-shared-machine';
 }

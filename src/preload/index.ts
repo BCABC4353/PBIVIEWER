@@ -5,7 +5,15 @@ import type { AppSettings } from '../shared/types';
 // Type-safe API exposed to renderer.
 // The return type annotations reference ElectronAPI so that `ipcRenderer.invoke`
 // (which returns Promise<any>) is narrowed to the correct typed response.
-const electronAPI: ElectronAPI = {
+// PROD-S2: extended with checkForUpdates which is not yet in the shared
+// ElectronAPI type (ipc-types.ts is Contracts-owned); the intersection avoids
+// an object-literal excess-property error without casting the whole object.
+type ExtendedElectronAPI = ElectronAPI & {
+  app: ElectronAPI['app'] & {
+    checkForUpdates: () => Promise<unknown>;
+  };
+};
+const electronAPI: ExtendedElectronAPI = {
   auth: {
     login: () => ipcRenderer.invoke('auth:login'),
     logout: () => ipcRenderer.invoke('auth:logout'),
@@ -41,7 +49,6 @@ const electronAPI: ElectronAPI = {
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
       ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
-    getRecent: () => ipcRenderer.invoke('content:get-recent'),
   },
 
   window: {
@@ -72,9 +79,12 @@ const electronAPI: ElectronAPI = {
       type: 'report' | 'dashboard';
       workspaceId: string;
       workspaceName: string;
+      accountId?: string;
     }) => ipcRenderer.invoke('usage:record-open', item),
-    getRecent: () => ipcRenderer.invoke('usage:get-recent'),
-    getFrequent: () => ipcRenderer.invoke('usage:get-frequent'),
+    // BEH-B3: forward optional accountId so the main-process handler can scope
+    // results to the signed-in user; undefined omits the arg (backward-compat).
+    getRecent: (accountId?: string) => ipcRenderer.invoke('usage:get-recent', accountId),
+    getFrequent: (accountId?: string) => ipcRenderer.invoke('usage:get-frequent', accountId),
     clear: () => ipcRenderer.invoke('usage:clear'),
   },
 
@@ -94,6 +104,9 @@ const electronAPI: ElectronAPI = {
   app: {
     getPartitionName: () => ipcRenderer.invoke('app:get-partition-name'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),
+    // PROD-S2: opens the releases page in the default browser; returns
+    // { currentVersion, releasesUrl } on success.
+    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
   },
 };
 

@@ -1,4 +1,3 @@
-import { authService } from '../auth/auth-service';
 import { POWERBI_API_BASE } from '../../shared/constants';
 import { friendlyApiErrorFromMessage } from '../../shared/error-mapping';
 import type {
@@ -9,7 +8,25 @@ import type {
   EmbedToken,
   DatasetRefreshInfo,
   IPCResponse,
+  TokenResult,
 } from '../../shared/types';
+
+// ---------------------------------------------------------------------------
+// ARCH-B4: dependency-injection seam
+// ---------------------------------------------------------------------------
+// The API client used to import the auth-service singleton directly. That hard
+// dependency on the electron/MSAL module graph made the client impossible to
+// unit-test under jsdom. It now takes its token source as an injectable port,
+// so tests can drive it with a fake token provider and no electron at all.
+
+/** Minimal slice of the auth service the API client needs. */
+export interface ApiAuthPort {
+  getAccessToken(): Promise<IPCResponse<TokenResult>>;
+}
+
+export interface PowerBIApiDeps {
+  auth: ApiAuthPort;
+}
 
 /**
  * Build an IPCResponse error envelope with a friendly `userMessage` derived
@@ -148,9 +165,15 @@ async function throwForStatus(response: Response, contextLabel: string): Promise
 }
 
 class PowerBIApiService {
+  private readonly deps: PowerBIApiDeps;
+
+  constructor(deps: PowerBIApiDeps) {
+    this.deps = deps;
+  }
+
   private async makeRequest<T>(endpoint: string): Promise<T> {
     return withRetry(async () => {
-      const tokenResponse = await authService.getAccessToken();
+      const tokenResponse = await this.deps.auth.getAccessToken();
 
       if (!tokenResponse.success) {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
@@ -176,7 +199,7 @@ class PowerBIApiService {
    */
   private async makeRequestWithUrl<T>(fullUrl: string): Promise<T> {
     return withRetry(async () => {
-      const tokenResponse = await authService.getAccessToken();
+      const tokenResponse = await this.deps.auth.getAccessToken();
 
       if (!tokenResponse.success) {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
@@ -501,7 +524,7 @@ class PowerBIApiService {
     try {
       // For user-owns-data scenario, we use the access token directly
       // For app-owns-data, we would generate an embed token
-      const tokenResponse = await authService.getAccessToken();
+      const tokenResponse = await this.deps.auth.getAccessToken();
 
       if (!tokenResponse.success) {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
@@ -535,7 +558,7 @@ class PowerBIApiService {
     bookmarkState?: string
   ): Promise<IPCResponse<Buffer>> {
     try {
-      const tokenResponse = await authService.getAccessToken();
+      const tokenResponse = await this.deps.auth.getAccessToken();
 
       if (!tokenResponse.success) {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
@@ -812,4 +835,44 @@ class PowerBIApiService {
   }
 }
 
-export const powerbiApiService = new PowerBIApiService();
+// ---------------------------------------------------------------------------
+// ARCH-B4: factory + production wiring
+// ---------------------------------------------------------------------------
+
+export type { PowerBIApiService };
+
+/**
+ * Construct a PowerBIApiService from explicit dependencies. Tests inject a fake
+ * ApiAuthPort; production injects the real auth service (built lazily).
+ */
+export function createPowerBIApiService(deps: PowerBIApiDeps): PowerBIApiService {
+  return new PowerBIApiService(deps);
+}
+
+/** Build the production dependency set (real auth service backed). */
+export function buildProductionApiDeps(): PowerBIApiDeps {
+  return {
+    // Lazy require so importing this module does not eagerly pull in the
+    // electron/MSAL-backed auth singleton (keeps the module loadable in tests).
+    auth: {
+      getAccessToken: () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { authService } = require('../auth/auth-service') as typeof import('../auth/auth-service');
+        return authService.getAccessToken();
+      },
+    },
+  };
+}
+
+// Lazy production singleton (see auth/singleton.ts). Exported as a proxy so the
+// existing `import { powerbiApiService }` call sites (ipc/content.ts) keep
+// working while construction stays deferred until first use.
+import { getPowerBIApiService } from '../auth/singleton';
+
+export const powerbiApiService: PowerBIApiService = new Proxy({} as PowerBIApiService, {
+  get(_target, prop, receiver) {
+    const svc = getPowerBIApiService();
+    const value = Reflect.get(svc as object, prop, receiver);
+    return typeof value === 'function' ? value.bind(svc) : value;
+  },
+});

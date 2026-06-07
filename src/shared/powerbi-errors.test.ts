@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getErrorMessage, isTokenExpiredError } from './utils';
+import { getErrorMessage, isTokenExpiredError } from './powerbi-errors';
 
 describe('getErrorMessage', () => {
   it('returns empty string for undefined', () => {

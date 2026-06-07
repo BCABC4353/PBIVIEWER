@@ -9,9 +9,41 @@ import type {
   EmbedToken,
   DatasetRefreshInfo,
   AppSettings,
-  IPCResponse,
-  TokenResult,
 } from './types';
+
+// ============================================
+// IPC ENVELOPE TYPES (ARCH-S3)
+// Moved here from types.ts so the IPC contract lives next to the API surface
+// it shapes. Re-exported from types.ts for backward compatibility.
+// ============================================
+
+export type IPCResponse<T> =
+  | { success: true; data: T }
+  | {
+      success: false;
+      error: {
+        code: string;
+        /** Raw message — fine for logs, may contain upstream API details */
+        message: string;
+        /**
+         * Friendly, user-safe message derived from the HTTP status code.
+         * Renderer should prefer this when surfacing errors to the user;
+         * fall back to `message` only if `userMessage` is absent.
+         */
+        userMessage?: string;
+      };
+    };
+
+/**
+ * Result of acquiring an access token. The expiresOn field carries MSAL's
+ * authoritative expiry so callers (powerbi-client, embed refresh) can schedule
+ * proactive refresh instead of guessing +1h from now.
+ */
+export interface TokenResult {
+  accessToken: string;
+  /** ISO 8601 timestamp; null if MSAL did not provide one (callers fall back to +1h). */
+  expiresOn: string | null;
+}
 
 // Typed IPC API surface — the single source of truth for the preload bridge and renderer.
 // Every method is explicitly typed so that no `as` casts are needed in consumers.
@@ -50,7 +82,6 @@ export interface ElectronAPI {
       partialFailure: boolean;
       failedWorkspaces: Array<{ id: string; name: string; error: string }>;
     }>>;
-    getRecent: () => Promise<IPCResponse<ContentItem[]>>;
   };
 
   window: {
@@ -74,9 +105,13 @@ export interface ElectronAPI {
       type: 'report' | 'dashboard';
       workspaceId: string;
       workspaceName: string;
+      /** BEH-B3: homeAccountId from MSAL — scopes the record to the signed-in user. */
+      accountId?: string;
     }) => Promise<IPCResponse<void>>;
-    getRecent: () => Promise<IPCResponse<ContentItem[]>>;
-    getFrequent: () => Promise<IPCResponse<ContentItem[]>>;
+    /** BEH-B3: pass the signed-in homeAccountId to scope results to that user. */
+    getRecent: (accountId?: string) => Promise<IPCResponse<ContentItem[]>>;
+    /** BEH-B3: pass the signed-in homeAccountId to scope results to that user. */
+    getFrequent: (accountId?: string) => Promise<IPCResponse<ContentItem[]>>;
     clear: () => Promise<IPCResponse<void>>;
   };
 
