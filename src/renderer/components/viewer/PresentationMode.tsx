@@ -12,7 +12,6 @@ import {
 import * as pbi from 'powerbi-client';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
-import { usePowerBIService } from '../../hooks/usePowerBIService';
 import { useSettingsStore } from '../../stores/settings-store';
 
 interface ReportPage {
@@ -40,10 +39,6 @@ export const PresentationMode: React.FC = () => {
     reportId: string;
   }>();
   const navigate = useNavigate();
-  // Kept for the doExit teardown path — we still need to force-reset the
-  // container synchronously when the user pulls the ripcord on the slideshow,
-  // because navigation away handles unmount asynchronously.
-  const powerbiService = usePowerBIService();
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -52,6 +47,10 @@ export const PresentationMode: React.FC = () => {
   const isExitingRef = useRef(false);
   const hasEnteredFullscreen = useRef(false);
   const persistIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // NEW-BEH-1: gates the auto-start effect to a single trigger so that
+  // pressing Pause after auto-start doesn't immediately re-start the slideshow
+  // on the next render cycle (slidesReady / isLoading / error can re-fire).
+  const hasAutoStartedRef = useRef(false);
 
   const [pages, setPages] = useState<ReportPage[]>([]);
   const [bookmarks, setBookmarks] = useState<ReportBookmark[]>([]);
@@ -160,6 +159,7 @@ export const PresentationMode: React.FC = () => {
     error,
     embedRef,
     reload,
+    teardownNow,
   } = usePowerBIEmbed({
     workspaceId,
     itemId: reportId,
@@ -213,12 +213,22 @@ export const PresentationMode: React.FC = () => {
     setSlidesReady(newSlides.length > 0);
   }, [pages, bookmarks, slideshowMode]);
 
-  // Auto-start slideshow when slides are ready (if setting enabled)
+  // Auto-start slideshow when slides are ready (if setting enabled).
+  // NEW-BEH-1: the hasAutoStartedRef gate ensures we fire exactly once per
+  // mount, so pressing Pause after auto-start stays paused — subsequent
+  // re-renders of slidesReady / isLoading / error don't re-trigger play.
   useEffect(() => {
-    if (slidesReady && autoStartSlideshow && !isPlaying && !isLoading && !error) {
+    if (
+      slidesReady &&
+      autoStartSlideshow &&
+      !isLoading &&
+      !error &&
+      !hasAutoStartedRef.current
+    ) {
+      hasAutoStartedRef.current = true;
       setIsPlaying(true);
     }
-  }, [slidesReady, autoStartSlideshow, isLoading, error, isPlaying]);
+  }, [slidesReady, autoStartSlideshow, isLoading, error]);
 
   // Exit function - navigates back to report viewer
   const doExit = useCallback(() => {
@@ -232,22 +242,10 @@ export const PresentationMode: React.FC = () => {
       slideshowIntervalRef.current = null;
     }
 
-    // Hard-reset the container so the iframe stops rendering immediately.
-    // The hook's cleanup will also reset on unmount, but we want the visual
-    // gone before navigate() runs. CRITICAL: detach handlers FIRST so a
-    // late-firing 'error' event from the reset itself can't run on a ghost
-    // embed and call setError/setIsLoading on this about-to-unmount component.
-    if (embedContainerRef.current) {
-      try {
-        const embed = embedRef.current;
-        if (embed) {
-          try { embed.off('loaded'); embed.off('error'); } catch { /* ignore */ }
-        }
-        powerbiService.reset(embedContainerRef.current);
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
+    // PERF-S2 / ARCH-S1: use teardownNow() so the hook owns the SDK event
+    // detachment and container reset — no direct embed.off or powerbiService
+    // calls here. Stops the iframe from rendering before navigate() runs.
+    teardownNow();
 
     // Exit fullscreen if active
     if (document.fullscreenElement) {
@@ -260,9 +258,7 @@ export const PresentationMode: React.FC = () => {
     } else {
       navigate('/', { replace: true });
     }
-    // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, reportId, navigate, powerbiService]);
+  }, [workspaceId, reportId, navigate, teardownNow]);
 
   // Try to enter fullscreen on mount (don't block if it fails)
   useEffect(() => {
@@ -284,22 +280,10 @@ export const PresentationMode: React.FC = () => {
           slideshowIntervalRef.current = null;
         }
 
-        // Hook cleanup will detach embed handlers and reset the container
-        // on unmount — but force a reset now so the iframe stops painting
-        // before we navigate. Detach handlers FIRST so a synthetic error
-        // emitted by the reset can't paint a ghost-embed setError onto an
-        // about-to-unmount component.
-        if (embedContainerRef.current) {
-          try {
-            const embed = embedRef.current;
-            if (embed) {
-              try { embed.off('loaded'); embed.off('error'); } catch { /* ignore */ }
-            }
-            powerbiService.reset(embedContainerRef.current);
-          } catch {
-            // Ignore
-          }
-        }
+        // PERF-S2 / ARCH-S1: delegate teardown to the hook — no direct
+        // embed.off or powerbiService calls here. Forces iframe to stop
+        // rendering before navigate() runs.
+        teardownNow();
 
         if (workspaceId && reportId) {
           navigate(`/report/${workspaceId}/${reportId}`, { replace: true });
@@ -311,9 +295,7 @@ export const PresentationMode: React.FC = () => {
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, reportId, navigate, powerbiService]);
+  }, [workspaceId, reportId, navigate, teardownNow]);
 
   // Focus management: save previously-focused element on mount, restore on unmount.
   // Keeps screen-reader / keyboard users from being stranded after exit.
@@ -454,7 +436,10 @@ export const PresentationMode: React.FC = () => {
     );
   }, [currentSlideIndex, slides]);
 
-  // Hide controls after inactivity
+  // Hide controls after inactivity.
+  // PERF-S4: bind to `document` only — `window` re-dispatches the same
+  // bubbled mousemove events, so attaching to both fires the handler twice
+  // per move. A single `document` listener is sufficient for the entire page.
   useEffect(() => {
     let timeout: NodeJS.Timeout | undefined;
 
@@ -472,11 +457,9 @@ export const PresentationMode: React.FC = () => {
 
     handleMouseMove();
 
-    window.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mousemove', handleMouseMove);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mousemove', handleMouseMove);
       if (timeout) {
         clearTimeout(timeout);
@@ -682,6 +665,58 @@ export const PresentationMode: React.FC = () => {
                     title={`Go to ${slide.type === 'bookmark' ? 'bookmark' : 'page'} ${index + 1}: ${slide.displayName}`}
                   />
                 ))}
+              </div>
+            )}
+            {/* PROD-S10: scrubber fallback for decks with more than 20
+                slides where dot indicators become impractical.
+                A11Y: role="slider" correctly describes an interactive control
+                that changes value; keyboard support (Left/Right/Home/End)
+                makes it operable without a mouse. */}
+            {slides.length > 20 && (
+              <div className="mt-4 px-4">
+                <div
+                  className="relative w-full h-1.5 bg-white/30 rounded-full cursor-pointer"
+                  role="slider"
+                  tabIndex={0}
+                  aria-valuenow={currentSlideIndex + 1}
+                  aria-valuemin={1}
+                  aria-valuemax={slides.length}
+                  aria-valuetext={`Slide ${currentSlideIndex + 1} of ${slides.length}`}
+                  aria-label="Slide scrubber"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const ratio = (e.clientX - rect.left) / rect.width;
+                    const target = Math.max(0, Math.min(slides.length - 1, Math.round(ratio * (slides.length - 1))));
+                    setCurrentSlideIndex(target);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentSlideIndex((prev) => Math.min(prev + 1, slides.length - 1));
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentSlideIndex((prev) => Math.max(prev - 1, 0));
+                    } else if (e.key === 'Home') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentSlideIndex(0);
+                    } else if (e.key === 'End') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentSlideIndex(slides.length - 1);
+                    }
+                  }}
+                >
+                  <div
+                    className="h-full bg-white rounded-full transition-[width] duration-300"
+                    style={{ width: `${((currentSlideIndex + 1) / slides.length) * 100}%` }}
+                  />
+                </div>
+                <div className="text-white/60 text-xs text-center mt-1">
+                  {currentSlideIndex + 1} / {slides.length}
+                </div>
               </div>
             )}
           </div>

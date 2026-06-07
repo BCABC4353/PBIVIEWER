@@ -20,7 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src"
+    "lint": "eslint src scripts/*.js *.config.js"
   },
   "dependencies": {
     "@azure/msal-node": "^2.6.0",

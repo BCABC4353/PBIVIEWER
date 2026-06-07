@@ -1,15 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Spinner, Button, Text, Breadcrumb, BreadcrumbItem } from '@fluentui/react-components';
-import {
-  ArrowLeftRegular,
-  ArrowSyncRegular,
-  ArrowDownloadRegular,
-  FullScreenMaximizeRegular,
-  HomeRegular,
-} from '@fluentui/react-icons';
+import { Spinner, Button, Text } from '@fluentui/react-components';
 import * as pbi from 'powerbi-client';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
+import { useContentStore } from '../../stores/content-store';
+import { isNotFoundError } from '../../../shared/powerbi-errors';
+import { ViewerToolbar } from './ViewerToolbar';
+import { useViewerExport } from './useViewerExport';
 
 export const DashboardViewer: React.FC = () => {
   const { workspaceId, dashboardId } = useParams<{ workspaceId: string; dashboardId: string }>();
@@ -18,11 +15,9 @@ export const DashboardViewer: React.FC = () => {
   const embedContainerRef = useRef<HTMLDivElement>(null);
 
   const [dashboardName, setDashboardName] = useState<string>('Dashboard');
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
-  const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch dashboard details to get the name
+  // Fetch dashboard details to get the name (also drives UX-S14 breadcrumb)
   useEffect(() => {
     if (!workspaceId || !dashboardId) return;
 
@@ -42,25 +37,7 @@ export const DashboardViewer: React.FC = () => {
     loadDashboardDetails();
   }, [workspaceId, dashboardId]);
 
-  useEffect(() => {
-    return () => {
-      if (exportTimeoutRef.current) {
-        clearTimeout(exportTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const showExportStatus = (message: string) => {
-    setExportStatus(message);
-    if (exportTimeoutRef.current) {
-      clearTimeout(exportTimeoutRef.current);
-    }
-    exportTimeoutRef.current = setTimeout(() => {
-      setExportStatus(null);
-    }, 4000);
-  };
-
-  // Build embed configuration. Dashboards use fitToWidth and no extra panes.
+  // Build embed configuration.
   const buildConfig = useCallback(
     (token: string): pbi.IDashboardEmbedConfiguration => ({
       type: 'dashboard',
@@ -82,8 +59,15 @@ export const DashboardViewer: React.FC = () => {
           navigate(`/report/${workspaceId}/${tileEvent.reportId}`);
         }
       },
+      // NEW-PROD-5: detect not-found/404 errors and evict the dead item from
+      // in-memory recent/frequent lists so the home page stops showing the tile.
+      error: (event: pbi.service.ICustomEvent<unknown>) => {
+        if (dashboardId && isNotFoundError(event?.detail)) {
+          useContentStore.getState().evictDeadItem(dashboardId);
+        }
+      },
     }),
-    [navigate, workspaceId]
+    [navigate, workspaceId, dashboardId]
   );
 
   const {
@@ -97,56 +81,38 @@ export const DashboardViewer: React.FC = () => {
     containerRef: embedContainerRef,
     buildConfig,
     events,
-    // Dashboards have no auto-refresh in the legacy code path.
     autoRefreshEnabled: false,
     errorFallback: 'Failed to load dashboard. Please try again.',
-    // Legacy DashboardViewer surfaced post-load errors too.
     surfacePostLoadErrors: true,
   });
 
-  const handleRefresh = () => {
+  // NEW-ARCH-1: export hook (screenshot-only; no API export for dashboards)
+  const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
+    containerRef: embedContainerRef,
+  });
+
+  // NEW-UX-3: refresh with in-progress state.
+  // reload() is synchronous (it just bumps a nonce), so we cannot clear
+  // isRefreshing in a finally block — React would batch both state updates
+  // in the same tick, making isRefreshing never visibly true. Instead we
+  // keep isRefreshing=true until usePowerBIEmbed's isLoading drops back to
+  // false, which happens after the embed fires its 'loaded' event.
+  // refreshingRef gates the effect so a background initial load doesn't
+  // clear the flag before the user has clicked Refresh.
+  const refreshingRef = useRef(false);
+  useEffect(() => {
+    if (!refreshingRef.current) return;
+    if (isLoading) return; // still loading — wait for it to finish
+    // isLoading has settled to false — the reload cycle completed.
+    refreshingRef.current = false;
+    setIsRefreshing(false);
+  }, [isLoading]);
+
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    refreshingRef.current = true;
     reload();
-  };
-
-  const handleExportPdf = async () => {
-    setIsExporting(true);
-    try {
-      const pathResponse = await window.electronAPI.export.choosePdfPath();
-      if (!pathResponse.success) {
-        if (pathResponse.error.code === 'CANCELLED') {
-          showExportStatus('Export cancelled');
-          return;
-        }
-        showExportStatus(pathResponse.error.message || 'Export cancelled');
-        return;
-      }
-
-      const rect = embedContainerRef.current?.getBoundingClientRect();
-      // HiDPI: multiply width/height (NOT x/y) by devicePixelRatio so the main
-      // process captures at native pixel resolution instead of 96-DPI CSS pixels.
-      // Offsets stay in CSS pixels because capturePage's rect origin is CSS-px;
-      // only the size needs to scale up to land a sharper PDF on Retina/4K.
-      const dpr = window.devicePixelRatio || 1;
-      const bounds = rect && rect.width > 0 && rect.height > 0
-        ? { x: rect.left, y: rect.top, width: rect.width * dpr, height: rect.height * dpr }
-        : undefined;
-      const response = await window.electronAPI.export.currentViewToPdf({
-        bounds,
-        filePath: pathResponse.data.path,
-      });
-      if (response.success) {
-        showExportStatus('Exported to PDF');
-      } else if (response.error.code === 'CANCELLED') {
-        showExportStatus('Export cancelled');
-      } else {
-        showExportStatus(response.error.message || 'Export failed');
-      }
-    } catch (err) {
-      showExportStatus(err instanceof Error ? err.message : 'Export failed');
-    } finally {
-      setIsExporting(false);
-    }
-  };
+  }, [reload]);
 
   const handleFullScreen = () => {
     if (embedContainerRef.current) {
@@ -156,8 +122,13 @@ export const DashboardViewer: React.FC = () => {
     }
   };
 
+  // PROD-S8 style: back navigates to home for dashboard (no history drill-through UX)
   const handleBack = () => {
-    navigate('/');
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
   };
 
   // Silence unused-var noise from embedRef while still exposing it for future
@@ -166,62 +137,20 @@ export const DashboardViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="h-12 bg-neutral-background-2 border-b border-neutral-stroke-2 flex items-center px-4 gap-4">
-        <Button
-          appearance="subtle"
-          icon={<ArrowLeftRegular />}
-          onClick={handleBack}
-        >
-          Back
-        </Button>
+      {/* A11Y-S7: sr-only heading for screen readers */}
+      <h1 className="sr-only">Dashboard: {dashboardName}</h1>
 
-        <div className="h-6 w-px bg-neutral-stroke-2" />
-
-        <Breadcrumb aria-label="Breadcrumb">
-          <BreadcrumbItem>
-            <Button appearance="subtle" icon={<HomeRegular />} onClick={handleBack}>
-              Home
-            </Button>
-          </BreadcrumbItem>
-          <BreadcrumbItem>
-            <Text>{dashboardName}</Text>
-          </BreadcrumbItem>
-        </Breadcrumb>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          {exportStatus && (
-            <Text className="text-neutral-foreground-3 text-sm mr-2">
-              {exportStatus}
-            </Text>
-          )}
-          <Button
-            appearance="subtle"
-            icon={<ArrowSyncRegular />}
-            onClick={handleRefresh}
-            title="Refresh"
-            aria-label="Refresh dashboard"
-          />
-          <Button
-            appearance="subtle"
-            icon={<ArrowDownloadRegular />}
-            onClick={handleExportPdf}
-            title="Export current view to PDF"
-            disabled={isExporting}
-          >
-            {isExporting ? 'Exporting...' : 'Export PDF'}
-          </Button>
-          <Button
-            appearance="subtle"
-            icon={<FullScreenMaximizeRegular />}
-            onClick={handleFullScreen}
-            title="Full screen"
-            aria-label="Full screen"
-          />
-        </div>
-      </div>
+      {/* UX-B4: shared toolbar */}
+      <ViewerToolbar
+        onBack={handleBack}
+        itemName={dashboardName}
+        exportStatus={exportStatus}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        onExportPdf={() => void handleExportPdf(embedRef)}
+        isExporting={isExporting}
+        onFullScreen={handleFullScreen}
+      />
 
       {/* Embed container */}
       <div className="flex-1 relative">

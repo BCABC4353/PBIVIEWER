@@ -33,6 +33,19 @@ export default defineConfig({
         'src/**/*.test.{ts,tsx}',
         'src/test/**',
       ],
+      // NEW-CI-3: thresholds set just below current measured coverage so CI
+      // fails on regression without requiring aspirational numbers.
+      // Baseline measured 2026-06-07:
+      //   statements 8.47 % → threshold 8
+      //   branches   61.67% → threshold 60
+      //   functions  30.06% → threshold 29
+      //   lines       8.47% → threshold 8
+      thresholds: {
+        statements: 8,
+        branches: 60,
+        functions: 29,
+        lines: 8,
+      },
     },
   },
 });

@@ -10,6 +10,7 @@ import {
 } from '@fluentui/react-icons';
 import { useContentStore } from '../../stores/content-store';
 import { useSearchStore } from '../../stores/search-store';
+import { fetchWorkspaceContent } from '../../lib/workspace-content';
 import type { Workspace, Report, Dashboard } from '../../../shared/types';
 
 interface WorkspaceWithContent extends Workspace {
@@ -110,59 +111,15 @@ export const WorkspacesPage: React.FC = () => {
 
     if (!needsFetch) return;
 
-    // Mark as in-flight up front so re-entrant toggles don't fire a second
-    // request. We add to the set BEFORE the await — even on failure we
-    // don't want a re-expand to keep retrying; the user can hit the
-    // top-level Refresh button to retry.
+    // BEH-S3: Mark as in-flight up front so re-entrant toggles don't fire a
+    // second request. We add to the set BEFORE the await — even on failure we
+    // don't want a re-expand to keep retrying automatically.
     contentLoadedRef.current.add(workspaceId);
 
-    // Promise.allSettled instead of Promise.all: a failure on one half
-    // must not erase what the other half successfully returned.
-    const [reportsSettled, dashboardsSettled] = await Promise.allSettled([
-      window.electronAPI.content.getReports(workspaceId),
-      window.electronAPI.content.getDashboards(workspaceId),
-    ]);
-
-    const reportsOk =
-      reportsSettled.status === 'fulfilled' && reportsSettled.value.success;
-    const dashboardsOk =
-      dashboardsSettled.status === 'fulfilled' && dashboardsSettled.value.success;
-
-    const reports =
-      reportsSettled.status === 'fulfilled' && reportsSettled.value.success
-        ? reportsSettled.value.data
-        : [];
-    const dashboards =
-      dashboardsSettled.status === 'fulfilled' && dashboardsSettled.value.success
-        ? dashboardsSettled.value.data
-        : [];
-
-    // Log rejected reasons so they aren't silently swallowed.
-    if (reportsSettled.status === 'rejected') {
-      console.warn('[WorkspacesPage] getReports failed:', reportsSettled.reason);
-    } else if (!reportsSettled.value.success) {
-      console.warn(
-        '[WorkspacesPage] getReports returned error:',
-        reportsSettled.value.error
-      );
-    }
-    if (dashboardsSettled.status === 'rejected') {
-      console.warn('[WorkspacesPage] getDashboards failed:', dashboardsSettled.reason);
-    } else if (!dashboardsSettled.value.success) {
-      console.warn(
-        '[WorkspacesPage] getDashboards returned error:',
-        dashboardsSettled.value.error
-      );
-    }
-
-    // loadWarning surfaces partial / total failures so a network error never
-    // masquerades as an empty workspace. 'both' = both halves failed (a real
-    // network/permission failure, not an empty workspace); 'reports' /
-    // 'dashboards' = only that half failed.
-    let loadWarning: 'reports' | 'dashboards' | 'both' | null = null;
-    if (!reportsOk && !dashboardsOk) loadWarning = 'both';
-    else if (!reportsOk && dashboardsOk) loadWarning = 'reports';
-    else if (reportsOk && !dashboardsOk) loadWarning = 'dashboards';
+    // BEH-S3: Delegate to the shared fetchWorkspaceContent helper which owns
+    // the Promise.allSettled + loadWarning derivation logic.
+    const { reports, dashboards, loadWarning } =
+      await fetchWorkspaceContent(workspaceId);
 
     setWorkspaces((prev) =>
       prev.map((ws) =>
@@ -328,11 +285,35 @@ export const WorkspacesPage: React.FC = () => {
                               <Button
                                 size="small"
                                 appearance="subtle"
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
+                                  // BEH-S3: Single refetch action — clear the
+                                  // contentLoaded mark so the slot is eligible
+                                  // again, then call the shared helper directly
+                                  // (no double-toggle dance).
                                   contentLoadedRef.current.delete(workspace.id);
-                                  toggleWorkspace(workspace.id);
-                                  toggleWorkspace(workspace.id);
+                                  setWorkspaces((prev) =>
+                                    prev.map((ws) =>
+                                      ws.id === workspace.id
+                                        ? { ...ws, isLoading: true, loadWarning: null }
+                                        : ws,
+                                    ),
+                                  );
+                                  contentLoadedRef.current.add(workspace.id);
+                                  const result = await fetchWorkspaceContent(workspace.id);
+                                  setWorkspaces((prev) =>
+                                    prev.map((ws) =>
+                                      ws.id === workspace.id
+                                        ? {
+                                            ...ws,
+                                            reports: result.reports,
+                                            dashboards: result.dashboards,
+                                            isLoading: false,
+                                            loadWarning: result.loadWarning,
+                                          }
+                                        : ws,
+                                    ),
+                                  );
                                 }}
                               >
                                 Retry

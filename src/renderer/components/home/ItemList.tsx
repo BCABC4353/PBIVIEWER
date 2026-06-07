@@ -1,3 +1,11 @@
+/**
+ * UX-S13: per-type icon-color token map — reports use accent-primary (orange
+ * brand), dashboards use brand-primary. No longer uses text-status-success.
+ *
+ * Badge: report = 'informative', dashboard = 'brand' (neutral teal removed).
+ *
+ * A11Y-B5: keyboard activation (Enter / Space) preserved exactly.
+ */
 import React from 'react';
 import {
   Table,
@@ -70,10 +78,11 @@ export const ItemList: React.FC<ItemListProps> = ({
             <TableCell>
               <TableCellLayout
                 media={
+                  // UX-S13: report=accent-primary, dashboard=brand-primary
                   item.type === 'report' ? (
                     <DocumentRegular className="text-accent-primary" />
                   ) : (
-                    <BoardRegular className="text-status-success" />
+                    <BoardRegular className="text-brand-primary" />
                   )
                 }
               >
@@ -81,10 +90,11 @@ export const ItemList: React.FC<ItemListProps> = ({
               </TableCellLayout>
             </TableCell>
             <TableCell>
+              {/* UX-S13: dashboard badge color changed from 'success' to 'brand' */}
               <Badge
                 appearance="outline"
                 size="small"
-                color={item.type === 'report' ? 'informative' : 'success'}
+                color={item.type === 'report' ? 'informative' : 'brand'}
               >
                 {item.type === 'report' ? 'Report' : 'Dashboard'}
               </Badge>

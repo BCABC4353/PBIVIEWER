@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Spinner } from '@fluentui/react-components';
 import { useAuthStore } from './stores/auth-store';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -110,8 +110,71 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <AppShell>{children}</AppShell>;
 };
 
+/**
+ * PROD-B2: boot auto-start router.
+ *
+ * Runs once after checkAuth succeeds. If `autoStartMode === 'report'` and
+ * both autoStartReportId + autoStartWorkspaceId are set, attempts to resolve
+ * the item by loading the workspace's reports. On success it deep-links to the
+ * report viewer; on any failure (missing ids, item 404, API error) it falls
+ * back gracefully to the Home page — no error banner, no blank screen.
+ *
+ * Must be mounted inside HashRouter so useNavigate() works.
+ */
+const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+  const navigate = useNavigate();
+  const hasRun = useRef(false);
+
+  useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+
+    void (async () => {
+      try {
+        const settingsResp = await window.electronAPI.settings.get();
+        if (!settingsResp.success) {
+          onDone();
+          return;
+        }
+        const { autoStartMode, autoStartReportId, autoStartWorkspaceId } = settingsResp.data;
+
+        if (
+          autoStartMode !== 'report' ||
+          !autoStartReportId ||
+          !autoStartWorkspaceId
+        ) {
+          onDone();
+          return;
+        }
+
+        // Attempt to resolve the report so we know the item still exists.
+        const reportsResp = await window.electronAPI.content.getReports(autoStartWorkspaceId);
+
+        if (reportsResp.success) {
+          const match = reportsResp.data.find((r) => r.id === autoStartReportId);
+          if (match) {
+            // Item found — deep-link and let the viewer handle its own loading.
+            navigate(`/report/${autoStartWorkspaceId}/${autoStartReportId}`, { replace: true });
+            onDone();
+            return;
+          }
+        }
+        // Item not found or API error — fall back to Home gracefully.
+        onDone();
+      } catch {
+        // Defensive: any unexpected throw falls back to Home.
+        onDone();
+      }
+    })();
+  }, [navigate, onDone]);
+
+  return <LoadingScreen />;
+};
+
 const App: React.FC = () => {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore();
+  // PROD-B2: tracks whether the auto-start routing check has completed.
+  const [autoStartDone, setAutoStartDone] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -121,12 +184,26 @@ const App: React.FC = () => {
     return <LoadingScreen />;
   }
 
+  // PROD-B2: after auth resolves to authenticated, run the auto-start check
+  // exactly once before handing off to the normal route tree. We render
+  // AutoStartRouter (inside HashRouter) so it can call useNavigate().
+  const needsAutoStartCheck = isAuthenticated && !autoStartDone;
+
   return (
     <ErrorBoundary>
       <HashRouter>
         {/* NEW-A11Y-1: route announcer lives inside HashRouter so useLocation works */}
         <RouteAnnouncer />
-        <div className="h-screen bg-neutral-background-2 text-neutral-foreground-1 font-sans">
+        {/* PROD-B2: if authenticated and the auto-start check hasn't run yet,
+            render AutoStartRouter which either deep-links or calls setAutoStartDone.
+            Once done (or unauthenticated), fall through to the normal route tree. */}
+        {needsAutoStartCheck && (
+          <AutoStartRouter onDone={() => setAutoStartDone(true)} />
+        )}
+        <div
+          className="h-screen bg-neutral-background-2 text-neutral-foreground-1 font-sans"
+          style={needsAutoStartCheck ? { display: 'none' } : undefined}
+        >
           <SearchDialog />
           <Routes>
           {/* Public route */}

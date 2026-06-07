@@ -127,6 +127,10 @@ export interface ElectronAPI {
   app: {
     getPartitionName: () => Promise<string | null>;
     getVersion: () => Promise<string>;
+    // PROD-S2: opens the releases page; returns current version + releases URL.
+    checkForUpdates: () => Promise<
+      IPCResponse<{ currentVersion: string; releasesUrl: string | null }>
+    >;
   };
 
   log: {

@@ -1,11 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
-import {
-  ArrowLeftRegular,
-  ArrowSyncRegular,
-  AppsRegular,
-} from '@fluentui/react-icons';
+import { AppsRegular } from '@fluentui/react-icons';
+import { ViewerToolbar } from './ViewerToolbar';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -29,6 +26,7 @@ export const AppViewer: React.FC = () => {
   const [appName, setAppName] = useState<string>('App');
   const [partitionName, setPartitionName] = useState<string | null>(null);
   const [partitionLoaded, setPartitionLoaded] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load the partition name from main process
   useEffect(() => {
@@ -115,12 +113,35 @@ export const AppViewer: React.FC = () => {
     };
   }, [partitionLoaded]);
 
-  const handleRefresh = () => {
+  // NEW-UX-3: refresh with in-progress state.
+  // webview.reload() is synchronous, so clearing isRefreshing in a finally
+  // block means React batches both state updates in the same tick and the
+  // toolbar 'Refreshing…' label never actually renders. Instead we drive
+  // isRefreshing from the webview's own loading lifecycle: set it true on
+  // click and clear it when did-stop-loading fires. The did-stop-loading
+  // listener registered in the effect above already calls setIsLoading(false),
+  // but we need a separate gate so a background-load doesn't clear the flag
+  // from a refresh that hasn't started yet. We use a ref to avoid adding
+  // handleRefresh as a dep of the webview-listener effect.
+  const isRefreshingRef = useRef(false);
+  const handleRefresh = useCallback(() => {
     const webview = webviewRef.current;
-    if (webview) {
-      webview.reload();
-    }
-  };
+    if (!webview) return;
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
+    webview.reload();
+  }, []);
+
+  // Clear isRefreshing when the webview finishes loading after a manual refresh.
+  // We watch isLoading (already driven by did-stop-loading) as a proxy for
+  // completion. When isLoading transitions to false and a refresh was in flight,
+  // clear the flag.
+  useEffect(() => {
+    if (!isRefreshingRef.current) return;
+    if (isLoading) return; // still loading — wait for did-stop-loading
+    isRefreshingRef.current = false;
+    setIsRefreshing(false);
+  }, [isLoading]);
 
   const handleBack = () => {
     navigate('/apps');
@@ -131,35 +152,18 @@ export const AppViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="h-12 bg-neutral-background-2 border-b border-neutral-stroke-2 flex items-center px-4 gap-4">
-        <Button
-          appearance="subtle"
-          icon={<ArrowLeftRegular />}
-          onClick={handleBack}
-        >
-          Back to Apps
-        </Button>
+      {/* A11Y-S7: sr-only heading for screen readers */}
+      <h1 className="sr-only">App: {appName}</h1>
 
-        <div className="h-6 w-px bg-neutral-stroke-2" />
-
-        <div className="flex items-center gap-2">
-          <AppsRegular className="text-brand-primary" />
-          <Text weight="semibold">{appName}</Text>
-        </div>
-
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          <Button
-            appearance="subtle"
-            icon={<ArrowSyncRegular />}
-            onClick={handleRefresh}
-            title="Refresh"
-            aria-label="Refresh app"
-          />
-        </div>
-      </div>
+      {/* UX-B4: shared toolbar */}
+      <ViewerToolbar
+        onBack={handleBack}
+        backLabel="Back to Apps"
+        itemName={appName}
+        titleIcon={<AppsRegular />}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+      />
 
       {/* Content */}
       <div className="flex-1 relative">

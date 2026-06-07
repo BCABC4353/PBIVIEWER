@@ -1,3 +1,12 @@
+/**
+ * UX-S5: App tiles use flat ContentCard style — no bg-gradient-to-br.
+ * Icon container replaced with bg-neutral-background-4.
+ *
+ * UX-S6: hover uses shadow-fluent-4.
+ *
+ * UX-S13: icon uses text-accent-primary (orange brand) instead of any
+ * hard-coded purple-600 / amber-600 / raw white.
+ */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner, Text, Button, Card } from '@fluentui/react-components';
@@ -28,7 +37,6 @@ export const AppsPage: React.FC = () => {
       const response = await window.electronAPI.content.getApps();
 
       if (!response.success) {
-        // Prefer API-02 userMessage over raw upstream error body.
         throw new Error(response.error.userMessage || response.error.message || 'Failed to load apps');
       }
 
@@ -41,7 +49,6 @@ export const AppsPage: React.FC = () => {
   };
 
   const handleOpenApp = (app: App) => {
-    // Navigate to the app viewer which will display the full app experience
     navigate(`/app/${app.id}`);
   };
 
@@ -113,13 +120,16 @@ export const AppsPage: React.FC = () => {
             {apps.map((app) => (
               <Card
                 key={app.id}
-                className="cursor-pointer hover:shadow-lg transition-shadow"
+                // UX-S6: shadow-fluent-4 on hover; UX-S5: no gradient
+                className="cursor-pointer hover:shadow-fluent-4 transition-shadow"
                 onClick={() => handleOpenApp(app)}
               >
                 <div className="p-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-brand-primary to-brand-secondary rounded-xl flex items-center justify-center flex-shrink-0">
-                      <AppsRegular className="text-2xl text-white" />
+                    {/* UX-S5: flat neutral icon container — no gradient */}
+                    <div className="w-14 h-14 bg-neutral-background-4 rounded-xl flex items-center justify-center flex-shrink-0">
+                      {/* UX-S13: accent-primary (orange brand) instead of raw white-on-gradient */}
+                      <AppsRegular className="text-2xl text-accent-primary" />
                     </div>
 
                     <div className="flex-1 min-w-0">

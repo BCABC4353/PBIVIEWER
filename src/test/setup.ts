@@ -117,6 +117,9 @@ function createElectronAPIMock(): ElectronAPI {
     app: {
       getPartitionName: vi.fn().mockResolvedValue(null),
       getVersion: vi.fn().mockResolvedValue('0.0.0-test'),
+      checkForUpdates: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { currentVersion: '0.0.0-test', releasesUrl: null } }),
     },
 
     log: {

@@ -1,16 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
-import {
-  ArrowLeftRegular,
-  ArrowSyncRegular,
-  ArrowDownloadRegular,
-  FullScreenMaximizeRegular,
-  PlayRegular,
-} from '@fluentui/react-icons';
 import * as pbi from 'powerbi-client';
 import { usePowerBIEmbed } from '../../hooks/usePowerBIEmbed';
 import { useSettingsStore } from '../../stores/settings-store';
+import { useContentStore } from '../../stores/content-store';
+import { isNotFoundError } from '../../../shared/powerbi-errors';
+import { ViewerToolbar } from './ViewerToolbar';
+import { useViewerExport } from './useViewerExport';
 
 interface PageInfo {
   name: string;
@@ -28,11 +25,13 @@ export const ReportViewer: React.FC = () => {
   // primitives so we re-render only when the relevant fields change.
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
   const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
+
   const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const datasetIdRef = useRef<string | null>(null);
-  const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // UX-S14: report name visible while loading (breadcrumb)
+  const [reportName, setReportName] = useState<string>('');
 
   // Fullscreen keyboard navigation state
   const [pages, setPages] = useState<PageInfo[]>([]);
@@ -51,17 +50,12 @@ export const ReportViewer: React.FC = () => {
     currentPageIndexRef.current = currentPageIndex;
   }, [currentPageIndex]);
 
-  // Defensive bootstrap: ensure the settings store has fetched once. If the
-  // app already loaded settings elsewhere, loadSettings just re-fetches and
-  // overwrites with identical data — idempotent. The actual values we render
-  // come from the store subscription above, which auto-updates when
-  // SettingsPage writes through useSettingsStore.updateSettings.
+  // Defensive bootstrap: ensure the settings store has fetched once.
   useEffect(() => {
     void useSettingsStore.getState().loadSettings();
   }, []);
 
-  // Fetch report metadata (datasetId) — used by the loaded handler to pull
-  // dataset refresh info. Fires once per workspace/report change.
+  // Fetch report metadata (datasetId + name) — used by the loaded handler.
   useEffect(() => {
     if (!workspaceId || !reportId) return;
     let cancelled = false;
@@ -73,6 +67,10 @@ export const ReportViewer: React.FC = () => {
           const reportData = reportsResponse.data.find((r) => r.id === reportId);
           if (reportData?.datasetId) {
             datasetIdRef.current = reportData.datasetId;
+          }
+          // UX-S14: capture name so breadcrumb is visible while loading
+          if (reportData?.name) {
+            setReportName(reportData.name);
           }
         }
       } catch (error) {
@@ -109,10 +107,16 @@ export const ReportViewer: React.FC = () => {
     [workspaceId, reportId]
   );
 
-  // Event handlers passed to the hook. The hook handles lifecycle bookkeeping
-  // for 'loaded' and 'error'; these run after that housekeeping.
+  // Event handlers passed to the hook.
   const events = useMemo(
     () => ({
+      // NEW-PROD-5: detect not-found/404 errors and evict the dead item from
+      // in-memory recent/frequent lists so the home page stops showing the tile.
+      error: (event: pbi.service.ICustomEvent<unknown>) => {
+        if (reportId && isNotFoundError(event?.detail)) {
+          useContentStore.getState().evictDeadItem(reportId);
+        }
+      },
       loaded: async () => {
         const report = embedRef.current as pbi.Report | null;
         if (!report) return;
@@ -192,27 +196,37 @@ export const ReportViewer: React.FC = () => {
     autoRefreshIntervalMinutes,
     errorFallback:
       'This report could not be loaded. You may not have access, or it may have been removed.',
-    // Match legacy ReportViewer behavior: post-load errors stay silent.
     surfacePostLoadErrors: false,
   });
 
-  useEffect(() => {
-    return () => {
-      if (exportTimeoutRef.current) {
-        clearTimeout(exportTimeoutRef.current);
-      }
-    };
-  }, []);
+  // NEW-ARCH-1: export hook
+  const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
+    containerRef: embedContainerRef,
+    reportExportIds:
+      workspaceId && reportId ? { reportId, workspaceId } : undefined,
+    getReportMeta: async (eRef) => {
+      const report = eRef.current as pbi.Report | null;
+      if (!report || !workspaceId || !reportId) return undefined;
 
-  const showExportStatus = (message: string) => {
-    setExportStatus(message);
-    if (exportTimeoutRef.current) {
-      clearTimeout(exportTimeoutRef.current);
-    }
-    exportTimeoutRef.current = setTimeout(() => {
-      setExportStatus(null);
-    }, 4000);
-  };
+      let pageName: string | undefined;
+      try {
+        const reportPages = await report.getPages();
+        pageName = reportPages.find((p: pbi.Page) => p.isActive)?.name;
+      } catch (err) {
+        console.warn('[ReportViewer] Page name fetch for export failed:', err);
+      }
+
+      let bookmarkState: string | undefined;
+      try {
+        const captured = await report.bookmarksManager.capture({ personalizeVisuals: true });
+        bookmarkState = captured?.state;
+      } catch (err) {
+        console.warn('[ReportViewer] Bookmark capture for export failed:', err);
+      }
+
+      return { pageName, bookmarkState };
+    },
+  });
 
   // Navigate to a specific page by index
   const navigateToPage = useCallback(async (pageIndex: number) => {
@@ -234,7 +248,7 @@ export const ReportViewer: React.FC = () => {
 
   // Fullscreen change detection
   useEffect(() => {
-    let hintTimer: NodeJS.Timeout | null = null;
+    let hintTimer: ReturnType<typeof setTimeout> | null = null;
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
@@ -261,9 +275,8 @@ export const ReportViewer: React.FC = () => {
   }, [pages.length]);
 
   // Keyboard navigation for fullscreen mode
-  // Use capture phase to intercept events before the iframe consumes them
   useEffect(() => {
-    let focusCheckInterval: NodeJS.Timeout | null = null;
+    let focusCheckInterval: ReturnType<typeof setInterval> | null = null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!document.fullscreenElement) return;
@@ -308,9 +321,7 @@ export const ReportViewer: React.FC = () => {
       }
     };
 
-    // Reclaim focus ONLY when it was genuinely lost to the body — NEVER when the user
-    // is interacting with the Power BI iframe (active === the iframe element), or we
-    // fight the iframe and slicer/dropdown clicks won't stick.
+    // Reclaim focus ONLY when it was genuinely lost to the body
     const maintainFocus = () => {
       if (!document.fullscreenElement || !embedContainerRef.current) return;
       const active = document.activeElement;
@@ -335,147 +346,24 @@ export const ReportViewer: React.FC = () => {
     };
   }, [navigateToPage, isFullscreen]);
 
-  const handleRefresh = () => {
+  // NEW-UX-3: Refresh with in-progress state
+  const handleRefresh = useCallback(async () => {
     const report = embedRef.current as pbi.Report | null;
-    if (report) {
-      report.refresh().catch(() => {
-        // Refresh errors are non-fatal
-      });
-    } else {
-      reload();
-    }
-  };
-
-  const handleExportPdf = async () => {
-    setIsExporting(true);
+    setIsRefreshing(true);
     try {
-      const report = embedRef.current as pbi.Report | null;
-      if (!report || !workspaceId || !reportId) {
-        showExportStatus('Report not ready');
-        return;
-      }
-
-      const pathResponse = await window.electronAPI.export.choosePdfPath();
-      if (!pathResponse.success) {
-        if (pathResponse.error.code === 'CANCELLED') {
-          showExportStatus('Export cancelled');
-          return;
-        }
-        showExportStatus(pathResponse.error.message || 'Export cancelled');
-        return;
-      }
-
-      const filePath = pathResponse.data.path;
-
-      const isExportFeatureUnavailable = (message?: string) => {
-        if (!message) return false;
-        const lower = message.toLowerCase();
-        return lower.includes('featurenotavailable') || lower.includes('feature not available') || lower.includes('404');
-      };
-
-      let pageName: string | undefined;
-      try {
-        const reportPages = await report.getPages();
-        pageName = reportPages.find((p: pbi.Page) => p.isActive)?.name;
-      } catch (error) {
-        console.warn('[ReportViewer] Page name fetch for export failed:', error);
-      }
-
-      let bookmarkState: string | undefined;
-      try {
-        const captured = await report.bookmarksManager.capture({ personalizeVisuals: true });
-        bookmarkState = captured?.state;
-      } catch (error) {
-        console.warn('[ReportViewer] Bookmark capture for export failed:', error);
-      }
-
-      const apiResponse = await window.electronAPI.content.exportReportToPdf(
-        reportId,
-        workspaceId,
-        pageName,
-        bookmarkState,
-        filePath
-      );
-
-      if (apiResponse.success) {
-        showExportStatus('Exported to PDF');
-        return;
-      }
-
-      if (apiResponse.error.code === 'CANCELLED') {
-        showExportStatus('Export cancelled');
-        return;
-      }
-
-      const apiErrorMessage = apiResponse.error.message || 'Export failed';
-      if (!isExportFeatureUnavailable(apiErrorMessage)) {
-        showExportStatus(apiErrorMessage);
-        return;
-      }
-
-      // Fallback: capture the embed area and crop off panes/tabs
-      let hidPanes = false;
-      try {
-        await report.updateSettings({
-          panes: {
-            filters: { visible: false, expanded: false },
-            pageNavigation: { visible: false },
-          },
-          navContentPaneEnabled: false,
+      if (report) {
+        await report.refresh().catch(() => {
+          // Refresh errors are non-fatal
         });
-        hidPanes = true;
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch (error) {
-        console.warn('[ReportViewer] Settings update for export failed:', error);
-      }
-
-      const rect = embedContainerRef.current?.getBoundingClientRect();
-      // HiDPI: multiply width/height (NOT x/y) by devicePixelRatio so the main
-      // process captures at native pixel resolution instead of 96-DPI CSS pixels.
-      // Offsets stay in CSS pixels because capturePage's rect origin is CSS-px;
-      // only the size needs to scale up to land a sharper PDF on Retina/4K.
-      const dpr = window.devicePixelRatio || 1;
-      const bounds = rect && rect.width > 0 && rect.height > 0
-        ? { x: rect.left, y: rect.top, width: rect.width * dpr, height: rect.height * dpr }
-        : undefined;
-
-      const fallbackResponse = await window.electronAPI.export.currentViewToPdf({
-        bounds,
-        insets: { right: 40, bottom: 40 },
-        filePath,
-      });
-
-      if (fallbackResponse.success) {
-        showExportStatus('Exported to PDF');
-      } else if (fallbackResponse.error.code === 'CANCELLED') {
-        showExportStatus('Export cancelled');
       } else {
-        showExportStatus(fallbackResponse.error.message || 'Export failed');
+        reload();
       }
-
-      if (hidPanes) {
-        try {
-          await report.updateSettings({
-            panes: {
-              filters: { visible: true, expanded: false },
-              pageNavigation: { visible: true },
-            },
-            navContentPaneEnabled: true,
-          });
-        } catch (error) {
-          console.warn('[ReportViewer] Settings restore after export failed:', error);
-        }
-      }
-    } catch (err) {
-      showExportStatus(err instanceof Error ? err.message : 'Export failed');
     } finally {
-      setIsExporting(false);
+      setIsRefreshing(false);
     }
-  };
+  }, [embedRef, reload]);
 
   const handleFullScreen = () => {
-    // Use our own fullscreen implementation instead of Power BI's SDK fullscreen()
-    // This keeps our app in control and allows keyboard event handling
     if (embedContainerRef.current) {
       if (document.fullscreenElement) {
         document.exitFullscreen();
@@ -485,8 +373,13 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
+  // PROD-S8: back uses navigate(-1) with a history-length fallback
   const handleBack = () => {
-    navigate('/');
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
   };
 
   const handleSlideshow = () => {
@@ -495,77 +388,26 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
-  // Format last refresh time as date and time (MM/DD/YY HH:mm)
-  const formatDateTime = (isoString: string): string => {
-    const date = new Date(isoString);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = String(date.getFullYear()).slice(-2);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${month}/${day}/${year} ${hours}:${minutes}`;
-  };
-
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="h-12 bg-neutral-background-2 border-b border-neutral-stroke-2 flex items-center px-4 gap-4">
-        <Button
-          appearance="subtle"
-          icon={<ArrowLeftRegular />}
-          onClick={handleBack}
-        >
-          Back
-        </Button>
+      {/* A11Y-S7: sr-only heading for screen readers */}
+      <h1 className="sr-only">
+        {reportName ? `Report: ${reportName}` : 'Report Viewer'}
+      </h1>
 
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          {lastDataRefresh && (
-            <Text className="text-neutral-foreground-3 text-sm mr-2">
-              Data refreshed: {formatDateTime(lastDataRefresh)}
-            </Text>
-          )}
-          {exportStatus && (
-            <Text className="text-neutral-foreground-3 text-sm mr-2">
-              {exportStatus}
-            </Text>
-          )}
-          <Button
-            appearance="subtle"
-            icon={<ArrowSyncRegular />}
-            onClick={handleRefresh}
-            title="Refresh report data"
-          >
-            Refresh
-          </Button>
-          <Button
-            appearance="subtle"
-            icon={<ArrowDownloadRegular />}
-            onClick={handleExportPdf}
-            title="Export current view to PDF"
-            disabled={isExporting}
-          >
-            {isExporting ? 'Exporting...' : 'Export PDF'}
-          </Button>
-          <Button
-            appearance="subtle"
-            icon={<PlayRegular />}
-            onClick={handleSlideshow}
-            title="Start slideshow presentation"
-          >
-            Slideshow
-          </Button>
-          <Button
-            appearance="subtle"
-            icon={<FullScreenMaximizeRegular />}
-            onClick={handleFullScreen}
-            title="Enter full screen mode"
-          >
-            Full Screen
-          </Button>
-        </div>
-      </div>
+      {/* UX-B4: shared toolbar */}
+      <ViewerToolbar
+        onBack={handleBack}
+        itemName={reportName || undefined}
+        lastDataRefresh={lastDataRefresh}
+        exportStatus={exportStatus}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        onExportPdf={() => void handleExportPdf(embedRef)}
+        isExporting={isExporting}
+        onSlideshow={handleSlideshow}
+        onFullScreen={handleFullScreen}
+      />
 
       {/* Embed container */}
       <div className="flex-1 relative">
@@ -595,7 +437,7 @@ export const ReportViewer: React.FC = () => {
           </div>
         )}
 
-        {/* Fullscreen keyboard hint - shows for 5 seconds when entering fullscreen */}
+        {/* Fullscreen keyboard hint */}
         {isFullscreen && pages.length > 1 && showFullscreenHint && (
           <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-md text-sm z-20 pointer-events-none animate-fade-in">
             <div className="flex items-center gap-2">

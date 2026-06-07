@@ -25,7 +25,14 @@ export const useSettingsStore = create<SettingsState>((set, _get) => ({
       if (response.success) {
         set({ settings: response.data, isLoading: false });
       } else {
-        set({ isLoading: false, error: response.error.message || 'Failed to load settings' });
+        // BEH-S7: prefer the friendly userMessage over the raw upstream message.
+        set({
+          isLoading: false,
+          error:
+            response.error.userMessage ??
+            response.error.message ??
+            'Failed to load settings',
+        });
       }
     } catch (error) {
       set({ isLoading: false, error: String(error) });
@@ -33,13 +40,30 @@ export const useSettingsStore = create<SettingsState>((set, _get) => ({
   },
 
   updateSettings: async (updates: Partial<AppSettings>) => {
+    // BEH-S2: Optimistic-authoritative write with rollback.
+    // Apply the delta immediately so slider / toggle feedback is instant and
+    // never reverts mid-drag. Capture a snapshot so we can restore on failure.
+    // The IPC call persists the new state to disk; we do NOT write
+    // response.data back to the store because that would create a revert on
+    // every keystroke if the main-process round-trip is slow.
+    const previousSettings = _get().settings;
+    set((state) => ({ settings: { ...state.settings, ...updates } }));
     try {
       const response = await window.electronAPI.settings.update(updates);
-      if (response.success) {
-        set({ settings: response.data });
+      if (!response.success) {
+        // BEH-S7: prefer the friendly userMessage over the raw message.
+        console.error(
+          'Failed to update settings:',
+          response.error.userMessage ?? response.error.message,
+        );
+        // BEH-S2 rollback: restore the pre-optimistic snapshot so the store
+        // does not diverge from what was actually persisted to disk.
+        set({ settings: previousSettings });
       }
     } catch (error) {
       console.error('Failed to update settings:', error);
+      // BEH-S2 rollback: restore the pre-optimistic snapshot on IPC throw.
+      set({ settings: previousSettings });
     }
   },
 

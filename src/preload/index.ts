@@ -5,15 +5,7 @@ import type { AppSettings } from '../shared/types';
 // Type-safe API exposed to renderer.
 // The return type annotations reference ElectronAPI so that `ipcRenderer.invoke`
 // (which returns Promise<any>) is narrowed to the correct typed response.
-// PROD-S2: extended with checkForUpdates which is not yet in the shared
-// ElectronAPI type (ipc-types.ts is Contracts-owned); the intersection avoids
-// an object-literal excess-property error without casting the whole object.
-type ExtendedElectronAPI = ElectronAPI & {
-  app: ElectronAPI['app'] & {
-    checkForUpdates: () => Promise<unknown>;
-  };
-};
-const electronAPI: ExtendedElectronAPI = {
+const electronAPI: ElectronAPI = {
   auth: {
     login: () => ipcRenderer.invoke('auth:login'),
     logout: () => ipcRenderer.invoke('auth:logout'),

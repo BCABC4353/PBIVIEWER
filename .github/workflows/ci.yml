@@ -5,6 +5,14 @@ on:
   push:
     branches: [master, main]
 
+# NEW-CI-6: cancel any in-flight run for the same ref/PR so overlapping pushes
+# don't queue and race. pull_request events use the PR number; push events on a
+# branch use the branch name. The workflow name is included so ci.yml and
+# build.yml each have their own independent concurrency namespace.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -35,7 +43,7 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm run test
+        run: npm run test:coverage
 
       - name: Audit dependencies (report-only)
         run: npm audit --audit-level=high || true

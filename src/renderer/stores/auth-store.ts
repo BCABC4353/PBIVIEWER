@@ -69,19 +69,32 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       }
     } catch (error) {
+      // BEH-S7: unwrap Error messages for cleaner user surfacing.
       set({
         user: null,
         isAuthenticated: false,
         isLoading: false,
-        error: String(error),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   },
 
   login: async () => {
     set({ isLoading: true, error: null });
+
+    // BEH-S6: Race the real IPC call against a 130-second timeout so
+    // isLoading never stays true indefinitely (e.g. the Azure auth popup is
+    // closed without completing, or the main process hangs).
+    const LOGIN_TIMEOUT_MS = 130_000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Login timed out. Please try again.')), LOGIN_TIMEOUT_MS),
+    );
+
     try {
-      const response = await window.electronAPI.auth.login();
+      const response = await Promise.race([
+        window.electronAPI.auth.login(),
+        timeoutPromise,
+      ]);
 
       if (response.success && response.data.success) {
         set({
@@ -95,8 +108,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         // continue to drive isLoading/user/error state.
         return;
       } else {
+        // BEH-S7: prefer the friendly userMessage over the raw message.
         const errorMessage = !response.success
-          ? response.error.message
+          ? (response.error.userMessage ?? response.error.message)
           : (!response.data.success ? response.data.error : 'Login failed');
         set({
           isLoading: false,
@@ -104,9 +118,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       }
     } catch (error) {
+      // Catches both the timeout rejection and unexpected IPC errors.
       set({
         isLoading: false,
-        error: String(error),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   },

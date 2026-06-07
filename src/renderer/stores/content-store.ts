@@ -26,6 +26,13 @@ interface ContentState {
   loadRecentItems: () => Promise<void>;
   loadFrequentItems: () => Promise<void>;
   recordItemOpened: (item: ContentItem) => void;
+  /**
+   * NEW-PROD-5: targeted eviction of a single dead item from the in-memory
+   * recent/frequent lists (called when a viewer receives a 404 for an item).
+   * Does NOT touch the persistent store — that is handled by the main-process
+   * usage handler when the IPC record is next refreshed with the evicted id.
+   */
+  evictDeadItem: (itemId: string) => void;
   clearError: () => void;
   reset: () => void;
 }
@@ -128,15 +135,22 @@ export const useContentStore = create<ContentState>((set, get) => ({
   },
 
   recordItemOpened: (item: ContentItem) => {
+    // BEH-S4: guard — do not emit usage IPC after the user has logged out.
+    // useAuthStore.getState() is synchronous so there is no race between the
+    // guard and the navigation that immediately follows this call.
+    if (!useAuthStore.getState().isAuthenticated) return;
+
     // Fire-and-forget: usage bookkeeping must NOT block the navigation
     // hot path. Callers should call this and immediately navigate; the
     // recent/frequent lists will reflect the open on the next paint cycle
     // (or shortly after) once these awaits resolve.
     void (async () => {
       try {
-        // BEH-B3: attach the signed-in user's homeAccountId so the record is
-        // scoped to this account; undefined when not yet authenticated (safe
-        // default — record is written as a legacy unscoped row).
+        // CROSS-LANE: pass the signed-in user's homeAccountId so the record
+        // is scoped to this account (BEH-B3 per-user scoping).
+        // UserInfo.id holds the homeAccountId as set by the auth service.
+        // If for any reason it is absent, the main-process usage handler
+        // should stamp it from authService instead (see notes in lane output).
         const accountId = useAuthStore.getState().user?.id;
         await window.electronAPI.usage.recordOpen({
           id: item.id,
@@ -156,6 +170,16 @@ export const useContentStore = create<ContentState>((set, get) => ({
         console.error('Failed to record item opened:', error);
       }
     })();
+  },
+
+  // NEW-PROD-5: targeted eviction — removes a single item from in-memory
+  // recent/frequent lists without discarding all usage history.  Callers
+  // (viewers) invoke this when the Power BI API returns a 404 for an item.
+  evictDeadItem: (itemId: string) => {
+    set((state) => ({
+      recentItems: state.recentItems.filter((i) => i.id !== itemId),
+      frequentItems: state.frequentItems.filter((i) => i.id !== itemId),
+    }));
   },
 
   clearError: () => {

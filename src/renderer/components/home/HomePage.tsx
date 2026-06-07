@@ -1,22 +1,98 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
-import { ArrowSyncRegular, FolderRegular } from '@fluentui/react-icons';
+import {
+  ArrowSyncRegular,
+  FolderRegular,
+  SignOutRegular,
+  BuildingRegular,
+} from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useContentStore } from '../../stores/content-store';
 import { FrequentStrip } from './FrequentStrip';
 import { ItemList } from './ItemList';
-import type { ContentItem } from '../../../shared/types';
+import type { ContentItem, Workspace } from '../../../shared/types';
 
+// -----------------------------------------------------------------------
+// FeaturedWorkspacesStrip
+// PROD-B3: always shows the top-3 workspaces the user has access to.
+// Rendered as simple cards so the user can orient themselves on first launch.
+// -----------------------------------------------------------------------
+interface FeaturedWorkspacesStripProps {
+  workspaces: Workspace[];
+  isLoading: boolean;
+  onBrowse: () => void;
+}
+
+const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
+  workspaces,
+  isLoading,
+  onBrowse,
+}) => {
+  const featured = workspaces.slice(0, 3);
+
+  return (
+    <section aria-labelledby="featured-workspaces-heading" className="mb-6">
+      {/* A11Y-S7: h2 for section heading */}
+      <h2
+        id="featured-workspaces-heading"
+        className="text-base font-semibold text-neutral-foreground-1 mb-3"
+      >
+        Featured Workspaces
+      </h2>
+
+      {isLoading && featured.length === 0 ? (
+        <div className="flex gap-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="flex-1 bg-neutral-background-3 rounded-lg h-16 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : featured.length > 0 ? (
+        <div className="flex gap-3">
+          {featured.map((ws) => (
+            <button
+              key={ws.id}
+              type="button"
+              className="flex-1 flex items-center gap-2 bg-neutral-background-3 hover:bg-neutral-background-4 rounded-lg px-4 py-3 text-left transition-colors cursor-pointer"
+              onClick={onBrowse}
+              aria-label={`Browse workspace ${ws.name}`}
+            >
+              <BuildingRegular className="text-brand-primary shrink-0" />
+              <Text className="text-neutral-foreground-1 truncate font-medium" title={ws.name}>
+                {ws.name}
+              </Text>
+            </button>
+          ))}
+        </div>
+      ) : (
+        // No workspaces yet — show empty placeholder so layout is stable
+        <div className="bg-neutral-background-3 rounded-lg px-4 py-3">
+          <Text className="text-neutral-foreground-3">
+            No workspaces loaded yet — use Browse Workspaces below.
+          </Text>
+        </div>
+      )}
+    </section>
+  );
+};
+
+// -----------------------------------------------------------------------
+// HomePage
+// -----------------------------------------------------------------------
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const {
     recentItems,
     frequentItems,
+    workspaces,
     loadRecentItems,
     loadFrequentItems,
+    loadWorkspaces,
     recordItemOpened,
     clearError,
   } = useContentStore();
@@ -24,11 +100,11 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([loadRecentItems(), loadFrequentItems()]);
+      await Promise.all([loadRecentItems(), loadFrequentItems(), loadWorkspaces()]);
       setIsLoading(false);
     };
     loadData();
-  }, [loadRecentItems, loadFrequentItems]);
+  }, [loadRecentItems, loadFrequentItems, loadWorkspaces]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -57,7 +133,7 @@ export const HomePage: React.FC = () => {
   const handleRefresh = async () => {
     clearError();
     setIsLoading(true);
-    await Promise.all([loadRecentItems(), loadFrequentItems()]);
+    await Promise.all([loadRecentItems(), loadFrequentItems(), loadWorkspaces()]);
     setIsLoading(false);
   };
 
@@ -86,6 +162,27 @@ export const HomePage: React.FC = () => {
           </Button>
         </div>
 
+        {/* PROD-B3: always-visible Browse Workspaces CTA + Featured Workspaces strip */}
+        <div className="flex items-center justify-between mb-4">
+          <FeaturedWorkspacesStrip
+            workspaces={workspaces}
+            isLoading={isLoading}
+            onBrowse={() => navigate('/workspaces')}
+          />
+        </div>
+
+        {/* PROD-B3: always-visible Browse Workspaces primary CTA */}
+        <div className="mb-6">
+          <Button
+            appearance="primary"
+            icon={<FolderRegular />}
+            onClick={() => navigate('/workspaces')}
+            data-testid="browse-workspaces-cta"
+          >
+            Browse Workspaces
+          </Button>
+        </div>
+
         {/* Loading state */}
         {isLoading && !hasUsageData && (
           <div className="flex items-center justify-center py-16">
@@ -93,23 +190,29 @@ export const HomePage: React.FC = () => {
           </div>
         )}
 
-        {/* Get started state - no usage history yet */}
+        {/* PROD-B3: substantive empty state — shows signed-in email + Sign Out */}
         {!isLoading && !hasUsageData && (
           <div className="bg-neutral-background-2 rounded-lg p-8 text-center">
             <FolderRegular className="text-4xl text-brand-primary mx-auto mb-4" />
             <Text weight="semibold" size={400} className="text-neutral-foreground-1 block mb-2">
               Welcome to Power BI Viewer
             </Text>
-            <Text className="text-neutral-foreground-3 block mb-4">
+            <Text className="text-neutral-foreground-3 block mb-1">
               Browse your workspaces to start viewing reports and dashboards.
               Items you open will appear here for quick access.
             </Text>
+            {user?.email && (
+              <Text size={200} className="text-neutral-foreground-3 block mb-4">
+                Signed in as {user.email}
+              </Text>
+            )}
             <Button
-              appearance="primary"
-              icon={<FolderRegular />}
-              onClick={() => navigate('/workspaces')}
+              appearance="subtle"
+              icon={<SignOutRegular />}
+              onClick={() => void logout()}
+              className="mt-2"
             >
-              Browse Workspaces
+              Sign out
             </Button>
           </div>
         )}
@@ -117,7 +220,7 @@ export const HomePage: React.FC = () => {
         {/* Content - show when user has usage history */}
         {hasUsageData && (
           <>
-            {/* Frequent strip - shows most opened items */}
+            {/* A11Y-S7: h2 on Frequent section */}
             {frequentItems.length > 0 && (
               <FrequentStrip
                 items={frequentItems}
@@ -136,9 +239,10 @@ export const HomePage: React.FC = () => {
             {recentItems.length > 0 && (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  <Text weight="semibold" size={400} className="text-neutral-foreground-1">
+                  {/* A11Y-S7: h2 on Recent section */}
+                  <h2 className="text-base font-semibold text-neutral-foreground-1">
                     Recent
-                  </Text>
+                  </h2>
                   <Text size={200} className="text-neutral-foreground-3">
                     {recentItems.length} item{recentItems.length === 1 ? '' : 's'}
                   </Text>

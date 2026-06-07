@@ -33,3 +33,28 @@ export function isTokenExpiredError(detail: unknown): boolean {
     message.includes('invalidauthenticationtoken')
   );
 }
+
+/**
+ * NEW-PROD-5: Check whether a Power BI SDK error detail indicates a not-found
+ * (404) condition — the item has been deleted or moved. Callers (viewers) use
+ * this to decide whether to evict the item from the recent/frequent lists.
+ *
+ * Matches:
+ *  - HTTP status codes extracted from throwForStatus messages ("404 -")
+ *  - OData / Power BI error codes that map to not-found ("PowerBIEntityNotFound",
+ *    "ItemNotFound", "ReportNotFound", "DashboardNotFound")
+ *  - SDK-level strings ("not found", "notfound")
+ */
+export function isNotFoundError(detail: unknown): boolean {
+  const message = getErrorMessage(detail).toLowerCase();
+  if (!message) return false;
+  return (
+    message.includes('404') ||
+    message.includes('notfound') ||
+    message.includes('not found') ||
+    message.includes('powerbi_entity_not_found') ||
+    message.includes('itemnotfound') ||
+    message.includes('reportnotfound') ||
+    message.includes('dashboardnotfound')
+  );
+}

@@ -6,6 +6,13 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# NEW-CI-6: prevent duplicate tag-push runs from racing. cancel-in-progress is
+# false because a partially-built release should not be silently discarded — the
+# operator needs to see the failure, not a silent cancellation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -57,7 +64,7 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
 
       - name: Build and package Windows
         run: npm run package:win
@@ -123,7 +130,7 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm test
+        run: npm run test:coverage
 
       - name: Build and package macOS
         run: |

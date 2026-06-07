@@ -4,13 +4,21 @@ import { getErrorMessage, isTokenExpiredError } from '../../shared/powerbi-error
 import { usePowerBIService } from './usePowerBIService';
 
 /**
+ * NEW-ARCH-2: Typed wrapper for Power BI SDK custom events.
+ * Callers can specialise T to narrow the `detail` payload for events they
+ * know the shape of (e.g. pageChanged, tileClicked). Falls back to `unknown`
+ * for events whose schema is not yet typed at the call site.
+ */
+export type EmbedEvent<T = unknown> = pbi.service.ICustomEvent<T>;
+
+/**
  * Event handler map passed by callers. The hook owns 'loaded' and 'error'
  * lifecycle: caller's handlers for those names run AFTER the hook's
  * built-in housekeeping (watchdog clear, isLoading=false, hasLoaded flag,
  * token-expiry handling). Any other event names (pageChanged, tileClicked,
  * ...) are registered as-is on the embed.
  */
-export type EmbedEventHandlers = Record<string, (event: pbi.service.ICustomEvent<unknown>) => void>;
+export type EmbedEventHandlers = Record<string, (event: EmbedEvent<unknown>) => void>;
 
 export interface UsePowerBIEmbedOptions {
   workspaceId: string | undefined;
@@ -54,6 +62,16 @@ export interface UsePowerBIEmbedResult {
   reload: () => void;
   /** Manual token refresh — also wired to visibilitychange and the proactive timer. */
   refreshEmbedToken: () => Promise<void>;
+  /**
+   * ARCH-S1 / PERF-S2: Synchronous teardown — detaches all registered SDK
+   * event handlers, cancels pending timers, and hard-resets the embed
+   * container via powerbiService.reset(). Safe to call before navigation
+   * so the iframe stops rendering before the component unmounts.
+   *
+   * Callers (e.g. PresentationMode exit / fullscreen-escape) MUST call this
+   * instead of touching embed.off or powerbiService directly.
+   */
+  teardownNow: () => void;
 }
 
 const DEFAULT_WATCHDOG_MS = 45000;
@@ -102,6 +120,9 @@ export function usePowerBIEmbed(
   const eventsRef = useRef(events);
   const errorFallbackRef = useRef(errorFallback);
   const surfacePostLoadErrorsRef = useRef(surfacePostLoadErrors);
+  // PERF-S1: stable refs so the auto-refresh interval effect doesn't re-create
+  // the setInterval on every render that touches error / isLoading state.
+  const errorRef = useRef<string | null>(null);
 
   useEffect(() => {
     buildConfigRef.current = buildConfig;
@@ -115,6 +136,11 @@ export function usePowerBIEmbed(
   useEffect(() => {
     surfacePostLoadErrorsRef.current = surfacePostLoadErrors;
   }, [surfacePostLoadErrors]);
+  // PERF-S1: mirror error state into a ref so the auto-refresh interval can
+  // read the current value without the effect depending on `error`.
+  useEffect(() => {
+    errorRef.current = error;
+  }, [error]);
 
   // Reload counter — bumped by the public reload() method to force the
   // load effect to re-run even when workspaceId/itemId haven't changed.
@@ -204,8 +230,12 @@ export function usePowerBIEmbed(
       if (myGen !== generationRef.current) return;
 
       if (!tokenResponse.success) {
+        // BEH-S7: prefer the friendly userMessage when the main process supplies
+        // one; fall back to the raw message so logs still carry full detail.
         throw new Error(
-          tokenResponse.error.message || 'Failed to refresh access token'
+          tokenResponse.error.userMessage ||
+            tokenResponse.error.message ||
+            'Failed to refresh access token'
         );
       }
 
@@ -287,8 +317,11 @@ export function usePowerBIEmbed(
         if (generation !== generationRef.current || cancelled) return;
 
         if (!tokenResponse.success) {
+          // BEH-S7: prefer the friendly userMessage when the main process supplies one.
           throw new Error(
-            tokenResponse.error.message || 'Failed to get embed token'
+            tokenResponse.error.userMessage ||
+              tokenResponse.error.message ||
+              'Failed to get embed token'
           );
         }
 
@@ -432,6 +465,11 @@ export function usePowerBIEmbed(
 
   // Auto-refresh interval — embed.refresh() at the user's configured cadence,
   // but only when the tab is visible, embed has loaded, and there's no error.
+  //
+  // PERF-S1 / BEH-S1: read current error and loaded state through refs so that
+  // neither `error` nor `isLoading` state changes cause this effect to tear
+  // down and recreate the setInterval. The only legitimate reasons to restart
+  // the timer are a user-toggled on/off or an interval-length change.
   useEffect(() => {
     if (!autoRefreshEnabled) return;
 
@@ -439,7 +477,7 @@ export function usePowerBIEmbed(
       if (
         embedRef.current &&
         hasLoadedRef.current &&
-        !error &&
+        !errorRef.current &&
         document.visibilityState === 'visible'
       ) {
         (embedRef.current as pbi.Report).refresh?.().catch(() => {
@@ -450,15 +488,51 @@ export function usePowerBIEmbed(
     }, autoRefreshIntervalMinutes * 60 * 1000);
 
     return () => clearInterval(intervalId);
-    // isLoading is in the dep list so the interval restarts cleanly each time
-    // an embed finishes loading; otherwise rapid report switching would let an
-    // existing setInterval fire `refresh()` against the new embed seconds after
-    // it loads (instead of after a full fresh interval).
-  }, [autoRefreshEnabled, autoRefreshIntervalMinutes, error, isLoading]);
+    // errorRef / hasLoadedRef are stable MutableRefObjects — ESLint correctly
+    // omits them from deps. Only the user-configurable knobs go here.
+  }, [autoRefreshEnabled, autoRefreshIntervalMinutes]);
 
   const reload = useCallback(() => {
     setReloadNonce((n) => n + 1);
   }, []);
+
+  /**
+   * ARCH-S1 / PERF-S2: Synchronous pre-navigation teardown.
+   *
+   * Detaches all registered SDK event handlers, cancels both pending timers,
+   * and hard-resets the embed container via powerbiService.reset(). Safe to
+   * call before navigate() so the iframe stops rendering immediately rather
+   * than waiting for the React unmount cycle.
+   *
+   * The hook's own cleanup (effect return) will no-op gracefully on the
+   * subsequent unmount because embedRef / registeredEventsRef are already
+   * cleared here.
+   */
+  const teardownNow = useCallback(() => {
+    // Bump generation so any in-flight async callbacks (token refresh,
+    // watchdog timeout) see a mismatch and bail out.
+    generationRef.current += 1;
+    detachEmbedHandlers();
+    clearWatchdog();
+    clearProactiveRefresh();
+    const container = containerRef.current;
+    if (container) {
+      try {
+        powerbiService.reset(container);
+      } catch {
+        // Ignore reset errors — container may already be detached.
+      }
+    }
+    embedRef.current = null;
+    hasLoadedRef.current = false;
+    tokenRefreshInProgressRef.current = false;
+  }, [
+    detachEmbedHandlers,
+    clearWatchdog,
+    clearProactiveRefresh,
+    containerRef,
+    powerbiService,
+  ]);
 
   return {
     isLoading,
@@ -467,5 +541,6 @@ export function usePowerBIEmbed(
     embedRef,
     reload,
     refreshEmbedToken,
+    teardownNow,
   };
 }

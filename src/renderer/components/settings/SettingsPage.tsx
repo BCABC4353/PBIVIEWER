@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import {
   Text,
   Button,
@@ -7,6 +7,11 @@ import {
   Switch,
   Card,
   Spinner,
+  Field,
+  Radio,
+  RadioGroup,
+  Combobox,
+  Option,
 } from '@fluentui/react-components';
 import {
   WeatherSunnyRegular,
@@ -14,26 +19,37 @@ import {
   DesktopRegular,
   ArrowResetRegular,
   DeleteRegular,
+  ArrowSyncRegular,
 } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useContentStore } from '../../stores/content-store';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
+import type { ContentItem } from '../../../shared/types';
 
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { settings, isLoading, loadSettings, updateSettings, resetSettings } = useSettingsStore();
-  const { loadRecentItems, loadFrequentItems } = useContentStore();
+  const { recentItems, frequentItems, loadRecentItems, loadFrequentItems } = useContentStore();
   const [clearingUsage, setClearingUsage] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
+
+  // Stable ID for the theme-toggle group label (aria-labelledby on the group).
+  // The slider IDs have been removed — Field owns the label association for
+  // the Slider components (A11Y-S5: aria-label on a Field-wrapped Slider
+  // shadows the visible Field label, so we remove it and let Field wire them).
+  const themeGroupId = useId();
 
   useEffect(() => {
     loadSettings();
-    // Fetch app version from main process (reads from package.json)
+    loadRecentItems();
+    loadFrequentItems();
+    // getVersion() is fully typed on window.electronAPI.app — no cast needed.
     window.electronAPI.app.getVersion().then((version: string) => {
       setAppVersion(version);
     });
-  }, [loadSettings]);
+  }, [loadSettings, loadRecentItems, loadFrequentItems]);
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
     updateSettings({ theme });
@@ -59,6 +75,24 @@ export const SettingsPage: React.FC = () => {
     updateSettings({ autoRefreshInterval: value });
   };
 
+  const handleAutoStartModeChange = (mode: 'off' | 'report') => {
+    updateSettings({ autoStartMode: mode });
+    if (mode === 'off') {
+      updateSettings({ autoStartReportId: undefined, autoStartWorkspaceId: undefined });
+    }
+  };
+
+  const handleAutoStartItemSelect = (item: ContentItem) => {
+    updateSettings({
+      autoStartReportId: item.id,
+      autoStartWorkspaceId: item.workspaceId,
+    });
+  };
+
+  const handleUsageClearOnLogoutChange = (value: 'always' | 'never' | 'on-shared-machine') => {
+    updateSettings({ usageClearOnLogout: value });
+  };
+
   const handleClearUsageHistory = async () => {
     setClearingUsage(true);
     try {
@@ -71,6 +105,38 @@ export const SettingsPage: React.FC = () => {
       setClearingUsage(false);
     }
   };
+
+  const handleCheckForUpdates = async () => {
+    setCheckingUpdates(true);
+    try {
+      await window.electronAPI.app.checkForUpdates();
+    } catch (error) {
+      console.error('Failed to check for updates:', error);
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
+
+  // Build a deduplicated list of recent + frequent items for the auto-start picker.
+  // Reports only (dashboards are not valid auto-start targets for PROD-B2).
+  const autoStartCandidates: ContentItem[] = React.useMemo(() => {
+    const seen = new Set<string>();
+    const all = [...recentItems, ...frequentItems].filter(
+      (item) => item.type === 'report',
+    );
+    return all.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [recentItems, frequentItems]);
+
+  // Display name for the currently selected auto-start report.
+  const autoStartSelectedName = React.useMemo(() => {
+    if (!settings.autoStartReportId) return '';
+    const found = autoStartCandidates.find((c) => c.id === settings.autoStartReportId);
+    return found ? found.name : settings.autoStartReportId;
+  }, [settings.autoStartReportId, autoStartCandidates]);
 
   if (isLoading) {
     return (
@@ -123,13 +189,24 @@ export const SettingsPage: React.FC = () => {
                 Appearance
               </h2>
               <div className="space-y-4">
+                {/* A11Y-S6: theme toggle group with role=group + aria-pressed */}
                 <div>
-                  <Text className="text-neutral-foreground-2 block mb-2">Theme</Text>
-                  <div className="flex gap-2">
+                  <Text
+                    id={themeGroupId}
+                    className="text-neutral-foreground-2 block mb-2"
+                  >
+                    Theme
+                  </Text>
+                  <div
+                    role="group"
+                    aria-labelledby={themeGroupId}
+                    className="flex gap-2"
+                  >
                     <Button
                       appearance={settings.theme === 'light' ? 'primary' : 'secondary'}
                       icon={<WeatherSunnyRegular />}
                       onClick={() => handleThemeChange('light')}
+                      aria-pressed={settings.theme === 'light'}
                     >
                       Light
                     </Button>
@@ -137,6 +214,7 @@ export const SettingsPage: React.FC = () => {
                       appearance={settings.theme === 'dark' ? 'primary' : 'secondary'}
                       icon={<WeatherMoonRegular />}
                       onClick={() => handleThemeChange('dark')}
+                      aria-pressed={settings.theme === 'dark'}
                     >
                       Dark
                     </Button>
@@ -144,6 +222,7 @@ export const SettingsPage: React.FC = () => {
                       appearance={settings.theme === 'system' ? 'primary' : 'secondary'}
                       icon={<DesktopRegular />}
                       onClick={() => handleThemeChange('system')}
+                      aria-pressed={settings.theme === 'system'}
                     >
                       System
                     </Button>
@@ -163,46 +242,127 @@ export const SettingsPage: React.FC = () => {
                 Slideshow / Presentation Mode
               </h2>
               <div className="space-y-5">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Text className="text-neutral-foreground-2">Auto-advance interval</Text>
-                    <Text weight="semibold">{settings.slideshowInterval} seconds</Text>
-                  </div>
-                  <div className="w-full">
-                    <Slider
-                      min={SLIDESHOW_INTERVAL.MIN}
-                      max={SLIDESHOW_INTERVAL.MAX}
-                      step={SLIDESHOW_INTERVAL.STEP}
-                      value={settings.slideshowInterval}
-                      onChange={(_, data) => handleSlideshowIntervalChange(data.value)}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
-                    <span>{SLIDESHOW_INTERVAL.MIN}s</span>
-                    <span>5 min</span>
-                  </div>
-                </div>
+                {/* A11Y-S5: slider wrapped in Field */}
+                <Field
+                  label={
+                    <div className="flex items-center justify-between w-full">
+                      <span>Auto-advance interval</span>
+                      <Text weight="semibold">{settings.slideshowInterval} seconds</Text>
+                    </div>
+                  }
+                  hint={`${SLIDESHOW_INTERVAL.MIN}s minimum — 5 minutes maximum`}
+                >
+                  <Slider
+                    min={SLIDESHOW_INTERVAL.MIN}
+                    max={SLIDESHOW_INTERVAL.MAX}
+                    step={SLIDESHOW_INTERVAL.STEP}
+                    value={settings.slideshowInterval}
+                    onChange={(_, data) => handleSlideshowIntervalChange(data.value)}
+                    style={{ width: '100%' }}
+                    aria-valuetext={`${settings.slideshowInterval} seconds`}
+                  />
+                </Field>
 
-                <div>
-                  <Text className="text-neutral-foreground-2 block mb-2">Slideshow mode</Text>
+                {/* A11Y-S5: select wrapped in Field */}
+                <Field label="Slideshow mode">
                   <Select
                     value={settings.slideshowMode}
-                    onChange={(_, data) => handleSlideshowModeChange(data.value as 'pages' | 'bookmarks' | 'both')}
+                    onChange={(_, data) =>
+                      handleSlideshowModeChange(data.value as 'pages' | 'bookmarks' | 'both')
+                    }
                   >
                     <option value="pages">Pages only</option>
                     <option value="bookmarks">Bookmarks only</option>
                     <option value="both">Pages and bookmarks</option>
                   </Select>
-                </div>
+                </Field>
 
-                <div className="flex items-center justify-between">
-                  <Text className="text-neutral-foreground-1">Auto-start slideshow</Text>
+                {/* A11Y-S5: switch wrapped in Field */}
+                <Field label="Auto-start slideshow">
                   <Switch
                     checked={settings.autoStartSlideshow}
                     onChange={(_, data) => handleAutoStartChange(data.checked)}
+                    label={settings.autoStartSlideshow ? 'On' : 'Off'}
                   />
-                </div>
+                </Field>
+              </div>
+            </div>
+          </Card>
+
+          {/* PROD-B2: Launch on startup section */}
+          <Card>
+            <div className="p-4">
+              <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
+                Launch on Startup
+              </h2>
+              <div className="space-y-5">
+                {/* A11Y-S5: radio group wrapped in Field */}
+                <Field
+                  label="Startup behavior"
+                  hint="Controls what the app opens when it launches."
+                >
+                  <RadioGroup
+                    value={settings.autoStartMode}
+                    onChange={(_, data) =>
+                      handleAutoStartModeChange(data.value as 'off' | 'report')
+                    }
+                  >
+                    <Radio value="off" label="Show home screen" />
+                    <Radio
+                      value="report"
+                      label="Open a specific report"
+                    />
+                  </RadioGroup>
+                </Field>
+
+                {/* Item picker — shown only when mode is 'report' */}
+                {settings.autoStartMode === 'report' && (
+                  <Field
+                    label="Report to open at launch"
+                    hint={
+                      autoStartCandidates.length === 0
+                        ? 'No recently or frequently opened reports. Open some reports first, then return here.'
+                        : 'Choose from your recently and frequently opened reports.'
+                    }
+                  >
+                    {autoStartCandidates.length > 0 ? (
+                      <Combobox
+                        placeholder="Select a report..."
+                        value={autoStartSelectedName}
+                        selectedOptions={
+                          settings.autoStartReportId ? [settings.autoStartReportId] : []
+                        }
+                        onOptionSelect={(_, data) => {
+                          const item = autoStartCandidates.find(
+                            (c) => c.id === data.optionValue,
+                          );
+                          if (item) handleAutoStartItemSelect(item);
+                        }}
+                        aria-label="Report to open at launch"
+                      >
+                        {autoStartCandidates.map((item) => (
+                          <Option key={item.id} value={item.id} text={item.name}>
+                            <div>
+                              <Text>{item.name}</Text>
+                              {item.workspaceName && (
+                                <Text
+                                  size={200}
+                                  className="text-neutral-foreground-3 block"
+                                >
+                                  {item.workspaceName}
+                                </Text>
+                              )}
+                            </div>
+                          </Option>
+                        ))}
+                      </Combobox>
+                    ) : (
+                      <Text size={200} className="text-neutral-foreground-3">
+                        No reports available. Open some reports and return here.
+                      </Text>
+                    )}
+                  </Field>
+                )}
               </div>
             </div>
           </Card>
@@ -214,36 +374,82 @@ export const SettingsPage: React.FC = () => {
                 Data Refresh
               </h2>
               <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <Text className="text-neutral-foreground-1">Auto-refresh reports</Text>
+                {/* A11Y-S5: switch wrapped in Field */}
+                <Field label="Auto-refresh reports">
                   <Switch
                     checked={settings.autoRefreshEnabled}
                     onChange={(_, data) => handleAutoRefreshEnabledChange(data.checked)}
+                    label={settings.autoRefreshEnabled ? 'On' : 'Off'}
                   />
-                </div>
+                </Field>
 
                 {settings.autoRefreshEnabled && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Text className="text-neutral-foreground-2">Refresh interval</Text>
-                      <Text weight="semibold">{settings.autoRefreshInterval} {settings.autoRefreshInterval === 1 ? 'minute' : 'minutes'}</Text>
-                    </div>
-                    <div className="w-full">
-                      <Slider
-                        min={1}
-                        max={120}
-                        step={1}
-                        value={settings.autoRefreshInterval}
-                        onChange={(_, data) => handleAutoRefreshIntervalChange(data.value)}
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-neutral-foreground-3 mt-1">
-                      <span>1 min</span>
-                      <span>2 hours</span>
-                    </div>
-                  </div>
+                  <Field
+                    label={
+                      <div className="flex items-center justify-between w-full">
+                        <span>Refresh interval</span>
+                        <Text weight="semibold">
+                          {settings.autoRefreshInterval}{' '}
+                          {settings.autoRefreshInterval === 1 ? 'minute' : 'minutes'}
+                        </Text>
+                      </div>
+                    }
+                    hint="1 minute minimum — 2 hours maximum"
+                  >
+                    <Slider
+                      min={1}
+                      max={120}
+                      step={1}
+                      value={settings.autoRefreshInterval}
+                      onChange={(_, data) => handleAutoRefreshIntervalChange(data.value)}
+                      style={{ width: '100%' }}
+                      aria-valuetext={`${settings.autoRefreshInterval} ${settings.autoRefreshInterval === 1 ? 'minute' : 'minutes'}`}
+                    />
+                  </Field>
                 )}
+              </div>
+            </div>
+          </Card>
+
+          {/* BEH-B3: Usage history section */}
+          <Card>
+            <div className="p-4">
+              <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
+                Usage History
+              </h2>
+              <div className="space-y-5">
+                {/* A11Y-S5: radio group in Field for usageClearOnLogout */}
+                <Field
+                  label="Clear usage history on sign-out"
+                  hint="Controls when Recent and Frequent data is cleared. Use 'On shared machine' if multiple people sign in to this device."
+                >
+                  <RadioGroup
+                    value={settings.usageClearOnLogout}
+                    onChange={(_, data) =>
+                      handleUsageClearOnLogoutChange(
+                        data.value as 'always' | 'never' | 'on-shared-machine',
+                      )
+                    }
+                  >
+                    <Radio value="never" label="Never (keep across sign-outs)" />
+                    <Radio value="always" label="Always" />
+                    <Radio value="on-shared-machine" label="On shared machine" />
+                  </RadioGroup>
+                </Field>
+
+                <div>
+                  <Button
+                    appearance="secondary"
+                    icon={<DeleteRegular />}
+                    onClick={handleClearUsageHistory}
+                    disabled={clearingUsage}
+                  >
+                    {clearingUsage ? 'Clearing...' : 'Clear usage history now'}
+                  </Button>
+                  <Text size={200} className="text-neutral-foreground-3 mt-1 block">
+                    Clears the Recent and Frequent sections on the home page.
+                  </Text>
+                </div>
               </div>
             </div>
           </Card>
@@ -255,19 +461,6 @@ export const SettingsPage: React.FC = () => {
                 Reset
               </h2>
               <div className="space-y-3">
-                <div>
-                  <Button
-                    appearance="secondary"
-                    icon={<DeleteRegular />}
-                    onClick={handleClearUsageHistory}
-                    disabled={clearingUsage}
-                  >
-                    {clearingUsage ? 'Clearing...' : 'Clear usage history'}
-                  </Button>
-                  <Text size={200} className="text-neutral-foreground-3 mt-1 block">
-                    Clears the Recent and Frequent sections on the home page.
-                  </Text>
-                </div>
                 <div>
                   <Button
                     appearance="secondary"
@@ -287,10 +480,25 @@ export const SettingsPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 About
               </h2>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Text className="text-neutral-foreground-1 block">
                   Power BI Viewer v{appVersion}
                 </Text>
+                {/* PROD-S2: Check for updates button */}
+                <div>
+                  <Button
+                    appearance="secondary"
+                    icon={<ArrowSyncRegular />}
+                    onClick={handleCheckForUpdates}
+                    disabled={checkingUpdates}
+                    aria-label="Check for updates — opens the releases page"
+                  >
+                    {checkingUpdates ? 'Checking...' : 'Check for updates'}
+                  </Button>
+                  <Text size={200} className="text-neutral-foreground-3 mt-1 block">
+                    Opens the releases page in your browser.
+                  </Text>
+                </div>
               </div>
             </div>
           </Card>

@@ -32,6 +32,25 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // NEW-CI-7: plain JS config files and scripts run in Node, not the browser.
+  // Declare Node globals so `require`, `__dirname`, `process`, `module`, etc.
+  // resolve without no-undef errors.  Also disable TS-specific rules that are
+  // irrelevant for .js files (TypeScript-ESLint applies them by default when
+  // tseslint.configs.recommended is spread globally).
+  {
+    files: ['*.config.js', 'scripts/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'commonjs',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-var-requires': 'off',
+    },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
