@@ -56,7 +56,7 @@ interface Harness {
   setSilentResult: (r: { accessToken: string; expiresOn: Date | null } | Error) => void;
   setUsagePolicy: (p: 'always' | 'never' | 'on-shared-machine') => void;
   setJarBFails: (fails: boolean) => void;
-  persisted: { cache: string | null; userInfo: CachedUserInfo | null };
+  persisted: { cache: string | null; userInfo: CachedUserInfo | null; activeId: string | null };
   openAuthResult: { value: { code: string; state: string } | null; aadError?: string };
 }
 
@@ -65,9 +65,10 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
   const corruptionListeners: Array<() => void> = [];
   const cookieClearCalls: Array<{ jar: 'a' | 'b' }> = [];
   const clearedUsageAccounts: string[] = [];
-  const persisted: { cache: string | null; userInfo: CachedUserInfo | null } = {
+  const persisted: { cache: string | null; userInfo: CachedUserInfo | null; activeId: string | null } = {
     cache: null,
     userInfo: null,
+    activeId: null,
   };
 
   let silentResult: { accessToken: string; expiresOn: Date | null } | Error = new Error('not configured');
@@ -108,6 +109,8 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     clearCache: vi.fn(async () => {
       persisted.cache = null;
       persisted.userInfo = null;
+      // NEW-AUTH-1: token-cache deletes the active id in lockstep with the cache.
+      persisted.activeId = null;
     }),
     saveUserInfo: vi.fn(async (u: CachedUserInfo) => {
       persisted.userInfo = u;
@@ -120,6 +123,10 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
         if (i >= 0) corruptionListeners.splice(i, 1);
       };
     }),
+    saveActiveAccountId: vi.fn(async (id: string | null) => {
+      persisted.activeId = id;
+    }),
+    loadActiveAccountId: vi.fn(async () => persisted.activeId),
   };
 
   const jarA: CookieJarPort = {
@@ -410,5 +417,126 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
     if (result.success && result.data.success) {
       expect(result.data.reusedPreviousAccount).toBe(false);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NEW-AUTH-1: ACTIVE-account source of truth (homeAccountId-keyed)
+// ---------------------------------------------------------------------------
+describe('NEW-AUTH-1: active account selection', () => {
+  it('(a) first login adopts the new account as active and persists it', async () => {
+    const h = createHarness(); // no accounts; acquireTokenByCode adds acct-1
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.login();
+    expect(result.success && result.data.success).toBe(true);
+
+    // The just-signed-in account is now persisted as the active id.
+    expect(h.persisted.activeId).toBe('acct-1');
+    // getActiveAccount resolves to it without re-adopting.
+    const active = await svc.getActiveAccount();
+    expect(active?.homeAccountId).toBe('acct-1');
+  });
+
+  it('(a) getActiveAccount adopts accounts[0] on a fresh cache with no persisted id', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    expect(h.persisted.activeId).toBeNull();
+    const svc = createAuthService(h.deps);
+
+    const active = await svc.getActiveAccount();
+    expect(active?.homeAccountId).toBe('acct-1');
+    // First-login behaviour: it adopted + persisted acct-1.
+    expect(h.persisted.activeId).toBe('acct-1');
+    expect(h.deps.persistentCache.saveActiveAccountId).toHaveBeenCalledWith('acct-1');
+  });
+
+  it('(a) getActiveAccount honors a persisted active id over accounts[0]', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1'), makeAccount('acct-2')] });
+    h.persisted.activeId = 'acct-2'; // restart with acct-2 chosen previously
+    const svc = createAuthService(h.deps);
+
+    const active = await svc.getActiveAccount();
+    expect(active?.homeAccountId).toBe('acct-2');
+    // It did NOT re-adopt/persist; the persisted id already matched a live account.
+    expect(h.deps.persistentCache.saveActiveAccountId).not.toHaveBeenCalled();
+  });
+
+  it('(a) getActiveAccount falls back + adopts when the persisted id is stale', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.persisted.activeId = 'ghost-account'; // account no longer in the cache
+    const svc = createAuthService(h.deps);
+
+    const active = await svc.getActiveAccount();
+    expect(active?.homeAccountId).toBe('acct-1');
+    expect(h.persisted.activeId).toBe('acct-1'); // re-adopted the surviving account
+  });
+
+  it('(a) getActiveAccount returns null when the cache holds no accounts', async () => {
+    const h = createHarness();
+    const svc = createAuthService(h.deps);
+    await expect(svc.getActiveAccount()).resolves.toBeNull();
+  });
+
+  it('(b) setActiveAccount switches which account getUser and getAccessToken use', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1', 'a@x.com'), makeAccount('acct-2', 'b@x.com')] });
+    h.persisted.activeId = 'acct-1';
+    const svc = createAuthService(h.deps);
+
+    // Hydrate this.account from the active selection (a token call would do this
+    // in the real flow). Baseline: getUser reflects the active account, acct-1.
+    h.setSilentResult({ accessToken: 'at-1', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
+    await svc.getAccessToken();
+    const before = await svc.getCurrentUser();
+    expect(before.success && before.data?.id).toBe('acct-1');
+
+    // Switch to acct-2 (the seam PROD-B1/Stage 3 will call).
+    const switched = await svc.setActiveAccount('acct-2');
+    expect(switched.success).toBe(true);
+    expect(h.persisted.activeId).toBe('acct-2');
+
+    // getUser now reflects acct-2.
+    const after = await svc.getCurrentUser();
+    expect(after.success && after.data?.id).toBe('acct-2');
+    expect(after.success && after.data?.email).toBe('b@x.com');
+
+    // getAccessToken acquires silently against acct-2 (the new active account).
+    h.setSilentResult({ accessToken: 'at-2', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
+    const token = await svc.getAccessToken();
+    expect(token.success).toBe(true);
+    const silentMock = h.deps.msalClient.acquireTokenSilent as ReturnType<typeof vi.fn>;
+    const lastSilentCall = silentMock.mock.calls.at(-1)?.[0];
+    expect(lastSilentCall.account.homeAccountId).toBe('acct-2');
+  });
+
+  it('(b) setActiveAccount rejects an id that is not in the cache', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const svc = createAuthService(h.deps);
+    const result = await svc.setActiveAccount('not-a-real-account');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('ACCOUNT_NOT_FOUND');
+    // The active selection was untouched.
+    expect(h.deps.persistentCache.saveActiveAccountId).not.toHaveBeenCalled();
+  });
+
+  it('(c) logout clears the persisted active account id', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.persisted.activeId = 'acct-1';
+    const svc = createAuthService(h.deps);
+
+    await svc.logout();
+    expect(h.persisted.activeId).toBeNull();
+    expect(h.deps.persistentCache.saveActiveAccountId).toHaveBeenCalledWith(null);
+
+    // A fresh getActiveAccount after logout finds no accounts → null, nothing adopted.
+    await expect(svc.getActiveAccount()).resolves.toBeNull();
+  });
+
+  it('(c) login overwrites a stale active id from a previous account (switch)', async () => {
+    const h = createHarness();
+    h.persisted.activeId = 'old-account'; // a prior, different active account
+    const svc = createAuthService(h.deps);
+
+    await svc.login(); // acquireTokenByCode signs in acct-1
+    expect(h.persisted.activeId).toBe('acct-1');
   });
 });

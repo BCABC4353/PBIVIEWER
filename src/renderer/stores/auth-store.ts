@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 import type { UserInfo } from '../../shared/types';
-import { useContentStore } from './content-store';
-import { useSearchStore } from './search-store';
 
 interface AuthState {
   user: UserInfo | null;
@@ -130,9 +128,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       await window.electronAPI.auth.logout();
-      // Wipe content & search caches so a different account does not see prior data.
-      useContentStore.getState().reset();
-      useSearchStore.getState().invalidateAll();
+      // Cache eviction (content + search) is handled by evict-on-logout.ts
+      // which subscribes to this store's isAuthenticated transition.
       set({
         user: null,
         isAuthenticated: false,

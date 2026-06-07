@@ -52,6 +52,10 @@ export interface PersistentCachePort {
   saveUserInfo(userInfo: CachedUserInfo): Promise<void>;
   loadUserInfo(): Promise<CachedUserInfo | null>;
   onCorruption(listener: () => void): () => void;
+  // NEW-AUTH-1: persist/restore which cached account is "active" so the choice
+  // survives restart. saveActiveAccountId(null) clears it (logout / corruption).
+  saveActiveAccountId(homeAccountId: string | null): Promise<void>;
+  loadActiveAccountId(): Promise<string | null>;
 }
 
 /** A single cookie jar we can clear on logout. Matches electron's Session. */
@@ -92,6 +96,15 @@ class AuthService {
   // short-circuit can never trust an expiry that belongs to a DIFFERENT account.
   // Cleared wholesale on logout / corruption.
   private lastKnownExpiryByAccount = new Map<string, number>();
+  // NEW-AUTH-1: the ACTIVE account's homeAccountId — the single source of truth
+  // for which cached MSAL account token/user/expiry operations target. Replaces
+  // the old hard-coded accounts[0] reads. Persisted via the token cache so the
+  // choice survives restart; mirrored here so hot reads don't hit disk.
+  private activeHomeAccountId: string | null = null;
+  // Load the persisted active id from disk AT MOST ONCE (mirrors cacheInitialized).
+  // Re-armed alongside cacheInitialized on logout/corruption so a later read
+  // re-hydrates from the (now-cleared) persistent store.
+  private activeIdLoaded = false;
   // Captures AAD-returned error_description so login() can surface the real
   // reason (consent_required, access_denied, etc.) instead of generic
   // LOGIN_FAILED. Cleared after consumption.
@@ -126,6 +139,12 @@ class AuthService {
   invalidateCache(): void {
     this.account = null;
     this.lastKnownExpiryByAccount.clear();
+    // NEW-AUTH-1: drop the active-account selection too. The persistent cache has
+    // already purged itself (token-cache's decrypt corruption path clears
+    // activeHomeAccountId in lockstep with msalCache), so we only clear in memory
+    // and re-arm the loader; the next getActiveAccount() re-adopts from scratch.
+    this.activeHomeAccountId = null;
+    this.activeIdLoaded = false;
     // Force the next read to re-hydrate from the (now-purged) persistent cache.
     this.cacheInitialized = false;
   }
@@ -148,14 +167,11 @@ class AuthService {
       if (cachedData) {
         this.deps.msalClient.getTokenCache().deserialize(cachedData);
 
-        // Hydrate the active account only if we don't already have one. Sprint 6
-        // (NEW-AUTH-1) will replace accounts[0] with active-account-by-homeAccountId;
-        // keep the seam narrow — do NOT entrench accounts[0] beyond this hydrate.
+        // NEW-AUTH-1: hydrate the active account only if we don't already have
+        // one. getActiveAccount() resolves by the persisted activeHomeAccountId
+        // (adopting accounts[0] on first run), replacing the old bare accounts[0].
         if (this.account === null) {
-          const accounts = await this.deps.msalClient.getTokenCache().getAllAccounts();
-          if (accounts.length > 0) {
-            this.account = accounts[0] ?? null;
-          }
+          this.account = await this.getActiveAccount();
         }
       }
     } catch (error) {
@@ -172,6 +188,92 @@ class AuthService {
     } catch (error) {
       this.deps.logger.warn('[Auth] Cache persistence failed:', error);
     }
+  }
+
+  /**
+   * NEW-AUTH-1: lazily hydrate activeHomeAccountId from the persistent store
+   * AT MOST ONCE per cache generation. Mirrors initializeCache's idempotence so
+   * hot reads (getActiveAccount on every token acquisition) don't hit disk. The
+   * loaded flag is re-armed on logout/corruption so a later read re-hydrates.
+   */
+  private async loadActiveIdOnce(): Promise<void> {
+    if (this.activeIdLoaded) return;
+    this.activeIdLoaded = true;
+    try {
+      this.activeHomeAccountId = await this.deps.persistentCache.loadActiveAccountId();
+    } catch (error) {
+      // Re-arm so a transient failure can re-load later. Leave activeHomeAccountId
+      // as-is; getActiveAccount will fall back to accounts[0] + adopt.
+      this.activeIdLoaded = false;
+      this.deps.logger.warn('[Auth] Active account id load failed:', error);
+    }
+  }
+
+  /**
+   * NEW-AUTH-1: the ACTIVE-account source of truth. Returns the cached MSAL
+   * account whose homeAccountId === activeHomeAccountId. If the active id is unset
+   * (first run) or no longer present in the cache (e.g. that account was removed),
+   * fall back to accounts[0] AND adopt it — set+persist activeHomeAccountId — so
+   * first-login behaviour is unchanged and the single fallback lives in ONE place.
+   * Returns null only when the cache holds no accounts at all.
+   */
+  async getActiveAccount(): Promise<AccountInfo | null> {
+    await this.loadActiveIdOnce();
+    const accounts = await this.deps.msalClient.getTokenCache().getAllAccounts();
+    if (accounts.length === 0) return null;
+
+    if (this.activeHomeAccountId !== null) {
+      const match = accounts.find((a) => a.homeAccountId === this.activeHomeAccountId);
+      if (match) return match;
+      // The persisted active id is stale (its account is gone). Fall through to
+      // adopt accounts[0] so callers never key off a vanished account.
+    }
+
+    // Unset or stale: adopt the first account as the active one and persist it.
+    const adopted = accounts[0];
+    if (!adopted) return null;
+    await this.setActiveAccountInternal(adopted.homeAccountId);
+    return adopted;
+  }
+
+  /**
+   * NEW-AUTH-1: the seam Stage 3's account switcher (PROD-B1) calls after a
+   * login(prompt=select_account). Validates the id exists in the cache, then
+   * sets+persists it as the active account and re-points this.account. Returns a
+   * structured response so the caller can surface an unknown-account error.
+   */
+  async setActiveAccount(homeAccountId: string): Promise<IPCResponse<void>> {
+    try {
+      const accounts = await this.deps.msalClient.getTokenCache().getAllAccounts();
+      const match = accounts.find((a) => a.homeAccountId === homeAccountId);
+      if (!match) {
+        return {
+          success: false,
+          error: { code: 'ACCOUNT_NOT_FOUND', message: 'No cached account with that id' },
+        };
+      }
+      await this.setActiveAccountInternal(homeAccountId);
+      // Re-point the live account so the very next token/user read targets it.
+      this.account = match;
+      return { success: true, data: undefined };
+    } catch (error) {
+      return {
+        success: false,
+        error: { code: 'SET_ACTIVE_ACCOUNT_FAILED', message: String(error) },
+      };
+    }
+  }
+
+  /**
+   * NEW-AUTH-1: set+persist the active id without re-validating (callers that
+   * already hold a known-good account: login success, getActiveAccount adoption,
+   * setActiveAccount after its own validation). Marks the id as loaded so a later
+   * loadActiveIdOnce() doesn't clobber the in-memory value from disk.
+   */
+  private async setActiveAccountInternal(homeAccountId: string): Promise<void> {
+    this.activeHomeAccountId = homeAccountId;
+    this.activeIdLoaded = true;
+    await this.deps.persistentCache.saveActiveAccountId(homeAccountId);
   }
 
   /**
@@ -219,6 +321,14 @@ class AuthService {
 
   async getCurrentUser(): Promise<IPCResponse<UserInfo | null>> {
     try {
+      // NEW-AUTH-1: this.account is now ALWAYS the ACTIVE account — it is set from
+      // the active-account source of truth on every path that assigns it (login
+      // adopts the new account, getAccessToken resolves via getActiveAccount,
+      // setActiveAccount re-points it). So reading this.account here reflects the
+      // active selection without a fresh cache probe. When it is null (cold start
+      // before any token call, or post-corruption) we fall back to the persisted
+      // userInfo snapshot, deliberately NOT re-adopting from the cache — a nulled
+      // account after corruption must not silently resurrect from accounts[0].
       if (!this.account) {
         const userInfo = await this.deps.persistentCache.loadUserInfo();
         if (userInfo) {
@@ -349,6 +459,10 @@ class AuthService {
       if (tokenResponse && tokenResponse.account) {
         this.account = tokenResponse.account;
         this.cacheInitialized = true; // we now hold an authoritative account
+        // NEW-AUTH-1: the just-signed-in account becomes the active one. Set+persist
+        // it so token/user/expiry reads target it now and after a restart. This also
+        // overwrites any stale active id from a previous account (account switch).
+        await this.setActiveAccountInternal(tokenResponse.account.homeAccountId);
         await this.persistCache();
 
         const userInfo: CachedUserInfo = {
@@ -429,21 +543,16 @@ class AuthService {
       try {
         if (!this.account) {
           await this.initializeCache();
-          const accounts = await this.deps.msalClient.getTokenCache().getAllAccounts();
-          if (accounts.length === 0) {
+          // NEW-AUTH-1: resolve the ACTIVE account (by persisted homeAccountId,
+          // adopting accounts[0] on first run) instead of a bare accounts[0] read.
+          const active = await this.getActiveAccount();
+          if (!active) {
             return {
               success: false,
               error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
             };
           }
-          const firstAccount = accounts[0];
-          if (!firstAccount) {
-            return {
-              success: false,
-              error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
-            };
-          }
-          this.account = firstAccount;
+          this.account = active;
         }
 
         const account = this.account;
@@ -520,6 +629,13 @@ class AuthService {
       await this.deps.persistentCache.clearCache();
       this.account = null;
       this.lastKnownExpiryByAccount.clear();
+      // NEW-AUTH-1: clear the active-account selection. clearCache() already
+      // deleted the persisted id; null the in-memory copy and re-arm the loader so
+      // a subsequent read re-hydrates from the (now-empty) store rather than the
+      // stale value. Belt-and-braces persist(null) in case clearCache is partial.
+      this.activeHomeAccountId = null;
+      this.activeIdLoaded = false;
+      await this.deps.persistentCache.saveActiveAccountId(null);
       // The persistent cache is gone; the next read must re-hydrate from empty.
       this.cacheInitialized = false;
 

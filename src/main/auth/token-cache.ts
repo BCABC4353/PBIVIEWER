@@ -4,6 +4,10 @@ import { safeStorage } from 'electron';
 interface TokenCacheSchema {
   msalCache: string;
   userInfo: string;
+  // NEW-AUTH-1: the active account's homeAccountId, persisted so the chosen
+  // account survives restart. Encrypted like the other entries (it is an
+  // account identifier, not a secret per se, but kept consistent + opaque).
+  activeHomeAccountId: string;
 }
 
 // Note: We don't use electron-store's encryptionKey because the actual sensitive
@@ -88,6 +92,41 @@ export const tokenCache = {
   async clearCache(): Promise<void> {
     store.delete('msalCache');
     store.delete('userInfo');
+    // NEW-AUTH-1: the chosen active account is meaningless without a cache to
+    // back it; clear it in lockstep so a restart after logout starts clean.
+    store.delete('activeHomeAccountId');
+  },
+
+  /**
+   * NEW-AUTH-1: persist the active account's homeAccountId (the source of truth
+   * for which cached account token/user operations target). Passing null clears
+   * it. Encrypted via safeStorage for consistency with the other entries.
+   */
+  async saveActiveAccountId(homeAccountId: string | null): Promise<void> {
+    if (homeAccountId === null) {
+      store.delete('activeHomeAccountId');
+      return;
+    }
+    const encrypted = encrypt(homeAccountId);
+    store.set('activeHomeAccountId', encrypted);
+  },
+
+  /**
+   * NEW-AUTH-1: load the persisted active account id, or null if unset/corrupt.
+   * A decrypt failure purges the cache (via decrypt's corruption path) and
+   * returns null, so a corrupted id can never resurrect a stale active account.
+   */
+  async loadActiveAccountId(): Promise<string | null> {
+    const encrypted = store.get('activeHomeAccountId');
+    if (!encrypted) return null;
+    try {
+      const decrypted = decrypt(encrypted);
+      // decrypt() returns '' after a corruption purge; treat that as "unset".
+      return decrypted === '' ? null : decrypted;
+    } catch (error) {
+      console.warn('[TokenCache] Failed to load active account id:', error);
+      return null;
+    }
   },
 
   async saveUserInfo(userInfo: CachedUserInfo): Promise<void> {

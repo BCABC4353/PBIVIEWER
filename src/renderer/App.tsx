@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Spinner } from '@fluentui/react-components';
 import { useAuthStore } from './stores/auth-store';
+import { initEvictOnLogout } from './lib/evict-on-logout';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { AppShell } from './components/layout/AppShell';
 import { HomePage } from './components/home/HomePage';
@@ -179,6 +180,13 @@ const App: React.FC = () => {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // ARCH-B3: wire the evict-on-logout subscription once at app mount.
+  // Returns an unsubscribe function so StrictMode double-invoke is clean.
+  useEffect(() => {
+    const unsubscribe = initEvictOnLogout();
+    return unsubscribe;
+  }, []);
 
   if (isLoading) {
     return <LoadingScreen />;
