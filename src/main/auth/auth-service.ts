@@ -274,6 +274,14 @@ class AuthService {
           // will-navigate allowlist); sandbox is appropriate and defends
           // against renderer compromise reaching Node APIs.
           sandbox: true,
+          // CRITICAL — match the AppViewer webview's partition so AAD SSO
+          // cookies (ESTSAUTH/ESTSAUTHPERSISTENT) deposited here during
+          // sign-in are immediately available when the user opens a Power BI
+          // App. Without this, the user signs in to MSAL but the embedded
+          // app.powerbi.com webview sees an empty cookie jar and prompts the
+          // user for credentials AGAIN. This was the original reason this
+          // app exists: one sign-in, no re-prompts.
+          partition: PARTITION_NAME,
         },
       });
 
@@ -456,12 +464,13 @@ class AuthService {
       }
 
       // Clear cookies from BOTH sessions:
-      // - defaultSession: hosts the AAD interactive auth window (openAuthWindow)
-      // - partition session (PARTITION_NAME): hosts the embedded AppViewer
-      //   <webview> that loads app.powerbi.com / AAD silent-SSO. Missing this
-      //   would leave AAD SSO cookies in the partition so the next sign-in
-      //   silently logs the same user back in. If the auth-window ever moves
-      //   into a partition, this list MUST be revisited.
+      // - partition session (PARTITION_NAME): hosts the AAD auth window AND
+      //   the embedded AppViewer <webview> that loads app.powerbi.com. This
+      //   is where the active AAD SSO cookies live; clearing it ends the
+      //   single-sign-on session that lets app-opens skip credential prompts.
+      // - defaultSession: legacy / belt-and-braces; older builds put the auth
+      //   window here, so we clear it too to wipe any leftover cookies from
+      //   a pre-bridge install.
       try {
         await Promise.allSettled([
           session.defaultSession.clearStorageData({ storages: ['cookies'] }),
