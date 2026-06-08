@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'claude/continue-work-Qom14'
   workflow_dispatch:
 
 # NEW-CI-6: prevent duplicate tag-push runs from racing. cancel-in-progress is
