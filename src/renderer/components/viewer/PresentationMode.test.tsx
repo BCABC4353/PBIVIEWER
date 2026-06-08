@@ -208,3 +208,37 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
     expect(valueNow(scrubber)).toBe(2);
   });
 });
+
+describe('PROD-S1 / antagonist P0: Escape is a global exit handled regardless of focus', () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
+  it('Escape on a toolbar button is still processed (preventDefault) — not swallowed by the interactive bail', () => {
+    renderPresentation();
+    const exitBtn = screen.getByRole('button', { name: 'Exit' });
+
+    // Regression guard for the P0: Escape must be handled BEFORE the
+    // interactive-target bail. Under the old code this returned early (no
+    // preventDefault) so Escape over a toolbar button never exited. preventDefault
+    // is called for Escape in both manual and kiosk modes, so this assertion is
+    // mode-independent and proves the global handler ran.
+    expect(dispatchKeyFrom(exitBtn, 'Escape')).toBe(true);
+  });
+
+  it('Escape closes the open settings panel instead of exiting the slideshow', () => {
+    renderPresentation();
+    const settingsBtn = screen.getByRole('button', { name: 'Settings' });
+
+    act(() => {
+      settingsBtn.click();
+    });
+    expect(screen.queryByText('Slideshow Settings')).not.toBeNull();
+
+    // Escape (dispatched from the interactive settings button) closes the panel
+    // and must NOT exit the slideshow — the dialog stays mounted.
+    expect(dispatchKeyFrom(settingsBtn, 'Escape')).toBe(true);
+    expect(screen.queryByText('Slideshow Settings')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Presentation mode' })).not.toBeNull();
+  });
+});

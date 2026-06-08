@@ -46,7 +46,14 @@ export function isInteractiveTarget(target: HTMLElement | null): boolean {
     return true;
   }
 
-  if (target.isContentEditable || target.closest('[contenteditable=""], [contenteditable="true"]')) {
+  // Both checks are needed: isContentEditable reflects the live, computed
+  // editability (covers inherited/connected cases) but is unreliable for
+  // detached nodes and in jsdom; the attribute closest() covers the explicit
+  // contenteditable markup robustly across environments.
+  if (
+    target.isContentEditable ||
+    target.closest('[contenteditable=""], [contenteditable="true"]')
+  ) {
     return true;
   }
 
@@ -248,19 +255,40 @@ export const PresentationMode: React.FC = () => {
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // NEW-A11Y-5: do not hijack keys from interactive overlay controls.
-      // The global handler calls preventDefault on Space/Arrows/Escape/p, which
-      // makes the scrubber (role="slider"), the ViewerToolbar buttons, the
-      // Settings slider, and the dot-indicator buttons keyboard-unusable. Bail
-      // out (no preventDefault, no slideshow navigation) when focus is on an
-      // interactive control so those controls handle their own keys. Slideshow
-      // nav still works when focus is on the slide surface / overlay background.
       const target = e.target as HTMLElement | null;
+
+      // Escape is the GLOBAL slideshow exit and must be handled regardless of
+      // focus — interactive controls (toolbar buttons, the scrubber) don't own
+      // Escape, so it must be processed BEFORE the interactive-target bail
+      // below (antagonist P0: previously Escape over a toolbar button never
+      // exited). Order of precedence:
+      //   1. If the settings panel is open, Escape closes it (not exit).
+      //   2. In a manually-started slideshow, Escape exits.
+      //   3. In unattended/kiosk mode (auto-started), a single Escape is inert —
+      //      exit is gated behind the deliberate gesture (3s Escape-hold or
+      //      Ctrl+Shift+Esc) in useKioskExitGesture. preventDefault still
+      //      suppresses the browser's native fullscreen-exit-on-Escape.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showSettings) {
+          setShowSettings(false);
+        } else if (!autoStartSlideshow) {
+          doExit();
+        }
+        return;
+      }
+
+      // NEW-A11Y-5: do not hijack NAVIGATION keys (Arrows/Space/p) from
+      // interactive overlay controls — the scrubber (role="slider"), the
+      // ViewerToolbar buttons, the settings slider, and the dot-indicator
+      // buttons must handle their own keys. Bail (no preventDefault, no nav)
+      // when focus is on an interactive control. Slideshow nav still works when
+      // focus is on the slide surface / overlay background.
       if (isInteractiveTarget(target)) {
         return;
       }
 
-      if (['Escape', 'ArrowRight', 'ArrowLeft', ' ', 'p', 'P'].includes(e.key)) {
+      if (['ArrowRight', 'ArrowLeft', ' ', 'p', 'P'].includes(e.key)) {
         e.preventDefault();
       }
 
@@ -276,19 +304,6 @@ export const PresentationMode: React.FC = () => {
             setCurrentSlideIndex((prev) => (prev - 1 + slides.length) % slides.length);
           }
           break;
-        case 'Escape':
-          // PROD-S1 (antagonist P0): in unattended/kiosk mode (auto-started
-          // slideshow on a wall display) a single Escape tap must NOT exit —
-          // an accidental keypress would drop the display out of the slideshow.
-          // Exit is gated behind the deliberate kiosk gesture (3s Escape-hold
-          // or Ctrl+Shift+Esc) handled by useKioskExitGesture. When the user
-          // manually started the slideshow, a single Escape exits for
-          // convenience. (preventDefault above still suppresses the browser's
-          // native fullscreen-exit-on-Escape in both modes.)
-          if (!autoStartSlideshow) {
-            doExit();
-          }
-          break;
         case 'p':
         case 'P':
           setIsPlaying((prev) => !prev);
@@ -298,7 +313,7 @@ export const PresentationMode: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [slides.length, doExit, autoStartSlideshow]);
+  }, [slides.length, doExit, autoStartSlideshow, showSettings]);
 
   // Handle slideshow auto-advance
   useEffect(() => {
