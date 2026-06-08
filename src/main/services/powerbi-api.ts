@@ -833,6 +833,93 @@ class PowerBIApiService {
       };
     }
   }
+
+  /**
+   * PROD-S9: derive a data-freshness signal for a whole DASHBOARD.
+   *
+   * A dashboard has no single backing dataset — it aggregates TILES, each of
+   * which may (or may not) reference a datasetId. We enumerate the tiles via
+   * "Get Tiles in Group", collect the DISTINCT datasetIds, query refresh info
+   * for each (reusing getDatasetRefreshInfo), and surface the OLDEST (stalest)
+   * lastRefreshTime as the dashboard's "Data refreshed" timestamp. The stalest
+   * time is the meaningful signal — "is any data on this dashboard old?".
+   *
+   * Graceful degradation (matches the viewer's "no indicator when absent"
+   * behavior): if there are no tiles, no tile exposes a datasetId, or none of
+   * the referenced datasets have refresh history, we return success with empty
+   * data ({}). An individual dataset query failing is skipped (does not fail the
+   * whole call) so one inaccessible dataset doesn't blank the indicator.
+   *
+   * Scope requirement: the "Get Tiles in Group" endpoint needs Dashboard.Read.All
+   * on the calling token. This app uses a user-context (delegated AAD) token that
+   * requests that scope in msal-config, so the indicator works here. An app-owns-
+   * data / service-principal token without that scope would 403/404 on tiles —
+   * that surfaces as success:false and the viewer simply hides the indicator
+   * (no crash, no misleading value).
+   */
+  async getDashboardDataFreshness(
+    dashboardId: string,
+    workspaceId: string
+  ): Promise<IPCResponse<DatasetRefreshInfo>> {
+    try {
+      interface RawTile {
+        id: string;
+        datasetId?: string;
+      }
+
+      const tilesResponse = await this.makeRequest<PowerBIApiResponse<RawTile>>(
+        `/groups/${workspaceId}/dashboards/${dashboardId}/tiles`
+      );
+
+      // Distinct datasetIds across all tiles; skip tiles with no datasetId.
+      const datasetIds = Array.from(
+        new Set(
+          (tilesResponse.value ?? [])
+            .map((tile) => tile.datasetId)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        )
+      );
+
+      // Empty tile list, or no tile referenced a dataset → no indicator.
+      if (datasetIds.length === 0) {
+        return { success: true, data: {} };
+      }
+
+      // Query refresh info for each distinct dataset in parallel. A failed
+      // query (or one with no history) contributes nothing; it does not abort
+      // the others.
+      const refreshResults = await Promise.all(
+        datasetIds.map((datasetId) => this.getDatasetRefreshInfo(datasetId, workspaceId))
+      );
+
+      let oldest: DatasetRefreshInfo | undefined;
+      let oldestMs = Infinity;
+      for (const result of refreshResults) {
+        if (!result.success) continue;
+        const time = result.data.lastRefreshTime;
+        if (!time) continue;
+        const ms = Date.parse(time);
+        if (Number.isNaN(ms)) continue;
+        if (ms < oldestMs) {
+          oldestMs = ms;
+          oldest = result.data;
+        }
+      }
+
+      // None of the datasets had usable refresh history → no indicator.
+      if (!oldest) {
+        return { success: true, data: {} };
+      }
+
+      return { success: true, data: oldest };
+    } catch (error) {
+      console.warn('[PowerBI] Dashboard data freshness unavailable:', error);
+      return {
+        success: false,
+        error: buildErrorEnvelope('DASHBOARD_FRESHNESS_FAILED', error),
+      };
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -140,6 +140,121 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 
+  // PROD-S9: getDashboardDataFreshness derives a single freshness signal for a
+  // whole dashboard by enumerating tiles, collecting distinct datasetIds,
+  // querying each dataset's refresh history, and returning the OLDEST (stalest)
+  // lastRefreshTime. The fetch mock below routes by URL: the tiles endpoint
+  // returns the tile list; the per-dataset refreshes endpoints return history.
+  function makeFreshnessFetch(
+    tiles: Array<{ id: string; datasetId?: string }>,
+    refreshes: Record<string, { value: unknown[] } | { status: number }>
+  ): typeof fetch {
+    return vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/tiles')) {
+        return Promise.resolve(new Response(JSON.stringify({ value: tiles }), { status: 200 }));
+      }
+      // /datasets/<id>/refreshes
+      const match = url.match(/datasets\/([^/]+)\/refreshes/);
+      const datasetId = match?.[1] ?? '';
+      const entry = refreshes[datasetId];
+      if (entry && 'status' in entry) {
+        return Promise.resolve(new Response('error body', { status: entry.status }));
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify(entry ?? { value: [] }), { status: 200 })
+      );
+    }) as unknown as typeof fetch;
+  }
+
+  function refreshAt(time: string) {
+    return {
+      value: [
+        {
+          requestId: 'r',
+          id: '1',
+          refreshType: 'Scheduled',
+          startTime: time,
+          endTime: time,
+          status: 'Completed',
+        },
+      ],
+    };
+  }
+
+  it('getDashboardDataFreshness returns the OLDEST refresh time across distinct tile datasets', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = makeFreshnessFetch(
+      [
+        { id: 't1', datasetId: 'ds-new' },
+        { id: 't2', datasetId: 'ds-old' },
+        { id: 't3', datasetId: 'ds-new' }, // duplicate dataset → deduped
+      ],
+      {
+        'ds-new': refreshAt('2026-06-05T00:00:00.000Z'),
+        'ds-old': refreshAt('2026-06-01T00:00:00.000Z'),
+      }
+    );
+
+    const result = await svc.getDashboardDataFreshness('db-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBe('2026-06-01T00:00:00.000Z');
+    }
+  });
+
+  it('getDashboardDataFreshness returns empty data when no tile exposes a datasetId', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = makeFreshnessFetch([{ id: 't1' }, { id: 't2' }], {});
+
+    const result = await svc.getDashboardDataFreshness('db-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBeUndefined();
+    }
+  });
+
+  it('getDashboardDataFreshness returns empty data when the tile list is empty', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = makeFreshnessFetch([], {});
+
+    const result = await svc.getDashboardDataFreshness('db-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBeUndefined();
+    }
+  });
+
+  it('getDashboardDataFreshness skips a failing dataset query and returns the oldest of the rest', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = makeFreshnessFetch(
+      [
+        { id: 't1', datasetId: 'ds-good-old' },
+        { id: 't2', datasetId: 'ds-bad' },
+        { id: 't3', datasetId: 'ds-good-new' },
+      ],
+      {
+        'ds-good-old': refreshAt('2026-06-02T00:00:00.000Z'),
+        'ds-bad': { status: 403 }, // inaccessible dataset — skipped, doesn't fail call
+        'ds-good-new': refreshAt('2026-06-04T00:00:00.000Z'),
+      }
+    );
+
+    const result = await svc.getDashboardDataFreshness('db-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBe('2026-06-02T00:00:00.000Z');
+    }
+  });
+
   it('getEmbedToken returns the injected access token as the embed token', async () => {
     const getAccessToken = vi.fn().mockResolvedValue({
       success: true,

@@ -86,6 +86,8 @@ export interface ElectronAPI {
       filePath?: string,
     ) => Promise<IPCResponse<{ path: string }>>;
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
+    // PROD-S9: dashboard freshness — stalest lastRefreshTime across tile datasets.
+    getDashboardDataFreshness: (dashboardId: string, workspaceId: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
     getAllItems: () => Promise<IPCResponse<{
       workspaces: Workspace[];
       reports: Report[];

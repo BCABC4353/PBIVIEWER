@@ -22,14 +22,14 @@ export const DashboardViewer: React.FC = () => {
   // BI dashboard, however, aggregates tiles from potentially MANY datasets, so
   // there is no single authoritative "last refreshed" timestamp — and the
   // dashboard metadata endpoint (getDashboard) does not expose any datasetId at
-  // all. Rather than show a wrong/misleading timestamp from an arbitrarily
-  // chosen tile, we degrade gracefully: the freshness query only runs when a
-  // representative datasetId becomes available (datasetIdRef stays null for
-  // dashboards today, so the indicator simply stays hidden). The plumbing is
-  // kept identical to ReportViewer so a future tiles->dataset linkage can light
-  // it up by populating datasetIdRef without touching the loaded handler.
+  // all. Instead we derive freshness from the TILES: the main process enumerates
+  // the dashboard's tiles ("Get Tiles in Group"), collects the distinct
+  // datasetIds, queries each one's refresh history, and returns the OLDEST
+  // (stalest) lastRefreshTime — the meaningful "is any data on this dashboard
+  // old?" signal. When no tile exposes a datasetId, or none have refresh
+  // history, the call returns empty data and the indicator stays hidden
+  // (graceful fallback — no misleading timestamp).
   const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
-  const datasetIdRef = useRef<string | null>(null);
 
   // Fetch dashboard details to get the name (also drives UX-S14 breadcrumb)
   useEffect(() => {
@@ -81,25 +81,29 @@ export const DashboardViewer: React.FC = () => {
         }
       },
       // PROD-S9: after the dashboard loads, populate the data-freshness
-      // indicator IF (and only if) a representative datasetId is available.
-      // Dashboards aggregate many datasets, so datasetIdRef is null today and
-      // this is effectively a no-op — the indicator stays hidden rather than
-      // showing a misleading timestamp. Treat an empty/absent lastRefreshTime
-      // (getDatasetRefreshInfo returns {} when there's no refresh history) as
-      // "no indicator", not a blank value.
-      loaded: async () => {
-        if (!datasetIdRef.current || !workspaceId) return;
-        try {
-          const refreshResponse = await window.electronAPI.content.getDatasetRefreshInfo(
-            datasetIdRef.current,
-            workspaceId
-          );
-          if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
-            setLastDataRefresh(refreshResponse.data.lastRefreshTime);
+      // indicator from the stalest tile dataset (see getDashboardDataFreshness
+      // in the main process). Treat an empty/absent lastRefreshTime (returned
+      // when no tile exposes a datasetId or none have refresh history) as "no
+      // indicator", not a blank value.
+      loaded: () => {
+        // Fire-and-forget: the embed event handler contract is `() => void`, so
+        // we explicitly void the async work rather than returning a Promise the
+        // lifecycle hook would ignore. Errors are intentionally swallowed (the
+        // freshness indicator is best-effort; absence is the graceful fallback).
+        if (!workspaceId || !dashboardId) return;
+        void (async () => {
+          try {
+            const refreshResponse = await window.electronAPI.content.getDashboardDataFreshness(
+              dashboardId,
+              workspaceId
+            );
+            if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
+              setLastDataRefresh(refreshResponse.data.lastRefreshTime);
+            }
+          } catch (error) {
+            console.warn('[DashboardViewer] Dashboard data freshness unavailable:', error);
           }
-        } catch (error) {
-          console.warn('[DashboardViewer] Dataset refresh info unavailable:', error);
-        }
+        })();
       },
     }),
     [navigate, workspaceId, dashboardId]

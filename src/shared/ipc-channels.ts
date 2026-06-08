@@ -33,6 +33,8 @@ export const IPC_CHANNELS = {
     getEmbedToken: 'content:get-embed-token',
     exportReportPdf: 'content:export-report-pdf',
     getDatasetRefreshInfo: 'content:get-dataset-refresh-info',
+    // PROD-S9: dashboard freshness derived from the stalest tile dataset.
+    getDashboardDataFreshness: 'content:get-dashboard-data-freshness',
     getAllItems: 'content:get-all-items',
   },
   window: {

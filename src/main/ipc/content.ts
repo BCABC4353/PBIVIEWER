@@ -98,6 +98,13 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getDatasetRefreshInfo(dId, wId ?? undefined);
   });
 
+  ipcMain.handle('content:get-dashboard-data-freshness', async (_event, dashboardId: string, workspaceId: string) => {
+    const dbId = validateUUID(dashboardId);
+    const wsId = validateUUID(workspaceId);
+    if (!dbId || !wsId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
+    return await powerbiApiService.getDashboardDataFreshness(dbId, wsId);
+  });
+
   ipcMain.handle('content:get-all-items', async () => {
     return await powerbiApiService.getAllItems();
   });

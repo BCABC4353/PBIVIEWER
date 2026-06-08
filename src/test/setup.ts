@@ -78,6 +78,10 @@ function createElectronAPIMock(): ElectronAPI {
         success: true,
         data: {},
       }),
+      getDashboardDataFreshness: vi.fn().mockResolvedValue({
+        success: true,
+        data: {},
+      }),
       getAllItems: vi.fn().mockResolvedValue({
         success: true,
         data: {

@@ -42,6 +42,9 @@ const electronAPI: ElectronAPI = {
     ) => ipcRenderer.invoke('content:export-report-pdf', reportId, workspaceId, pageName, bookmarkState, filePath),
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
       ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
+    // PROD-S9: dashboard freshness bridge — stalest tile-dataset refresh time.
+    getDashboardDataFreshness: (dashboardId: string, workspaceId: string) =>
+      ipcRenderer.invoke('content:get-dashboard-data-freshness', dashboardId, workspaceId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
   },
 

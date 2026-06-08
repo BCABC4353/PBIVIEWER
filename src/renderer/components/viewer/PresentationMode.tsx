@@ -228,7 +228,17 @@ export const PresentationMode: React.FC = () => {
           }
           break;
         case 'Escape':
-          doExit();
+          // PROD-S1 (antagonist P0): in unattended/kiosk mode (auto-started
+          // slideshow on a wall display) a single Escape tap must NOT exit —
+          // an accidental keypress would drop the display out of the slideshow.
+          // Exit is gated behind the deliberate kiosk gesture (3s Escape-hold
+          // or Ctrl+Shift+Esc) handled by useKioskExitGesture. When the user
+          // manually started the slideshow, a single Escape exits for
+          // convenience. (preventDefault above still suppresses the browser's
+          // native fullscreen-exit-on-Escape in both modes.)
+          if (!autoStartSlideshow) {
+            doExit();
+          }
           break;
         case 'p':
         case 'P':
@@ -239,7 +249,7 @@ export const PresentationMode: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [slides.length, doExit]);
+  }, [slides.length, doExit, autoStartSlideshow]);
 
   // Handle slideshow auto-advance
   useEffect(() => {
