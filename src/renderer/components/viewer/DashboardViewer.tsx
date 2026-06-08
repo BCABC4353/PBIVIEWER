@@ -154,10 +154,12 @@ export const DashboardViewer: React.FC = () => {
   }, [reload]);
 
   const handleFullScreen = () => {
-    if (embedContainerRef.current) {
-      if (embedContainerRef.current.requestFullscreen) {
-        embedContainerRef.current.requestFullscreen();
-      }
+    // Toggle: clicking again (while already fullscreen) exits instead of doing
+    // nothing.
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+    } else if (embedContainerRef.current?.requestFullscreen) {
+      void embedContainerRef.current.requestFullscreen();
     }
   };
 

@@ -86,6 +86,12 @@ export const AppViewer: React.FC = () => {
       const e = event as CustomEvent;
       // Ignore aborted loads (e.g., navigating away)
       if (e.detail?.errorCode === -3) return;
+      // Only a MAIN-FRAME failure means the app page itself didn't load. The
+      // embedded Power BI app pulls dozens of sub-resources / sub-frames; a blip
+      // in any of those (common on a cold first open, then cached on retry) fires
+      // did-fail-load with isMainFrame=false. Treating those as fatal is what put
+      // up a spurious "Failed to load app" that then worked on the second try.
+      if (e.detail?.isMainFrame === false) return;
       console.error('[AppViewer] Webview failed to load:', e.detail);
       setError(`Failed to load app: ${e.detail?.errorDescription || 'Unknown error'}`);
       setIsLoading(false);

@@ -494,8 +494,14 @@ export const PresentationMode: React.FC = () => {
           aria-hidden="true"
           className="absolute bottom-2 right-3 z-[15] text-white/40 text-[11px] leading-tight pointer-events-none select-none text-right"
         >
-          <div>Hold Esc 3s to exit</div>
-          <div>or Ctrl+Shift+Q</div>
+          {autoStartSlideshow ? (
+            <>
+              <div>Hold Esc 3s to exit</div>
+              <div>or Ctrl+Shift+Q</div>
+            </>
+          ) : (
+            <div>Press Esc to exit</div>
+          )}
         </div>
       )}
 

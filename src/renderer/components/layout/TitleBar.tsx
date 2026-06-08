@@ -125,7 +125,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
       {variant === 'authenticated' && <SignOutDialog />}
 
       <div
-        className="h-10 flex items-center px-4 border-b border-neutral-stroke-2 select-none"
+        className="h-10 flex items-center px-4 select-none"
         style={{
           backgroundColor: titleBarBg,
           WebkitAppRegion: 'drag',

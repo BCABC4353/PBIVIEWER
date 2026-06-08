@@ -1,12 +1,9 @@
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 import { PARTITION_NAME } from '../../shared/constants';
 import { isDev } from '../window';
 
-// PROD-S2: TODO — replace with this app's actual releases URL once a release
-// channel is established (add a `homepage` or `repository.url` field to
-// package.json and derive from it). Until then the handler returns the running
-// version so the renderer can display it, but does NOT open an external page to
-// avoid directing users to an unrelated repository.
+// PROD-S2: "Check for updates" opens the GitHub Releases page where the latest
+// installer lives (manual, unsigned distribution — there is no in-app auto-update).
 
 export function registerAppIpc(): void {
   ipcMain.handle('app:get-app-webview-config', () => {
@@ -23,16 +20,13 @@ export function registerAppIpc(): void {
     return app.getVersion();
   });
 
-  // PROD-S2: anonymous current-vs-latest version check.
-  // Returns the running version string so the renderer can display it.
-  // External navigation is intentionally omitted until this app has a real
-  // release channel — previously this opened an unrelated Microsoft sample
-  // repository which would have confused users looking for app updates.
-  ipcMain.handle('app:check-for-updates', () => {
+  // PROD-S2: open the GitHub Releases page (latest installer) in the browser.
+  ipcMain.handle('app:check-for-updates', async () => {
     try {
       const currentVersion = app.getVersion();
-      // releasesUrl is intentionally absent until a release channel exists.
-      return { success: true, data: { currentVersion, releasesUrl: null } };
+      const releasesUrl = 'https://github.com/BCABC4353/PBIVIEWER/releases/latest';
+      await shell.openExternal(releasesUrl);
+      return { success: true, data: { currentVersion, releasesUrl } };
     } catch (err) {
       return {
         success: false,

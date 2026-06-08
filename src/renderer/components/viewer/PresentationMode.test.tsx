@@ -214,15 +214,18 @@ describe('#6 persistent kiosk exit hint', () => {
     cleanup();
   });
 
-  it('renders an always-visible exit hint naming both the Esc-hold and the Ctrl+Shift+Q chord', () => {
+  it('renders a manual-mode exit hint ("Press Esc to exit") matching the single-Esc exit', () => {
     renderPresentation();
-    expect(screen.getByText('Hold Esc 3s to exit')).not.toBeNull();
-    expect(screen.getByText('or Ctrl+Shift+Q')).not.toBeNull();
+    // Manual slideshow (autoStartSlideshow false): a single Esc exits, so the
+    // hint must say that — NOT the kiosk-only "hold 3s / Ctrl+Shift+Q" gesture,
+    // which only applies when the slideshow auto-started unattended.
+    expect(screen.getByText('Press Esc to exit')).not.toBeNull();
+    expect(screen.queryByText('Hold Esc 3s to exit')).toBeNull();
   });
 
   it('marks the hint aria-hidden so it is not noise for screen readers', () => {
     renderPresentation();
-    const hint = screen.getByText('Hold Esc 3s to exit');
+    const hint = screen.getByText('Press Esc to exit');
     // The hint lives in an aria-hidden wrapper (visual-only guidance).
     expect(hint.closest('[aria-hidden="true"]')).not.toBeNull();
   });
@@ -231,11 +234,11 @@ describe('#6 persistent kiosk exit hint', () => {
     renderPresentation();
     // The hint must NOT be a descendant of the controls/toolbar region, so it
     // survives when showControls toggles off in the autoStart/kiosk scenario.
-    const hint = screen.getByText('Hold Esc 3s to exit');
+    const hint = screen.getByText('Press Esc to exit');
     expect(hint.closest('[data-viewer-toolbar]')).toBeNull();
     // Hiding the controls block does not remove the hint: it's rendered as a
     // sibling, so simply assert it stays present after a re-query.
-    expect(screen.queryByText('Hold Esc 3s to exit')).not.toBeNull();
+    expect(screen.queryByText('Press Esc to exit')).not.toBeNull();
   });
 });
 
