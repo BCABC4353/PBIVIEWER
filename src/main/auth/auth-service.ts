@@ -886,6 +886,32 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
         settle(null);
       });
 
+      // SYMPTOM-1 FIX: stop Microsoft Entra from interrupting password entry with
+      // a Windows passkey / Windows Hello (WebAuthn) prompt. The embedded Chromium
+      // advertises a platform authenticator, so Entra offers a passkey mid-login
+      // (a known Electron+Windows issue, electron/electron#41472). We neuter the
+      // WebAuthn API in the page's MAIN world at document-start via the DevTools
+      // protocol — keeping contextIsolation + sandbox ON — so Entra falls back to
+      // the normal password flow. Best-effort: any failure here must NOT block
+      // sign-in (the window still loads and works, passkey prompt or not).
+      try {
+        authWindow.webContents.debugger.attach('1.3');
+        void authWindow.webContents.debugger
+          .sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+            source:
+              "try{Object.defineProperty(window,'PublicKeyCredential',{value:undefined,configurable:true});}catch(e){}" +
+              "try{if(navigator.credentials){" +
+              "navigator.credentials.get=function(){return Promise.reject(new DOMException('WebAuthn disabled in embedded sign-in','NotAllowedError'));};" +
+              "navigator.credentials.create=function(){return Promise.reject(new DOMException('WebAuthn disabled in embedded sign-in','NotAllowedError'));};" +
+              "}}catch(e){}",
+          })
+          .catch(() => {
+            /* best-effort passkey suppression */
+          });
+      } catch {
+        /* debugger.attach can throw (e.g. devtools already attached) — non-fatal */
+      }
+
       // Catch loadURL rejections — if the URL fails to load (offline, DNS
       // failure, force-close during navigation) we end up with an
       // unhandledRejection without this catch. Settling null routes the

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// In-memory electron-store + safeStorage stubs.
-// token-cache.ts constructs a Store at module load and encrypts via safeStorage,
-// so both must be mocked before the module is imported. `decryptString` is made
-// to throw on demand to exercise the corruption path (FIX-4 / G3 residual).
+// In-memory electron-store stub. token-cache.ts now relies on electron-store's
+// built-in encryptionKey (no Electron safeStorage), so only electron-store needs
+// mocking — the stub ignores the constructor options (name/encryptionKey/
+// clearInvalidConfig) and just backs get/set/delete with a Map.
 // ---------------------------------------------------------------------------
 const backing = new Map<string, string>();
 
@@ -24,63 +24,60 @@ vi.mock('electron-store', () => {
   };
 });
 
-let decryptShouldThrow = false;
-
-vi.mock('electron', () => ({
-  safeStorage: {
-    isEncryptionAvailable: () => true,
-    encryptString: (s: string) => Buffer.from(s, 'utf-8'),
-    decryptString: (b: Buffer) => {
-      if (decryptShouldThrow) throw new Error('corrupt');
-      return b.toString('utf-8');
-    },
-  },
-}));
-
 import { tokenCache } from './token-cache';
 
 beforeEach(() => {
   backing.clear();
-  decryptShouldThrow = false;
   vi.clearAllMocks();
 });
 
-describe('token-cache decrypt() corruption cleanup (FIX-4 / G3 residual)', () => {
-  it('deletes activeHomeAccountId (not just msalCache/userInfo) on corruption', async () => {
-    // Seed all three persisted entries as if a real session had been stored.
-    await tokenCache.saveCache('serialized');
-    await tokenCache.saveUserInfo({ homeAccountId: 'acct-1', displayName: 'T', email: 'e' });
+describe('token-cache persistence (encryptionKey-backed, DPAPI-independent)', () => {
+  it('round-trips the serialized MSAL cache across save/load', async () => {
+    await tokenCache.saveCache('serialized-msal-cache');
+    expect(await tokenCache.loadCache()).toBe('serialized-msal-cache');
+  });
+
+  it('returns null when no cache has been stored', async () => {
+    expect(await tokenCache.loadCache()).toBeNull();
+  });
+
+  it('round-trips user info and tolerates corrupt JSON', async () => {
+    await tokenCache.saveUserInfo({ homeAccountId: 'acct-1', displayName: 'Tester', email: 'e@x.com' });
+    expect(await tokenCache.loadUserInfo()).toEqual({
+      homeAccountId: 'acct-1',
+      displayName: 'Tester',
+      email: 'e@x.com',
+    });
+    // A truncated/garbage value must not throw — it resolves to null.
+    backing.set('userInfo', '{ not valid json');
+    expect(await tokenCache.loadUserInfo()).toBeNull();
+  });
+
+  it('round-trips the active account id and clears it on null', async () => {
     await tokenCache.saveActiveAccountId('acct-1');
-    expect(backing.has('msalCache')).toBe(true);
-    expect(backing.has('userInfo')).toBe(true);
-    expect(backing.has('activeHomeAccountId')).toBe(true);
+    expect(await tokenCache.loadActiveAccountId()).toBe('acct-1');
+    await tokenCache.saveActiveAccountId(null);
+    expect(await tokenCache.loadActiveAccountId()).toBeNull();
+    expect(backing.has('activeHomeAccountId')).toBe(false);
+  });
 
-    // Now decryption starts failing — the next load triggers the corruption path.
-    decryptShouldThrow = true;
-    const loaded = await tokenCache.loadCache();
-    expect(loaded).toBe('');
+  it('clearCache removes the MSAL cache, user info, and active account id together', async () => {
+    await tokenCache.saveCache('cache');
+    await tokenCache.saveUserInfo({ homeAccountId: 'a', displayName: 'd', email: 'e' });
+    await tokenCache.saveActiveAccountId('a');
+    expect(backing.size).toBe(3);
 
-    // FIX-4: the corrupt active id is purged in lockstep, so it cannot re-fire
-    // the corruption path on every subsequent startup.
+    await tokenCache.clearCache();
+
     expect(backing.has('msalCache')).toBe(false);
     expect(backing.has('userInfo')).toBe(false);
     expect(backing.has('activeHomeAccountId')).toBe(false);
   });
 
-  it('fires corruption listeners when decrypt fails', async () => {
-    await tokenCache.saveCache('serialized');
+  it('onCorruption registers and unsubscribes without throwing (compat shim)', () => {
     const listener = vi.fn();
     const unsub = tokenCache.onCorruption(listener);
-    decryptShouldThrow = true;
-    await tokenCache.loadCache();
-    expect(listener).toHaveBeenCalledTimes(1);
-    unsub();
-  });
-
-  it('does not delete the active id on a successful decrypt', async () => {
-    await tokenCache.saveActiveAccountId('acct-1');
-    const id = await tokenCache.loadActiveAccountId();
-    expect(id).toBe('acct-1');
-    expect(backing.has('activeHomeAccountId')).toBe(true);
+    expect(typeof unsub).toBe('function');
+    expect(() => unsub()).not.toThrow();
   });
 });
