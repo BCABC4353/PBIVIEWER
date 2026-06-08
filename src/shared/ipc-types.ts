@@ -52,6 +52,12 @@ export interface TokenResult {
  */
 export interface AppWebviewConfig {
   partition: string | null;
+  /**
+   * Clean Chrome user-agent for the App <webview>. The Electron/app-name tokens
+   * are stripped so Microsoft 365 / Power BI treat the embedded browser as
+   * supported and allow silent SSO (no password re-prompt / "out of date browser").
+   */
+  userAgent: string;
 }
 
 // Typed IPC API surface — the single source of truth for the preload bridge and renderer.

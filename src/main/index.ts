@@ -24,6 +24,17 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    // Present embedded browser surfaces (the AAD auth window and the App
+    // <webview>) as plain Chrome. Microsoft 365 / Power BI flag the default
+    // Electron user-agent (the "Electron/<ver>" + app-name tokens) as an
+    // unsupported / "out of date" browser and refuse silent SSO — which forced a
+    // password re-prompt in the Apps webview on Electron 42. Stripping those
+    // tokens keeps the real (current) Chromium version while looking supported.
+    const appNameToken = app.getName().replace(/[.*+?^${}()|[\]\\\s]/g, '\\$&');
+    app.userAgentFallback = app.userAgentFallback
+      .replace(/ Electron\/[\d.]+/i, '')
+      .replace(new RegExp(` ${appNameToken}\\/[\\d.]+`, 'i'), '');
+
     // Content Security Policy - register on default session always, and on the
     // partition session in production (where the packaged renderer is file://).
     installCsp(session.defaultSession);

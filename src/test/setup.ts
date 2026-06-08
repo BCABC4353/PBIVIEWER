@@ -121,7 +121,7 @@ function createElectronAPIMock(): ElectronAPI {
     },
 
     app: {
-      getAppWebviewConfig: vi.fn().mockResolvedValue({ partition: null }),
+      getAppWebviewConfig: vi.fn().mockResolvedValue({ partition: null, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36' }),
       getVersion: vi.fn().mockResolvedValue('0.0.0-test'),
       checkForUpdates: vi
         .fn()

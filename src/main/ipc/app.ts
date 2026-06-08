@@ -13,7 +13,9 @@ export function registerAppIpc(): void {
     // Return the config the App webview needs to mount with the correct session.
     // partition: the partition name used by the main window. In dev mode we use
     // no partition (undefined/null), in production we use PARTITION_NAME.
-    return { partition: isDev ? null : PARTITION_NAME };
+    // userAgent: clean Chrome UA (Electron/app tokens stripped in index.ts) so
+    // Microsoft allows silent SSO in the App <webview> (no "out of date browser").
+    return { partition: isDev ? null : PARTITION_NAME, userAgent: app.userAgentFallback };
   });
 
   ipcMain.handle('app:get-version', () => {

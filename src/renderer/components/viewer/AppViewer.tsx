@@ -8,6 +8,7 @@ import { ViewerToolbar } from './ViewerToolbar';
 interface ElectronWebView extends HTMLElement {
   src: string;
   partition?: string;
+  useragent?: string;
   allowpopups?: string;
   reload: () => void;
   canGoBack: () => boolean;
@@ -25,6 +26,7 @@ export const AppViewer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [appName, setAppName] = useState<string>('App');
   const [partitionName, setPartitionName] = useState<string | null>(null);
+  const [userAgent, setUserAgent] = useState<string | undefined>(undefined);
   const [partitionLoaded, setPartitionLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -34,6 +36,7 @@ export const AppViewer: React.FC = () => {
       try {
         const config = await window.electronAPI.app.getAppWebviewConfig();
         setPartitionName(config.partition);
+        setUserAgent(config.userAgent);
       } catch (error) {
         console.warn('[AppViewer] Failed to load webview config:', error);
       } finally {
@@ -204,6 +207,7 @@ export const AppViewer: React.FC = () => {
               border: 'none',
             }}
             partition={partitionName || undefined}
+            useragent={userAgent}
             allowpopups={true}
           />
         )}
