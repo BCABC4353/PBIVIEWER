@@ -7,12 +7,12 @@
   /* ---------- Page / print setup ---------- */
   @page {
     size: A4;
-    margin: 18mm 16mm;
+    margin: 14mm 14mm;
   }
 
   :root {
-    --accent: #C43E1C;        /* warm brand orange accent */
-    --accent-dark: #8A2B12;
+    --accent: #FF5F15;        /* Safety-Orange brand */
+    --accent-dark: #A33200;   /* deep orange, readable as body text */
     --ink: #1f1f1f;
     --muted: #5b5b5b;
     --line: #e2e2e2;
@@ -29,40 +29,35 @@
     padding: 0;
     color: var(--ink);
     font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-    font-size: 12.5pt;
-    line-height: 1.55;
+    font-size: 10.6pt;
+    line-height: 1.4;
   }
 
-  .page {
-    page-break-after: always;
-  }
-  .page:last-child { page-break-after: auto; }
-
-  h1, h2, h3 { color: var(--accent-dark); line-height: 1.2; }
-  h1 { font-size: 22pt; margin: 0 0 6pt; }
+  /* No blanket page breaks — content flows densely; only the cover stands alone. */
+  h1, h2, h3 { color: var(--accent-dark); line-height: 1.18; break-after: avoid; }
+  h1 { font-size: 19pt; margin: 0 0 4pt; }
   h2 {
-    font-size: 16pt;
-    margin: 0 0 10pt;
-    padding-bottom: 4pt;
+    font-size: 13.5pt;
+    margin: 13pt 0 5pt;
+    padding-bottom: 3pt;
     border-bottom: 2px solid var(--accent);
   }
-  h3 { font-size: 13pt; margin: 16pt 0 4pt; color: var(--accent); }
+  h3 { font-size: 11.5pt; margin: 9pt 0 3pt; color: var(--accent); }
 
-  p { margin: 6pt 0; }
-  ul, ol { margin: 6pt 0 10pt; padding-left: 22pt; }
-  li { margin: 3pt 0; }
+  p { margin: 4pt 0; }
+  ul, ol { margin: 4pt 0 7pt; padding-left: 18pt; }
+  li { margin: 2pt 0; }
 
-  section.major { page-break-before: always; }
+  /* sections flow continuously — no forced page break (was the one-line-page cause) */
+  section.major { margin-top: 6pt; }
 
-  .lead { color: var(--muted); font-size: 13pt; }
+  .lead { color: var(--muted); }
 
   /* ---------- Cover ---------- */
   .cover {
-    height: 245mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    padding-top: 50mm;
     text-align: center;
+    page-break-after: always;   /* the only forced break in the document */
   }
   .cover .badge {
     width: 96px; height: 96px;
@@ -93,8 +88,9 @@
     border-left: 5px solid var(--accent);
     background: var(--tip-bg);
     border-radius: 6px;
-    padding: 12px 16px;
-    margin: 14px 0;
+    padding: 8px 12px;
+    margin: 9px 0;
+    break-inside: avoid;
   }
   .box .box-title {
     font-weight: 700;
@@ -112,8 +108,9 @@
     border: 3px solid var(--accent);
     background: var(--exit-bg);
     border-radius: 10px;
-    padding: 18px 22px;
-    margin: 18px 0;
+    padding: 12px 16px;
+    margin: 12px 0;
+    break-inside: avoid;
   }
   .exit-box h3 {
     margin-top: 0;
@@ -126,9 +123,10 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    margin: 12px 0 16px;
-    font-size: 11.5pt;
+    margin: 8px 0 12px;
+    font-size: 9.8pt;
   }
+  tr { break-inside: avoid; }   /* keep rows whole, but let big tables flow across pages */
   th, td {
     text-align: left;
     border: 1px solid var(--line);
@@ -160,8 +158,8 @@
   }
 
   /* ---------- Table of contents ---------- */
-  .toc ol { list-style: none; padding-left: 0; counter-reset: toc; }
-  .toc li { margin: 6px 0; font-size: 12.5pt; }
+  .toc ol { list-style: none; padding-left: 0; counter-reset: toc; columns: 2; column-gap: 26pt; }
+  .toc li { margin: 3px 0; font-size: 10.5pt; break-inside: avoid; }
   .toc li::before {
     counter-increment: toc;
     content: counter(toc) ".  ";
@@ -600,16 +598,14 @@
   you'll be asked to confirm with the message "<span class="ui">Sign out?</span>".</p>
 
   <h3>It's asking me to sign in again</h3>
-  <p>Normally you stay signed in between sessions. If you are asked to sign in again, just
-  click <span class="ui">Sign in with Microsoft</span> and continue as usual. This can
-  happen occasionally — for example after a long time away, a password change, or if you
-  signed out — and is nothing to worry about.</p>
+  <p>You normally stay signed in between sessions. If asked again, just click
+  <span class="ui">Sign in with Microsoft</span> — this is normal after a long gap, a
+  password change, or signing out.</p>
 
   <h3>The screen went to sleep on the wall display</h3>
-  <p>While a slideshow is running, the app keeps the display awake automatically. If the
-  screen still sleeps, the cause is usually the monitor's or computer's own power settings
-  rather than the app. Check that the slideshow is actually playing, and ask whoever set up
-  the display to confirm the device's power/sleep settings.</p>
+  <p>While a slideshow runs, the app keeps the display awake automatically. If it still
+  sleeps, the cause is usually the monitor's or computer's own power settings — confirm the
+  slideshow is playing, and have whoever set up the display check those settings.</p>
 
   <h3>How do I change how fast slides advance?</h3>
   <p>Two ways:</p>
