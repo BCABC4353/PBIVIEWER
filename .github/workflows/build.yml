@@ -1,80 +1,104 @@
 name: Build and Release
 
+# ----------------------------------------------------------------------------
+# ONE-CLICK BUILD - works from your desktop OR your phone, no terminal needed.
+#
+#   GitHub.com (or the GitHub mobile app)
+#     -> this repo -> "Actions" tab
+#     -> "Build and Release" (left side)
+#     -> "Run workflow" -> pick patch / minor / major -> Run
+#
+# GitHub bumps the version for you, builds the Windows + Mac installers, and
+# publishes a Release with both attached. No tags, no version editing, no CLI.
+# (The version bump + tag happen on GitHub's runner, so it works even when a
+# phone / cloud session can't push tags itself.)
+# ----------------------------------------------------------------------------
 on:
-  push:
-    tags:
-      - 'v*'
-    branches:
-      - 'claude/continue-work-Qom14'
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump: patch = small fix, minor = new feature, major = big change'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
 
-# NEW-CI-6: prevent duplicate tag-push runs from racing. cancel-in-progress is
-# false because a partially-built release should not be silently discarded — the
-# operator needs to see the failure, not a silent cancellation.
+# One build/release at a time; never silently cancel one that's mid-flight.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: build-and-release
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
+  # 1) Bump version in package.json, commit to main, and create the tag.
+  #    Runs on GitHub's runner (not your phone), so the tag push always works.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Bump version, commit and tag
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          new=$(npm version ${{ inputs.bump }} --no-git-tag-version)
+          echo "version=${new#v}" >> "$GITHUB_OUTPUT"
+          git add package.json package-lock.json
+          git commit -m "release ${new}"
+          git tag "${new}"
+          git push origin main
+          git push origin "${new}"
+
   build-windows:
+    needs: version
     runs-on: windows-latest
     steps:
-      - name: Checkout code
+      - name: Checkout the new version
         uses: actions/checkout@v4
-
-      - name: Verify tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pkg=$(node -p "require('./package.json').version")
-          if [ "$tag" != "$pkg" ]; then
-            echo "Tag v$tag does not match package.json version v$pkg" >&2
-            exit 1
-          fi
-          echo "Tag and package.json version both v$tag"
-
+        with:
+          ref: v${{ needs.version.outputs.version }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
         env:
           npm_config_platform: win32
           npm_config_arch: x64
-
-      # Audit gate kept report-only — 6 HIGH vulns remain that require major-version
-      # upgrades (electron-builder, msal-node, vite, electron). Sprint 3 follow-up
-      # will land those upgrades, then this gate flips to hard.
-      - name: Audit dependencies (report-only)
-        run: npm audit --audit-level=high || true
-        continue-on-error: true
-
       - name: Generate config
         run: npm run generate-config
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
-
       - name: Lint
         run: npm run lint
-
       - name: Test
         run: npm run test:coverage
-
       - name: Build and package Windows
         run: npm run package:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
@@ -83,57 +107,31 @@ jobs:
           retention-days: 30
 
   build-mac:
-    # macos-latest is fine because we build a ZIP (not a DMG), so the arm64/APFS
-    # hdiutil bug (electron-builder #9155) doesn't apply. ZIP creation needs no
-    # hdiutil and works on any macOS runner.
+    needs: version
     runs-on: macos-latest
     steps:
-      - name: Checkout code
+      - name: Checkout the new version
         uses: actions/checkout@v4
-
-      - name: Verify tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pkg=$(node -p "require('./package.json').version")
-          if [ "$tag" != "$pkg" ]; then
-            echo "Tag v$tag does not match package.json version v$pkg" >&2
-            exit 1
-          fi
-          echo "Tag and package.json version both v$tag"
-
+        with:
+          ref: v${{ needs.version.outputs.version }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
-      # Audit gate kept report-only — 6 HIGH vulns remain that require major-version
-      # upgrades (electron-builder, msal-node, vite, electron). Sprint 3 follow-up
-      # will land those upgrades, then this gate flips to hard.
-      - name: Audit dependencies (report-only)
-        run: npm audit --audit-level=high || true
-        continue-on-error: true
-
       - name: Generate config
         run: npm run generate-config
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
       - name: Type check
         run: npx tsc --noEmit -p tsconfig.main.json && npx tsc --noEmit -p tsconfig.renderer.json
-
       - name: Lint
         run: npm run lint
-
       - name: Test
         run: npm run test:coverage
-
       - name: Build and package macOS
         run: |
           attempt=1
@@ -151,7 +149,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
       - name: Upload macOS installer
         uses: actions/upload-artifact@v4
         with:
@@ -160,28 +157,26 @@ jobs:
           retention-days: 30
 
   release:
-    needs: [build-windows]
+    needs: [version, build-windows, build-mac]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
-      - name: Download Windows artifact
+      - name: Download Windows installer
         uses: actions/download-artifact@v4
         with:
           name: windows-installer
           path: ./artifacts
-
-      - name: Download macOS artifact
+      - name: Download macOS installer
         uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: mac-installer
           path: ./artifacts
-
-      - name: Create Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.version.outputs.version }}
           files: ./artifacts/*
           generate_release_notes: true
-          draft: true
+          draft: false
+          make_latest: true
