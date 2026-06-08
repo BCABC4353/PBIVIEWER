@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Power BI Viewer — User Guide</title>
+<style>
+  /* ---------- Page / print setup ---------- */
+  @page {
+    size: A4;
+    margin: 18mm 16mm;
+  }
+
+  :root {
+    --accent: #C43E1C;        /* warm brand orange accent */
+    --accent-dark: #8A2B12;
+    --ink: #1f1f1f;
+    --muted: #5b5b5b;
+    --line: #e2e2e2;
+    --tip-bg: #fdf1ec;
+    --note-bg: #eef4fb;
+    --warn-bg: #fff8e6;
+    --exit-bg: #fbeae5;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    color: var(--ink);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12.5pt;
+    line-height: 1.55;
+  }
+
+  .page {
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  h1, h2, h3 { color: var(--accent-dark); line-height: 1.2; }
+  h1 { font-size: 22pt; margin: 0 0 6pt; }
+  h2 {
+    font-size: 16pt;
+    margin: 0 0 10pt;
+    padding-bottom: 4pt;
+    border-bottom: 2px solid var(--accent);
+  }
+  h3 { font-size: 13pt; margin: 16pt 0 4pt; color: var(--accent); }
+
+  p { margin: 6pt 0; }
+  ul, ol { margin: 6pt 0 10pt; padding-left: 22pt; }
+  li { margin: 3pt 0; }
+
+  section.major { page-break-before: always; }
+
+  .lead { color: var(--muted); font-size: 13pt; }
+
+  /* ---------- Cover ---------- */
+  .cover {
+    height: 245mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+  .cover .badge {
+    width: 96px; height: 96px;
+    margin: 0 auto 28px;
+    border-radius: 22px;
+    background: var(--accent);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 46px; font-weight: 700;
+  }
+  .cover h1 {
+    font-size: 38pt;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .cover .sub {
+    font-size: 20pt;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+  .cover .meta { color: var(--muted); font-size: 11pt; }
+
+  /* ---------- Callout boxes ---------- */
+  .box {
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--accent);
+    background: var(--tip-bg);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 14px 0;
+  }
+  .box .box-title {
+    font-weight: 700;
+    color: var(--accent-dark);
+    margin-bottom: 4px;
+    display: block;
+  }
+  .note { background: var(--note-bg); border-left-color: #2b6cb0; }
+  .note .box-title { color: #1d4e80; }
+  .warn { background: var(--warn-bg); border-left-color: #c79100; }
+  .warn .box-title { color: #8a6500; }
+
+  /* ---------- The big exit box ---------- */
+  .exit-box {
+    border: 3px solid var(--accent);
+    background: var(--exit-bg);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 18px 0;
+  }
+  .exit-box h3 {
+    margin-top: 0;
+    color: var(--accent-dark);
+    font-size: 15pt;
+  }
+  .exit-box ul { margin-bottom: 0; }
+
+  /* ---------- Tables ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px;
+    font-size: 11.5pt;
+  }
+  th, td {
+    text-align: left;
+    border: 1px solid var(--line);
+    padding: 7px 10px;
+    vertical-align: top;
+  }
+  th {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  tr:nth-child(even) td { background: #faf7f6; }
+
+  /* ---------- Keys & UI labels ---------- */
+  kbd {
+    display: inline-block;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 10.5pt;
+    background: #f4f4f4;
+    border: 1px solid #cfcfcf;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 7px;
+    white-space: nowrap;
+  }
+  .ui {
+    font-weight: 600;
+    color: var(--accent-dark);
+  }
+
+  /* ---------- Table of contents ---------- */
+  .toc ol { list-style: none; padding-left: 0; counter-reset: toc; }
+  .toc li { margin: 6px 0; font-size: 12.5pt; }
+  .toc li::before {
+    counter-increment: toc;
+    content: counter(toc) ".  ";
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .step-intro { font-weight: 600; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="page cover">
+  <div class="badge">PB</div>
+  <h1>Power BI Viewer</h1>
+  <div class="sub">User Guide</div>
+  <p class="lead">A friendly, complete guide to viewing your reports,<br/>dashboards, and wall-display slideshows.</p>
+  <div class="meta">For everyday users &nbsp;•&nbsp; No technical knowledge needed</div>
+</div>
+
+<!-- ============ TABLE OF CONTENTS ============ -->
+<div class="page">
+  <h2>Contents</h2>
+  <div class="toc">
+    <ol>
+      <li>Welcome — what this app is</li>
+      <li>Getting started — launching and signing in</li>
+      <li>Finding your way around</li>
+      <li>Searching for a report or dashboard</li>
+      <li>Viewing a report</li>
+      <li>Viewing a dashboard</li>
+      <li>Viewing an app</li>
+      <li>Slideshow &amp; wall-display (kiosk) mode</li>
+      <li>Exporting to PDF</li>
+      <li>Settings explained</li>
+      <li>Tips &amp; keyboard shortcuts</li>
+      <li>Troubleshooting &amp; FAQ</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ============ 1. WELCOME ============ -->
+<section class="major">
+  <h2>1. Welcome — what this app is</h2>
+  <p class="lead">
+    Power BI Viewer is a desktop app for Windows and Mac that lets you open and view your
+    organization's Power BI reports and dashboards in one tidy window. You can search for
+    anything quickly, run a hands-free slideshow on a wall display, export what you are
+    looking at to a PDF, and switch between Microsoft 365 accounts — all without needing
+    to open a web browser.
+  </p>
+</section>
+
+<!-- ============ 2. GETTING STARTED ============ -->
+<section class="major">
+  <h2>2. Getting started — launching and signing in</h2>
+
+  <p>To open the app, double-click the <span class="ui">Power BI Viewer</span> icon on your
+  desktop or in your Applications list, just like any other program.</p>
+
+  <p class="step-intro">The first time you open it:</p>
+  <ol>
+    <li>You will see a welcome window with the <span class="ui">Power BI Viewer</span> logo.</li>
+    <li>Click the <span class="ui">Sign in with Microsoft</span> button.</li>
+    <li>A Microsoft sign-in window appears. Enter your normal work email and password
+        (and approve any verification prompt your organization uses).</li>
+    <li>Once you are signed in, the app opens to the Home screen.</li>
+  </ol>
+
+  <div class="box note">
+    <span class="box-title">Good news: you usually sign in only once</span>
+    Your sign-in is remembered between sessions. The next time you open Power BI Viewer,
+    it normally takes you straight to the Home screen — you won't be asked to pick your
+    account every time.
+  </div>
+
+  <p>If something goes wrong while signing in, a red <span class="ui">Sign in failed</span>
+  message appears. Simply click <span class="ui">Sign in with Microsoft</span> again to retry.</p>
+</section>
+
+<!-- ============ 3. FINDING YOUR WAY AROUND ============ -->
+<section class="major">
+  <h2>3. Finding your way around</h2>
+
+  <h3>The Home screen</h3>
+  <p>Home greets you by name (for example, "Good morning, Sam") and is your launch pad.
+  Depending on what you have opened before, you may see:</p>
+  <ul>
+    <li><span class="ui">Featured Workspaces</span> — a short row of workspaces you can open.</li>
+    <li>A <span class="ui">Browse Workspaces</span> button to see everything you have access to.</li>
+    <li>A <span class="ui">Frequent</span> row — the items you open most often.</li>
+    <li>A <span class="ui">Recent</span> list — the items you opened most recently.</li>
+    <li>A <span class="ui">Refresh</span> button (top right) to reload this list.</li>
+  </ul>
+  <p>The first time you use the app, these lists are empty. Click
+  <span class="ui">Browse Workspaces</span> to find your first report — items you open will
+  start appearing on Home for quick access.</p>
+
+  <h3>The sidebar (left edge)</h3>
+  <p>The narrow strip down the left side is how you move between the main areas. It has
+  four buttons:</p>
+  <table>
+    <tr><th>Button</th><th>What it shows</th></tr>
+    <tr><td><span class="ui">Home</span></td><td>Your greeting, recent and frequent items.</td></tr>
+    <tr><td><span class="ui">Workspaces</span></td><td>All the workspaces you can access, and the reports and dashboards inside them.</td></tr>
+    <tr><td><span class="ui">Apps</span></td><td>The Power BI apps published to you.</td></tr>
+    <tr><td><span class="ui">Settings</span></td><td>All app preferences (at the bottom of the sidebar).</td></tr>
+  </table>
+  <p>You can make the sidebar wider or narrower using the toggle button at its top. When
+  it is narrow it shows just icons; hover over an icon to see its name. The area you are
+  currently in is marked with a small orange line on its left.</p>
+
+  <h3>The title bar (top of the window)</h3>
+  <p>Across the very top you will find:</p>
+  <ul>
+    <li>The app logo and name on the left.</li>
+    <li>A <span class="ui">Search reports and dashboards…</span> box in the middle
+        (covered in the next section).</li>
+    <li>Your <span class="ui">account avatar</span> on the right — a small circle with your
+        initials. Next to it, a colored badge may show your organization's domain.</li>
+  </ul>
+  <p>Click your avatar to open the account menu, where you can <span class="ui">Switch
+  account</span> or <span class="ui">Sign out</span>.</p>
+</section>
+
+<!-- ============ 4. SEARCH ============ -->
+<section class="major">
+  <h2>4. Searching for a report or dashboard</h2>
+
+  <p>Search is the fastest way to find anything.</p>
+  <ol>
+    <li>Press <kbd>Ctrl</kbd> + <kbd>K</kbd> (on a Mac, <kbd>Cmd</kbd> + <kbd>K</kbd>).
+        You can also click the search box at the top of the window.</li>
+    <li>Start typing the name of what you want. The box reads
+        <span class="ui">Search reports, dashboards, apps, and workspaces…</span></li>
+    <li>Results appear instantly as you type, each labelled by type —
+        <span class="ui">Report</span>, <span class="ui">Dashboard</span>,
+        <span class="ui">App</span>, or <span class="ui">Workspace</span> — and showing
+        which workspace it lives in.</li>
+    <li>Click a result to open it, or use the keyboard:
+        <kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open,
+        <kbd>Esc</kbd> to close.</li>
+  </ol>
+
+  <div class="box">
+    <span class="box-title">Tip</span>
+    If you see "No results found", check your spelling or try a shorter word. To clear the
+    box and start over, click the small <span class="ui">×</span> at the right of the
+    search field.
+  </div>
+</section>
+
+<!-- ============ 5. VIEWING A REPORT ============ -->
+<section class="major">
+  <h2>5. Viewing a report</h2>
+
+  <p>Open a report from Home, from Workspaces, or from search. It fills the window, with a
+  toolbar across the top. Here is what each toolbar item does:</p>
+
+  <table>
+    <tr><th>Toolbar item</th><th>What it does</th></tr>
+    <tr><td><span class="ui">Back</span></td><td>Returns to the previous screen (or Home). The report name is also shown as a breadcrumb: <span class="ui">Home &gt; (report name)</span>.</td></tr>
+    <tr><td><span class="ui">Data refreshed:</span> (date &amp; time)</td><td>Shows when the underlying data was last refreshed in Power BI, so you know how current the figures are.</td></tr>
+    <tr><td><span class="ui">Refresh</span></td><td>Reloads the report with the latest data. While it works, the button reads <span class="ui">Refreshing…</span></td></tr>
+    <tr><td><span class="ui">Export PDF</span></td><td>Saves the current view as a PDF file (see Section 9). While it works it reads <span class="ui">Exporting…</span></td></tr>
+    <tr><td><span class="ui">Slideshow</span></td><td>Starts a hands-free presentation of this report (see Section 8).</td></tr>
+    <tr><td><span class="ui">Full screen</span> (corner-arrows icon)</td><td>Expands the report to fill your whole screen. Press <kbd>Esc</kbd> or click the icon again to leave full screen.</td></tr>
+  </table>
+
+  <h3>Moving between report pages in full screen</h3>
+  <p>Many reports have several pages. When you are in full screen and a report has more
+  than one page, use the <kbd>←</kbd> and <kbd>→</kbd> arrow keys to move between pages.
+  A small hint in the corner shows which page you are on (for example, "2 / 5").</p>
+
+  <div class="box note">
+    <span class="box-title">Filters and slicers</span>
+    Reports keep their normal Power BI filters and page navigation, so you can interact
+    with the report exactly as you would on the web.
+  </div>
+</section>
+
+<!-- ============ 6. VIEWING A DASHBOARD ============ -->
+<section class="major">
+  <h2>6. Viewing a dashboard</h2>
+
+  <p>Dashboards work much like reports, with a toolbar offering
+  <span class="ui">Back</span>, the <span class="ui">Data refreshed:</span> time,
+  <span class="ui">Refresh</span>, <span class="ui">Export PDF</span>, and
+  <span class="ui">Full screen</span>.</p>
+
+  <div class="box">
+    <span class="box-title">Click a tile to dig deeper</span>
+    A dashboard is made of tiles. Click any tile to open the full report behind it, so you
+    can explore the detail. Use <span class="ui">Back</span> to return to the dashboard.
+  </div>
+
+  <div class="box note">
+    <span class="box-title">About the "Data refreshed" time on dashboards</span>
+    A dashboard can pull data from several sources, so this time reflects the oldest data
+    on the dashboard — your safest "is anything stale?" signal. If no refresh time is
+    available, the app simply hides it rather than show a misleading value.
+  </div>
+
+  <p>Note: the <span class="ui">Slideshow</span> button is available for reports, not for
+  dashboards.</p>
+</section>
+
+<!-- ============ 7. VIEWING AN APP ============ -->
+<section class="major">
+  <h2>7. Viewing an app</h2>
+
+  <p>An <span class="ui">app</span> is a published collection of reports and dashboards
+  bundled together. Open one from the <span class="ui">Apps</span> area in the sidebar or
+  from search. The app opens in the full Power BI experience inside the window.</p>
+
+  <p>Its toolbar has two items:</p>
+  <ul>
+    <li><span class="ui">Back to Apps</span> — returns you to the Apps list.</li>
+    <li><span class="ui">Refresh</span> — reloads the app.</li>
+  </ul>
+  <p>Navigate within the app using its own menus, just as you would on the Power BI website.</p>
+</section>
+
+<!-- ============ 8. SLIDESHOW / KIOSK ============ -->
+<section class="major">
+  <h2>8. Slideshow &amp; wall-display (kiosk) mode</h2>
+
+  <p>Slideshow mode plays a report automatically, advancing through its pages (or bookmarks)
+  on a timer. It is perfect for a TV or monitor on the wall.</p>
+
+  <h3>Starting a slideshow yourself</h3>
+  <ol>
+    <li>Open a report.</li>
+    <li>Click <span class="ui">Slideshow</span> in the toolbar.</li>
+    <li>The report fills the screen and begins cycling through slides.</li>
+  </ol>
+
+  <h3>The on-screen controls</h3>
+  <p>Move your mouse to bring up the controls (they fade away after a few seconds while
+  playing). You will see:</p>
+  <ul>
+    <li><span class="ui">Exit</span> (top-left) — leaves the slideshow.</li>
+    <li>A slide counter showing the current slide name and position, e.g. "(3 / 8)".</li>
+    <li>A <span class="ui">Settings</span> (gear) button to change how fast slides advance.</li>
+    <li><span class="ui">Play</span> / <span class="ui">Pause</span> in the centre, with
+        <span class="ui">Previous slide</span> and <span class="ui">Next slide</span> arrows
+        either side.</li>
+    <li>A row of dots (or a slider, for very long decks) showing your position. Click a dot
+        to jump to that slide.</li>
+  </ul>
+
+  <h3>Keyboard shortcuts during a slideshow</h3>
+  <table>
+    <tr><th>Key</th><th>Action</th></tr>
+    <tr><td><kbd>→</kbd> &nbsp;or&nbsp; <kbd>Space</kbd></td><td>Next slide</td></tr>
+    <tr><td><kbd>←</kbd></td><td>Previous slide</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Play or pause</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Exit a slideshow you started yourself (see exit box below)</td></tr>
+  </table>
+
+  <!-- THE BIG EXIT BOX -->
+  <div class="exit-box">
+    <h3>★ How to exit a slideshow</h3>
+    <p><strong>If you started the slideshow yourself</strong> (by clicking
+    <span class="ui">Slideshow</span>):</p>
+    <ul>
+      <li>Press <kbd>Esc</kbd> once. That's it.</li>
+    </ul>
+    <p><strong>If the slideshow started on its own</strong> (a wall display set up to run
+    automatically — "kiosk" mode): a single <kbd>Esc</kbd> is ignored on purpose, so the
+    display can't be knocked off by an accidental key press. To exit, do
+    <em>either</em> of these:</p>
+    <ul>
+      <li><strong>Hold down <kbd>Esc</kbd> for 3 seconds</strong>, or</li>
+      <li>Press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd>.</li>
+    </ul>
+    <p style="margin-bottom:0;">A small reminder always sits in the
+    <strong>bottom-right corner</strong> of the screen showing these exit steps, so help is
+    always on screen even when nobody is around.</p>
+  </div>
+
+  <h3>Unattended wall displays</h3>
+  <p>When running on a wall display, the app keeps the screen awake so it won't go dark, and
+  if a slide ever fails to load it quietly tries again on its own. You can leave it running
+  unattended.</p>
+
+  <div class="box note">
+    <span class="box-title">Auto-start on launch</span>
+    A wall display can be set up to jump straight into a chosen report's slideshow the moment
+    the app opens. That is configured under <span class="ui">Settings</span> (see Section 10:
+    "Launch on Startup" and "Auto-start slideshow").
+  </div>
+</section>
+
+<!-- ============ 9. EXPORT PDF ============ -->
+<section class="major">
+  <h2>9. Exporting to PDF</h2>
+
+  <p>You can save what you are viewing as a PDF — handy for emailing or printing.</p>
+  <ol>
+    <li>Open the report or dashboard you want.</li>
+    <li>Click <span class="ui">Export PDF</span> in the toolbar.</li>
+    <li>A <span class="ui">Save</span> window opens. Choose where to save the file. It defaults to
+        your <span class="ui">Downloads</span> folder with a name like
+        <span class="ui">powerbi-export-…&hairsp;.pdf</span> — you can rename it or pick another
+        folder.</li>
+    <li>The button shows <span class="ui">Exporting…</span> while it works. When it finishes you
+        will see <span class="ui">Exported to PDF</span> in the toolbar (or a short error message
+        if something went wrong, in which case just try again).</li>
+  </ol>
+  <div class="box">
+    <span class="box-title">Tip</span>
+    The PDF captures the view as you have it set up — the current page and any filters or
+    bookmarks applied — so set the report up the way you want it before exporting.
+  </div>
+</section>
+
+<!-- ============ 10. SETTINGS ============ -->
+<section class="major">
+  <h2>10. Settings explained</h2>
+  <p>Open <span class="ui">Settings</span> from the bottom of the sidebar. Settings are
+  grouped into cards. Here is every setting in plain language.</p>
+
+  <h3>Account</h3>
+  <p>Shows your name and email, with a <span class="ui">Sign out</span> button.</p>
+
+  <h3>Appearance</h3>
+  <p><span class="ui">Theme</span> — choose how the app looks:
+  <span class="ui">Light</span>, <span class="ui">Dark</span>, or
+  <span class="ui">System</span> (matches your computer's setting). Changes apply
+  immediately.</p>
+
+  <h3>Slideshow / Presentation Mode</h3>
+  <table>
+    <tr><th>Setting</th><th>What it does</th></tr>
+    <tr><td><span class="ui">Auto-advance interval</span></td><td>How long each slide stays on screen before moving on. Slide the control anywhere from <strong>5 seconds</strong> to <strong>5 minutes</strong>.</td></tr>
+    <tr><td><span class="ui">Slideshow mode</span></td><td>What counts as a "slide": <span class="ui">Pages only</span>, <span class="ui">Bookmarks only</span>, or <span class="ui">Pages and bookmarks</span>.</td></tr>
+    <tr><td><span class="ui">Auto-start slideshow</span></td><td>When <span class="ui">On</span>, opening a report in slideshow begins playing automatically. This is what makes a wall display "kiosk" mode (where exit needs the 3-second Esc hold or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>).</td></tr>
+  </table>
+
+  <h3>Launch on Startup</h3>
+  <table>
+    <tr><th>Setting</th><th>What it does</th></tr>
+    <tr><td><span class="ui">Startup behavior</span></td><td>Choose <span class="ui">Show home screen</span> (the normal choice) or <span class="ui">Open a specific report</span> when the app launches.</td></tr>
+    <tr><td><span class="ui">Report to open at launch</span></td><td>Appears when you choose "Open a specific report". Pick from your recently and frequently opened reports. (If the list is empty, open a few reports first, then return here.)</td></tr>
+  </table>
+
+  <h3>Data Refresh</h3>
+  <table>
+    <tr><th>Setting</th><th>What it does</th></tr>
+    <tr><td><span class="ui">Auto-refresh reports</span></td><td>When <span class="ui">On</span>, open reports reload their data on a timer so figures stay current — useful for wall displays.</td></tr>
+    <tr><td><span class="ui">Refresh interval</span></td><td>Appears when auto-refresh is on. How often to refresh, from <strong>1 minute</strong> to <strong>2 hours</strong>.</td></tr>
+  </table>
+
+  <h3>Usage History</h3>
+  <table>
+    <tr><th>Setting</th><th>What it does</th></tr>
+    <tr><td><span class="ui">Clear usage history on sign-out</span></td><td>Controls when your Recent and Frequent lists are cleared: <span class="ui">Never</span> (keep them), <span class="ui">Always</span>, or <span class="ui">On shared machine</span> (use this if several people sign in to the same device).</td></tr>
+    <tr><td><span class="ui">Clear usage history now</span></td><td>Immediately empties the Recent and Frequent sections on Home.</td></tr>
+  </table>
+
+  <h3>Reset</h3>
+  <p><span class="ui">Reset all settings to defaults</span> — puts every setting back to how
+  it started. Your sign-in is not affected.</p>
+
+  <h3>About</h3>
+  <p>Shows the app's <span class="ui">version number</span>. Click
+  <span class="ui">Check for updates</span> to open the releases page in your web browser,
+  where you can see if a newer version is available.</p>
+</section>
+
+<!-- ============ 11. TIPS & SHORTCUTS ============ -->
+<section class="major">
+  <h2>11. Tips &amp; keyboard shortcuts</h2>
+
+  <h3>Anywhere in the app</h3>
+  <table>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+    <tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd> &nbsp;(<kbd>Cmd</kbd> + <kbd>K</kbd> on Mac)</td><td>Open search</td></tr>
+  </table>
+
+  <h3>In search</h3>
+  <table>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move between results</td></tr>
+    <tr><td><kbd>Enter</kbd></td><td>Open the highlighted result</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Close search</td></tr>
+  </table>
+
+  <h3>Viewing a report in full screen</h3>
+  <table>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Move between report pages</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Leave full screen</td></tr>
+  </table>
+
+  <h3>In a slideshow</h3>
+  <table>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+    <tr><td><kbd>→</kbd> / <kbd>Space</kbd></td><td>Next slide</td></tr>
+    <tr><td><kbd>←</kbd></td><td>Previous slide</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Play / pause</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Exit (slideshow you started yourself)</td></tr>
+    <tr><td>Hold <kbd>Esc</kbd> 3s &nbsp;or&nbsp; <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd></td><td>Exit an auto-started (kiosk) slideshow</td></tr>
+  </table>
+</section>
+
+<!-- ============ 12. TROUBLESHOOTING ============ -->
+<section class="major">
+  <h2>12. Troubleshooting &amp; FAQ</h2>
+
+  <h3>I'm stuck in a slideshow — how do I get out?</h3>
+  <div class="exit-box">
+    <ul style="margin:0;">
+      <li>If <strong>you started it</strong>: press <kbd>Esc</kbd> once.</li>
+      <li>If it started <strong>on its own</strong> (a wall display):
+          <strong>hold <kbd>Esc</kbd> for 3 seconds</strong>, or press
+          <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd>.</li>
+    </ul>
+    <p style="margin:8px 0 0;">A reminder of these steps always shows in the
+    <strong>bottom-right corner</strong> of the screen.</p>
+  </div>
+
+  <h3>A report won't load</h3>
+  <p>If a report or dashboard shows an error message, click
+  <span class="ui">Try again</span>. If it still won't open, you may not have access to it,
+  or it may have been moved or removed — click <span class="ui">Back</span> to return Home
+  and try a different item. Searching with <kbd>Ctrl</kbd> + <kbd>K</kbd> can help confirm
+  the correct name.</p>
+
+  <h3>I see the wrong account's items</h3>
+  <p>You may be signed in with a different account than you expected. Click your
+  <span class="ui">avatar</span> (top-right) and choose <span class="ui">Switch account</span>
+  to pick the right one. To sign out entirely, choose <span class="ui">Sign out</span> —
+  you'll be asked to confirm with the message "<span class="ui">Sign out?</span>".</p>
+
+  <h3>It's asking me to sign in again</h3>
+  <p>Normally you stay signed in between sessions. If you are asked to sign in again, just
+  click <span class="ui">Sign in with Microsoft</span> and continue as usual. This can
+  happen occasionally — for example after a long time away, a password change, or if you
+  signed out — and is nothing to worry about.</p>
+
+  <h3>The screen went to sleep on the wall display</h3>
+  <p>While a slideshow is running, the app keeps the display awake automatically. If the
+  screen still sleeps, the cause is usually the monitor's or computer's own power settings
+  rather than the app. Check that the slideshow is actually playing, and ask whoever set up
+  the display to confirm the device's power/sleep settings.</p>
+
+  <h3>How do I change how fast slides advance?</h3>
+  <p>Two ways:</p>
+  <ul>
+    <li><strong>During a slideshow:</strong> move the mouse to show the controls, click the
+        <span class="ui">Settings</span> (gear) button, and drag the
+        <span class="ui">Interval</span> slider.</li>
+    <li><strong>Before a slideshow:</strong> go to <span class="ui">Settings &gt;
+        Slideshow / Presentation Mode</span> and adjust
+        <span class="ui">Auto-advance interval</span> (anywhere from 5 seconds to 5
+        minutes).</li>
+  </ul>
+
+  <div class="box">
+    <span class="box-title">Still need help?</span>
+    Contact whoever set up Power BI Viewer for your organization. Letting them know the app
+    version (found in <span class="ui">Settings &gt; About</span>) will help them assist you.
+  </div>
+</section>
+
+</body>
+</html>
