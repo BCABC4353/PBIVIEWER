@@ -115,7 +115,10 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   const hasBreadcrumb = Boolean(itemName);
 
   return (
-    <div className="h-12 bg-neutral-background-2 border-b border-neutral-stroke-2 flex items-center px-4 gap-4">
+    <div
+      data-viewer-toolbar
+      className="h-12 bg-neutral-background-2 border-b border-neutral-stroke-2 flex items-center px-4 gap-4"
+    >
       {/* Back button */}
       <Button
         appearance="subtle"

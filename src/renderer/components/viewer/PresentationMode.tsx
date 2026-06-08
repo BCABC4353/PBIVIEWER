@@ -21,6 +21,43 @@ import { useCursorHide } from '../../hooks/presentation/useCursorHide';
 import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGesture';
 import { ViewerToolbar } from './ViewerToolbar';
 
+/**
+ * NEW-A11Y-5: returns true when a keydown target is an interactive control that
+ * should own its own keyboard handling, so the global slideshow keydown handler
+ * must NOT preventDefault or navigate. Covers native form/button elements, ARIA
+ * widget roles (slider/button/menuitem), contenteditable, and anything inside
+ * the ViewerToolbar.
+ */
+export function isInteractiveTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+
+  const tag = target.tagName;
+  if (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    tag === 'BUTTON'
+  ) {
+    return true;
+  }
+
+  const role = target.getAttribute('role');
+  if (role === 'slider' || role === 'button' || role === 'menuitem') {
+    return true;
+  }
+
+  if (target.isContentEditable || target.closest('[contenteditable=""], [contenteditable="true"]')) {
+    return true;
+  }
+
+  // Anything inside the shared toolbar (its buttons, breadcrumb controls, etc.).
+  if (target.closest('[data-viewer-toolbar]')) {
+    return true;
+  }
+
+  return false;
+}
+
 export const PresentationMode: React.FC = () => {
   const { workspaceId, reportId } = useParams<{
     workspaceId: string;
@@ -211,6 +248,18 @@ export const PresentationMode: React.FC = () => {
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // NEW-A11Y-5: do not hijack keys from interactive overlay controls.
+      // The global handler calls preventDefault on Space/Arrows/Escape/p, which
+      // makes the scrubber (role="slider"), the ViewerToolbar buttons, the
+      // Settings slider, and the dot-indicator buttons keyboard-unusable. Bail
+      // out (no preventDefault, no slideshow navigation) when focus is on an
+      // interactive control so those controls handle their own keys. Slideshow
+      // nav still works when focus is on the slide surface / overlay background.
+      const target = e.target as HTMLElement | null;
+      if (isInteractiveTarget(target)) {
+        return;
+      }
+
       if (['Escape', 'ArrowRight', 'ArrowLeft', ' ', 'p', 'P'].includes(e.key)) {
         e.preventDefault();
       }
@@ -489,6 +538,7 @@ export const PresentationMode: React.FC = () => {
                 onClick={togglePlayPause}
                 size="large"
                 aria-label={isPlaying ? 'Pause slideshow' : 'Play slideshow'}
+                aria-pressed={isPlaying}
               >
                 {isPlaying ? 'Pause' : 'Play'}
               </Button>

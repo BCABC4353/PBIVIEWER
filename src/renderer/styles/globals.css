@@ -93,6 +93,26 @@
   outline-offset: 2px;
 }
 
+/*
+  A11Y-S (prefers-reduced-motion): honor the OS "reduce motion" setting for
+  decorative CSS transitions/animations (Tailwind transition-*, animate-pulse,
+  the slideshow scrubber width tween, sidebar width tween, spinners). The
+  slideshow auto-advance itself is content-paced (driven by JS setInterval) and
+  is intentionally left alone. We near-zero the durations rather than removing
+  them so animation* events still fire and JS that relies on transitionend
+  doesn't hang.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Base body styles */
 body {
   margin: 0;
