@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+// Write to a real, platform-independent temp path. The handler calls
+// fs.writeFile(filePath, ...) for real; a hardcoded POSIX path like
+// /home/user/out.pdf only exists on Linux and ENOENTs on the Windows CI runner.
+const OUT_PATH = join(tmpdir(), 'pbiviewer-export-test.pdf');
 
 // FIX-5 (G2 DoS hardening): the export-PDF IPC handler must cap renderer-supplied
 // pageName / bookmarkState before they reach the outbound Power BI request body.
@@ -56,7 +63,7 @@ async function invokeExport(pageName?: string, bookmarkState?: string) {
     VALID_UUID,
     pageName,
     bookmarkState,
-    '/home/user/out.pdf',
+    OUT_PATH,
   )) as { success: boolean } & Partial<IpcErr>;
 }
 
