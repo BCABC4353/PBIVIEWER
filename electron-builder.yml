@@ -36,10 +36,10 @@ win:
   # Or use Windows Certificate Store via:
   #   certificateSubjectName: "Your Company Name"
   # Then verify in CI with `signtool verify /pa <Setup.exe>`.
+  # NOTE (electron-builder 26): per-signing options like signingHashAlgorithms /
+  # signDlls moved under `win.signtoolOptions`. They're omitted here because the
+  # build is unsigned; re-add them under `signtoolOptions:` when enabling signing.
   # ============================================================================
-  signingHashAlgorithms:
-    - sha256
-  signDlls: false
 
 nsis:
   oneClick: true
