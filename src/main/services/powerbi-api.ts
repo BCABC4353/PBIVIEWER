@@ -583,22 +583,27 @@ class PowerBIApiService {
         reportConfig.pages = [page];
       }
 
-      const exportResponse = await fetchWithTimeout(`${baseUrl}/ExportTo`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          format: 'PDF',
-          powerBIReportConfiguration: reportConfig,
-        }),
+      // Wrap the kickoff ExportTo POST in withRetry so a transient 429/5xx on
+      // start-up backs off and retries (throwForStatus throws RetriableHttpError
+      // for those; other 4xx short-circuit). The poll loop below already handles
+      // transient errors — this brings the initial POST to parity.
+      const exportResponse = await withRetry(async () => {
+        const resp = await fetchWithTimeout(`${baseUrl}/ExportTo`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            format: 'PDF',
+            powerBIReportConfiguration: reportConfig,
+          }),
+        });
+        if (!resp.ok) {
+          await throwForStatus(resp, 'Export request');
+        }
+        return resp;
       });
-
-      if (!exportResponse.ok) {
-        const errorText = await exportResponse.text();
-        throw new Error(`Export request failed: ${exportResponse.status} - ${errorText}`);
-      }
 
       const exportJson = await exportResponse.json() as { id?: string };
       const exportId = exportJson.id;

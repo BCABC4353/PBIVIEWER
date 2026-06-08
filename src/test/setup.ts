@@ -113,6 +113,7 @@ function createElectronAPIMock(): ElectronAPI {
       getRecent: vi.fn().mockResolvedValue({ success: true, data: [] }),
       getFrequent: vi.fn().mockResolvedValue({ success: true, data: [] }),
       clear: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+      remove: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     },
 
     export: {

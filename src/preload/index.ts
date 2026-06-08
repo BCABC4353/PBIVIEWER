@@ -83,6 +83,8 @@ const electronAPI: ElectronAPI = {
     getRecent: (accountId?: string) => ipcRenderer.invoke('usage:get-recent', accountId),
     getFrequent: (accountId?: string) => ipcRenderer.invoke('usage:get-frequent', accountId),
     clear: () => ipcRenderer.invoke('usage:clear'),
+    // NEW-PROD-5: persistently remove a single dead item.
+    remove: (itemId: string) => ipcRenderer.invoke('usage:remove', itemId),
   },
 
   export: {

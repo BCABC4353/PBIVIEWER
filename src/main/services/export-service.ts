@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, screen } from 'electron';
 import { promises as fs } from 'fs';
 import { isValidExportPath } from '../security';
 
@@ -63,11 +63,24 @@ export async function exportCurrentViewPdf(
     const image = await mainWindow.webContents.capturePage(captureRect);
     const { width: imgWidth, height: imgHeight } = image.getSize();
 
-    // Convert pixel dimensions to microns for PDF page size
-    // 1 inch = 25400 microns, 96 DPI standard screen resolution
+    // On a HiDPI display capturePage returns physical pixels (e.g. 2x), so
+    // dividing raw pixels by 96 DPI yields a PDF page twice the intended size.
+    // Convert to logical (CSS) dimensions using the display scale factor first;
+    // on a 1x display scaleFactor is 1 so behaviour is unchanged.
+    let scaleFactor = 1;
+    try {
+      scaleFactor = screen.getDisplayMatching(mainWindow.getBounds()).scaleFactor || 1;
+    } catch {
+      scaleFactor = 1;
+    }
+    const cssWidth = Math.max(1, Math.round(imgWidth / scaleFactor));
+    const cssHeight = Math.max(1, Math.round(imgHeight / scaleFactor));
+
+    // Convert logical pixel dimensions to microns for PDF page size
+    // 1 inch = 25400 microns, 96 CSS px per inch.
     const MICRONS_PER_INCH = 25400;
-    const pageWidthMicrons = Math.round((imgWidth / 96) * MICRONS_PER_INCH);
-    const pageHeightMicrons = Math.round((imgHeight / 96) * MICRONS_PER_INCH);
+    const pageWidthMicrons = Math.round((cssWidth / 96) * MICRONS_PER_INCH);
+    const pageHeightMicrons = Math.round((cssHeight / 96) * MICRONS_PER_INCH);
 
     // Convert image to base64 PNG
     const pngBuffer = image.toPNG();
@@ -76,8 +89,8 @@ export async function exportCurrentViewPdf(
 
     pdfWindow = new BrowserWindow({
       show: false,
-      width: imgWidth,
-      height: imgHeight,
+      width: cssWidth,
+      height: cssHeight,
       webPreferences: {
         // NEW-SEC-2: explicit hardening — this window loads a self-contained
         // data: URL and must never reach Node or the network.
@@ -99,12 +112,12 @@ export async function exportCurrentViewPdf(
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=${imgWidth}, height=${imgHeight}">
+  <meta name="viewport" content="width=${cssWidth}, height=${cssHeight}">
   <style>
-    @page { margin: 0; size: ${imgWidth}px ${imgHeight}px; }
+    @page { margin: 0; size: ${cssWidth}px ${cssHeight}px; }
     * { margin: 0; padding: 0; }
-    html, body { width: ${imgWidth}px; height: ${imgHeight}px; overflow: hidden; }
-    img { width: ${imgWidth}px; height: ${imgHeight}px; display: block; }
+    html, body { width: ${cssWidth}px; height: ${cssHeight}px; overflow: hidden; }
+    img { width: ${cssWidth}px; height: ${cssHeight}px; display: block; }
   </style>
 </head>
 <body>

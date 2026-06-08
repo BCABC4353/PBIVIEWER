@@ -166,11 +166,20 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
       {/* Right section */}
       <div className="flex items-center gap-2">
         {/* NEW-PROD-4: freshness timestamp with TZ label */}
-        {lastDataRefresh && (
-          <Text className="text-neutral-foreground-3 text-sm mr-2">
-            Data refreshed: {formatRefreshTime(lastDataRefresh)}
-          </Text>
-        )}
+        {lastDataRefresh && (() => {
+          // NEW-PROD-3: if the data is more than a day old, surface it in a
+          // warning color with a marker so an operator notices it isn't current.
+          const ageMs = Date.now() - new Date(lastDataRefresh).getTime();
+          const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
+          return (
+            <Text
+              className={`${isStale ? 'text-status-warning' : 'text-neutral-foreground-3'} text-sm mr-2`}
+              title={isStale ? 'This data is more than a day old' : undefined}
+            >
+              {isStale ? '⚠ ' : ''}Data refreshed: {formatRefreshTime(lastDataRefresh)}
+            </Text>
+          );
+        })()}
 
         {/* Transient export status message */}
         {exportStatus && (

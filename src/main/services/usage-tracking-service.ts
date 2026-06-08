@@ -238,6 +238,19 @@ export const usageTrackingService = {
   },
 
   /**
+   * NEW-PROD-5: permanently remove a single item from the usage store. Called
+   * when a viewer gets a 404 for an item (the report/dashboard was deleted), so
+   * the dead tile does not reappear on the next launch.
+   */
+  removeItem(itemId: string): void {
+    const records = store.get('usageRecords', []);
+    const kept = records.filter((r) => r.id !== itemId);
+    if (kept.length !== records.length) {
+      store.set('usageRecords', kept);
+    }
+  },
+
+  /**
    * Get usage stats for an item
    */
   getItemStats(itemId: string): UsageRecord | null {

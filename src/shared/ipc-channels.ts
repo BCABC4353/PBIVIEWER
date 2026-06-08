@@ -54,6 +54,8 @@ export const IPC_CHANNELS = {
     getRecent: 'usage:get-recent',
     getFrequent: 'usage:get-frequent',
     clear: 'usage:clear',
+    // NEW-PROD-5: remove a single dead item from the persistent store.
+    remove: 'usage:remove',
   },
   export: {
     choosePdfPath: 'export:choose-pdf-path',

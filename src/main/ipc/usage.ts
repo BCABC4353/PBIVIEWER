@@ -123,4 +123,19 @@ export function registerUsageIpc(): void {
       return { success: false, error: { code: 'USAGE_CLEAR_FAILED', message: String(error) } };
     }
   });
+
+  // NEW-PROD-5: permanently drop a single dead item (a viewer got a 404 for it)
+  // so it doesn't reappear on next launch.
+  ipcMain.handle('usage:remove', async (_event, itemId: unknown) => {
+    const id = validateUUID(itemId);
+    if (!id) {
+      return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid item id' } };
+    }
+    try {
+      usageTrackingService.removeItem(id);
+      return { success: true, data: undefined };
+    } catch (error) {
+      return { success: false, error: { code: 'USAGE_REMOVE_FAILED', message: String(error) } };
+    }
+  });
 }

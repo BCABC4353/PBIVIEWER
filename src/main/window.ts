@@ -74,6 +74,26 @@ export function createWindow(): void {
     return { action: 'deny' };
   });
 
+  // Kiosk resilience (NEW-PROD-2): if the renderer process crashes (OOM / GPU
+  // fault) on an unattended wall display, auto-reload so it self-heals instead
+  // of going blank. Bounded to 3 reloads per 60 s so a hard, repeatable crash
+  // does not spin in an infinite reload loop.
+  let crashReloads = 0;
+  let crashWindowStart = Date.now();
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit') return;
+    const now = Date.now();
+    if (now - crashWindowStart > 60_000) {
+      crashReloads = 0;
+      crashWindowStart = now;
+    }
+    if (crashReloads >= 3) return;
+    crashReloads++;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.reload();
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });

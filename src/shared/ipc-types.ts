@@ -132,6 +132,8 @@ export interface ElectronAPI {
     /** BEH-B3: pass the signed-in homeAccountId to scope results to that user. */
     getFrequent: (accountId?: string) => Promise<IPCResponse<ContentItem[]>>;
     clear: () => Promise<IPCResponse<void>>;
+    /** NEW-PROD-5: permanently remove a single dead item from the usage store. */
+    remove: (itemId: string) => Promise<IPCResponse<void>>;
   };
 
   export: {

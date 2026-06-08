@@ -27,10 +27,10 @@ interface ContentState {
   loadFrequentItems: () => Promise<void>;
   recordItemOpened: (item: ContentItem) => void;
   /**
-   * NEW-PROD-5: targeted eviction of a single dead item from the in-memory
-   * recent/frequent lists (called when a viewer receives a 404 for an item).
-   * Does NOT touch the persistent store — that is handled by the main-process
-   * usage handler when the IPC record is next refreshed with the evicted id.
+   * NEW-PROD-5: targeted eviction of a single dead item (called when a viewer
+   * receives a 404 for an item). Updates the in-memory recent/frequent lists
+   * immediately AND removes it from the persistent usage store so it does not
+   * reappear on the next launch.
    */
   evictDeadItem: (itemId: string) => void;
   clearError: () => void;
@@ -188,6 +188,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
       recentItems: state.recentItems.filter((i) => i.id !== itemId),
       frequentItems: state.frequentItems.filter((i) => i.id !== itemId),
     }));
+    // NEW-PROD-5: also drop it from the PERSISTENT store so the dead tile does
+    // not come back on next launch (fire-and-forget; UI already updated above).
+    void window.electronAPI.usage.remove(itemId).catch(() => {});
   },
 
   clearError: () => {
