@@ -90,6 +90,56 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     if (!result.success) expect(result.error.code).toBe('WORKSPACES_FETCH_FAILED');
   });
 
+  // PROD-S9: the data-freshness indicator (ReportViewer + DashboardViewer)
+  // depends on getDatasetRefreshInfo distinguishing "no refresh history" from a
+  // real timestamp. When the dataset has never refreshed, the API returns
+  // success with empty data (no lastRefreshTime) so viewers render no indicator
+  // rather than a blank/garbage value.
+  it('getDatasetRefreshInfo returns empty data when there is no refresh history', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ value: [] }), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBeUndefined();
+    }
+  });
+
+  it('getDatasetRefreshInfo surfaces the latest refresh time when history exists', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          value: [
+            {
+              requestId: 'r1',
+              id: '1',
+              refreshType: 'Scheduled',
+              startTime: '2026-06-01T00:00:00.000Z',
+              endTime: '2026-06-01T00:05:00.000Z',
+              status: 'Completed',
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBe('2026-06-01T00:05:00.000Z');
+      expect(result.data.lastRefreshStatus).toBe('Completed');
+    }
+  });
+
   it('getEmbedToken returns the injected access token as the embed token', async () => {
     const getAccessToken = vi.fn().mockResolvedValue({
       success: true,

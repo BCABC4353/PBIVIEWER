@@ -62,6 +62,40 @@ export const EMBED = {
   WATCHDOG_MS: 45_000,
 } as const;
 
+// PROD-S1: Kiosk / unattended wall-display tuning.
+export const KIOSK = {
+  /**
+   * Slideshow auto-recovery backoff schedule (ms). When the embedded report
+   * errors/crashes while a slideshow is running, recovery is retried after
+   * each successive delay; once the last entry is reached it keeps retrying at
+   * that final interval. The backoff index resets on a successful recovery.
+   */
+  RECOVERY_BACKOFF_MS: [5_000, 30_000, 60_000] as readonly number[],
+  /** Inactivity delay before the mouse cursor is hidden in presentation/fullscreen. */
+  CURSOR_HIDE_MS: 4_000,
+  /** Duration the Escape key must be held to trigger the kiosk-safe exit. */
+  ESCAPE_HOLD_MS: 3_000,
+} as const;
+
+/**
+ * PROD-S1: convenience export of the recovery backoff schedule.
+ * Equivalent to KIOSK.RECOVERY_BACKOFF_MS — exposed at top level because the
+ * ticket names this constant directly.
+ */
+export const KIOSK_RECOVERY_BACKOFF_MS = KIOSK.RECOVERY_BACKOFF_MS;
+
+/**
+ * PROD-S1: resolve the backoff delay (ms) for a given zero-based retry attempt.
+ * Clamps to the final entry so that after the last step it keeps retrying at the
+ * longest interval. Negative indices clamp to the first entry.
+ */
+export function kioskRecoveryDelayMs(attemptIndex: number): number {
+  const schedule = KIOSK_RECOVERY_BACKOFF_MS;
+  if (schedule.length === 0) return 0;
+  const clamped = Math.max(0, Math.min(attemptIndex, schedule.length - 1));
+  return schedule[clamped] as number;
+}
+
 // Usage-tracking cache bounds (usage-tracking-service.ts).
 export const USAGE = {
   /** Keep at most this many recent records. */

@@ -147,4 +147,19 @@ export interface ElectronAPI {
   log: {
     openFolder: () => Promise<IPCResponse<void>>;
   };
+
+  // PROD-S1: kiosk power management for unattended wall displays.
+  kiosk: {
+    /**
+     * Start an Electron powerSaveBlocker('prevent-display-sleep'). Idempotent —
+     * a second call while a blocker is already active is a no-op (no leak).
+     * Resolves true once a blocker is active.
+     */
+    preventDisplaySleep: () => Promise<IPCResponse<boolean>>;
+    /**
+     * Stop the active powerSaveBlocker, if any. Idempotent — safe to call when
+     * no blocker is active. Resolves false once no blocker is active.
+     */
+    allowDisplaySleep: () => Promise<IPCResponse<boolean>>;
+  };
 }

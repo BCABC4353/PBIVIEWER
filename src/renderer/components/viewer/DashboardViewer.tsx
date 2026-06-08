@@ -17,6 +17,20 @@ export const DashboardViewer: React.FC = () => {
   const [dashboardName, setDashboardName] = useState<string>('Dashboard');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // PROD-S9: data-freshness indicator.
+  // ReportViewer drives this off the report's single backing datasetId. A Power
+  // BI dashboard, however, aggregates tiles from potentially MANY datasets, so
+  // there is no single authoritative "last refreshed" timestamp — and the
+  // dashboard metadata endpoint (getDashboard) does not expose any datasetId at
+  // all. Rather than show a wrong/misleading timestamp from an arbitrarily
+  // chosen tile, we degrade gracefully: the freshness query only runs when a
+  // representative datasetId becomes available (datasetIdRef stays null for
+  // dashboards today, so the indicator simply stays hidden). The plumbing is
+  // kept identical to ReportViewer so a future tiles->dataset linkage can light
+  // it up by populating datasetIdRef without touching the loaded handler.
+  const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
+  const datasetIdRef = useRef<string | null>(null);
+
   // Fetch dashboard details to get the name (also drives UX-S14 breadcrumb)
   useEffect(() => {
     if (!workspaceId || !dashboardId) return;
@@ -64,6 +78,27 @@ export const DashboardViewer: React.FC = () => {
       error: (event: pbi.service.ICustomEvent<unknown>) => {
         if (dashboardId && isNotFoundError(event?.detail)) {
           useContentStore.getState().evictDeadItem(dashboardId);
+        }
+      },
+      // PROD-S9: after the dashboard loads, populate the data-freshness
+      // indicator IF (and only if) a representative datasetId is available.
+      // Dashboards aggregate many datasets, so datasetIdRef is null today and
+      // this is effectively a no-op — the indicator stays hidden rather than
+      // showing a misleading timestamp. Treat an empty/absent lastRefreshTime
+      // (getDatasetRefreshInfo returns {} when there's no refresh history) as
+      // "no indicator", not a blank value.
+      loaded: async () => {
+        if (!datasetIdRef.current || !workspaceId) return;
+        try {
+          const refreshResponse = await window.electronAPI.content.getDatasetRefreshInfo(
+            datasetIdRef.current,
+            workspaceId
+          );
+          if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
+            setLastDataRefresh(refreshResponse.data.lastRefreshTime);
+          }
+        } catch (error) {
+          console.warn('[DashboardViewer] Dataset refresh info unavailable:', error);
         }
       },
     }),
@@ -144,6 +179,7 @@ export const DashboardViewer: React.FC = () => {
       <ViewerToolbar
         onBack={handleBack}
         itemName={dashboardName}
+        lastDataRefresh={lastDataRefresh}
         exportStatus={exportStatus}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}

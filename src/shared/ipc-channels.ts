@@ -66,6 +66,11 @@ export const IPC_CHANNELS = {
   log: {
     openFolder: 'log:open-folder',
   },
+  // PROD-S1: kiosk / wall-display power management.
+  kiosk: {
+    preventDisplaySleep: 'kiosk:prevent-display-sleep',
+    allowDisplaySleep: 'kiosk:allow-display-sleep',
+  },
 } as const;
 
 /** Union of every concrete channel string declared in IPC_CHANNELS. */

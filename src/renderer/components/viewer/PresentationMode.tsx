@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text, Slider } from '@fluentui/react-components';
 import {
-  DismissRegular,
   PlayRegular,
   PauseRegular,
   ChevronLeftRegular,
@@ -17,6 +16,10 @@ import { useSlideList } from '../../hooks/presentation/useSlideList';
 import { useFocusTrap } from '../../hooks/presentation/useFocusTrap';
 import { useExitOnFullscreenChange } from '../../hooks/presentation/useExitOnFullscreenChange';
 import { useDebouncedSettings } from '../../hooks/presentation/useDebouncedSettings';
+import { useKioskRecovery } from '../../hooks/presentation/useKioskRecovery';
+import { useCursorHide } from '../../hooks/presentation/useCursorHide';
+import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGesture';
+import { ViewerToolbar } from './ViewerToolbar';
 
 export const PresentationMode: React.FC = () => {
   const { workspaceId, reportId } = useParams<{
@@ -137,6 +140,10 @@ export const PresentationMode: React.FC = () => {
     if (isExitingRef.current) return;
     isExitingRef.current = true;
 
+    // PROD-S1: release the display-sleep blocker on exit (kiosk). Fire-and-forget;
+    // the main handler is idempotent so the unmount cleanup re-calling is safe.
+    void window.electronAPI.kiosk.allowDisplaySleep().catch(() => {});
+
     // Stop slideshow
     setIsPlaying(false);
     if (slideshowIntervalRef.current) {
@@ -177,6 +184,29 @@ export const PresentationMode: React.FC = () => {
   // ARCH-S7: focus management (save/restore previously-focused element + Tab
   // focus trap scoped to the overlay).
   useFocusTrap(overlayRef);
+
+  // PROD-S1: keep the display awake for unattended wall-display use. Start the
+  // powerSaveBlocker on enter; release it on unmount. doExit() also releases it
+  // explicitly — the main handler is idempotent so the double-call is safe.
+  useEffect(() => {
+    void window.electronAPI.kiosk.preventDisplaySleep().catch(() => {});
+    return () => {
+      void window.electronAPI.kiosk.allowDisplaySleep().catch(() => {});
+    };
+  }, []);
+
+  // PROD-S1: slideshow auto-recovery with 5s → 30s → 60s backoff (then 60s).
+  // Wired to usePowerBIEmbed's `error` signal and `reload` (re-embed). Only
+  // attempts while the slideshow is playing; resets backoff once the error
+  // clears (successful recovery). Timer is cleaned up on exit/unmount.
+  useKioskRecovery({ error, active: isPlaying, recover: reload });
+
+  // PROD-S1: kiosk-safe exit gesture — 3s Escape-hold OR Ctrl+Shift+Esc → exit.
+  useKioskExitGesture({ onExit: doExit });
+
+  // PROD-S1: hide the cursor after inactivity in presentation/fullscreen; reveal
+  // on mousemove. Drives a `cursor-none` class on the overlay.
+  const cursorHidden = useCursorHide();
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -309,10 +339,11 @@ export const PresentationMode: React.FC = () => {
     setIsPlaying((prev) => !prev);
   };
 
-  // reload is wired to the error overlay's retry path (via doExit fallback);
-  // currently the error UI exits rather than retrying in place. Keep the
-  // reference around in case we want a Try Again button later.
-  void reload;
+  // Label for the shared toolbar breadcrumb. The report name isn't fetched in
+  // presentation mode, so use the current slide's name for context, falling
+  // back to a generic slideshow label.
+  const toolbarItemName =
+    slides[currentSlideIndex]?.displayName ?? 'Slideshow';
 
   return (
     <div
@@ -320,7 +351,7 @@ export const PresentationMode: React.FC = () => {
       role="dialog"
       aria-modal="true"
       aria-label="Presentation mode"
-      className="fixed inset-0 z-50 bg-neutral-background-1"
+      className={`fixed inset-0 z-50 bg-neutral-background-1 ${cursorHidden ? 'cursor-none' : ''}`}
     >
       {/* Loading overlay */}
       {isLoading && (
@@ -379,39 +410,41 @@ export const PresentationMode: React.FC = () => {
       {/* Controls overlay */}
       {showControls && !isLoading && !error && (
         <>
-          {/* Top bar */}
-          <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/60 to-transparent z-10">
-            <div className="flex items-center justify-between">
+          {/* UX-B4b: shared ViewerToolbar for visual consistency with the other
+              viewers. Only the props that make sense in slideshow context are
+              wired: Back/Exit (doExit, backLabel "Exit") and the item name.
+              Export/Refresh/Full-Screen/Slideshow actions don't apply here and
+              are intentionally omitted. Slideshow-specific controls (Settings,
+              play/pause, prev/next, slide counter) live in the complementary
+              control bars below — ViewerToolbar can't host them. */}
+          <div className="absolute top-0 left-0 right-0 z-10">
+            <ViewerToolbar
+              onBack={doExit}
+              backLabel="Exit"
+              itemName={toolbarItemName}
+            />
+            {/* Complementary slideshow controls: counter + settings toggle. */}
+            <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-b from-black/60 to-transparent">
               <Text className="text-white text-shadow">
                 {slides[currentSlideIndex]?.displayName || 'Slide'}
                 {slides[currentSlideIndex]?.type === 'bookmark' ? ' (Bookmark)' : ''}
                 ({currentSlideIndex + 1} / {slides.length})
               </Text>
-              <div className="flex items-center gap-2">
-                <Button
-                  appearance="subtle"
-                  icon={<SettingsRegular />}
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="text-white"
-                  title="Settings"
-                  aria-label="Settings"
-                  aria-expanded={showSettings}
-                />
-                <Button
-                  appearance="subtle"
-                  icon={<DismissRegular />}
-                  onClick={doExit}
-                  className="text-white"
-                  title="Exit (Esc)"
-                  aria-label="Exit presentation"
-                />
-              </div>
+              <Button
+                appearance="subtle"
+                icon={<SettingsRegular />}
+                onClick={() => setShowSettings(!showSettings)}
+                className="text-white"
+                title="Settings"
+                aria-label="Settings"
+                aria-expanded={showSettings}
+              />
             </div>
           </div>
 
           {/* Settings panel */}
           {showSettings && (
-            <div className="absolute top-16 right-4 bg-neutral-background-1 rounded-lg p-4 shadow-lg z-30 border border-neutral-stroke-1">
+            <div className="absolute top-24 right-4 bg-neutral-background-1 rounded-lg p-4 shadow-lg z-30 border border-neutral-stroke-1">
               <Text weight="semibold" className="block mb-3">Slideshow Settings</Text>
               <div className="flex items-center gap-3">
                 <Text size={200}>Interval:</Text>

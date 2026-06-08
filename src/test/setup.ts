@@ -127,6 +127,12 @@ function createElectronAPIMock(): ElectronAPI {
     log: {
       openFolder: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     },
+
+    // PROD-S1: kiosk power-management mock.
+    kiosk: {
+      preventDisplaySleep: vi.fn().mockResolvedValue({ success: true, data: true }),
+      allowDisplaySleep: vi.fn().mockResolvedValue({ success: true, data: false }),
+    },
   } as ElectronAPI;
 }
 

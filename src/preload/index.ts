@@ -102,6 +102,13 @@ const electronAPI: ElectronAPI = {
     // { currentVersion, releasesUrl } on success.
     checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
   },
+
+  // PROD-S1: kiosk power management — presentation/slideshow keeps the display
+  // awake for unattended wall-display use.
+  kiosk: {
+    preventDisplaySleep: () => ipcRenderer.invoke('kiosk:prevent-display-sleep'),
+    allowDisplaySleep: () => ipcRenderer.invoke('kiosk:allow-display-sleep'),
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
