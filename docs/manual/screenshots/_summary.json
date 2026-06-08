@@ -1,0 +1,29 @@
+{
+  "captured": [
+    "01-login.png",
+    "02-login-error.png",
+    "03-home-populated.png",
+    "04-home-empty.png",
+    "05-titlebar.png",
+    "05b-titlebar-menu.png",
+    "06-sidebar-expanded.png",
+    "07-sidebar-collapsed.png",
+    "08-search-dialog.png",
+    "09-workspaces-collapsed.png",
+    "09b-workspaces-expanded.png",
+    "10-apps-page.png",
+    "11-report-toolbar-fresh.png",
+    "12-report-toolbar-stale.png",
+    "13-settings-full.png",
+    "13a-settings-top.png",
+    "13b-settings-bottom.png",
+    "14-settings-light.png",
+    "15-signout-dialog.png",
+    "16-home-light.png",
+    "16b-home-dark.png",
+    "17-kiosk-exit-overlay.png",
+    "18-dashboard-toolbar.png"
+  ],
+  "failed": [],
+  "dir": "C:\\Users\\Brendan Cameron\\Desktop\\powerbi-viewer\\docs\\manual\\screenshots"
+}
