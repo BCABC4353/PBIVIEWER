@@ -1,6 +1,6 @@
 {
   "name": "powerbi-viewer",
-  "version": "1.6.1",
+  "version": "2.0.0",
   "description": "Power BI Desktop Viewer - A clean, isolated viewing experience",
   "main": "dist/main/main/index.js",
   "scripts": {
@@ -49,7 +49,7 @@
     "concurrently": "^8.2.2",
     "dotenv": "^16.4.0",
     "electron": "^42.3.3",
-    "electron-builder": "^24.9.0",
+    "electron-builder": "^26.15.2",
     "eslint": "^9.15.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.13.0",
