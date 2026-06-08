@@ -47,8 +47,13 @@ const POWERBI_ALLOWED_HOSTS = [
   'app.powerbi.com',
   'login.microsoftonline.com',
   'login.live.com',
+  'login.windows.net',
   'aadcdn.msftauth.net',
   'aadcdn.msauth.net',
+  // Azure AD B2C / some federated sign-in flows redirect through these hosts;
+  // without them a federated user's in-webview sign-in silently stalls on a
+  // blocked navigation (endsWith match also covers *.b2clogin.com subdomains).
+  'b2clogin.com',
 ];
 
 export function isAllowedPowerBIHost(url: string): boolean {

@@ -12,6 +12,10 @@ const store = new Store<SettingsStore>({
   defaults: {
     settings: DEFAULT_SETTINGS,
   },
+  // A power-loss / AV-truncated settings.json must self-heal rather than throw a
+  // SyntaxError at main-process load (which would leave the app with no window
+  // and no user-recoverable path). conf resets to defaults when it can't parse.
+  clearInvalidConfig: true,
 });
 
 // Belt-and-braces sanitizer: even if the IPC handler is bypassed (module-internal
@@ -64,7 +68,19 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
   // PROD-B2: launch-time auto-start behavior.
   if ('autoStartMode' in src) {
     const v = src.autoStartMode;
-    if (v === 'off' || v === 'report') out.autoStartMode = v;
+    if (v === 'off' || v === 'report' || v === 'app') out.autoStartMode = v;
+    // Invalid value: silently drop.
+  }
+  // Launch-time auto-start of a specific app (paired with autoStartMode 'app').
+  // Must be accepted here or the renderer's "open a specific app" choice is
+  // silently dropped at the persistence boundary and never sticks.
+  if ('autoStartAppId' in src) {
+    const v = src.autoStartAppId;
+    if (v === undefined) {
+      out.autoStartAppId = undefined;
+    } else if (typeof v === 'string' && UUID_REGEX.test(v)) {
+      out.autoStartAppId = v;
+    }
     // Invalid value: silently drop.
   }
   if ('autoStartWorkspaceId' in src) {

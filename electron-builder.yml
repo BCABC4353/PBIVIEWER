@@ -78,6 +78,12 @@ mac:
   category: public.app-category.business
   hardenedRuntime: true
   gatekeeperAssess: false
+  # No paid Apple Developer ID cert yet, but ad-hoc sign ('-') so Apple Silicon
+  # does not reject the arm64 build as "damaged and can't be opened" (the
+  # unrecoverable Gatekeeper error with no GUI fix). Ad-hoc signing yields the
+  # recoverable "unidentified developer -> Open Anyway" path instead. Replace
+  # with a real Developer ID + notarization to remove the warning entirely.
+  identity: "-"
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   # Notarization - set these environment variables:

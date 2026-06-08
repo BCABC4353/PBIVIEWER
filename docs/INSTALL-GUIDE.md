@@ -31,11 +31,24 @@ To continue:
 
 The Mac download is a `.zip` file containing the app.
 
-1. **Double-click** the downloaded `.zip` in your Downloads folder — it will extract to a file named **Power BI Viewer.app**.
-2. **Drag** that `Power BI Viewer.app` into your **Applications** folder.
-3. **Open it from Applications.** The first time, macOS will warn that "Power BI Viewer can't be opened because Apple cannot check it for malicious software" — this is normal for an unsigned app. Click **Cancel**.
-4. Open **System Settings → Privacy & Security**, scroll to the bottom, and you'll see "Power BI Viewer was blocked…" with an **Open Anyway** button. Click it. (On older macOS, the option lives in **System Preferences → Security & Privacy → General**.)
-5. Confirm the second prompt. The app will launch and remember your choice — future opens are normal double-clicks.
+1. **Double-click** the downloaded `.zip` in your Downloads folder — it extracts to **Power BI Viewer.app**.
+2. **Drag** `Power BI Viewer.app` into your **Applications** folder, then open it **from Applications** (not from the Downloads folder).
+3. The first time you open it, macOS shows **one of two** messages for an app downloaded from the internet:
+
+   **A) "Power BI Viewer can't be opened because Apple cannot check it for malicious software."**
+   - Click **Cancel** (or **Done**).
+   - Open **System Settings → Privacy & Security**, scroll to the bottom — you'll see *"Power BI Viewer was blocked…"* with an **Open Anyway** button. Click it, then confirm. (On older macOS: **System Preferences → Security & Privacy → General**.)
+   - The app launches and remembers your choice — future opens are normal double-clicks.
+
+   **B) "Power BI Viewer is damaged and can't be opened. You should move it to the Trash."**
+   - The app is **not** actually damaged — macOS adds this "quarantine" flag to unsigned apps downloaded from the internet. **Do not** move it to Trash.
+   - Open the **Terminal** app (Applications → Utilities → Terminal), paste the line below **exactly**, and press **Return** (if asked for your Mac password, type it — the typing is invisible — and press Return):
+
+     ```bash
+     xattr -cr "/Applications/Power BI Viewer.app"
+     ```
+   - Open **Power BI Viewer** from Applications again. (If it now shows message **A** instead, follow option A above.)
+   - Not comfortable with Terminal? Ask your IT contact to run that one line for you — it only clears the download-quarantine flag.
 
 ## Getting updates
 
@@ -56,16 +69,21 @@ If a new version ever misbehaves, you can go back to an older one. Older release
 
 ### Optional: verifying your download
 
-If you'd like to be sure the file downloaded correctly, each release lists a **SHA-256** value in its release notes. To check it:
+To confirm a download completed correctly, compute its checksum and compare it with the value your IT contact provides (we can share the **SHA-256** for any release on request):
 
-1. Open **PowerShell**.
-2. Run the following command, replacing `<file>` with the path to the installer you downloaded:
+1. **Windows** — open **PowerShell** and run, replacing `<file>` with the path to the installer you downloaded:
 
    ```powershell
    Get-FileHash <file>
    ```
 
-3. Compare the result to the SHA-256 value shown in the release notes. If they match, your download is good.
+2. **Mac** — open **Terminal** and run:
+
+   ```bash
+   shasum -a 256 "<file>"
+   ```
+
+3. Compare the result with the value your team shares for that release. If they match, your download is good.
 
 ---
 

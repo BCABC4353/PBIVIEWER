@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
 import { AppsRegular } from '@fluentui/react-icons';
 import { ViewerToolbar } from './ViewerToolbar';
+import { EMBED } from '../../../shared/constants';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -74,11 +75,32 @@ export const AppViewer: React.FC = () => {
     const webview = webviewRef.current;
     if (!webview) return;
 
+    // Load watchdog: if the top document never finishes (proxy stall, captive
+    // portal, blocked TLS cert), the spinner would otherwise spin forever. Arm a
+    // timer on load start; clear it on stop/fail; on fire, surface a recoverable
+    // error (with the existing Try again button) instead of an eternal spinner.
+    let watchdog: ReturnType<typeof setTimeout> | null = null;
+    const clearWatchdog = () => {
+      if (watchdog) {
+        clearTimeout(watchdog);
+        watchdog = null;
+      }
+    };
+
     const handleDidStartLoading = () => {
       setIsLoading(true);
+      clearWatchdog();
+      watchdog = setTimeout(() => {
+        console.error('[AppViewer] Webview load watchdog fired after', EMBED.WATCHDOG_MS, 'ms');
+        setError(
+          'This app is taking too long to load. Your connection may be blocked by a proxy or VPN. Check your network, then try again.',
+        );
+        setIsLoading(false);
+      }, EMBED.WATCHDOG_MS);
     };
 
     const handleDidStopLoading = () => {
+      clearWatchdog();
       setIsLoading(false);
     };
 
@@ -92,22 +114,37 @@ export const AppViewer: React.FC = () => {
       // did-fail-load with isMainFrame=false. Treating those as fatal is what put
       // up a spurious "Failed to load app" that then worked on the second try.
       if (e.detail?.isMainFrame === false) return;
+      clearWatchdog();
       console.error('[AppViewer] Webview failed to load:', e.detail);
       setError(`Failed to load app: ${e.detail?.errorDescription || 'Unknown error'}`);
+      setIsLoading(false);
+    };
+
+    // If the embedded Power BI guest process crashes (OOM on a large app, GPU
+    // fault), the webview goes blank with no error. Surface a recoverable error.
+    const handleCrashed = () => {
+      clearWatchdog();
+      console.error('[AppViewer] Webview render process gone');
+      setError('The app stopped unexpectedly. Click Try again to reload it.');
       setIsLoading(false);
     };
 
     webview.addEventListener('did-start-loading', handleDidStartLoading);
     webview.addEventListener('did-stop-loading', handleDidStopLoading);
     webview.addEventListener('did-fail-load', handleDidFailLoad);
+    webview.addEventListener('crashed', handleCrashed);
+    webview.addEventListener('render-process-gone', handleCrashed);
 
     return () => {
       // Remove listeners FIRST so the about:blank navigation we kick off in a
       // moment doesn't fire `did-start-loading`/`did-stop-loading` into stale
       // setState calls on an about-to-unmount component (React 18 warns).
+      clearWatchdog();
       webview.removeEventListener('did-start-loading', handleDidStartLoading);
       webview.removeEventListener('did-stop-loading', handleDidStopLoading);
       webview.removeEventListener('did-fail-load', handleDidFailLoad);
+      webview.removeEventListener('crashed', handleCrashed);
+      webview.removeEventListener('render-process-gone', handleCrashed);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const w = webview as any;

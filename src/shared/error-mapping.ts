@@ -27,7 +27,24 @@ export function friendlyApiError(status: number | undefined, _raw?: string): str
  * is returned unchanged so callers don't accidentally overwrite a more
  * specific message (e.g. token-refresh failures) with a generic one.
  */
+/**
+ * Detect a main-process network / TLS-certificate / proxy failure (undici
+ * 'fetch failed', Node connect errors, or certificate-chain errors). These carry
+ * no HTTP status, so the status-based mapper can't classify them — and on a
+ * corporate TLS-inspection / authenticating-proxy network they are the most
+ * likely cause of "signed in, but nothing loads".
+ */
+const NETWORK_OR_CERT_RE =
+  /fetch failed|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|ENETUNREACH|self[- ]signed certificate|unable to verify|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_|ERR_TLS|ERR_PROXY/i;
+
+export function isNetworkOrCertError(message: string): boolean {
+  return NETWORK_OR_CERT_RE.test(message);
+}
+
 export function friendlyApiErrorFromMessage(message: string): string {
+  if (isNetworkOrCertError(message)) {
+    return "Can't reach Power BI. Your network may require a proxy or a security certificate — please contact IT.";
+  }
   const match = message.match(/:\s*(\d{3})\s*-\s*/);
   if (!match) return message;
   const status = Number(match[1]);

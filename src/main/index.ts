@@ -44,8 +44,14 @@ if (!app.requestSingleInstanceLock()) {
     // web-contents-created handler below (will-attach-webview is a WebContents
     // event, not a Session event). Nothing to do here.
 
-    // Initialize auth service
-    await authService.initialize();
+    // Initialize auth service. A throw here must NOT leave the app running with
+    // no window (a double-clicked app where "nothing happens"). Log it and show
+    // the window anyway so the user still reaches the login screen.
+    try {
+      await authService.initialize();
+    } catch (err) {
+      console.error('[startup] authService.initialize() failed; showing window anyway:', err);
+    }
 
     createWindow();
 
@@ -61,6 +67,15 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Diagnosability: log TLS/certificate failures (e.g. a corporate TLS-inspection
+// root CA that isn't in the OS trust store) instead of failing silently with a
+// blank window. We do NOT auto-trust — callback(false) preserves the secure
+// default; this only surfaces the host + error code in the log file for IT.
+app.on('certificate-error', (_event, _webContents, url, error, _certificate, callback) => {
+  console.error('[certificate-error]', url, error);
+  callback(false);
 });
 
 // SEC-S1: webview security guard (will-attach-webview / web-contents-created).

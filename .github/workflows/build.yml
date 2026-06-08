@@ -121,6 +121,19 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Ensure Electron binary is installed (retry transient CDN 504s)
+        run: |
+          attempt=1
+          max=4
+          until node node_modules/electron/install.js; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "electron binary download failed after $attempt attempts"
+              exit 1
+            fi
+            echo "electron download attempt $attempt failed; retrying in 15s..."
+            attempt=$((attempt + 1))
+            sleep 15
+          done
       - name: Generate config
         run: npm run generate-config
         env:
@@ -158,6 +171,10 @@ jobs:
 
   release:
     needs: [version, build-windows, build-mac]
+    # Publish as long as the Windows build succeeded, even if the macOS job failed
+    # (e.g. a transient Electron-CDN 504). One platform's flake must never block
+    # the whole release. always() lets this run despite a failed or skipped need.
+    if: ${{ always() && needs.build-windows.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -169,6 +186,9 @@ jobs:
           path: ./artifacts
       - name: Download macOS installer
         uses: actions/download-artifact@v4
+        # Tolerate a missing mac artifact so a failed mac build still lets the
+        # Windows installer publish rather than zeroing out the whole release.
+        continue-on-error: true
         with:
           name: mac-installer
           path: ./artifacts

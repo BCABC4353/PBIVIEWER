@@ -15,6 +15,9 @@ interface TokenCacheSchema {
 // being stored. This provides OS-level encryption that's unique per machine.
 const store = new Store<TokenCacheSchema>({
   name: 'powerbi-viewer-auth',
+  // Self-heal a truncated/corrupt auth store instead of throwing at load; the
+  // user just re-signs-in rather than hitting an unrecoverable startup crash.
+  clearInvalidConfig: true,
 });
 
 export interface CachedUserInfo {
