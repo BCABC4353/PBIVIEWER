@@ -245,7 +245,7 @@ export const PresentationMode: React.FC = () => {
   // clears (successful recovery). Timer is cleaned up on exit/unmount.
   useKioskRecovery({ error, active: isPlaying, recover: reload });
 
-  // PROD-S1: kiosk-safe exit gesture — 3s Escape-hold OR Ctrl+Shift+Esc → exit.
+  // PROD-S1: kiosk-safe exit gesture — 3s Escape-hold OR Ctrl+Shift+Q → exit.
   useKioskExitGesture({ onExit: doExit });
 
   // PROD-S1: hide the cursor after inactivity in presentation/fullscreen; reveal
@@ -266,7 +266,7 @@ export const PresentationMode: React.FC = () => {
       //   2. In a manually-started slideshow, Escape exits.
       //   3. In unattended/kiosk mode (auto-started), a single Escape is inert —
       //      exit is gated behind the deliberate gesture (3s Escape-hold or
-      //      Ctrl+Shift+Esc) in useKioskExitGesture. preventDefault still
+      //      Ctrl+Shift+Q) in useKioskExitGesture. preventDefault still
       //      suppresses the browser's native fullscreen-exit-on-Escape.
       if (e.key === 'Escape') {
         e.preventDefault();
