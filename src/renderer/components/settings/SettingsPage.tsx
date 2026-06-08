@@ -19,7 +19,6 @@ import {
   DesktopRegular,
   ArrowResetRegular,
   DeleteRegular,
-  ArrowSyncRegular,
   BookRegular,
 } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
@@ -34,7 +33,6 @@ export const SettingsPage: React.FC = () => {
   const { recentItems, frequentItems, apps, loadRecentItems, loadFrequentItems, loadApps } =
     useContentStore();
   const [clearingUsage, setClearingUsage] = useState(false);
-  const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [openingGuide, setOpeningGuide] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
 
@@ -116,17 +114,6 @@ export const SettingsPage: React.FC = () => {
       console.error('Failed to clear usage history:', error);
     } finally {
       setClearingUsage(false);
-    }
-  };
-
-  const handleCheckForUpdates = async () => {
-    setCheckingUpdates(true);
-    try {
-      await window.electronAPI.app.checkForUpdates();
-    } catch (error) {
-      console.error('Failed to check for updates:', error);
-    } finally {
-      setCheckingUpdates(false);
     }
   };
 
@@ -568,21 +555,6 @@ export const SettingsPage: React.FC = () => {
                   </Button>
                   <Text size={200} className="text-neutral-foreground-3 mt-1 block">
                     Opens the illustrated guide in your browser.
-                  </Text>
-                </div>
-                {/* PROD-S2: Check for updates button */}
-                <div>
-                  <Button
-                    appearance="secondary"
-                    icon={<ArrowSyncRegular />}
-                    onClick={handleCheckForUpdates}
-                    disabled={checkingUpdates}
-                    aria-label="Check for updates — opens the releases page"
-                  >
-                    {checkingUpdates ? 'Checking...' : 'Check for updates'}
-                  </Button>
-                  <Text size={200} className="text-neutral-foreground-3 mt-1 block">
-                    Opens the releases page in your browser.
                   </Text>
                 </div>
               </div>

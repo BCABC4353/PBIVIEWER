@@ -103,9 +103,6 @@ const electronAPI: ElectronAPI = {
   app: {
     getAppWebviewConfig: () => ipcRenderer.invoke('app:get-app-webview-config'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),
-    // PROD-S2: opens the releases page in the default browser; returns
-    // { currentVersion, releasesUrl } on success.
-    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
     // Opens the bundled offline user guide (HTML) in the default browser.
     openUserGuide: () => ipcRenderer.invoke('app:open-user-guide'),
   },

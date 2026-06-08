@@ -84,6 +84,26 @@ try {
     if (banner) banner.style.display = 'none';
   });
 
+  // Belt-and-suspenders: the headless print path never scrolls, so any image
+  // still marked loading="lazy" would render blank. Force every image eager and
+  // wait for it to finish decoding before we snapshot the PDF.
+  const imageReport = await page.evaluate(async () => {
+    const imgs = Array.from(document.images);
+    imgs.forEach((img) => { img.loading = 'eager'; });
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete && img.naturalWidth > 0
+          ? Promise.resolve()
+          : new Promise((res) => {
+              img.addEventListener('load', res, { once: true });
+              img.addEventListener('error', res, { once: true });
+            }),
+      ),
+    );
+    return { total: imgs.length, loaded: imgs.filter((i) => i.naturalWidth > 0).length };
+  });
+  console.log(`Images: ${imageReport.loaded}/${imageReport.total} loaded`);
+
   // Let any transitions settle
   await new Promise(r => setTimeout(r, 800));
 

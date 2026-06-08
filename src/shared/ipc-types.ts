@@ -148,10 +148,6 @@ export interface ElectronAPI {
   app: {
     getAppWebviewConfig: () => Promise<AppWebviewConfig>;
     getVersion: () => Promise<string>;
-    // PROD-S2: opens the releases page; returns current version + releases URL.
-    checkForUpdates: () => Promise<
-      IPCResponse<{ currentVersion: string; releasesUrl: string | null }>
-    >;
     /** Opens the bundled offline user guide (HTML) in the default browser. */
     openUserGuide: () => Promise<IPCResponse<void>>;
   };

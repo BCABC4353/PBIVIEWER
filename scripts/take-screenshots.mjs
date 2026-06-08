@@ -90,7 +90,7 @@ function buildMockScript(opts = {}) {
     frequent = [],
     settings = DEFAULT_SETTINGS,
     authError = null,
-    version = '2.0.4',
+    version = '2.0.7',
     getAllItemsData = null,
   } = opts;
 
@@ -177,7 +177,7 @@ function buildMockScript(opts = {}) {
         app: {
           getAppWebviewConfig: async () => ({ partition: null, userAgent: 'Mozilla/5.0' }),
           getVersion: async () => '${version}',
-          checkForUpdates: async () => ({ success: true, data: { currentVersion: '${version}', releasesUrl: null } }),
+          openUserGuide: async () => ({ success: true, data: undefined }),
         },
         log: {
           openFolder: async () => ({ success: true, data: undefined }),

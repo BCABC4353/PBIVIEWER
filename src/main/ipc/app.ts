@@ -3,9 +3,6 @@ import path from 'node:path';
 import { PARTITION_NAME } from '../../shared/constants';
 import { isDev } from '../window';
 
-// PROD-S2: "Check for updates" opens the GitHub Releases page where the latest
-// installer lives (manual, unsigned distribution — there is no in-app auto-update).
-
 export function registerAppIpc(): void {
   ipcMain.handle('app:get-app-webview-config', () => {
     // Return the config the App webview needs to mount with the correct session.
@@ -39,21 +36,6 @@ export function registerAppIpc(): void {
       return {
         success: false,
         error: { code: 'OPEN_USER_GUIDE_FAILED', message: String(err) },
-      };
-    }
-  });
-
-  // PROD-S2: open the GitHub Releases page (latest installer) in the browser.
-  ipcMain.handle('app:check-for-updates', async () => {
-    try {
-      const currentVersion = app.getVersion();
-      const releasesUrl = 'https://github.com/BCABC4353/PBIVIEWER/releases/latest';
-      await shell.openExternal(releasesUrl);
-      return { success: true, data: { currentVersion, releasesUrl } };
-    } catch (err) {
-      return {
-        success: false,
-        error: { code: 'CHECK_FOR_UPDATES_FAILED', message: String(err) },
       };
     }
   });
