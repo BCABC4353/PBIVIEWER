@@ -109,6 +109,14 @@ jobs:
   build-mac:
     needs: version
     runs-on: macos-latest
+    env:
+      # GitHub's release CDN intermittently 504s on the Electron darwin binary
+      # (it blocked the v2.0.7 AND v2.0.8 mac builds for minutes at a time). Pull
+      # Electron from the npmmirror mirror instead; @electron/get still verifies
+      # SHASUMS256, so binary integrity is preserved. ELECTRON_CUSTOM_DIR drops
+      # the leading "v" so the mirror's /mirrors/electron/<version>/ path resolves.
+      ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+      ELECTRON_CUSTOM_DIR: "{{ version }}"
     steps:
       - name: Checkout the new version
         uses: actions/checkout@v4
