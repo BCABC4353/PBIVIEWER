@@ -20,6 +20,7 @@ import {
   ArrowResetRegular,
   DeleteRegular,
   ArrowSyncRegular,
+  BookRegular,
 } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useSettingsStore } from '../../stores/settings-store';
@@ -34,6 +35,7 @@ export const SettingsPage: React.FC = () => {
     useContentStore();
   const [clearingUsage, setClearingUsage] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [openingGuide, setOpeningGuide] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
 
   // Stable ID for the theme-toggle group label (aria-labelledby on the group).
@@ -125,6 +127,20 @@ export const SettingsPage: React.FC = () => {
       console.error('Failed to check for updates:', error);
     } finally {
       setCheckingUpdates(false);
+    }
+  };
+
+  const handleOpenUserGuide = async () => {
+    setOpeningGuide(true);
+    try {
+      const res = await window.electronAPI.app.openUserGuide();
+      if (!res.success) {
+        console.error('Failed to open user guide:', res.error);
+      }
+    } catch (error) {
+      console.error('Failed to open user guide:', error);
+    } finally {
+      setOpeningGuide(false);
     }
   };
 
@@ -539,6 +555,21 @@ export const SettingsPage: React.FC = () => {
                 <Text className="text-neutral-foreground-1 block">
                   Power BI Viewer v{appVersion}
                 </Text>
+                {/* User guide — opens the bundled offline illustrated guide */}
+                <div>
+                  <Button
+                    appearance="secondary"
+                    icon={<BookRegular />}
+                    onClick={handleOpenUserGuide}
+                    disabled={openingGuide}
+                    aria-label="Open the user guide"
+                  >
+                    {openingGuide ? 'Opening...' : 'Open user guide'}
+                  </Button>
+                  <Text size={200} className="text-neutral-foreground-3 mt-1 block">
+                    Opens the illustrated guide in your browser.
+                  </Text>
+                </div>
                 {/* PROD-S2: Check for updates button */}
                 <div>
                   <Button

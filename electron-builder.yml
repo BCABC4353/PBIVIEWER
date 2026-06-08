@@ -14,6 +14,17 @@ files:
   - assets/**/*
   - package.json
 
+# Bundle the offline user guide (HTML + screenshots) into the app's resources
+# dir so the in-app "Open user guide" button (Settings -> About) can open it
+# with no network. Resolves to <app>/resources/manual/ at runtime; the HTML
+# references its images via the relative screenshots/ subfolder shipped here.
+extraResources:
+  - from: docs/manual
+    to: manual
+    filter:
+      - PowerBI-Viewer-User-Guide.html
+      - screenshots/*.png
+
 # Windows Configuration
 win:
   target:

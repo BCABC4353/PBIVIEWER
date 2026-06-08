@@ -66,6 +66,8 @@ export const IPC_CHANNELS = {
     getVersion: 'app:get-version',
     // PROD-S2: opens the releases page and returns { currentVersion, releasesUrl }.
     checkForUpdates: 'app:check-for-updates',
+    // Opens the bundled offline user guide (HTML) in the default browser.
+    openUserGuide: 'app:open-user-guide',
   },
   log: {
     openFolder: 'log:open-folder',

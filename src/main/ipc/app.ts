@@ -1,4 +1,5 @@
 import { app, ipcMain, shell } from 'electron';
+import path from 'node:path';
 import { PARTITION_NAME } from '../../shared/constants';
 import { isDev } from '../window';
 
@@ -18,6 +19,28 @@ export function registerAppIpc(): void {
   ipcMain.handle('app:get-version', () => {
     // Returns the version from package.json - single source of truth
     return app.getVersion();
+  });
+
+  // Open the bundled offline user guide (HTML) in the user's default browser.
+  // Packaged: copied to <app>/resources/manual/ via electron-builder extraResources.
+  // Dev: served from the source tree under docs/manual/.
+  ipcMain.handle('app:open-user-guide', async () => {
+    try {
+      const guidePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'manual', 'PowerBI-Viewer-User-Guide.html')
+        : path.join(app.getAppPath(), 'docs', 'manual', 'PowerBI-Viewer-User-Guide.html');
+      // shell.openPath opens the file with the OS default handler (the browser for .html).
+      const err = await shell.openPath(guidePath);
+      if (err) {
+        return { success: false, error: { code: 'OPEN_USER_GUIDE_FAILED', message: err } };
+      }
+      return { success: true, data: undefined };
+    } catch (err) {
+      return {
+        success: false,
+        error: { code: 'OPEN_USER_GUIDE_FAILED', message: String(err) },
+      };
+    }
   });
 
   // PROD-S2: open the GitHub Releases page (latest installer) in the browser.

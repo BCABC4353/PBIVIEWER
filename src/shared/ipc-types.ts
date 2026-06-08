@@ -152,6 +152,8 @@ export interface ElectronAPI {
     checkForUpdates: () => Promise<
       IPCResponse<{ currentVersion: string; releasesUrl: string | null }>
     >;
+    /** Opens the bundled offline user guide (HTML) in the default browser. */
+    openUserGuide: () => Promise<IPCResponse<void>>;
   };
 
   log: {

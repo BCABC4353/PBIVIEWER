@@ -127,6 +127,7 @@ function createElectronAPIMock(): ElectronAPI {
       checkForUpdates: vi
         .fn()
         .mockResolvedValue({ success: true, data: { currentVersion: '0.0.0-test', releasesUrl: null } }),
+      openUserGuide: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     },
 
     log: {

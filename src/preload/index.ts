@@ -106,6 +106,8 @@ const electronAPI: ElectronAPI = {
     // PROD-S2: opens the releases page in the default browser; returns
     // { currentVersion, releasesUrl } on success.
     checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+    // Opens the bundled offline user guide (HTML) in the default browser.
+    openUserGuide: () => ipcRenderer.invoke('app:open-user-guide'),
   },
 
   // PROD-S1: kiosk power management — presentation/slideshow keeps the display
