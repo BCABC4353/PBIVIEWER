@@ -50,7 +50,7 @@ interface Harness {
   deps: AuthServiceDeps;
   accounts: AccountInfo[];
   corruptionListeners: Array<() => void>;
-  cookieClearCalls: Array<{ jar: 'a' | 'b' }>;
+  cookieClearCalls: Array<{ jar: 'a' | 'b'; storages?: string[] }>;
   clearedUsageAccounts: string[];
   // mutable knobs
   setSilentResult: (r: { accessToken: string; expiresOn: Date | null } | Error) => void;
@@ -63,7 +63,7 @@ interface Harness {
 function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
   const accounts: AccountInfo[] = initial.accounts ? [...initial.accounts] : [];
   const corruptionListeners: Array<() => void> = [];
-  const cookieClearCalls: Array<{ jar: 'a' | 'b' }> = [];
+  const cookieClearCalls: Array<{ jar: 'a' | 'b'; storages?: string[] }> = [];
   const clearedUsageAccounts: string[] = [];
   const persisted: { cache: string | null; userInfo: CachedUserInfo | null; activeId: string | null } = {
     cache: null,
@@ -130,13 +130,13 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
   };
 
   const jarA: CookieJarPort = {
-    clearStorageData: vi.fn(async () => {
-      cookieClearCalls.push({ jar: 'a' });
+    clearStorageData: vi.fn(async (opts?: { storages?: string[] }) => {
+      cookieClearCalls.push({ jar: 'a', storages: opts?.storages });
     }),
   };
   const jarB: CookieJarPort = {
-    clearStorageData: vi.fn(async () => {
-      cookieClearCalls.push({ jar: 'b' });
+    clearStorageData: vi.fn(async (opts?: { storages?: string[] }) => {
+      cookieClearCalls.push({ jar: 'b', storages: opts?.storages });
       if (jarBFails) throw new Error('jar B clear failed');
     }),
   };
@@ -334,7 +334,26 @@ describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
     const svc = createAuthService(h.deps);
     const result = await svc.logout();
     expect(result.success).toBe(true);
-    expect(h.cookieClearCalls).toEqual([{ jar: 'a' }, { jar: 'b' }]);
+    expect(h.cookieClearCalls.map((c) => c.jar)).toEqual(['a', 'b']);
+  });
+
+  it('SEC-S5: clears the full web-storage set (not just cookies) on every jar', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const svc = createAuthService(h.deps);
+    await svc.logout();
+    // Each jar must clear cookies AND the per-account web storages so a second
+    // account can't surface the first account's cached Power BI content.
+    for (const call of h.cookieClearCalls) {
+      expect(call.storages).toEqual(
+        expect.arrayContaining([
+          'cookies',
+          'localstorage',
+          'indexdb',
+          'serviceworkers',
+          'cachestorage',
+        ])
+      );
+    }
   });
 
   it('fails loud (LOGOUT_FAILED) when a cookie jar clear throws', async () => {
@@ -371,7 +390,7 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
     const svc = createAuthService(h.deps);
     await svc.login();
     // The proactive sweep ran (both jars cleared) BEFORE the auth-code exchange.
-    expect(h.cookieClearCalls).toEqual([{ jar: 'a' }, { jar: 'b' }]);
+    expect(h.cookieClearCalls.map((c) => c.jar)).toEqual(['a', 'b']);
   });
 
   it('does NOT sweep when an account already exists', async () => {

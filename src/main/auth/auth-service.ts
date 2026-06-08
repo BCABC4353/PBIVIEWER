@@ -60,7 +60,11 @@ export interface PersistentCachePort {
 
 /** A single cookie jar we can clear on logout. Matches electron's Session. */
 export interface CookieJarPort {
-  clearStorageData(options?: { storages?: Array<'cookies'> }): Promise<void>;
+  clearStorageData(options?: {
+    storages?: Array<
+      'cookies' | 'localstorage' | 'indexdb' | 'serviceworkers' | 'cachestorage'
+    >;
+  }): Promise<void>;
 }
 
 /** Opens the interactive auth window and resolves the redirect result. */
@@ -534,11 +538,20 @@ class AuthService {
    * Promise.allSettled (which swallowed per-jar errors). If any jar fails to
    * clear we throw so the caller surfaces it instead of pretending the session
    * was fully cleared.
+   *
+   * SEC-S5: clear the FULL per-account web-storage set on the partition session,
+   * not just cookies. Power BI's embedded content caches workspace/report data in
+   * localStorage, IndexedDB, service workers, and the cache storage; clearing only
+   * cookies on logout/account-switch left that data behind, so a second account
+   * could surface the first account's cached content. These are the valid Electron
+   * `clearStorageData` storage keys (verified for Electron 42).
    */
   private async clearCookieJarsSequential(): Promise<void> {
     const jars = this.deps.getCookieJars();
     for (const jar of jars) {
-      await jar.clearStorageData({ storages: ['cookies'] });
+      await jar.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
+      });
     }
   }
 
