@@ -4,6 +4,14 @@ import { powerbiApiService } from '../services/powerbi-api';
 import { validateUUID } from '../../shared/validation';
 import { isValidExportPath } from '../security';
 
+// FIX-5 (G2 DoS hardening): bound renderer-supplied export inputs before they
+// reach the request body. A compromised/buggy renderer could otherwise send an
+// arbitrarily large pageName/bookmarkState and bloat the outbound Power BI
+// request (memory + payload). pageNames are short identifiers; bookmark state
+// is base64 report state — 64KB is generous for legitimate use.
+const MAX_PAGE_NAME_LEN = 256;
+const MAX_BOOKMARK_STATE_LEN = 64 * 1024;
+
 export function registerContentIpc(): void {
   ipcMain.handle('content:get-workspaces', async () => {
     return await powerbiApiService.getWorkspaces();
@@ -70,6 +78,14 @@ export function registerContentIpc(): void {
       const rId = validateUUID(reportId);
       const wId = validateUUID(workspaceId);
       if (!rId || !wId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
+
+      // FIX-5 (G2): cap renderer-supplied export inputs to bound the request body.
+      if (typeof pageName === 'string' && pageName.length > MAX_PAGE_NAME_LEN) {
+        return { success: false, error: { code: 'INVALID_INPUT', message: 'pageName exceeds maximum length' } };
+      }
+      if (typeof bookmarkState === 'string' && bookmarkState.length > MAX_BOOKMARK_STATE_LEN) {
+        return { success: false, error: { code: 'INVALID_INPUT', message: 'bookmarkState exceeds maximum length' } };
+      }
 
       if (!filePath) {
         return { success: false, error: { code: 'NO_PATH', message: 'No export path provided' } };

@@ -481,6 +481,24 @@ export const PresentationMode: React.FC = () => {
         {slideAnnouncement}
       </div>
 
+      {/* #6: PERSISTENT kiosk exit hint. Rendered OUTSIDE the auto-hide
+          `showControls` block so it never fades — an unattended-wall-display
+          operator (esp. the autoStartSlideshow/kiosk scenario where a single
+          Escape is intentionally inert) always sees how to get out. Kept small,
+          low-opacity, and corner-anchored so it stays unobtrusive over the
+          slide. aria-hidden because it duplicates content already exposed to
+          screen readers via the live region / controls — it's visual-only
+          guidance and would otherwise be noise for SR users. */}
+      {!isLoading && !error && (
+        <div
+          aria-hidden="true"
+          className="absolute bottom-2 right-3 z-[15] text-white/40 text-[11px] leading-tight pointer-events-none select-none text-right"
+        >
+          <div>Hold Esc 3s to exit</div>
+          <div>or Ctrl+Shift+Q</div>
+        </div>
+      )}
+
       {/* Controls overlay */}
       {showControls && !isLoading && !error && (
         <>

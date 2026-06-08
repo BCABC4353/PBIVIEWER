@@ -60,6 +60,11 @@ function decrypt(value: string): string {
     console.error('[TokenCache] Failed to decrypt, clearing corrupted entry:', error);
     store.delete('msalCache');
     store.delete('userInfo');
+    // FIX-4 (G3 residual): also drop the active-account id. Without this, a
+    // corrupt activeHomeAccountId lingered after the msalCache/userInfo purge and
+    // re-fired the corruption path on EVERY startup (loadActiveAccountId →
+    // decrypt → corruption again). Clearing it in lockstep ends the loop.
+    store.delete('activeHomeAccountId');
     // BEH-B2: tell listeners the cache is gone so they don't keep trusting an
     // in-memory account/expiry that the (now-purged) cache can no longer back.
     notifyCorruption();

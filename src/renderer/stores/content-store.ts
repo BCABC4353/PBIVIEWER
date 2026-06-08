@@ -113,6 +113,11 @@ export const useContentStore = create<ContentState>((set, get) => ({
       // machine do not see each other's recent history.
       const accountId = useAuthStore.getState().user?.id;
       const response = await window.electronAPI.usage.getRecent(accountId);
+      // FIX-3 (isolation): an account switch can land DURING this in-flight IPC.
+      // Re-check the active account after the await and discard the response if
+      // it changed, so the prior account's data is never written into the new
+      // account's store.
+      if (useAuthStore.getState().user?.id !== accountId) return;
       if (response.success) {
         set({ recentItems: response.data });
       }
@@ -126,6 +131,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
       // BEH-B3: scope the read to the signed-in user (same rationale as above).
       const accountId = useAuthStore.getState().user?.id;
       const response = await window.electronAPI.usage.getFrequent(accountId);
+      // FIX-3 (isolation): discard a response that resolved after an account
+      // switch (same rationale as loadRecentItems above).
+      if (useAuthStore.getState().user?.id !== accountId) return;
       if (response.success) {
         set({ frequentItems: response.data });
       }

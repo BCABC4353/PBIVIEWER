@@ -169,6 +169,13 @@ export function useFullscreenPageNav(
       }
     };
 
+    // #E2: track the fire-and-forget focus-reclaim timeouts so they can be
+    // cancelled on unmount / dependency-change. They're short-lived (10ms /
+    // 100ms) and complete quickly — no real "leak" — but leaving them untracked
+    // means a refocus can fire after teardown; tracking + clearing makes them
+    // cancellable for correctness. Focus behavior is unchanged.
+    const focusReclaimTimers: ReturnType<typeof setTimeout>[] = [];
+
     // Prevent iframe from stealing focus on mouse clicks in fullscreen
     const handleMouseDown = (e: MouseEvent) => {
       if (!document.fullscreenElement) return;
@@ -176,16 +183,20 @@ export function useFullscreenPageNav(
       // If clicking inside the embed container, allow the click but refocus after
       if (containerRef.current?.contains(e.target as Node)) {
         // Use multiple timeouts to ensure we regain focus
-        setTimeout(() => {
-          if (containerRef.current && document.fullscreenElement) {
-            containerRef.current.focus();
-          }
-        }, 10);
-        setTimeout(() => {
-          if (containerRef.current && document.fullscreenElement) {
-            containerRef.current.focus();
-          }
-        }, 100);
+        focusReclaimTimers.push(
+          setTimeout(() => {
+            if (containerRef.current && document.fullscreenElement) {
+              containerRef.current.focus();
+            }
+          }, 10)
+        );
+        focusReclaimTimers.push(
+          setTimeout(() => {
+            if (containerRef.current && document.fullscreenElement) {
+              containerRef.current.focus();
+            }
+          }, 100)
+        );
       }
     };
 
@@ -222,6 +233,10 @@ export function useFullscreenPageNav(
       document.removeEventListener('focusout', handleFocusOut);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
+      }
+      // #E2: cancel any pending focus-reclaim timeouts.
+      for (const t of focusReclaimTimers) {
+        clearTimeout(t);
       }
     };
   }, [navigateToPage, containerRef]);

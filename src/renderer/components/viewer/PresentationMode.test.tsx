@@ -209,6 +209,36 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
   });
 });
 
+describe('#6 persistent kiosk exit hint', () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
+  it('renders an always-visible exit hint naming both the Esc-hold and the Ctrl+Shift+Q chord', () => {
+    renderPresentation();
+    expect(screen.getByText('Hold Esc 3s to exit')).not.toBeNull();
+    expect(screen.getByText('or Ctrl+Shift+Q')).not.toBeNull();
+  });
+
+  it('marks the hint aria-hidden so it is not noise for screen readers', () => {
+    renderPresentation();
+    const hint = screen.getByText('Hold Esc 3s to exit');
+    // The hint lives in an aria-hidden wrapper (visual-only guidance).
+    expect(hint.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('keeps the hint mounted independently of the auto-hide controls (kiosk persistence)', () => {
+    renderPresentation();
+    // The hint must NOT be a descendant of the controls/toolbar region, so it
+    // survives when showControls toggles off in the autoStart/kiosk scenario.
+    const hint = screen.getByText('Hold Esc 3s to exit');
+    expect(hint.closest('[data-viewer-toolbar]')).toBeNull();
+    // Hiding the controls block does not remove the hint: it's rendered as a
+    // sibling, so simply assert it stays present after a re-query.
+    expect(screen.queryByText('Hold Esc 3s to exit')).not.toBeNull();
+  });
+});
+
 describe('PROD-S1 / antagonist P0: Escape is a global exit handled regardless of focus', () => {
   beforeEach(() => {
     cleanup();

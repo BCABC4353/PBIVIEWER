@@ -3,8 +3,16 @@
  *
  * Explicit, kiosk-safe exit affordances layered on top of the single-Escape
  * exit (which the browser already wires via fullscreenchange):
- *   1. 3-second Escape HOLD  — hold Escape for KIOSK.ESCAPE_HOLD_MS to exit.
- *   2. Ctrl+Shift+Esc chord  — immediate deliberate exit.
+ *   1. 3-second Escape HOLD  — primary gesture: hold Escape for
+ *      KIOSK.ESCAPE_HOLD_MS to exit.
+ *   2. Ctrl+Shift+Q chord    — immediate deliberate exit.
+ *
+ * #6: the chord was previously Ctrl+Shift+Esc, which is the Windows Task Manager
+ * system hotkey — the OS intercepts it before it can reach the app, so it never
+ * fired. Ctrl+Shift+Q is not OS-reserved on Windows and is not a default
+ * Chromium/Electron renderer shortcut, so the keydown actually reaches the app.
+ * (Alt+F4 is deliberately avoided: it kills the window instead of running the
+ * graceful doExit teardown.)
  *
  * Both call the supplied onExit (PresentationMode.doExit). The hold timer is
  * armed on the first Escape keydown and cancelled on keyup or on any other key,
@@ -30,9 +38,15 @@ export function isEscape(e: GestureKey): boolean {
   return e.key === 'Escape' || e.key === 'Esc';
 }
 
-/** True for the Ctrl+Shift+Esc deliberate-exit chord. */
+/**
+ * True for the Ctrl+Shift+Q deliberate-exit chord.
+ *
+ * #6: Ctrl+Shift+Q replaces the old Ctrl+Shift+Esc, which the Windows OS
+ * intercepts as the Task Manager hotkey before it can reach the app. The `q`
+ * comparison is case-insensitive because Shift uppercases the emitted `key`.
+ */
 export function isChordExit(e: GestureKey): boolean {
-  return e.ctrlKey && e.shiftKey && isEscape(e);
+  return e.ctrlKey && e.shiftKey && (e.key === 'q' || e.key === 'Q');
 }
 
 export interface UseKioskExitGestureOptions {
@@ -69,7 +83,7 @@ export function useKioskExitGesture({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Shift+Esc — immediate kiosk-safe exit.
+      // Ctrl+Shift+Q — immediate kiosk-safe exit.
       if (isChordExit(e)) {
         e.preventDefault();
         clearHold();

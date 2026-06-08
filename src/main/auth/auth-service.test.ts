@@ -51,6 +51,8 @@ interface Harness {
   accounts: AccountInfo[];
   corruptionListeners: Array<() => void>;
   cookieClearCalls: Array<{ jar: 'a' | 'b'; storages?: string[] }>;
+  // FIX-2: records which jars had their HTTP cache flushed.
+  cacheClearCalls: Array<'a' | 'b'>;
   clearedUsageAccounts: string[];
   // mutable knobs
   setSilentResult: (r: { accessToken: string; expiresOn: Date | null } | Error) => void;
@@ -64,6 +66,7 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
   const accounts: AccountInfo[] = initial.accounts ? [...initial.accounts] : [];
   const corruptionListeners: Array<() => void> = [];
   const cookieClearCalls: Array<{ jar: 'a' | 'b'; storages?: string[] }> = [];
+  const cacheClearCalls: Array<'a' | 'b'> = [];
   const clearedUsageAccounts: string[] = [];
   const persisted: { cache: string | null; userInfo: CachedUserInfo | null; activeId: string | null } = {
     cache: null,
@@ -133,11 +136,18 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     clearStorageData: vi.fn(async (opts?: { storages?: string[] }) => {
       cookieClearCalls.push({ jar: 'a', storages: opts?.storages });
     }),
+    // FIX-2: each jar must also flush the HTTP cache on logout/switch.
+    clearCache: vi.fn(async () => {
+      cacheClearCalls.push('a');
+    }),
   };
   const jarB: CookieJarPort = {
     clearStorageData: vi.fn(async (opts?: { storages?: string[] }) => {
       cookieClearCalls.push({ jar: 'b', storages: opts?.storages });
       if (jarBFails) throw new Error('jar B clear failed');
+    }),
+    clearCache: vi.fn(async () => {
+      cacheClearCalls.push('b');
     }),
   };
 
@@ -167,6 +177,7 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     accounts,
     corruptionListeners,
     cookieClearCalls,
+    cacheClearCalls,
     clearedUsageAccounts,
     setSilentResult: (r) => {
       silentResult = r;
@@ -356,6 +367,17 @@ describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
     }
   });
 
+  it('FIX-2: flushes the HTTP cache on every jar on logout (multi-tenant isolation)', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const svc = createAuthService(h.deps);
+    const result = await svc.logout();
+    expect(result.success).toBe(true);
+    // Both jars had their HTTP cache flushed, not just their storage data.
+    expect(h.cacheClearCalls).toEqual(['a', 'b']);
+    expect(h.deps.getCookieJars()[0]!.clearCache).toHaveBeenCalled();
+    expect(h.deps.getCookieJars()[1]!.clearCache).toHaveBeenCalled();
+  });
+
   it('fails loud (LOGOUT_FAILED) when a cookie jar clear throws', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     h.setJarBFails(true);
@@ -402,6 +424,25 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
     h.cookieClearCalls.length = 0;
     await svc.login();
     expect(h.cookieClearCalls).toEqual([]);
+  });
+
+  it('FIX-3 (auth-friction): a normal login() forwards NO prompt by default', async () => {
+    const h = createHarness();
+    const svc = createAuthService(h.deps);
+    await svc.login();
+    const getAuthCodeUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
+    const lastCall = getAuthCodeUrl.mock.calls.at(-1)?.[0];
+    // No forced account picker — AAD can silently continue an existing session.
+    expect(lastCall).not.toHaveProperty('prompt');
+  });
+
+  it('FIX-3: an explicit prompt option is still forwarded verbatim', async () => {
+    const h = createHarness();
+    const svc = createAuthService(h.deps);
+    await svc.login({ prompt: 'select_account' });
+    const getAuthCodeUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
+    const lastCall = getAuthCodeUrl.mock.calls.at(-1)?.[0];
+    expect(lastCall.prompt).toBe('select_account');
   });
 
   it('reports reusedPreviousAccount=false on a first-ever login', async () => {

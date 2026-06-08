@@ -65,6 +65,11 @@ export interface CookieJarPort {
       'cookies' | 'localstorage' | 'indexdb' | 'serviceworkers' | 'cachestorage'
     >;
   }): Promise<void>;
+  // FIX-2 (multi-tenant isolation): flush the HTTP cache too. clearStorageData
+  // does NOT touch Electron's HTTP cache, so cached api.powerbi.com responses
+  // could survive a logout/account-switch and bleed across tenants. The real
+  // Electron Session exposes clearCache(); we wire it in production.
+  clearCache(): Promise<void>;
 }
 
 /** Opens the interactive auth window and resolves the redirect result. */
@@ -365,17 +370,23 @@ class AuthService {
   }
 
   /**
-   * PROD-B1: optional knobs for an interactive login.
+   * PROD-B1 / FIX-3 (auth-friction): optional knobs for an interactive login.
    *
-   * `prompt` is forwarded verbatim to MSAL's authorization request. The default
-   * (used by every existing caller that passes nothing) is 'select_account',
-   * which preserves the historical behaviour — login() always asked AAD to show
-   * the account picker. Threading it as an option makes the account-switcher's
-   * intent explicit at the call site and leaves room for future callers to pass
-   * e.g. 'login' / 'consent' without touching this method again.
+   * `prompt` is forwarded to MSAL's authorization request ONLY when supplied.
+   * A NORMAL login (no args) now passes NO `prompt`, so AAD can silently
+   * continue an existing session and only show UI when it genuinely must
+   * (no session, MFA, consent). This removes the forced account-picker that
+   * fired on EVERY interactive login — the unattended wall-display restart and
+   * the owner's #1 complaint. The explicit account switch STILL forces the
+   * picker by passing { prompt: 'select_account' } at its call site
+   * (switchAccount()), so that intent stays explicit and unchanged.
+   *
+   * NOTE: the actual silent-vs-interactive AAD behaviour (does omitting prompt
+   * truly skip the picker for a live SSO session?) MUST be confirmed in the
+   * runtime smoke test — it cannot be asserted from a unit test alone.
    */
   async login(options?: { prompt?: string }): Promise<IPCResponse<AuthResult>> {
-    const prompt = options?.prompt ?? 'select_account';
+    const prompt = options?.prompt;
     try {
       // A fast double-click on the Sign-in button used to overwrite
       // pendingAuthState mid-flight, which then tripped the CSRF check on the
@@ -415,15 +426,20 @@ class AuthService {
       const state = this.generateState();
       this.pendingAuthState = state;
 
-      // Get authorization URL with state parameter
-      const authCodeUrlParams = {
+      // Get authorization URL with state parameter. FIX-3: only include
+      // `prompt` when a caller explicitly asked for one (switchAccount →
+      // 'select_account'). Omitting it lets AAD silently continue an existing
+      // session instead of always forcing the account picker.
+      const authCodeUrlParams: Record<string, unknown> = {
         scopes: loginRequest.scopes,
         redirectUri: 'http://localhost',
         codeChallenge: challenge,
         codeChallengeMethod: 'S256',
         state: state,
-        prompt,
       };
+      if (prompt !== undefined) {
+        authCodeUrlParams.prompt = prompt;
+      }
 
       const authCodeUrl = await this.deps.msalClient.getAuthCodeUrl(authCodeUrlParams);
 
@@ -552,6 +568,11 @@ class AuthService {
       await jar.clearStorageData({
         storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
       });
+      // FIX-2: clearStorageData leaves Electron's HTTP cache intact, so a stale
+      // api.powerbi.com response could bleed across tenants after a logout /
+      // account switch. Flush the HTTP cache on each jar too. Same sequential +
+      // fail-loud contract: a swallowed failure would re-introduce the leak.
+      await jar.clearCache();
     }
   }
 

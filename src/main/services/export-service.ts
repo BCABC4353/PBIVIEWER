@@ -130,8 +130,15 @@ export async function exportCurrentViewPdf(
         settle(() => reject(new Error('Export window load timed out after 30 s')));
       }, LOAD_TIMEOUT_MS);
 
-      pdfWindow!.webContents.on('did-finish-load', () => settle(resolve));
-      pdfWindow!.webContents.on('did-fail-load', (_e, code, desc) =>
+      // E2: one-shot per export. Use .once() so these handlers self-detach the
+      // moment they fire — without this the same hidden-window webContents would
+      // accumulate did-finish-load / did-fail-load listeners across repeated
+      // exports (a listener leak). The race below settles exactly once, so only
+      // one of the two ever fires; .once() guarantees the unfired one is the
+      // only listener that could linger, and pdfWindow.close() in `finally`
+      // tears down the webContents (and its listeners) regardless.
+      pdfWindow!.webContents.once('did-finish-load', () => settle(resolve));
+      pdfWindow!.webContents.once('did-fail-load', (_e, code, desc) =>
         settle(() => reject(new Error(`Load failed: ${code} ${desc}`))),
       );
       pdfWindow!.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
