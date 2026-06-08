@@ -108,10 +108,13 @@ export interface AppSettings {
    * PROD-B2: launch-time auto-start behavior.
    * - 'off'    — normal startup, show the home screen.
    * - 'report' — open the report identified by autoStartReportId on launch.
+   * - 'app'    — open the Power BI app identified by autoStartAppId on launch.
    */
-  autoStartMode: 'off' | 'report';
+  autoStartMode: 'off' | 'report' | 'app';
   /** PROD-B2: workspace GUID of the auto-start report (paired with autoStartReportId). */
   autoStartWorkspaceId?: string;
+  /** Launch-time auto-start of a specific Power BI app (paired with autoStartMode 'app'). */
+  autoStartAppId?: string;
   /**
    * BEH-B3: usage-history retention policy on logout.
    * - 'always'           — clear usage data every logout.

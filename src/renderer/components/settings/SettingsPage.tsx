@@ -30,7 +30,8 @@ import type { ContentItem } from '../../../shared/types';
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { settings, isLoading, loadSettings, updateSettings, resetSettings } = useSettingsStore();
-  const { recentItems, frequentItems, loadRecentItems, loadFrequentItems } = useContentStore();
+  const { recentItems, frequentItems, apps, loadRecentItems, loadFrequentItems, loadApps } =
+    useContentStore();
   const [clearingUsage, setClearingUsage] = useState(false);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
@@ -45,11 +46,12 @@ export const SettingsPage: React.FC = () => {
     loadSettings();
     loadRecentItems();
     loadFrequentItems();
+    loadApps();
     // getVersion() is fully typed on window.electronAPI.app — no cast needed.
     window.electronAPI.app.getVersion().then((version: string) => {
       setAppVersion(version);
     });
-  }, [loadSettings, loadRecentItems, loadFrequentItems]);
+  }, [loadSettings, loadRecentItems, loadFrequentItems, loadApps]);
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
     updateSettings({ theme });
@@ -75,11 +77,20 @@ export const SettingsPage: React.FC = () => {
     updateSettings({ autoRefreshInterval: value });
   };
 
-  const handleAutoStartModeChange = (mode: 'off' | 'report') => {
+  const handleAutoStartModeChange = (mode: 'off' | 'report' | 'app') => {
     updateSettings({ autoStartMode: mode });
+    // Clear the ids that don't apply to the chosen mode so a stale target can't be used.
     if (mode === 'off') {
+      updateSettings({ autoStartReportId: undefined, autoStartWorkspaceId: undefined, autoStartAppId: undefined });
+    } else if (mode === 'report') {
+      updateSettings({ autoStartAppId: undefined });
+    } else if (mode === 'app') {
       updateSettings({ autoStartReportId: undefined, autoStartWorkspaceId: undefined });
     }
+  };
+
+  const handleAutoStartAppSelect = (appId: string) => {
+    updateSettings({ autoStartAppId: appId });
   };
 
   const handleAutoStartItemSelect = (item: ContentItem) => {
@@ -137,6 +148,13 @@ export const SettingsPage: React.FC = () => {
     const found = autoStartCandidates.find((c) => c.id === settings.autoStartReportId);
     return found ? found.name : settings.autoStartReportId;
   }, [settings.autoStartReportId, autoStartCandidates]);
+
+  // Display name for the currently selected auto-start app.
+  const autoStartSelectedAppName = React.useMemo(() => {
+    if (!settings.autoStartAppId) return '';
+    const found = apps.find((a) => a.id === settings.autoStartAppId);
+    return found ? found.name : settings.autoStartAppId;
+  }, [settings.autoStartAppId, apps]);
 
   if (isLoading) {
     return (
@@ -304,7 +322,7 @@ export const SettingsPage: React.FC = () => {
                   <RadioGroup
                     value={settings.autoStartMode}
                     onChange={(_, data) =>
-                      handleAutoStartModeChange(data.value as 'off' | 'report')
+                      handleAutoStartModeChange(data.value as 'off' | 'report' | 'app')
                     }
                   >
                     <Radio value="off" label="Show home screen" />
@@ -312,6 +330,7 @@ export const SettingsPage: React.FC = () => {
                       value="report"
                       label="Open a specific report"
                     />
+                    <Radio value="app" label="Open a specific app" />
                   </RadioGroup>
                 </Field>
 
@@ -359,6 +378,42 @@ export const SettingsPage: React.FC = () => {
                     ) : (
                       <Text size={200} className="text-neutral-foreground-3">
                         No reports available. Open some reports and return here.
+                      </Text>
+                    )}
+                  </Field>
+                )}
+
+                {/* App picker — shown only when mode is 'app' */}
+                {settings.autoStartMode === 'app' && (
+                  <Field
+                    label="App to open at launch"
+                    hint={
+                      apps.length === 0
+                        ? 'No apps available. Open the Apps page first, then return here.'
+                        : 'Choose from the Power BI apps you have access to.'
+                    }
+                  >
+                    {apps.length > 0 ? (
+                      <Combobox
+                        placeholder="Select an app..."
+                        value={autoStartSelectedAppName}
+                        selectedOptions={
+                          settings.autoStartAppId ? [settings.autoStartAppId] : []
+                        }
+                        onOptionSelect={(_, data) => {
+                          if (data.optionValue) handleAutoStartAppSelect(data.optionValue);
+                        }}
+                        aria-label="App to open at launch"
+                      >
+                        {apps.map((app) => (
+                          <Option key={app.id} value={app.id} text={app.name}>
+                            <Text>{app.name}</Text>
+                          </Option>
+                        ))}
+                      </Combobox>
+                    ) : (
+                      <Text size={200} className="text-neutral-foreground-3">
+                        No apps available. Open the Apps page and return here.
                       </Text>
                     )}
                   </Field>

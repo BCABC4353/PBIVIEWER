@@ -145,9 +145,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoStartReportId: undefined,
   autoRefreshEnabled: true,
   autoRefreshInterval: 10,
-  // PROD-B2: launch-time auto-start of a specific report.
+  // PROD-B2: launch-time auto-start of a specific report or app.
   autoStartMode: 'off',
   autoStartWorkspaceId: undefined,
+  autoStartAppId: undefined,
   // BEH-B3: whether to wipe usage history on logout.
   usageClearOnLogout: 'never',
 };

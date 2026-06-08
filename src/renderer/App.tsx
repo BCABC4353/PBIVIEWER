@@ -137,30 +137,38 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           onDone();
           return;
         }
-        const { autoStartMode, autoStartReportId, autoStartWorkspaceId } = settingsResp.data;
+        const {
+          autoStartMode,
+          autoStartReportId,
+          autoStartWorkspaceId,
+          autoStartAppId,
+        } = settingsResp.data;
 
-        if (
-          autoStartMode !== 'report' ||
-          !autoStartReportId ||
-          !autoStartWorkspaceId
-        ) {
+        // 'report' — resolve the report so we know it still exists, then deep-link.
+        if (autoStartMode === 'report' && autoStartReportId && autoStartWorkspaceId) {
+          const reportsResp = await window.electronAPI.content.getReports(autoStartWorkspaceId);
+          if (
+            reportsResp.success &&
+            reportsResp.data.some((r) => r.id === autoStartReportId)
+          ) {
+            navigate(`/report/${autoStartWorkspaceId}/${autoStartReportId}`, { replace: true });
+          }
+          // Found -> deep-linked above; not found / API error -> fall through to Home.
           onDone();
           return;
         }
 
-        // Attempt to resolve the report so we know the item still exists.
-        const reportsResp = await window.electronAPI.content.getReports(autoStartWorkspaceId);
-
-        if (reportsResp.success) {
-          const match = reportsResp.data.find((r) => r.id === autoStartReportId);
-          if (match) {
-            // Item found — deep-link and let the viewer handle its own loading.
-            navigate(`/report/${autoStartWorkspaceId}/${autoStartReportId}`, { replace: true });
-            onDone();
-            return;
+        // 'app' — verify the app still exists (and is installed) before deep-linking.
+        if (autoStartMode === 'app' && autoStartAppId) {
+          const appResp = await window.electronAPI.content.getApp(autoStartAppId);
+          if (appResp.success && appResp.data) {
+            navigate(`/app/${autoStartAppId}`, { replace: true });
           }
+          onDone();
+          return;
         }
-        // Item not found or API error — fall back to Home gracefully.
+
+        // 'off' or misconfigured — fall back to Home gracefully.
         onDone();
       } catch {
         // Defensive: any unexpected throw falls back to Home.

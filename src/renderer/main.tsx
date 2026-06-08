@@ -30,8 +30,14 @@ const ThemedApp: React.FC = () => {
   const [systemDark, setSystemDark] = useState(false);
 
   useEffect(() => {
-    // Load initial settings from the store
-    loadSettings();
+    // Load initial settings, then force the sidebar to start collapsed on every
+    // launch (icons only). The collapse is NOT persisted — the user can still
+    // expand it for the session via the toggle; the next launch starts collapsed.
+    void loadSettings().then(() => {
+      useSettingsStore.setState((s) => ({
+        settings: { ...s.settings, sidebarCollapsed: true },
+      }));
+    });
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');

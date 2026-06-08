@@ -91,6 +91,12 @@ export function validateAppSettingsPatch(
     else if (typeof v === 'string' && UUID_REGEX.test(v)) sanitized.autoStartReportId = v;
     else rejected.push('autoStartReportId');
   }
+  if ('autoStartAppId' in src) {
+    const v = src.autoStartAppId;
+    if (v === undefined) sanitized.autoStartAppId = undefined;
+    else if (typeof v === 'string' && UUID_REGEX.test(v)) sanitized.autoStartAppId = v;
+    else rejected.push('autoStartAppId');
+  }
   if ('autoRefreshEnabled' in src) {
     const v = src.autoRefreshEnabled;
     if (typeof v === 'boolean') sanitized.autoRefreshEnabled = v;
@@ -112,7 +118,7 @@ export function validateAppSettingsPatch(
   // PROD-B2: launch-time auto-start.
   if ('autoStartMode' in src) {
     const v = src.autoStartMode;
-    if (v === 'off' || v === 'report') sanitized.autoStartMode = v;
+    if (v === 'off' || v === 'report' || v === 'app') sanitized.autoStartMode = v;
     else rejected.push('autoStartMode');
   }
   if ('autoStartWorkspaceId' in src) {
