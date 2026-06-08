@@ -15,6 +15,7 @@ import {
   SearchRegular,
   SignOutRegular,
   PersonRegular,
+  PersonSwapRegular,
 } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useSearchStore } from '../../stores/search-store';
@@ -69,7 +70,7 @@ function emailToDomain(email: string): string {
 // ============================================================
 
 export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' }) => {
-  const { user } = useAuthStore();
+  const { user, switchAccount, isLoading } = useAuthStore();
   const { openSearch } = useSearchStore();
   const { settings } = useSettingsStore();
   const { triggerSignOut, SignOutDialog } = useSignOutConfirm();
@@ -206,6 +207,16 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                         </div>
                       </MenuItem>
                       <MenuDivider />
+                      {/* PROD-B1: switch account — logs out then re-runs an
+                          interactive login with the account picker. */}
+                      <MenuItem
+                        icon={<PersonSwapRegular />}
+                        onClick={switchAccount}
+                        disabled={isLoading}
+                        aria-label="Switch account"
+                      >
+                        Switch account
+                      </MenuItem>
                       {/* PROD-S7: open the confirmation dialog instead of
                           calling logout() directly */}
                       <MenuItem icon={<SignOutRegular />} onClick={triggerSignOut}>

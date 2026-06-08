@@ -18,6 +18,8 @@ export const IPC_CHANNELS = {
     getToken: 'auth:get-token',
     isAuthenticated: 'auth:is-authenticated',
     validateToken: 'auth:validate-token',
+    // PROD-B1: logout-then-login(select_account) account switch.
+    switchAccount: 'auth:switch-account',
   },
   content: {
     getWorkspaces: 'content:get-workspaces',

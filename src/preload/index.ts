@@ -13,6 +13,8 @@ const electronAPI: ElectronAPI = {
     getAccessToken: () => ipcRenderer.invoke('auth:get-token'),
     isAuthenticated: () => ipcRenderer.invoke('auth:is-authenticated'),
     validateToken: () => ipcRenderer.invoke('auth:validate-token'),
+    // PROD-B1: account switcher bridge — logout-then-login(select_account).
+    switchAccount: () => ipcRenderer.invoke('auth:switch-account'),
   },
 
   content: {

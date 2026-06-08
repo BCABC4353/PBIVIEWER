@@ -10,6 +10,7 @@ interface AuthState {
   // Actions
   checkAuth: () => Promise<void>;
   login: () => Promise<void>;
+  switchAccount: () => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -118,6 +119,60 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       // Catches both the timeout rejection and unexpected IPC errors.
       set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+
+  // PROD-B1: in-app account switch. The main process logs out (clearing caches
+  // + partition cookies) and then re-runs an interactive login with the account
+  // picker. On success we replicate login's success state (the new identity is
+  // set; evict-on-logout.ts observes the identity change and wipes content +
+  // search caches). On failure — including LOGIN_CANCELLED — we set
+  // isAuthenticated:false: the user is already signed out from the logout phase,
+  // so the app falls back to the LoginScreen.
+  switchAccount: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await window.electronAPI.auth.switchAccount();
+
+      if (response.success && response.data.success) {
+        set({
+          user: response.data.user,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else if (!response.success && response.error.code === 'LOGIN_IN_PROGRESS') {
+        // PROD-B1 (antagonist P1): a previous switch/login is still mid-flight
+        // (e.g. a double-click). Ignore this duplicate invocation and let the
+        // in-flight operation drive state. Falling through to the else branch
+        // here would clobber user/isAuthenticated to null AFTER the first
+        // switch already succeeded — wrongly signing the user out.
+        return;
+      } else {
+        // Logout already happened in the main process, so we are signed out.
+        // LOGIN_CANCELLED is an expected, non-error outcome (user dismissed the
+        // picker) — fall back to the login screen without a scary message. Any
+        // other failure surfaces its message for the user.
+        const cancelled =
+          !response.success && response.error.code === 'LOGIN_CANCELLED';
+        const errorMessage = cancelled
+          ? null
+          : !response.success
+            ? (response.error.userMessage ?? response.error.message)
+            : (!response.data.success ? response.data.error : 'Account switch failed');
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: errorMessage,
+        });
+      }
+    } catch (error) {
+      set({
+        user: null,
+        isAuthenticated: false,
         isLoading: false,
         error: error instanceof Error ? error.message : String(error),
       });

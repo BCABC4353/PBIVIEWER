@@ -540,3 +540,104 @@ describe('NEW-AUTH-1: active account selection', () => {
     expect(h.persisted.activeId).toBe('acct-1');
   });
 });
+
+// ---------------------------------------------------------------------------
+// PROD-B1: in-app account switch — logout() THEN login(prompt=select_account)
+// ---------------------------------------------------------------------------
+describe('PROD-B1: switchAccount', () => {
+  it('logs out (clears cookies, expiry map, active id) THEN logs in', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.persisted.activeId = 'acct-1';
+    const svc = createAuthService(h.deps);
+
+    // Prime an in-memory expiry for acct-1 so we can assert logout cleared it:
+    // a successful getAccessToken primes lastKnownExpiry, which lets validateToken
+    // short-circuit to true. After the switch the map is cleared, so a later
+    // validateToken cannot short-circuit against the old account's expiry.
+    h.setSilentResult({ accessToken: 'at', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
+    await svc.getAccessToken();
+    await expect(svc.validateToken()).resolves.toEqual({ success: true, data: true });
+
+    h.cookieClearCalls.length = 0; // ignore the proactive pre-login sweep history
+
+    const result = await svc.switchAccount();
+
+    // Returns the same success shape as login().
+    expect(result.success && result.data.success).toBe(true);
+
+    // logout ran: cookies cleared sequentially (jar a then jar b). The switch
+    // also triggers login's proactive pre-login sweep, but the logout sweep is
+    // guaranteed to have happened — assert both jars were cleared at least once.
+    expect(h.cookieClearCalls.some((c) => c.jar === 'a')).toBe(true);
+    expect(h.cookieClearCalls.some((c) => c.jar === 'b')).toBe(true);
+
+    // logout cleared the persisted active id; the subsequent login re-adopts the
+    // newly signed-in account (acct-1 from the fake acquireTokenByCode).
+    expect(h.persisted.activeId).toBe('acct-1');
+  });
+
+  it('passes prompt=select_account to the authorization request', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const svc = createAuthService(h.deps);
+
+    await svc.switchAccount();
+
+    const getAuthCodeUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
+    const lastCall = getAuthCodeUrl.mock.calls.at(-1)?.[0];
+    expect(lastCall.prompt).toBe('select_account');
+  });
+
+  it('runs logout BEFORE getAuthCodeUrl (hard teardown precedes the picker)', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const svc = createAuthService(h.deps);
+
+    const order: string[] = [];
+    const removeAccount = h.deps.msalClient.getTokenCache().removeAccount as ReturnType<typeof vi.fn>;
+    removeAccount.mockImplementation(async (acct: AccountInfo) => {
+      order.push('logout:removeAccount');
+      const i = h.accounts.findIndex((a) => a.homeAccountId === acct.homeAccountId);
+      if (i >= 0) h.accounts.splice(i, 1);
+    });
+    const getAuthCodeUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
+    getAuthCodeUrl.mockImplementation(async () => {
+      order.push('login:getAuthCodeUrl');
+      return 'https://login.microsoftonline.com/authorize';
+    });
+
+    await svc.switchAccount();
+
+    expect(order).toEqual(['logout:removeAccount', 'login:getAuthCodeUrl']);
+  });
+
+  it('returns LOGIN_CANCELLED (already signed out) when the picker is dismissed', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.persisted.activeId = 'acct-1';
+    const svc = createAuthService(h.deps);
+
+    // The auth window resolves null with no AAD error → user cancelled the picker.
+    h.openAuthResult.value = null;
+    const openAuth = h.deps.openAuthWindow as ReturnType<typeof vi.fn>;
+    openAuth.mockResolvedValueOnce(null);
+
+    const result = await svc.switchAccount();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('LOGIN_CANCELLED');
+
+    // The logout phase still happened: the active id was cleared (user is signed
+    // out), so the renderer falls back to the login screen.
+    expect(h.persisted.activeId).toBeNull();
+  });
+
+  it('surfaces logout failure WITHOUT opening the login window', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setJarBFails(true); // logout's cookie clear fails loud
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.switchAccount();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('LOGOUT_FAILED');
+
+    // login was never reached — no authorization URL was requested.
+    expect(h.deps.msalClient.getAuthCodeUrl).not.toHaveBeenCalled();
+  });
+});

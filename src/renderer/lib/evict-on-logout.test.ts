@@ -23,6 +23,18 @@ function seedAuthAuthenticated(): void {
   useAuthStore.setState({ isAuthenticated: true, user: null, isLoading: false, error: null });
 }
 
+// PROD-B1: seed an authenticated state carrying a concrete identity. The user's
+// id is the homeAccountId per the Stage-2 contract; evict-on-logout watches it
+// to detect an account switch (id A → id B).
+function seedAuthAuthenticatedAs(id: string): void {
+  useAuthStore.setState({
+    isAuthenticated: true,
+    user: { id, displayName: 'User ' + id, email: id + '@example.com' },
+    isLoading: false,
+    error: null,
+  });
+}
+
 function seedAuthSignedOut(): void {
   useAuthStore.setState({ isAuthenticated: false, user: null, isLoading: false, error: null });
 }
@@ -151,6 +163,79 @@ describe('initEvictOnLogout', () => {
 
     expect(contentReset).toHaveBeenCalledTimes(1);
     expect(searchInvalidate).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
+  // PROD-B1: account switch is an identity change between two authenticated
+  // states (id A → id B). Eviction must fire exactly once.
+  it('evicts when the identity changes between two authenticated states (A → B)', () => {
+    seedAuthAuthenticatedAs('acct-A');
+    const contentReset = spyOnContentReset();
+    const searchInvalidate = spyOnSearchInvalidateAll();
+
+    const cleanup = initEvictOnLogout();
+
+    // Account switch: still authenticated, but a different user id.
+    seedAuthAuthenticatedAs('acct-B');
+
+    expect(contentReset).toHaveBeenCalledTimes(1);
+    expect(searchInvalidate).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
+  // PROD-B1 (antagonist P2): switching BACK to a previously-cached account
+  // (id B → id A) is still an identity change and must evict — account A must
+  // not see account B's cached workspace/search data.
+  it('evicts when switching back to a previously-seen identity (B → A)', () => {
+    seedAuthAuthenticatedAs('acct-B');
+    const contentReset = spyOnContentReset();
+    const searchInvalidate = spyOnSearchInvalidateAll();
+
+    const cleanup = initEvictOnLogout();
+
+    seedAuthAuthenticatedAs('acct-A');
+
+    expect(contentReset).toHaveBeenCalledTimes(1);
+    expect(searchInvalidate).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
+  // PROD-B1: login (null identity → A) must NOT evict — there is no previous
+  // user's data to wipe, and evicting would clear a freshly-loaded view.
+  it('does NOT evict on login (no identity → A)', () => {
+    seedAuthSignedOut(); // signed out, user null
+    const contentReset = spyOnContentReset();
+    const searchInvalidate = spyOnSearchInvalidateAll();
+
+    const cleanup = initEvictOnLogout();
+
+    // Login: become authenticated with a concrete identity.
+    seedAuthAuthenticatedAs('acct-A');
+
+    expect(contentReset).not.toHaveBeenCalled();
+    expect(searchInvalidate).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  // PROD-B1: an authenticated state-update that leaves the identity unchanged
+  // (e.g. a loading flag toggling) must NOT evict.
+  it('does NOT evict when an authenticated update keeps the same identity', () => {
+    seedAuthAuthenticatedAs('acct-A');
+    const contentReset = spyOnContentReset();
+    const searchInvalidate = spyOnSearchInvalidateAll();
+
+    const cleanup = initEvictOnLogout();
+
+    // Same identity, unrelated field changes.
+    useAuthStore.setState({ isLoading: true });
+    useAuthStore.setState({ error: 'transient' });
+
+    expect(contentReset).not.toHaveBeenCalled();
+    expect(searchInvalidate).not.toHaveBeenCalled();
 
     cleanup();
   });

@@ -50,6 +50,8 @@ function createElectronAPIMock(): ElectronAPI {
       getAccessToken: vi.fn().mockResolvedValue({ success: true, data: defaultToken }),
       isAuthenticated: vi.fn().mockResolvedValue({ success: true, data: false }),
       validateToken: vi.fn().mockResolvedValue({ success: true, data: false }),
+      // PROD-B1: account switcher — same return shape as login().
+      switchAccount: vi.fn().mockResolvedValue({ success: true, data: defaultAuthResult }),
     },
 
     content: {

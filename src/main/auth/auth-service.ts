@@ -360,7 +360,18 @@ class AuthService {
     }
   }
 
-  async login(): Promise<IPCResponse<AuthResult>> {
+  /**
+   * PROD-B1: optional knobs for an interactive login.
+   *
+   * `prompt` is forwarded verbatim to MSAL's authorization request. The default
+   * (used by every existing caller that passes nothing) is 'select_account',
+   * which preserves the historical behaviour — login() always asked AAD to show
+   * the account picker. Threading it as an option makes the account-switcher's
+   * intent explicit at the call site and leaves room for future callers to pass
+   * e.g. 'login' / 'consent' without touching this method again.
+   */
+  async login(options?: { prompt?: string }): Promise<IPCResponse<AuthResult>> {
+    const prompt = options?.prompt ?? 'select_account';
     try {
       // A fast double-click on the Sign-in button used to overwrite
       // pendingAuthState mid-flight, which then tripped the CSRF check on the
@@ -407,7 +418,7 @@ class AuthService {
         codeChallenge: challenge,
         codeChallengeMethod: 'S256',
         state: state,
-        prompt: 'select_account',
+        prompt,
       };
 
       const authCodeUrl = await this.deps.msalClient.getAuthCodeUrl(authCodeUrlParams);
@@ -674,6 +685,33 @@ class AuthService {
         error: { code: 'LOGOUT_FAILED', message: String(error) },
       };
     }
+  }
+
+  /**
+   * PROD-B1: in-app account switch. Fully tears down the current session
+   * (logout: clears the persistent + MSAL caches, the lastKnownExpiry map, the
+   * active-account selection, AND both cookie jars incl. the partition jar) and
+   * then re-runs an interactive login with prompt=select_account so AAD shows
+   * the account picker. The hard logout-first is deliberate: it guarantees the
+   * picker is honored (no stale SSO cookie silently re-signing the same account)
+   * and that no per-account state from the outgoing account leaks into the new
+   * one.
+   *
+   * Returns the SAME shape as login() so the renderer can replicate its
+   * login-success handling. If logout fails we surface that failure rather than
+   * opening a login window on top of a half-torn-down session. A LOGIN_CANCELLED
+   * (or any login failure) is returned as-is; the user is already signed out, so
+   * the renderer falls back to the login screen.
+   */
+  async switchAccount(): Promise<IPCResponse<AuthResult>> {
+    const logoutResult = await this.logout();
+    if (!logoutResult.success) {
+      return {
+        success: false,
+        error: logoutResult.error,
+      };
+    }
+    return await this.login({ prompt: 'select_account' });
   }
 }
 

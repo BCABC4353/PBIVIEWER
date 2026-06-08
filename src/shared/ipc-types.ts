@@ -64,6 +64,8 @@ export interface ElectronAPI {
     getAccessToken: () => Promise<IPCResponse<TokenResult>>;
     isAuthenticated: () => Promise<IPCResponse<boolean>>;
     validateToken: () => Promise<IPCResponse<boolean>>;
+    // PROD-B1: account switch — same return shape as login().
+    switchAccount: () => Promise<IPCResponse<AuthResult>>;
   };
 
   content: {
