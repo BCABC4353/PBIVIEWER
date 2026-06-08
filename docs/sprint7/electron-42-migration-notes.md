@@ -65,6 +65,10 @@ network. The **runtime** behavior of an Electron major bump cannot be validated 
 real machine, run `npm install` (this downloads the Electron 42 binary, which was skipped
 in CI), then `npm run dev` (or launch the packaged build) and walk this checklist:
 
+> **Prerequisite on your machine:** the bump pulls `@electron/get` 5.x, which requires
+> **Node ≥ 22.12** to download the Electron 42 binary. Check with `node -v`; if older, run
+> `npm install` will fail at the electron postinstall. Upgrade Node (or use nvm) first.
+
 ### Hotel smoke checklist
 1. **App launches** — window opens, no white screen, no console errors on boot.
 2. **Sign in** — the AAD login window appears and completes; you land on Home.
