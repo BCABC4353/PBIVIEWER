@@ -12,6 +12,14 @@ import type {
   TokenResult,
 } from '../../shared/types';
 
+// Dataset -> dataflow lineage is static, so cache resolved links: the 5-min
+// freshness poll then re-fetches refresh TIMES only, not lineage every cycle.
+const lineageCache = new Map<
+  string,
+  { value: Array<{ dataflowId: string; workspaceId: string }>; expires: number }
+>();
+const LINEAGE_TTL_MS = 30 * 60 * 1000;
+
 // ---------------------------------------------------------------------------
 // ARCH-B4: dependency-injection seam
 // ---------------------------------------------------------------------------
@@ -953,13 +961,33 @@ class PowerBIApiService {
   }
 
   /**
-   * Resolve the upstream dataflow(s) feeding the given datasets in a workspace.
+   * Resolve the upstream dataflow(s) feeding the given datasets. Lineage is
+   * static, so the result is cached for LINEAGE_TTL_MS — the freshness poll
+   * re-fetches refresh TIMES, not lineage, on every cycle.
+   */
+  private async resolveUpstreamDataflows(
+    workspaceId: string,
+    datasetIds: string[],
+  ): Promise<Array<{ dataflowId: string; workspaceId: string }>> {
+    const cacheKey = `${workspaceId}|${[...datasetIds].sort().join(',')}`;
+    const cached = lineageCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.value;
+    const result = await this.resolveUpstreamDataflowsUncached(workspaceId, datasetIds);
+    // Cache only a non-empty result; an empty one may be a transient failure and
+    // re-resolving next poll is cheap + self-heals.
+    if (result.length > 0) {
+      lineageCache.set(cacheKey, { value: result, expires: Date.now() + LINEAGE_TTL_MS });
+    }
+    return result;
+  }
+
+  /**
    * Primary: GET /groups/{ws}/datasets/upstreamDataflows (Dataset.Read.All) →
    * filter to our datasetIds. Fallback (no recognized link): if the workspace has
    * exactly one dataflow, assume it. The dataflow can live in a different
    * workspace than the dataset (workspaceObjectId on the link).
    */
-  private async resolveUpstreamDataflows(
+  private async resolveUpstreamDataflowsUncached(
     workspaceId: string,
     datasetIds: string[],
   ): Promise<Array<{ dataflowId: string; workspaceId: string }>> {

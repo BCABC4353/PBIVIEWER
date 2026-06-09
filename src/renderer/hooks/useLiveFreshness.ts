@@ -39,11 +39,15 @@ export function useLiveFreshness(
 
   useEffect(() => {
     void poll();
-    const id = setInterval(() => {
-      setTick((n) => n + 1);
-      void poll();
-    }, 60_000);
-    return () => clearInterval(id);
+    // Network fetch every 5 min — the backing data refreshes ~every 15 min, so
+    // polling faster just burns Power BI API calls. The "(N min ago)" label still
+    // advances every minute via a separate LOCAL tick (no network call).
+    const pollId = setInterval(() => void poll(), 5 * 60 * 1000);
+    const tickId = setInterval(() => setTick((n) => n + 1), 60 * 1000);
+    return () => {
+      clearInterval(pollId);
+      clearInterval(tickId);
+    };
   }, [poll]);
 
   // Re-poll right after a (re)load so the stamp + the comparison reflect the
