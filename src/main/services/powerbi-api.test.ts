@@ -297,7 +297,31 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }) as unknown as typeof fetch;
   }
 
-  it('getDatasetRefreshInfo does NOT surface a time for a FAILED refresh (no false freshness)', async () => {
+  it('getDatasetRefreshInfo prefers the latest SUCCESSFUL refresh over a more-recent failed attempt', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          value: [
+            // newest-first: latest attempt FAILED, but an earlier one published data
+            { requestId: 'r', id: '2', refreshType: 'Scheduled', startTime: '2026-06-08T00:00:00.000Z', endTime: '2026-06-08T00:01:00.000Z', status: 'Failed' },
+            { requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: '2026-06-07T00:00:00.000Z', endTime: '2026-06-07T00:05:00.000Z', status: 'Completed' },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Show when data was actually published (the Completed one), not the failed attempt.
+      expect(result.data.lastRefreshTime).toBe('2026-06-07T00:05:00.000Z');
+      expect(result.data.lastRefreshStatus).toBe('Completed');
+    }
+  });
+
+  it('getDatasetRefreshInfo falls back to the latest attempt so a stamp still appears when none succeeded', async () => {
     const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
     globalThis.fetch = vi
       .fn()
@@ -308,7 +332,8 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.lastRefreshTime).toBeUndefined();
+      // No success in history → still surface a timestamp (better than a blank stamp).
+      expect(result.data.lastRefreshTime).toBe('2026-06-08T00:01:00.000Z');
       expect(result.data.lastRefreshStatus).toBe('Failed');
     }
   });

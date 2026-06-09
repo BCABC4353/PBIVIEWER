@@ -806,11 +806,15 @@ class PowerBIApiService {
 
   async getDatasetRefreshInfo(datasetId: string, workspaceId?: string): Promise<IPCResponse<DatasetRefreshInfo>> {
     try {
-      // Get the most recent refresh history (top 1)
-      // Use workspace context if provided, otherwise try direct access (for My Workspace)
+      // Fetch the recent refresh history (not just the latest one). A single
+      // Failed/Cancelled or in-flight latest attempt must NOT blank the "Data
+      // refreshed" stamp when an earlier refresh actually published data — that
+      // regressed the common case (a recent failed scheduled refresh hid the
+      // dataset timestamp entirely). Use workspace context if provided, otherwise
+      // try direct access (for My Workspace).
       const endpoint = workspaceId
-        ? `/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=1`
-        : `/datasets/${datasetId}/refreshes?$top=1`;
+        ? `/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=10`
+        : `/datasets/${datasetId}/refreshes?$top=10`;
 
       const response = await this.makeRequest<PowerBIApiResponse<{
         requestId: string;
@@ -821,21 +825,21 @@ class PowerBIApiService {
         status: string;
       }>>(endpoint);
 
-      const lastRefresh = response.value?.[0];
-      if (lastRefresh) {
-        const status = lastRefresh.status as DatasetRefreshInfo['lastRefreshStatus'];
-        // Only a Completed refresh (or Unknown, which the v1 /refreshes endpoint
-        // reports for completed on-demand refreshes) actually PUBLISHED data. A
-        // Failed/Cancelled attempt still carries a recent endTime; surfacing it
-        // would advertise stale data as freshly refreshed and fire a false
-        // "new data available" nudge. Keep the status either way so callers can
-        // still reason about it.
-        const isSuccessLike = status === 'Completed' || status === 'Unknown';
+      const refreshes = response.value ?? [];
+      // 'Completed' (or 'Unknown', which the v1 /refreshes endpoint reports for a
+      // completed on-demand refresh) means data was actually published. Prefer the
+      // most recent such refresh (the list is newest-first) so we report when the
+      // on-screen data was really last refreshed — not a failed attempt's time.
+      const isSuccessLike = (s: string | undefined): boolean => s === 'Completed' || s === 'Unknown';
+      // Fall back to the latest entry so a timestamp still appears even if no
+      // recent refresh succeeded (better an honest "last attempt" stamp than none).
+      const chosen = refreshes.find((r) => isSuccessLike(r.status)) ?? refreshes[0];
+      if (chosen) {
         return {
           success: true,
           data: {
-            lastRefreshTime: isSuccessLike ? lastRefresh.endTime || lastRefresh.startTime : undefined,
-            lastRefreshStatus: status,
+            lastRefreshTime: chosen.endTime || chosen.startTime,
+            lastRefreshStatus: chosen.status as DatasetRefreshInfo['lastRefreshStatus'],
           },
         };
       }
