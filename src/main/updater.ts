@@ -3,6 +3,21 @@ import log from 'electron-log/main';
 import { autoUpdater } from 'electron-updater';
 
 const GITHUB_REPO = 'BCABC4353/PBIVIEWER';
+// Tiny "force" policy file in the repo. Set forceMinVersion to a just-published
+// version to make all running Windows apps below it update + restart NOW (within
+// ~10-15 min) instead of waiting for the user's next restart. See docs/UPDATING.md.
+const FORCE_POLICY_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/update-policy.json`;
+
+// Routine auto-update check cadence (non-urgent updates install on next quit).
+const ROUTINE_CHECK_MS = 2 * 60 * 60 * 1000; // 2h
+// Force-policy poll cadence — a cheap raw-file fetch; drives "fix it NOW" updates.
+const FORCE_POLL_MS = 10 * 60 * 1000; // 10 min
+// Grace before an unattended (e.g. wall-display) forced restart fires anyway.
+const FORCE_GRACE_MS = 30 * 1000;
+
+let forceImmediate = false;
+let updateDownloaded = false;
+let installing = false;
 
 /**
  * Compare "major.minor.patch" version strings; true if `a` is newer than `b`.
@@ -28,7 +43,8 @@ function isNewerVersion(a: string, b: string): boolean {
  * (it requires a Developer ID signature on both the running app and the update),
  * so we only CHECK GitHub for a newer release and offer to open the download
  * page. This never writes to the app bundle, so it can never brick the install.
- * Fail-silent on any error (offline, proxy, rate limit) — never block launch.
+ * Forcing is not possible on macOS — it's a manual install — so this is
+ * notify-only. Fail-silent on any error; never block launch.
  */
 async function notifyIfUpdateAvailable(): Promise<void> {
   try {
@@ -54,39 +70,97 @@ async function notifyIfUpdateAvailable(): Promise<void> {
   }
 }
 
+/** True if the repo's force-policy marks our current version as below the forced minimum. */
+async function isForcedBehind(): Promise<boolean> {
+  try {
+    const res = await fetch(FORCE_POLICY_URL, { headers: { 'User-Agent': 'PBIVIEWER-updater' } });
+    if (!res.ok) return false;
+    const policy = (await res.json()) as { forceMinVersion?: string };
+    return Boolean(policy.forceMinVersion && isNewerVersion(policy.forceMinVersion, app.getVersion()));
+  } catch {
+    return false; // fail-silent: no policy => no force (gentle default)
+  }
+}
+
+/** A forced (mandatory) update is downloaded — warn briefly, then restart into it. */
+function forceInstallNow(): void {
+  if (installing) return;
+  installing = true;
+  log.info('[updater] forced update ready — restarting to apply.');
+  const restart = () => {
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (err) {
+      log.warn('[updater] quitAndInstall failed:', err);
+    }
+  };
+  void dialog
+    .showMessageBox({
+      type: 'warning',
+      buttons: ['Restart now'],
+      defaultId: 0,
+      message: 'A required update is ready.',
+      detail: 'Power BI Viewer will restart shortly to apply an important update.',
+    })
+    .then(restart);
+  // Restart regardless after a short grace (covers unattended wall displays).
+  setTimeout(restart, FORCE_GRACE_MS);
+}
+
 /**
  * Wire app updating.
- * - Windows: real silent auto-update via electron-updater — downloads in the
- *   background and installs on the NEXT quit (autoInstallOnAppQuit). The download
- *   is isolated to a temp dir and never touches the running version, so a failed
- *   update just leaves the user on the current working build.
+ * - Windows: electron-updater. Routine updates download in the background and
+ *   install silently on the NEXT quit (autoInstallOnAppQuit). A repo-side
+ *   "force" policy (update-policy.json) can mark an update mandatory, which pulls
+ *   it and restarts NOW (~10-15 min) instead of waiting for a restart.
  * - macOS / other: notify-only (Squirrel.Mac can't update an unsigned app).
  * Only runs in a packaged build. Every failure is swallowed so updating can
- * never crash the app or block startup.
+ * never crash the app or block startup. The download is isolated to a temp dir
+ * and never touches the running version, so a failed update is harmless.
  */
 export function setupAutoUpdater(): void {
   if (!app.isPackaged) return;
 
-  if (process.platform === 'win32') {
-    try {
-      autoUpdater.logger = log;
-      autoUpdater.autoDownload = true;
-      autoUpdater.autoInstallOnAppQuit = true; // silent install on next restart
-      autoUpdater.allowDowngrade = false;
-      autoUpdater.allowPrerelease = false;
-      // A failed update must NEVER crash the app. Swallow every error.
-      autoUpdater.on('error', (err) =>
-        log.warn('[updater] error (staying on current version):', err),
-      );
-      const check = () =>
-        autoUpdater.checkForUpdates().catch((err) => log.warn('[updater] check failed:', err));
-      void check();
-      // Re-check every 6h for users who leave the app open for days (wall displays).
-      setInterval(check, 6 * 60 * 60 * 1000);
-    } catch (err) {
-      log.warn('[updater] setup failed (non-fatal):', err);
-    }
-  } else {
+  if (process.platform !== 'win32') {
     void notifyIfUpdateAvailable();
+    return;
+  }
+
+  try {
+    autoUpdater.logger = log;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true; // gentle default: install on next restart
+    autoUpdater.allowDowngrade = false;
+    autoUpdater.allowPrerelease = false;
+    autoUpdater.on('error', (err) =>
+      log.warn('[updater] error (staying on current version):', err),
+    );
+    autoUpdater.on('update-downloaded', () => {
+      updateDownloaded = true;
+      // Mandatory update -> apply immediately; otherwise wait for the gentle
+      // autoInstallOnAppQuit path (next restart).
+      if (forceImmediate) forceInstallNow();
+    });
+
+    const routineCheck = () =>
+      autoUpdater.checkForUpdates().catch((err) => log.warn('[updater] check failed:', err));
+
+    // Force lever: poll the tiny policy file. If we're below its forceMinVersion,
+    // this update is mandatory -> pull + apply it now rather than on next restart.
+    const forceCheck = async () => {
+      if (forceImmediate) return; // already armed
+      if (await isForcedBehind()) {
+        forceImmediate = true;
+        if (updateDownloaded) forceInstallNow();
+        else routineCheck();
+      }
+    };
+
+    void routineCheck();
+    void forceCheck();
+    setInterval(routineCheck, ROUTINE_CHECK_MS);
+    setInterval(() => void forceCheck(), FORCE_POLL_MS);
+  } catch (err) {
+    log.warn('[updater] setup failed (non-fatal):', err);
   }
 }
