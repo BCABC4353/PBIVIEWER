@@ -103,7 +103,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: build-output/*.exe
+          # latest.yml is the update metadata electron-updater reads from the
+          # release to detect + verify new versions. It MUST ship next to the .exe.
+          path: |
+            build-output/*.exe
+            build-output/latest.yml
           retention-days: 30
 
   build-mac:

@@ -5,6 +5,7 @@ import { installCsp, registerWebviewSecurity } from './security';
 import { createWindow, getMainWindow, isDev } from './window';
 import { setupLogging } from './ipc/log';
 import { registerAllIpcHandlers } from './ipc/register';
+import { setupAutoUpdater } from './updater';
 
 setupLogging();
 
@@ -54,6 +55,10 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     createWindow();
+
+    // Auto-update: Windows installs silently on next restart; macOS shows a
+    // "new version available" notice. No-op in dev / unpackaged builds.
+    setupAutoUpdater();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

@@ -2,8 +2,14 @@ appId: com.bcabc.powerbi-viewer
 productName: Power BI Viewer
 copyright: Copyright © 2024-2026
 
-# Disable auto-publish - let GitHub Actions handle releases
-publish: null
+# Update feed: electron-updater reads this to generate app-update.yml (bundled in
+# the packaged app) and latest.yml (the release metadata it checks on GitHub).
+# GitHub Actions still does the actual upload (we build with --publish never), so
+# this only GENERATES the metadata — it does not auto-publish.
+publish:
+  provider: github
+  owner: BCABC4353
+  repo: PBIVIEWER
 
 directories:
   output: build-output
@@ -32,7 +38,15 @@ win:
       arch:
         - x64
   icon: assets/icons/icon.ico
-  artifactName: ${productName}-${version}-Windows-Setup.${ext}
+  # No spaces in the filename: electron-updater's latest.yml URL-encodes spaces to
+  # hyphens while GitHub names the uploaded asset with dots, which would 404 the
+  # auto-update download. A space-free name keeps disk == latest.yml == release asset.
+  artifactName: PowerBI-Viewer-${version}-Windows-Setup.${ext}
+  # The build is unsigned, so electron-updater would otherwise reject the update
+  # ("New version is not signed by the application owner"). Skip the publisher-
+  # signature check so unsigned -> unsigned auto-updates install. Re-enable (and
+  # set publisherName) when a code-signing certificate is added.
+  verifyUpdateCodeSignature: false
   # ============================================================================
   # TODO: CODE SIGNING (backlog #1 — retires the SmartScreen click-through)
   # ----------------------------------------------------------------------------
