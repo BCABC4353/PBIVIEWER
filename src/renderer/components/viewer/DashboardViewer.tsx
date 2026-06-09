@@ -190,6 +190,9 @@ export const DashboardViewer: React.FC = () => {
         dataflowRefresh={dataflowRefreshTime}
         freshnessLabel="Oldest data"
         showRelativeAge
+        // Unlike ReportViewer (which suppresses the nudge when auto-refresh is on because it can
+        // call report.refresh() in place), dashboard embeds CANNOT be refreshed in place, so the
+        // "New data" nudge is intentionally always shown here regardless of the autoRefresh setting.
         newDataAvailable={newDataAvailable}
         exportStatus={exportStatus}
         onRefresh={handleRefresh}

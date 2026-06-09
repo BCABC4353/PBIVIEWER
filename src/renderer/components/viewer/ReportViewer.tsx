@@ -177,9 +177,11 @@ export const ReportViewer: React.FC = () => {
       },
     }),
     // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
-    // workspaceId is read inside loaded; include it for correctness.
+    // workspaceId is read inside loaded and reportId inside error (404 eviction);
+    // include both so a same-workspace report-to-report switch rebuilds the
+    // handlers and the error path evicts the CORRECT (current) item, not the prior one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspaceId]
+    [workspaceId, reportId]
   );
 
   const {
@@ -213,13 +215,17 @@ export const ReportViewer: React.FC = () => {
   // lets the user refresh manually instead.
   useEffect(() => {
     if (!autoRefreshEnabled || !newDataAvailable) return;
+    // Skip while a load/reload is in flight: the embed may be mid-teardown, so
+    // refreshing it is wasted work on a dying handle and would stamp a lastLoadAt
+    // that doesn't match what's on screen. The next freshness poll re-evaluates.
+    if (isLoading) return;
     const report = embedRef.current as pbi.Report | null;
     if (!report) return;
     void report.refresh().catch(() => {
       /* non-fatal; the manual Refresh button remains */
     });
     setLastLoadAt(Date.now()); // screen now reflects the latest refresh
-  }, [autoRefreshEnabled, newDataAvailable, embedRef]);
+  }, [autoRefreshEnabled, newDataAvailable, isLoading, embedRef]);
 
   // NEW-ARCH-1: export hook
   const { isExporting, exportStatus, handleExportPdf } = useViewerExport({

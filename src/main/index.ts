@@ -5,6 +5,7 @@ import { installCsp, registerWebviewSecurity } from './security';
 import { createWindow, getMainWindow, isDev } from './window';
 import { setupLogging } from './ipc/log';
 import { registerAllIpcHandlers } from './ipc/register';
+import { releaseDisplaySleepBlocker } from './ipc/kiosk';
 import { setupAutoUpdater } from './updater';
 
 setupLogging();
@@ -39,6 +40,10 @@ if (!app.requestSingleInstanceLock()) {
     // Content Security Policy - register on default session always, and on the
     // partition session in production (where the packaged renderer is file://).
     installCsp(session.defaultSession);
+    // installCsp on the partition is intentionally inert in practice: the partition only ever
+    // serves remote https Power BI / AAD content (never file://), so the file:// guard inside
+    // installCsp never fires. CSP is only applied to the local file:// app document; remote
+    // responses must NOT have their headers rewritten or Power BI embeds break.
     if (!isDev) installCsp(session.fromPartition(PARTITION_NAME));
 
     // SEC-S1: webview guard is wired onto each WebContents in the
@@ -72,6 +77,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Release any kiosk display-sleep blocker on quit so a slideshow left running on
+// a wall display doesn't dangle the blocker past app exit (defense-in-depth; the
+// OS reclaims it on process exit regardless).
+app.on('will-quit', () => {
+  releaseDisplaySleepBlocker();
 });
 
 // Diagnosability: log TLS/certificate failures (e.g. a corporate TLS-inspection

@@ -174,7 +174,19 @@ class AuthService {
     try {
       const cachedData = await this.deps.persistentCache.loadCache();
       if (cachedData) {
-        this.deps.msalClient.getTokenCache().deserialize(cachedData);
+        try {
+          this.deps.msalClient.getTokenCache().deserialize(cachedData);
+        } catch (deserializeError) {
+          // The persisted string isn't a valid MSAL cache — most commonly a blob
+          // written by the OLD safeStorage build (it is valid JSON, so the store's
+          // clearInvalidConfig never reset it), or otherwise unreadable. Purge it
+          // ONCE so we stop re-reading garbage on every probe, and KEEP
+          // cacheInitialized=true (the user simply re-signs in, which overwrites
+          // the file). Do NOT re-arm: the data is bad in-hand, not transient.
+          this.deps.logger.warn('[Auth] Discarding unreadable persisted cache:', deserializeError);
+          await this.deps.persistentCache.clearCache();
+          return;
+        }
 
         // NEW-AUTH-1: hydrate the active account only if we don't already have
         // one. getActiveAccount() resolves by the persisted activeHomeAccountId
@@ -184,7 +196,9 @@ class AuthService {
         }
       }
     } catch (error) {
-      // Re-arm so a transient failure (e.g. mid-corruption) can re-hydrate later.
+      // Re-arm so a genuinely transient failure (e.g. a disk read error inside
+      // loadCache) can re-hydrate on a later probe. A bad-cache deserialize is
+      // handled above and deliberately does NOT reach here.
       this.cacheInitialized = false;
       this.deps.logger.warn('[Auth] Cache initialization failed, starting fresh:', error);
     }
@@ -339,7 +353,12 @@ class AuthService {
       // userInfo snapshot, deliberately NOT re-adopting from the cache — a nulled
       // account after corruption must not silently resurrect from accounts[0].
       if (!this.account) {
-        const userInfo = await this.deps.persistentCache.loadUserInfo();
+        // Only trust the persisted userInfo snapshot if the MSAL cache still has
+        // a backing account. After a corruption/clear that nulled this.account but
+        // left userInfo behind, returning it would resurface a signed-out user's
+        // name/email for a session that has no account — so require a live account.
+        const accounts = await this.deps.msalClient.getTokenCache().getAllAccounts();
+        const userInfo = accounts.length > 0 ? await this.deps.persistentCache.loadUserInfo() : null;
         if (userInfo) {
           return {
             success: true,
@@ -528,6 +547,11 @@ class AuthService {
         error: { code: 'LOGIN_FAILED', message: 'No result from authentication' },
       };
     } catch (error) {
+      // Reset the in-flight guard on ANY throw after it was armed (e.g.
+      // getAuthCodeUrl / acquireTokenByCode rejecting). Otherwise pendingAuthState
+      // stays set and every later login returns LOGIN_IN_PROGRESS — a permanent
+      // sign-in lockout until the app is restarted.
+      this.pendingAuthState = null;
       return {
         success: false,
         error: { code: 'LOGIN_FAILED', message: String(error) },
@@ -802,6 +826,15 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
         if (settled) return;
         settled = true;
         if (timer) clearTimeout(timer);
+        // Detach the CDP debugger (used for passkey suppression) on any terminal
+        // outcome so it never lingers; best-effort since the webContents may
+        // already be torn down by a 'closed' event.
+        try {
+          const dbg = authWindow.webContents.debugger;
+          if (dbg.isAttached()) dbg.detach();
+        } catch {
+          /* webContents already gone */
+        }
         resolve(value);
       };
       const timer = setTimeout(() => {
@@ -831,17 +864,19 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
           // the description so login() can surface it as AAD_AUTH_ERROR.
           const aadError = urlObj.searchParams.get('error');
           const aadErrorDescription = urlObj.searchParams.get('error_description');
-          try { authWindow.close(); } catch { /* already gone */ }
+          // Record the outcome BEFORE closing the window: close() can emit 'closed'
+          // synchronously on some Electron builds, whose handler settles null — and
+          // the settled-guard keeps the FIRST settle. Settling here first guarantees
+          // a successful {code,state} is preserved instead of a spurious "cancelled".
           if (aadError) {
             onAadError(aadErrorDescription || aadError);
             settle(null);
-            return;
-          }
-          if (code && state) {
+          } else if (code && state) {
             settle({ code, state });
           } else {
             settle(null);
           }
+          try { authWindow.close(); } catch { /* already gone */ }
         }
       };
 
@@ -910,13 +945,17 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
       const injectThenLoad = async (): Promise<void> => {
         try {
           const dbg = authWindow.webContents.debugger;
-          dbg.attach('1.3');
+          // Guard against a double-attach ("Another debugger is already attached")
+          // if the webContents ever already has a debugger session (e.g. DevTools).
+          if (!dbg.isAttached()) dbg.attach('1.3');
           await dbg.sendCommand('Page.enable');
           await dbg.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
             source: WEBAUTHN_DISABLE_SOURCE,
           });
         } catch (err) {
-          console.warn('[Auth] WebAuthn-disable injection failed (non-fatal):', err);
+          // Non-fatal, but this means passkey/WebAuthn suppression is OFF for this
+          // sign-in and the Windows Hello prompt may reappear — surface it clearly.
+          console.warn('[Auth] WebAuthn-disable injection failed; passkey prompt may appear:', err);
         }
         // Load AFTER the injection is registered. Catch loadURL rejections (offline,
         // DNS failure, force-close mid-nav) so we settle null -> login screen

@@ -108,6 +108,7 @@ jobs:
           path: |
             build-output/*.exe
             build-output/latest.yml
+            build-output/*.blockmap
           retention-days: 30
 
   build-mac:

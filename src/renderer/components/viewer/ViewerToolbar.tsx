@@ -98,6 +98,7 @@ export interface ViewerToolbarProps {
  */
 function formatRefreshTime(isoString: string): string {
   const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return '';
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const year = String(date.getFullYear()); // 4-digit year (NEW-PROD-4)
@@ -149,13 +150,15 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
       const mins = Math.max(0, Math.floor(ageMs / 60000));
       relative = mins < 1 ? ' (just now)' : mins === 1 ? ' (1 min ago)' : ` (${mins} min ago)`;
     }
+    const formatted = formatRefreshTime(iso);
+    if (!formatted) return null;
     return (
       <Text
         className={`${isStale ? 'text-status-warning' : 'text-neutral-foreground-3'} text-xs`}
         title={isStale ? `${label} is more than a day old` : undefined}
       >
         {isStale ? '⚠ ' : ''}
-        {label}: {formatRefreshTime(iso)}
+        {label}: {formatted}
         {relative}
       </Text>
     );

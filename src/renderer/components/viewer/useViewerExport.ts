@@ -132,14 +132,13 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
         }
 
         const rect = containerRef.current?.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
         const bounds =
           rect && rect.width > 0 && rect.height > 0
             ? {
                 x: rect.left,
                 y: rect.top,
-                width: rect.width * dpr,
-                height: rect.height * dpr,
+                width: rect.width,
+                height: rect.height,
               }
             : undefined;
 
@@ -175,14 +174,13 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
 
       // --- Screenshot-only path (dashboard / app) ---
       const rect = containerRef.current?.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
       const bounds =
         rect && rect.width > 0 && rect.height > 0
           ? {
               x: rect.left,
               y: rect.top,
-              width: rect.width * dpr,
-              height: rect.height * dpr,
+              width: rect.width,
+              height: rect.height,
             }
           : undefined;
 

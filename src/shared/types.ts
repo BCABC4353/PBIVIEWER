@@ -117,7 +117,7 @@ export interface AppSettings {
   autoStartSlideshow: boolean;
   autoStartReportId?: string;
   autoRefreshEnabled: boolean;
-  autoRefreshInterval: number; // in minutes (1-60)
+  autoRefreshInterval: number; // in minutes (1-120)
   /**
    * PROD-B2: launch-time auto-start behavior.
    * - 'off'    — normal startup, show the home screen.

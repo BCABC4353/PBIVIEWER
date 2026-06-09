@@ -7,16 +7,50 @@ interface SettingsStore {
   settings: AppSettings;
 }
 
-const store = new Store<SettingsStore>({
-  name: 'settings',
-  defaults: {
-    settings: DEFAULT_SETTINGS,
-  },
-  // A power-loss / AV-truncated settings.json must self-heal rather than throw a
-  // SyntaxError at main-process load (which would leave the app with no window
-  // and no user-recoverable path). conf resets to defaults when it can't parse.
-  clearInvalidConfig: true,
-});
+// Narrow store interface — only the get/set this module uses. Both the real
+// electron-store and the in-memory fallback satisfy it.
+interface SettingsStoreLike {
+  get(key: 'settings', defaultValue: AppSettings): AppSettings;
+  set(key: 'settings', value: AppSettings): void;
+}
+
+// In-memory fallback if the on-disk store cannot even be constructed (locked /
+// EPERM file on a roaming or VDI profile). Settings won't persist this session,
+// but the app launches and works rather than dying at module load with no window.
+function createMemorySettingsStore(): SettingsStoreLike {
+  let current: AppSettings = DEFAULT_SETTINGS;
+  return {
+    get: () => current,
+    set: (_key, value) => {
+      current = value;
+    },
+  };
+}
+
+function createSettingsStore(): SettingsStoreLike {
+  try {
+    const s = new Store<SettingsStore>({
+      name: 'settings',
+      defaults: {
+        settings: DEFAULT_SETTINGS,
+      },
+      // A power-loss / AV-truncated settings.json must self-heal rather than throw
+      // a SyntaxError at main-process load. conf resets to defaults when it can't
+      // parse. (clearInvalidConfig only covers parse failures — a locked/EPERM
+      // file still throws from the constructor, which the catch below handles.)
+      clearInvalidConfig: true,
+    });
+    return {
+      get: (key, defaultValue) => s.get(key, defaultValue),
+      set: (key, value) => s.set(key, value),
+    };
+  } catch (error) {
+    console.warn('[SettingsService] Failed to open settings store; using in-memory defaults this session:', error);
+    return createMemorySettingsStore();
+  }
+}
+
+const store: SettingsStoreLike = createSettingsStore();
 
 // Belt-and-braces sanitizer: even if the IPC handler is bypassed (module-internal
 // callers, future code paths), make sure persisted values are within bounds and

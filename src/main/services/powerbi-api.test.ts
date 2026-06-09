@@ -255,6 +255,129 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 
+  // --- Freshness correctness: a FAILED refresh must not masquerade as fresh ----
+  function refreshWith(time: string, status: string) {
+    return {
+      value: [{ requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: time, endTime: time, status }],
+    };
+  }
+
+  // Routes every getDataFreshness sub-call by URL: dataset refreshes, the
+  // upstreamDataflows lineage link, the workspace dataflows list (fallback), and
+  // per-dataflow transactions.
+  function makeDataFreshnessFetch(opts: {
+    refreshes?: Record<string, { value: unknown[] }>;
+    upstream?: unknown[];
+    dataflowsList?: unknown[];
+    transactions?: Record<string, { value: unknown[] }>;
+  }): typeof fetch {
+    return vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('datasets/upstreamDataflows')) {
+        return Promise.resolve(new Response(JSON.stringify({ value: opts.upstream ?? [] }), { status: 200 }));
+      }
+      const tx = url.match(/dataflows\/([^/]+)\/transactions/);
+      if (tx) {
+        const dfId = tx[1] ?? '';
+        return Promise.resolve(
+          new Response(JSON.stringify(opts.transactions?.[dfId] ?? { value: [] }), { status: 200 }),
+        );
+      }
+      const r = url.match(/datasets\/([^/]+)\/refreshes/);
+      if (r) {
+        const dsId = r[1] ?? '';
+        return Promise.resolve(
+          new Response(JSON.stringify(opts.refreshes?.[dsId] ?? { value: [] }), { status: 200 }),
+        );
+      }
+      if (/\/dataflows(\?|$)/.test(url)) {
+        return Promise.resolve(new Response(JSON.stringify({ value: opts.dataflowsList ?? [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ value: [] }), { status: 200 }));
+    }) as unknown as typeof fetch;
+  }
+
+  it('getDatasetRefreshInfo does NOT surface a time for a FAILED refresh (no false freshness)', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(refreshWith('2026-06-08T00:01:00.000Z', 'Failed')), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBeUndefined();
+      expect(result.data.lastRefreshStatus).toBe('Failed');
+    }
+  });
+
+  it('getDatasetRefreshInfo surfaces the time for an Unknown status (completed on-demand refresh)', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(refreshWith('2026-06-08T00:05:00.000Z', 'Unknown')), { status: 200 }),
+      ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBe('2026-06-08T00:05:00.000Z');
+      expect(result.data.lastRefreshStatus).toBe('Unknown');
+    }
+  });
+
+  it('getDataFreshness returns the STALEST dataset refresh time across multiple datasets', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = makeDataFreshnessFetch({
+      refreshes: {
+        'ds-new': refreshWith('2026-06-05T00:00:00.000Z', 'Completed'),
+        'ds-old': refreshWith('2026-06-01T00:00:00.000Z', 'Completed'),
+      },
+      upstream: [],
+      dataflowsList: [], // no dataflows → no fallback, no dataflow stamp
+    });
+
+    const result = await svc.getDataFreshness('ws-1', ['ds-new', 'ds-old']);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.datasetRefreshTime).toBe('2026-06-01T00:00:00.000Z');
+      expect(result.data.dataflowRefreshTime).toBeNull();
+      expect(result.data.datasetCount).toBe(2);
+    }
+  });
+
+  it('getDataFreshness returns the STALEST dataflow last-SUCCESS and ignores non-Success transactions', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = makeDataFreshnessFetch({
+      refreshes: { 'ds-1': refreshWith('2026-06-06T00:00:00.000Z', 'Completed') },
+      upstream: [
+        { datasetObjectId: 'ds-1', dataflowObjectId: 'df-1', workspaceObjectId: 'ws-1' },
+        { datasetObjectId: 'ds-1', dataflowObjectId: 'df-2', workspaceObjectId: 'ws-1' },
+      ],
+      transactions: {
+        'df-1': { value: [{ status: 'Success', endTime: '2026-06-03T00:00:00.000Z' }] },
+        'df-2': {
+          value: [
+            { status: 'Success', endTime: '2026-06-01T00:00:00.000Z' },
+            { status: 'Failed', endTime: '2026-06-09T00:00:00.000Z' }, // newer but FAILED → ignored
+            { status: 'InProgress' }, // no endTime → ignored
+          ],
+        },
+      },
+    });
+
+    const result = await svc.getDataFreshness('ws-1', ['ds-1']);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // stalest of df-1 (06-03) and df-2 (06-01, ignoring its newer Failed) = 06-01
+      expect(result.data.dataflowRefreshTime).toBe('2026-06-01T00:00:00.000Z');
+      expect(result.data.datasetRefreshTime).toBe('2026-06-06T00:00:00.000Z');
+    }
+  });
+
   it('getEmbedToken returns the injected access token as the embed token', async () => {
     const getAccessToken = vi.fn().mockResolvedValue({
       success: true,

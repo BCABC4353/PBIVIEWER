@@ -823,11 +823,19 @@ class PowerBIApiService {
 
       const lastRefresh = response.value?.[0];
       if (lastRefresh) {
+        const status = lastRefresh.status as DatasetRefreshInfo['lastRefreshStatus'];
+        // Only a Completed refresh (or Unknown, which the v1 /refreshes endpoint
+        // reports for completed on-demand refreshes) actually PUBLISHED data. A
+        // Failed/Cancelled attempt still carries a recent endTime; surfacing it
+        // would advertise stale data as freshly refreshed and fire a false
+        // "new data available" nudge. Keep the status either way so callers can
+        // still reason about it.
+        const isSuccessLike = status === 'Completed' || status === 'Unknown';
         return {
           success: true,
           data: {
-            lastRefreshTime: lastRefresh.endTime || lastRefresh.startTime,
-            lastRefreshStatus: lastRefresh.status as DatasetRefreshInfo['lastRefreshStatus'],
+            lastRefreshTime: isSuccessLike ? lastRefresh.endTime || lastRefresh.startTime : undefined,
+            lastRefreshStatus: status,
           },
         };
       }
@@ -972,13 +980,16 @@ class PowerBIApiService {
     const cacheKey = `${workspaceId}|${[...datasetIds].sort().join(',')}`;
     const cached = lineageCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) return cached.value;
-    const result = await this.resolveUpstreamDataflowsUncached(workspaceId, datasetIds);
-    // Cache only a non-empty result; an empty one may be a transient failure and
-    // re-resolving next poll is cheap + self-heals.
-    if (result.length > 0) {
-      lineageCache.set(cacheKey, { value: result, expires: Date.now() + LINEAGE_TTL_MS });
+    const { links, confident } = await this.resolveUpstreamDataflowsUncached(workspaceId, datasetIds);
+    // Cache only a CONFIDENT result — a real upstreamDataflows link. An empty
+    // result may be a transient failure, and the single-dataflow FALLBACK is a
+    // heuristic guess that could attribute an unrelated dataflow's time; neither
+    // should be locked in for the full TTL (a wrong "Dataflow: ..." time is more
+    // misleading than none). Both are re-resolved next poll and self-heal.
+    if (confident && links.length > 0) {
+      lineageCache.set(cacheKey, { value: links, expires: Date.now() + LINEAGE_TTL_MS });
     }
-    return result;
+    return links;
   }
 
   /**
@@ -990,7 +1001,7 @@ class PowerBIApiService {
   private async resolveUpstreamDataflowsUncached(
     workspaceId: string,
     datasetIds: string[],
-  ): Promise<Array<{ dataflowId: string; workspaceId: string }>> {
+  ): Promise<{ links: Array<{ dataflowId: string; workspaceId: string }>; confident: boolean }> {
     const wanted = new Set(datasetIds.map((id) => id.toLowerCase()));
     try {
       const resp = await this.makeRequest<PowerBIApiResponse<{
@@ -1011,22 +1022,25 @@ class PowerBIApiService {
           out.push({ dataflowId: link.dataflowObjectId, workspaceId: link.workspaceObjectId || workspaceId });
         }
       }
-      if (out.length > 0) return out;
+      // A real lineage link is authoritative → confident (cacheable for the full TTL).
+      if (out.length > 0) return { links: out, confident: true };
     } catch (error) {
       console.warn('[PowerBI] upstreamDataflows lookup failed:', error);
     }
     // Fallback: exactly one dataflow in the workspace → assume it is upstream.
+    // This is a GUESS (the lone dataflow may not actually feed this dataset), so
+    // it is returned but marked not-confident → not cached for the full TTL.
     try {
       const dfResp = await this.makeRequest<PowerBIApiResponse<{ objectId: string }>>(
         `/groups/${workspaceId}/dataflows`,
       );
       const dfs = (dfResp.value ?? []).filter((d) => d.objectId);
       const onlyDf = dfs.length === 1 ? dfs[0] : undefined;
-      if (onlyDf) return [{ dataflowId: onlyDf.objectId, workspaceId }];
+      if (onlyDf) return { links: [{ dataflowId: onlyDf.objectId, workspaceId }], confident: false };
     } catch (error) {
       console.warn('[PowerBI] dataflows list (fallback) failed:', error);
     }
-    return [];
+    return { links: [], confident: false };
   }
 
   /** Most recent SUCCESSFUL refresh completion (endTime) for one dataflow, or null. */

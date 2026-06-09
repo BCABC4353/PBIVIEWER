@@ -34,6 +34,24 @@ function isBlockerActive(): boolean {
   return false;
 }
 
+/**
+ * Release any active prevent-display-sleep blocker. Call on app quit so a
+ * slideshow running on an unattended wall display (or a renderer that crashed
+ * past its reload budget without firing the PresentationMode unmount cleanup)
+ * doesn't leave the blocker dangling. The OS reclaims it on process exit anyway;
+ * this is defense-in-depth for the kiosk path.
+ */
+export function releaseDisplaySleepBlocker(): void {
+  try {
+    if (blockerId !== null && powerSaveBlocker.isStarted(blockerId)) {
+      powerSaveBlocker.stop(blockerId);
+    }
+  } catch {
+    /* best-effort on quit */
+  }
+  blockerId = null;
+}
+
 function ok<T>(data: T): IPCResponse<T> {
   return { success: true, data };
 }

@@ -25,23 +25,64 @@ interface TokenCacheSchema {
 //
 // SECURITY NOTE: the key below is embedded in the app, so this is OBFUSCATION at
 // rest, not OS-level encryption. The cache file lives in the user's own
-// ACL-protected profile (%APPDATA%\powerbi-viewer) and holds a delegated,
-// read-only Power BI token — the same posture as the MSAL-node default (plain
-// JSON) and most Electron + MSAL apps. A future hardening can re-layer
-// safeStorage ONLY where it is first verified to round-trip, so it can never
-// again silently break the one feature this app exists to provide.
+// ACL-protected profile (%APPDATA%\powerbi-viewer) and holds the MSAL token
+// cache — including a delegated Power BI REFRESH token (offline_access is
+// requested for the "sign in once" UX), not merely a short-lived access token —
+// the same posture as the MSAL-node default (plain JSON) and most Electron +
+// MSAL apps. A future hardening can re-layer safeStorage ONLY where it is first
+// verified to round-trip, so it can never again silently break the one feature
+// this app exists to provide.
 // ============================================================================
 const ENCRYPTION_KEY = 'pbiv-auth-cache-v2-2026-at-rest-obfuscation';
 
-const store = new Store<TokenCacheSchema>({
-  name: 'powerbi-viewer-auth',
-  encryptionKey: ENCRYPTION_KEY,
-  // If the on-disk file can't be read (e.g. it was written by the older
-  // safeStorage build, or got truncated by a crash/AV), reset it instead of
-  // throwing at main-process load. The user re-signs-in once; from then on the
-  // keyed cache persists across restarts.
-  clearInvalidConfig: true,
-});
+// Narrow store interface — only the get/set/delete this module uses. Both the
+// real electron-store and the in-memory fallback satisfy it.
+interface TokenStoreLike {
+  get(key: keyof TokenCacheSchema): string | undefined;
+  set(key: keyof TokenCacheSchema, value: string): void;
+  delete(key: keyof TokenCacheSchema): void;
+}
+
+// In-memory fallback used ONLY if the on-disk store cannot even be constructed
+// (e.g. a locked file / EPERM on a roaming or VDI profile during a transient
+// profile-mount race). Degrades to "re-sign-in this session" instead of letting
+// the constructor throw escape module load and leave the app with no window.
+function createMemoryTokenStore(): TokenStoreLike {
+  const mem = new Map<string, string>();
+  return {
+    get: (key) => mem.get(key),
+    set: (key, value) => void mem.set(key, value),
+    delete: (key) => void mem.delete(key),
+  };
+}
+
+function createTokenStore(): TokenStoreLike {
+  try {
+    const s = new Store<TokenCacheSchema>({
+      name: 'powerbi-viewer-auth',
+      encryptionKey: ENCRYPTION_KEY,
+      // clearInvalidConfig resets the file ONLY when conf can't parse it as JSON
+      // (truncation / corruption). It does NOT cover a file written by the OLDER
+      // safeStorage build: that file is valid JSON whose values are base64 blobs,
+      // so conf reads it fine and MSAL's deserialize throws on the non-MSAL
+      // string — auth-service.initializeCache catches that and purges the stale
+      // cache once (the user re-signs in). The keyed cache then persists.
+      clearInvalidConfig: true,
+    });
+    return {
+      get: (key) => s.get(key),
+      set: (key, value) => s.set(key, value),
+      delete: (key) => s.delete(key),
+    };
+  } catch (error) {
+    // Construction itself can throw (locked / unreadable file). Fall back to an
+    // in-memory store rather than crashing startup with no recoverable path.
+    console.warn('[TokenCache] Failed to open auth store; using in-memory fallback (re-sign-in this session):', error);
+    return createMemoryTokenStore();
+  }
+}
+
+const store: TokenStoreLike = createTokenStore();
 
 export interface CachedUserInfo {
   homeAccountId: string;
@@ -50,10 +91,11 @@ export interface CachedUserInfo {
 }
 
 // Retained for API compatibility with auth-service (PersistentCachePort).
-// The old per-value safeStorage decrypt-corruption path is gone (encryptionKey +
-// clearInvalidConfig handle a bad file by resetting it), so this never fires now
-// — but the registration seam stays so callers (auth-service constructor) are
-// unchanged.
+// The old per-value safeStorage decrypt-corruption path is gone; a bad file is
+// either reset by clearInvalidConfig (unparseable JSON) or handled by
+// auth-service.initializeCache (a legacy / again-unreadable cache is purged
+// once), so this hook never fires now — but the registration seam stays so
+// callers (the auth-service constructor) are unchanged.
 type CorruptionListener = () => void;
 const corruptionListeners = new Set<CorruptionListener>();
 

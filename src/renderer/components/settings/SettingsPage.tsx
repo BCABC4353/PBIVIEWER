@@ -78,14 +78,15 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleAutoStartModeChange = (mode: 'off' | 'report' | 'app') => {
-    updateSettings({ autoStartMode: mode });
     // Clear the ids that don't apply to the chosen mode so a stale target can't be used.
+    // Coalesced into a single updateSettings call to prevent partial-failure desync.
     if (mode === 'off') {
-      updateSettings({ autoStartReportId: undefined, autoStartWorkspaceId: undefined, autoStartAppId: undefined });
+      updateSettings({ autoStartMode: mode, autoStartReportId: undefined, autoStartWorkspaceId: undefined, autoStartAppId: undefined });
     } else if (mode === 'report') {
-      updateSettings({ autoStartAppId: undefined });
-    } else if (mode === 'app') {
-      updateSettings({ autoStartReportId: undefined, autoStartWorkspaceId: undefined });
+      updateSettings({ autoStartMode: mode, autoStartAppId: undefined });
+    } else {
+      // mode === 'app'
+      updateSettings({ autoStartMode: mode, autoStartReportId: undefined, autoStartWorkspaceId: undefined });
     }
   };
 
@@ -452,7 +453,7 @@ export const SettingsPage: React.FC = () => {
                         </Text>
                       </div>
                     }
-                    hint="1 minute minimum — 2 hours maximum"
+                    hint="Applies to slideshow/kiosk auto-refresh; reports refresh automatically when new data is published. 1 minute minimum — 2 hours maximum."
                   >
                     <Slider
                       min={1}

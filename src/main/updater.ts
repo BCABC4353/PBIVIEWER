@@ -35,7 +35,12 @@ function isNewerVersion(a: string, b: string): boolean {
     const db = pb[i] ?? 0;
     if (da !== db) return da > db;
   }
-  return false;
+  // Cores equal: standard semver ranks a prerelease BELOW its release
+  // (2.2.0-beta < 2.2.0). So `a` is newer only if it is a stable release while
+  // `b` is a prerelease of the same core.
+  const preA = a.replace(/^v/i, '').includes('-');
+  const preB = b.replace(/^v/i, '').includes('-');
+  return !preA && preB;
 }
 
 /**
@@ -53,7 +58,10 @@ async function notifyIfUpdateAvailable(): Promise<void> {
     });
     if (!res.ok) return;
     const rel = (await res.json()) as { tag_name?: string; html_url?: string };
-    if (!rel.tag_name || !isNewerVersion(rel.tag_name, app.getVersion())) return;
+    // Skip prerelease/beta tags outright — a 20-user production fleet should
+    // never be nagged onto a beta even if one is accidentally published.
+    if (!rel.tag_name || rel.tag_name.includes('-') || !isNewerVersion(rel.tag_name, app.getVersion()))
+      return;
     const choice = await dialog.showMessageBox({
       type: 'info',
       buttons: ['Download', 'Later'],
@@ -63,7 +71,16 @@ async function notifyIfUpdateAvailable(): Promise<void> {
       detail: `You have ${app.getVersion()}. Click Download, then replace the app in Applications to update.`,
     });
     if (choice.response === 0 && rel.html_url) {
-      await shell.openExternal(rel.html_url);
+      // Validate the API-supplied URL before handing it to the OS (mirror the
+      // app's other openExternal call sites): https + a github.com host only.
+      try {
+        const u = new URL(rel.html_url);
+        if (u.protocol === 'https:' && (u.hostname === 'github.com' || u.hostname.endsWith('.github.com'))) {
+          await shell.openExternal(rel.html_url);
+        }
+      } catch {
+        /* malformed URL in the release payload — ignore */
+      }
     }
   } catch (err) {
     log.warn('[updater] update-notify check failed (non-fatal):', err);
@@ -76,7 +93,9 @@ async function isForcedBehind(): Promise<boolean> {
     const res = await fetch(FORCE_POLICY_URL, { headers: { 'User-Agent': 'PBIVIEWER-updater' } });
     if (!res.ok) return false;
     const policy = (await res.json()) as { forceMinVersion?: string };
-    return Boolean(policy.forceMinVersion && isNewerVersion(policy.forceMinVersion, app.getVersion()));
+    const min = policy.forceMinVersion;
+    // Ignore a prerelease target — never force the whole fleet onto a beta.
+    return Boolean(min && !min.includes('-') && isNewerVersion(min, app.getVersion()));
   } catch {
     return false; // fail-silent: no policy => no force (gentle default)
   }
@@ -87,11 +106,19 @@ function forceInstallNow(): void {
   if (installing) return;
   installing = true;
   log.info('[updater] forced update ready — restarting to apply.');
+  let restarted = false;
   const restart = () => {
+    if (restarted) return; // one-shot: the dialog click AND the grace timer both call this
+    restarted = true;
     try {
       autoUpdater.quitAndInstall();
     } catch (err) {
-      log.warn('[updater] quitAndInstall failed:', err);
+      // The restart did not take (e.g. the staged installer was evicted, or a
+      // quit handler blocked it). Un-latch so a later force poll can retry rather
+      // than wedging this machine on the old version forever.
+      log.warn('[updater] quitAndInstall failed — will retry on the next check:', err);
+      installing = false;
+      restarted = false;
     }
   };
   void dialog
@@ -148,7 +175,12 @@ export function setupAutoUpdater(): void {
     // Force lever: poll the tiny policy file. If we're below its forceMinVersion,
     // this update is mandatory -> pull + apply it now rather than on next restart.
     const forceCheck = async () => {
-      if (forceImmediate) return; // already armed
+      if (forceImmediate) {
+        // Already armed. If the update is downloaded but a prior restart attempt
+        // failed (installing was un-latched), retry applying it on this tick.
+        if (updateDownloaded && !installing) forceInstallNow();
+        return;
+      }
       if (await isForcedBehind()) {
         forceImmediate = true;
         if (updateDownloaded) forceInstallNow();
