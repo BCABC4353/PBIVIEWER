@@ -31,6 +31,12 @@ export const AppViewer: React.FC = () => {
   const [partitionLoaded, setPartitionLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // --- Live data-freshness indicator (App view) ---
+  const [latestRefresh, setLatestRefresh] = useState<string | null>(null);
+  const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
+  const [, setNowTick] = useState(0); // ticks the "(N min ago)" relative label
+  const datasetsRef = useRef<Array<{ datasetId: string; workspaceId: string }>>([]);
+
   // Load the webview config (partition name) from main process
   useEffect(() => {
     const loadPartition = async () => {
@@ -70,6 +76,78 @@ export const AppViewer: React.FC = () => {
     void loadAppDetails();
   }, [appId, loadAppDetails]);
 
+  // ----- Live data-freshness for the App view -----
+  // Poll the freshest backing-dataset refresh time so the toolbar shows a live
+  // "Data refreshed: HH:MM (N min ago)" the user can watch tick over.
+  const pollFreshness = useCallback(async () => {
+    const datasets = datasetsRef.current;
+    if (datasets.length === 0) return;
+    try {
+      const results = await Promise.all(
+        datasets.map((d) =>
+          window.electronAPI.content.getDatasetRefreshInfo(d.datasetId, d.workspaceId),
+        ),
+      );
+      let freshest: string | null = null;
+      for (const res of results) {
+        if (res.success && res.data.lastRefreshTime) {
+          const t = res.data.lastRefreshTime;
+          if (!freshest || new Date(t).getTime() > new Date(freshest).getTime()) {
+            freshest = t;
+          }
+        }
+      }
+      if (freshest) setLatestRefresh(freshest);
+    } catch (err) {
+      console.warn('[AppViewer] Freshness poll failed (non-fatal):', err);
+    }
+  }, []);
+
+  // Resolve this app's dataset(s) once, then poll their refresh time every 60s.
+  useEffect(() => {
+    if (!appId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const reportsResp = await window.electronAPI.content.getAppReports(appId);
+        if (cancelled || !reportsResp.success) return;
+        const seen = new Set<string>();
+        const datasets: Array<{ datasetId: string; workspaceId: string }> = [];
+        for (const r of reportsResp.data) {
+          if (r.datasetId && r.workspaceId && !seen.has(r.datasetId)) {
+            seen.add(r.datasetId);
+            datasets.push({ datasetId: r.datasetId, workspaceId: r.workspaceId });
+          }
+        }
+        datasetsRef.current = datasets;
+        await pollFreshness();
+      } catch (err) {
+        console.warn('[AppViewer] Could not resolve app datasets for freshness:', err);
+      }
+    })();
+    const interval = setInterval(() => {
+      setNowTick((n) => n + 1); // re-render so the "N min ago" label advances
+      void pollFreshness();
+    }, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [appId, pollFreshness]);
+
+  // Re-poll right after each (re)load so the stamp + "new data" check reflect
+  // what the freshly-loaded screen actually shows.
+  useEffect(() => {
+    if (lastLoadAt !== null) void pollFreshness();
+  }, [lastLoadAt, pollFreshness]);
+
+  // The dataset refreshed AFTER the screen last loaded -> the on-screen visuals
+  // are behind, so prompt a refresh. (Embedded Power BI shows data as of load.)
+  const newDataAvailable =
+    latestRefresh !== null &&
+    lastLoadAt !== null &&
+    new Date(latestRefresh).getTime() > lastLoadAt;
+
   // Set up webview event listeners
   useEffect(() => {
     const webview = webviewRef.current;
@@ -102,6 +180,9 @@ export const AppViewer: React.FC = () => {
     const handleDidStopLoading = () => {
       clearWatchdog();
       setIsLoading(false);
+      // Mark when the on-screen content was (re)loaded so we can tell whether a
+      // later dataset refresh has left the visuals behind.
+      setLastLoadAt(Date.now());
     };
 
     const handleDidFailLoad = (event: Event) => {
@@ -209,6 +290,9 @@ export const AppViewer: React.FC = () => {
         titleIcon={<AppsRegular />}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
+        lastDataRefresh={latestRefresh}
+        showRelativeAge
+        newDataAvailable={newDataAvailable}
       />
 
       {/* Content */}

@@ -70,6 +70,18 @@ export interface ViewerToolbarProps {
   onFullScreen?: () => void;
   /** Shows and wires the Slideshow button (report-only). */
   onSlideshow?: () => void;
+  /**
+   * When true, append a live "(N min ago)" relative age to the freshness stamp.
+   * The App view sets this so users can watch the data age tick over and trust
+   * the dashboard is current.
+   */
+  showRelativeAge?: boolean;
+  /**
+   * When true, the backing dataset has refreshed AFTER the on-screen content
+   * loaded, so the Refresh button is emphasized to prompt the user to pull in
+   * the newer data (the embedded Power BI service does not repaint on its own).
+   */
+  newDataAvailable?: boolean;
 }
 
 /**
@@ -111,6 +123,8 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   isExporting = false,
   onFullScreen,
   onSlideshow,
+  showRelativeAge = false,
+  newDataAvailable = false,
 }) => {
   const hasBreadcrumb = Boolean(itemName);
 
@@ -171,12 +185,18 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
           // warning color with a marker so an operator notices it isn't current.
           const ageMs = Date.now() - new Date(lastDataRefresh).getTime();
           const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
+          // Live relative age (App view) — lets users watch the data tick over.
+          let relative = '';
+          if (showRelativeAge && Number.isFinite(ageMs)) {
+            const mins = Math.max(0, Math.floor(ageMs / 60000));
+            relative = mins < 1 ? ' (just now)' : mins === 1 ? ' (1 min ago)' : ` (${mins} min ago)`;
+          }
           return (
             <Text
               className={`${isStale ? 'text-status-warning' : 'text-neutral-foreground-3'} text-sm mr-2`}
               title={isStale ? 'This data is more than a day old' : undefined}
             >
-              {isStale ? '⚠ ' : ''}Data refreshed: {formatRefreshTime(lastDataRefresh)}
+              {isStale ? '⚠ ' : ''}Data refreshed: {formatRefreshTime(lastDataRefresh)}{relative}
             </Text>
           );
         })()}
@@ -188,17 +208,26 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
           </Text>
         )}
 
-        {/* NEW-UX-3: Refresh — disabled while in-progress */}
+        {/* NEW-UX-3: Refresh — disabled while in-progress. When newer data has
+            landed since the screen loaded, emphasize it as a "New data" nudge. */}
         {onRefresh && (
           <Button
-            appearance="subtle"
+            appearance={newDataAvailable && !isRefreshing ? 'primary' : 'subtle'}
             icon={<ArrowSyncRegular />}
             onClick={onRefresh}
             disabled={isRefreshing}
-            title={isRefreshing ? 'Refreshing…' : 'Refresh'}
-            aria-label={isRefreshing ? 'Refreshing' : 'Refresh'}
+            title={
+              isRefreshing
+                ? 'Refreshing…'
+                : newDataAvailable
+                  ? 'Newer data has been published — click to update the screen'
+                  : 'Refresh'
+            }
+            aria-label={
+              isRefreshing ? 'Refreshing' : newDataAvailable ? 'New data available, refresh' : 'Refresh'
+            }
           >
-            {isRefreshing ? 'Refreshing…' : 'Refresh'}
+            {isRefreshing ? 'Refreshing…' : newDataAvailable ? 'New data — Refresh' : 'Refresh'}
           </Button>
         )}
 
