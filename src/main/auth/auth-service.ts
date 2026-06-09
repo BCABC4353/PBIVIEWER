@@ -886,40 +886,47 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
         settle(null);
       });
 
-      // SYMPTOM-1 FIX: stop Microsoft Entra from interrupting password entry with
-      // a Windows passkey / Windows Hello (WebAuthn) prompt. The embedded Chromium
-      // advertises a platform authenticator, so Entra offers a passkey mid-login
-      // (a known Electron+Windows issue, electron/electron#41472). We neuter the
-      // WebAuthn API in the page's MAIN world at document-start via the DevTools
-      // protocol — keeping contextIsolation + sandbox ON — so Entra falls back to
-      // the normal password flow. Best-effort: any failure here must NOT block
-      // sign-in (the window still loads and works, passkey prompt or not).
-      try {
-        authWindow.webContents.debugger.attach('1.3');
-        void authWindow.webContents.debugger
-          .sendCommand('Page.addScriptToEvaluateOnNewDocument', {
-            source:
-              "try{Object.defineProperty(window,'PublicKeyCredential',{value:undefined,configurable:true});}catch(e){}" +
-              "try{if(navigator.credentials){" +
-              "navigator.credentials.get=function(){return Promise.reject(new DOMException('WebAuthn disabled in embedded sign-in','NotAllowedError'));};" +
-              "navigator.credentials.create=function(){return Promise.reject(new DOMException('WebAuthn disabled in embedded sign-in','NotAllowedError'));};" +
-              "}}catch(e){}",
-          })
-          .catch(() => {
-            /* best-effort passkey suppression */
-          });
-      } catch {
-        /* debugger.attach can throw (e.g. devtools already attached) — non-fatal */
-      }
+      // SYMPTOM-1 FIX (hardened): stop Microsoft Entra from interrupting password
+      // entry with a Windows passkey / Windows Hello (WebAuthn) prompt. Entra arms
+      // WebAuthn "conditional UI" (passkey autofill) the moment the username field
+      // is focused, so we neuter the WebAuthn API in the page's MAIN world at
+      // document-start, via the DevTools protocol (contextIsolation stays ON).
+      //
+      // CRITICAL (this was the original bug): the script must be registered — and
+      // Page.enable issued — and AWAITED *before* loadURL, or the page loads and
+      // arms the passkey before the block takes effect. We also only neuter the
+      // WebAuthn path (PublicKeyCredential + publicKey credential requests),
+      // leaving ordinary password credential handling intact. Best-effort: any
+      // failure must NOT block sign-in.
+      const WEBAUTHN_DISABLE_SOURCE =
+        // Make the page's `if (window.PublicKeyCredential)` / conditional-mediation
+        // checks fail, so it never offers/arms a passkey.
+        "try{Object.defineProperty(window,'PublicKeyCredential',{value:undefined,configurable:true});}catch(e){}" +
+        // Belt-and-suspenders: reject only WebAuthn (publicKey) credential
+        // requests; pass password/other requests through unchanged.
+        "try{if(navigator.credentials&&navigator.credentials.get){var __g=navigator.credentials.get.bind(navigator.credentials);" +
+        "navigator.credentials.get=function(o){return (o&&o.publicKey)?Promise.reject(new DOMException('WebAuthn disabled in embedded sign-in','NotAllowedError')):__g(o);};}}catch(e){}";
 
-      // Catch loadURL rejections — if the URL fails to load (offline, DNS
-      // failure, force-close during navigation) we end up with an
-      // unhandledRejection without this catch. Settling null routes the
-      // user back to the login screen cleanly.
-      authWindow.loadURL(authUrl).catch((err) => {
-        console.warn('[Auth] Auth window loadURL failed:', err);
-        settle(null);
-      });
+      const injectThenLoad = async (): Promise<void> => {
+        try {
+          const dbg = authWindow.webContents.debugger;
+          dbg.attach('1.3');
+          await dbg.sendCommand('Page.enable');
+          await dbg.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+            source: WEBAUTHN_DISABLE_SOURCE,
+          });
+        } catch (err) {
+          console.warn('[Auth] WebAuthn-disable injection failed (non-fatal):', err);
+        }
+        // Load AFTER the injection is registered. Catch loadURL rejections (offline,
+        // DNS failure, force-close mid-nav) so we settle null -> login screen
+        // instead of leaking an unhandledRejection.
+        authWindow.loadURL(authUrl).catch((err) => {
+          console.warn('[Auth] Auth window loadURL failed:', err);
+          settle(null);
+        });
+      };
+      void injectThenLoad();
     });
 }
 
