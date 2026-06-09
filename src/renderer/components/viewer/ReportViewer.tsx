@@ -21,8 +21,11 @@ export const ReportViewer: React.FC = () => {
   // Subscribe to the settings store so changes made in SettingsPage while
   // this viewer is open take effect without a remount. Selectors return
   // primitives so we re-render only when the relevant fields change.
+  // "Auto-refresh reports" is now DATA-DRIVEN: a report re-refreshes the moment
+  // the freshness poll detects a new dataset refresh (no blind interval, no lag,
+  // no redundant pulls). The interval setting no longer applies to reports — only
+  // the on/off toggle does.
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
-  const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
 
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -190,8 +193,8 @@ export const ReportViewer: React.FC = () => {
     containerRef: embedContainerRef,
     buildConfig,
     events,
-    autoRefreshEnabled,
-    autoRefreshIntervalMinutes,
+    // Blind interval auto-refresh is OFF; we refresh data-driven instead (below).
+    autoRefreshEnabled: false,
     errorFallback:
       'This report could not be loaded. You may not have access, or it may have been removed.',
     surfacePostLoadErrors: false,
@@ -201,6 +204,22 @@ export const ReportViewer: React.FC = () => {
   // `events` object above is built before embedRef exists (forward reference);
   // embedRef has stable identity, so wiring it in here is safe.
   setEmbedRef(embedRef);
+
+  // Data-driven auto-refresh: when the freshness poll sees a dataset refresh
+  // newer than what's on screen, re-pull the report IN PLACE. report.refresh()
+  // preserves the current page/filters/slicers (a data refresh, not a reload), so
+  // this is invisible-and-current — replacing the old blind interval timer. Gated
+  // on the "Auto-refresh reports" toggle; when off, the toolbar's "New data" nudge
+  // lets the user refresh manually instead.
+  useEffect(() => {
+    if (!autoRefreshEnabled || !newDataAvailable) return;
+    const report = embedRef.current as pbi.Report | null;
+    if (!report) return;
+    void report.refresh().catch(() => {
+      /* non-fatal; the manual Refresh button remains */
+    });
+    setLastLoadAt(Date.now()); // screen now reflects the latest refresh
+  }, [autoRefreshEnabled, newDataAvailable, embedRef]);
 
   // NEW-ARCH-1: export hook
   const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
@@ -287,7 +306,7 @@ export const ReportViewer: React.FC = () => {
         lastDataRefresh={datasetRefreshTime}
         dataflowRefresh={dataflowRefreshTime}
         showRelativeAge
-        newDataAvailable={newDataAvailable}
+        newDataAvailable={autoRefreshEnabled ? false : newDataAvailable}
         exportStatus={exportStatus}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
