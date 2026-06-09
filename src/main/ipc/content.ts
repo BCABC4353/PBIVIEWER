@@ -121,6 +121,22 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getDashboardDataFreshness(dbId, wsId);
   });
 
+  ipcMain.handle(
+    'content:get-data-freshness',
+    async (_event, workspaceId: string, datasetIds: string[], dashboardId?: string) => {
+      const wsId = validateUUID(workspaceId);
+      if (!wsId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid workspace ID' } };
+      const ids = Array.isArray(datasetIds)
+        ? datasetIds.filter((id): id is string => validateUUID(id) !== null)
+        : [];
+      const dbId = dashboardId ? validateUUID(dashboardId) : undefined;
+      if (dashboardId && !dbId) {
+        return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid dashboard ID' } };
+      }
+      return await powerbiApiService.getDataFreshness(wsId, ids, dbId ?? undefined);
+    },
+  );
+
   ipcMain.handle('content:get-all-items', async () => {
     return await powerbiApiService.getAllItems();
   });

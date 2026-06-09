@@ -82,6 +82,14 @@ export interface ViewerToolbarProps {
    * the newer data (the embedded Power BI service does not repaint on its own).
    */
   newDataAvailable?: boolean;
+  /**
+   * NEW-PROD-4: ISO-8601 timestamp of the upstream dataflow's last SUCCESSFUL
+   * completion, shown as a second line. A dataset can report success on stale
+   * data, so this is the independent "data is genuinely current" signal.
+   */
+  dataflowRefresh?: string | null;
+  /** Label for the dataset stamp. "Data refreshed" (single dataset) or "Oldest data". */
+  freshnessLabel?: string;
 }
 
 /**
@@ -125,8 +133,33 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   onSlideshow,
   showRelativeAge = false,
   newDataAvailable = false,
+  dataflowRefresh,
+  freshnessLabel = 'Data refreshed',
 }) => {
   const hasBreadcrumb = Boolean(itemName);
+
+  // Render one freshness line: "<label>: M/D/YYYY HH:mm TZ (N min ago)" with a
+  // ⚠ warning color when older than a day. Returns null when no timestamp.
+  const renderStamp = (label: string, iso?: string | null): React.ReactNode => {
+    if (!iso) return null;
+    const ageMs = Date.now() - new Date(iso).getTime();
+    const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
+    let relative = '';
+    if (showRelativeAge && Number.isFinite(ageMs)) {
+      const mins = Math.max(0, Math.floor(ageMs / 60000));
+      relative = mins < 1 ? ' (just now)' : mins === 1 ? ' (1 min ago)' : ` (${mins} min ago)`;
+    }
+    return (
+      <Text
+        className={`${isStale ? 'text-status-warning' : 'text-neutral-foreground-3'} text-xs`}
+        title={isStale ? `${label} is more than a day old` : undefined}
+      >
+        {isStale ? '⚠ ' : ''}
+        {label}: {formatRefreshTime(iso)}
+        {relative}
+      </Text>
+    );
+  };
 
   return (
     <div
@@ -180,26 +213,15 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
       {/* Right section */}
       <div className="flex items-center gap-2">
         {/* NEW-PROD-4: freshness timestamp with TZ label */}
-        {lastDataRefresh && (() => {
-          // NEW-PROD-3: if the data is more than a day old, surface it in a
-          // warning color with a marker so an operator notices it isn't current.
-          const ageMs = Date.now() - new Date(lastDataRefresh).getTime();
-          const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
-          // Live relative age (App view) — lets users watch the data tick over.
-          let relative = '';
-          if (showRelativeAge && Number.isFinite(ageMs)) {
-            const mins = Math.max(0, Math.floor(ageMs / 60000));
-            relative = mins < 1 ? ' (just now)' : mins === 1 ? ' (1 min ago)' : ` (${mins} min ago)`;
-          }
-          return (
-            <Text
-              className={`${isStale ? 'text-status-warning' : 'text-neutral-foreground-3'} text-sm mr-2`}
-              title={isStale ? 'This data is more than a day old' : undefined}
-            >
-              {isStale ? '⚠ ' : ''}Data refreshed: {formatRefreshTime(lastDataRefresh)}{relative}
-            </Text>
-          );
-        })()}
+        {/* Freshness: dataset refresh time + upstream dataflow last-success time.
+            Two compact lines so a "succeeded on stale data" case (the two times
+            diverge) is visible at a glance. */}
+        {(lastDataRefresh || dataflowRefresh) && (
+          <div className="flex flex-col items-end mr-2 leading-tight">
+            {renderStamp(freshnessLabel, lastDataRefresh)}
+            {renderStamp('Dataflow', dataflowRefresh)}
+          </div>
+        )}
 
         {/* Transient export status message */}
         {exportStatus && (

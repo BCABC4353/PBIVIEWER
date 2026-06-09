@@ -4,6 +4,7 @@ import { Spinner, Button, Text } from '@fluentui/react-components';
 import { AppsRegular } from '@fluentui/react-icons';
 import { ViewerToolbar } from './ViewerToolbar';
 import { EMBED } from '../../../shared/constants';
+import { useLiveFreshness } from '../../hooks/useLiveFreshness';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -32,9 +33,8 @@ export const AppViewer: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // --- Live data-freshness indicator (App view) ---
-  const [latestRefresh, setLatestRefresh] = useState<string | null>(null);
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
-  const [, setNowTick] = useState(0); // ticks the "(N min ago)" relative label
+  const [datasetCount, setDatasetCount] = useState(0);
   const datasetsRef = useRef<Array<{ datasetId: string; workspaceId: string }>>([]);
 
   // Load the webview config (partition name) from main process
@@ -77,33 +77,8 @@ export const AppViewer: React.FC = () => {
   }, [appId, loadAppDetails]);
 
   // ----- Live data-freshness for the App view -----
-  // Poll the freshest backing-dataset refresh time so the toolbar shows a live
-  // "Data refreshed: HH:MM (N min ago)" the user can watch tick over.
-  const pollFreshness = useCallback(async () => {
-    const datasets = datasetsRef.current;
-    if (datasets.length === 0) return;
-    try {
-      const results = await Promise.all(
-        datasets.map((d) =>
-          window.electronAPI.content.getDatasetRefreshInfo(d.datasetId, d.workspaceId),
-        ),
-      );
-      let freshest: string | null = null;
-      for (const res of results) {
-        if (res.success && res.data.lastRefreshTime) {
-          const t = res.data.lastRefreshTime;
-          if (!freshest || new Date(t).getTime() > new Date(freshest).getTime()) {
-            freshest = t;
-          }
-        }
-      }
-      if (freshest) setLatestRefresh(freshest);
-    } catch (err) {
-      console.warn('[AppViewer] Freshness poll failed (non-fatal):', err);
-    }
-  }, []);
-
-  // Resolve this app's dataset(s) once, then poll their refresh time every 60s.
+  // Resolve this app's dataset(s) once (datasetCount > 1 -> "Oldest data" label,
+  // since we can't know which report inside a multi-report app is on screen).
   useEffect(() => {
     if (!appId) return;
     let cancelled = false;
@@ -120,33 +95,36 @@ export const AppViewer: React.FC = () => {
           }
         }
         datasetsRef.current = datasets;
-        await pollFreshness();
+        setDatasetCount(datasets.length);
       } catch (err) {
         console.warn('[AppViewer] Could not resolve app datasets for freshness:', err);
       }
     })();
-    const interval = setInterval(() => {
-      setNowTick((n) => n + 1); // re-render so the "N min ago" label advances
-      void pollFreshness();
-    }, 60_000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
     };
-  }, [appId, pollFreshness]);
+  }, [appId]);
 
-  // Re-poll right after each (re)load so the stamp + "new data" check reflect
-  // what the freshly-loaded screen actually shows.
-  useEffect(() => {
-    if (lastLoadAt !== null) void pollFreshness();
-  }, [lastLoadAt, pollFreshness]);
+  // Poll dataset + upstream-dataflow freshness for this app's dataset(s).
+  const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
+    useCallback(async () => {
+      const ds = datasetsRef.current;
+      const first = ds[0];
+      if (!first) return null;
+      const r = await window.electronAPI.content.getDataFreshness(
+        first.workspaceId,
+        ds.map((d) => d.datasetId),
+      );
+      if (!r.success) return null;
+      return {
+        datasetRefreshTime: r.data.datasetRefreshTime,
+        dataflowRefreshTime: r.data.dataflowRefreshTime,
+      };
+    }, []),
+    lastLoadAt,
+  );
 
-  // The dataset refreshed AFTER the screen last loaded -> the on-screen visuals
-  // are behind, so prompt a refresh. (Embedded Power BI shows data as of load.)
-  const newDataAvailable =
-    latestRefresh !== null &&
-    lastLoadAt !== null &&
-    new Date(latestRefresh).getTime() > lastLoadAt;
+  const freshnessLabel = datasetCount > 1 ? 'Oldest data' : 'Data refreshed';
 
   // Set up webview event listeners
   useEffect(() => {
@@ -290,7 +268,9 @@ export const AppViewer: React.FC = () => {
         titleIcon={<AppsRegular />}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
-        lastDataRefresh={latestRefresh}
+        lastDataRefresh={datasetRefreshTime}
+        dataflowRefresh={dataflowRefreshTime}
+        freshnessLabel={freshnessLabel}
         showRelativeAge
         newDataAvailable={newDataAvailable}
       />

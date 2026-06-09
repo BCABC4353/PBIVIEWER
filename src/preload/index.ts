@@ -45,6 +45,9 @@ const electronAPI: ElectronAPI = {
     // PROD-S9: dashboard freshness bridge — stalest tile-dataset refresh time.
     getDashboardDataFreshness: (dashboardId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-dashboard-data-freshness', dashboardId, workspaceId),
+    // Dataset + upstream-dataflow freshness for the viewer "Data refreshed / Dataflow" stamps.
+    getDataFreshness: (workspaceId: string, datasetIds: string[], dashboardId?: string) =>
+      ipcRenderer.invoke('content:get-data-freshness', workspaceId, datasetIds, dashboardId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
   },
 

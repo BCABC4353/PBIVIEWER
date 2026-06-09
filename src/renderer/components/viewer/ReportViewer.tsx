@@ -10,6 +10,7 @@ import { useContentStore } from '../../stores/content-store';
 import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
 import { useViewerExport } from './useViewerExport';
+import { useLiveFreshness } from '../../hooks/useLiveFreshness';
 
 export const ReportViewer: React.FC = () => {
   const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
@@ -23,7 +24,7 @@ export const ReportViewer: React.FC = () => {
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
   const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
 
-  const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
+  const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const datasetIdRef = useRef<string | null>(null);
 
@@ -75,6 +76,20 @@ export const ReportViewer: React.FC = () => {
       cancelled = true;
     };
   }, [workspaceId, reportId]);
+
+  // Live dataset + upstream-dataflow freshness for this report's single dataset.
+  const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
+    useCallback(async () => {
+      if (!datasetIdRef.current || !workspaceId) return null;
+      const r = await window.electronAPI.content.getDataFreshness(workspaceId, [datasetIdRef.current]);
+      if (!r.success) return null;
+      return {
+        datasetRefreshTime: r.data.datasetRefreshTime,
+        dataflowRefreshTime: r.data.dataflowRefreshTime,
+      };
+    }, [workspaceId]),
+    lastLoadAt,
+  );
 
   // Build embed configuration. Stable per (workspaceId, reportId).
   const buildConfig = useCallback(
@@ -136,20 +151,9 @@ export const ReportViewer: React.FC = () => {
           console.warn('[ReportViewer] Page fetch failed:', error);
         }
 
-        // Fetch dataset refresh info after report loads
-        if (datasetIdRef.current && workspaceId) {
-          try {
-            const refreshResponse = await window.electronAPI.content.getDatasetRefreshInfo(
-              datasetIdRef.current,
-              workspaceId
-            );
-            if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
-              setLastDataRefresh(refreshResponse.data.lastRefreshTime);
-            }
-          } catch (error) {
-            console.warn('[ReportViewer] Dataset refresh info unavailable:', error);
-          }
-        }
+        // Mark when the on-screen content (re)loaded so the freshness hook can
+        // tell whether a later dataset refresh has left the visuals behind.
+        setLastLoadAt(Date.now());
       },
       // Track page changes to keep keyboard navigation in sync
       pageChanged: async () => {
@@ -280,7 +284,10 @@ export const ReportViewer: React.FC = () => {
       <ViewerToolbar
         onBack={handleBack}
         itemName={reportName || undefined}
-        lastDataRefresh={lastDataRefresh}
+        lastDataRefresh={datasetRefreshTime}
+        dataflowRefresh={dataflowRefreshTime}
+        showRelativeAge
+        newDataAvailable={newDataAvailable}
         exportStatus={exportStatus}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}

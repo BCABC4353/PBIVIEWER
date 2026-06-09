@@ -44,6 +44,11 @@ export const loginRequest = {
     'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
     'https://analysis.windows.net/powerbi/api/App.Read.All',
     'https://analysis.windows.net/powerbi/api/Dataset.Read.All',
+    // Data-freshness feature: read dataflow refresh transactions so the viewer can
+    // show the upstream dataflow's last SUCCESSFUL completion (a dataset can report
+    // success while serving stale data). NOTE: adding this scope requires a one-time
+    // admin re-consent in Entra, and each user re-signs-in once.
+    'https://analysis.windows.net/powerbi/api/Dataflow.Read.All',
     'offline_access',
     'openid',
     'profile',

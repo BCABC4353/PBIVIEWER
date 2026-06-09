@@ -35,6 +35,8 @@ export const IPC_CHANNELS = {
     getDatasetRefreshInfo: 'content:get-dataset-refresh-info',
     // PROD-S9: dashboard freshness derived from the stalest tile dataset.
     getDashboardDataFreshness: 'content:get-dashboard-data-freshness',
+    // Data-freshness: dataset refresh time + upstream dataflow last-success time.
+    getDataFreshness: 'content:get-data-freshness',
     getAllItems: 'content:get-all-items',
   },
   window: {

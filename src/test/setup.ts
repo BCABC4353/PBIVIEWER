@@ -82,6 +82,10 @@ function createElectronAPIMock(): ElectronAPI {
         success: true,
         data: {},
       }),
+      getDataFreshness: vi.fn().mockResolvedValue({
+        success: true,
+        data: { datasetRefreshTime: null, dataflowRefreshTime: null, datasetCount: 0 },
+      }),
       getAllItems: vi.fn().mockResolvedValue({
         success: true,
         data: {

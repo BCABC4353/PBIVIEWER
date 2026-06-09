@@ -7,6 +7,7 @@ import type {
   App,
   EmbedToken,
   DatasetRefreshInfo,
+  DataFreshness,
   IPCResponse,
   TokenResult,
 } from '../../shared/types';
@@ -923,6 +924,158 @@ class PowerBIApiService {
         success: false,
         error: buildErrorEnvelope('DASHBOARD_FRESHNESS_FAILED', error),
       };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data-freshness: dataset refresh time + upstream dataflow last-success time.
+  // Powers the viewers' "Data refreshed: ... / Dataflow: ..." stamps. A dataset
+  // can report a successful refresh while serving stale data (the upstream query
+  // broke), so the dataflow's last SUCCESSFUL completion is an independent signal.
+  // ---------------------------------------------------------------------------
+
+  /** Distinct datasetIds referenced by a dashboard's tiles. */
+  private async getDashboardTileDatasetIds(dashboardId: string, workspaceId: string): Promise<string[]> {
+    interface RawTile {
+      id: string;
+      datasetId?: string;
+    }
+    const tilesResponse = await this.makeRequest<PowerBIApiResponse<RawTile>>(
+      `/groups/${workspaceId}/dashboards/${dashboardId}/tiles`,
+    );
+    return Array.from(
+      new Set(
+        (tilesResponse.value ?? [])
+          .map((tile) => tile.datasetId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    );
+  }
+
+  /**
+   * Resolve the upstream dataflow(s) feeding the given datasets in a workspace.
+   * Primary: GET /groups/{ws}/datasets/upstreamDataflows (Dataset.Read.All) →
+   * filter to our datasetIds. Fallback (no recognized link): if the workspace has
+   * exactly one dataflow, assume it. The dataflow can live in a different
+   * workspace than the dataset (workspaceObjectId on the link).
+   */
+  private async resolveUpstreamDataflows(
+    workspaceId: string,
+    datasetIds: string[],
+  ): Promise<Array<{ dataflowId: string; workspaceId: string }>> {
+    const wanted = new Set(datasetIds.map((id) => id.toLowerCase()));
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        datasetObjectId: string;
+        dataflowObjectId: string;
+        workspaceObjectId: string;
+      }>>(`/groups/${workspaceId}/datasets/upstreamDataflows`);
+      const seen = new Set<string>();
+      const out: Array<{ dataflowId: string; workspaceId: string }> = [];
+      for (const link of resp.value ?? []) {
+        if (
+          link.datasetObjectId &&
+          wanted.has(link.datasetObjectId.toLowerCase()) &&
+          link.dataflowObjectId &&
+          !seen.has(link.dataflowObjectId)
+        ) {
+          seen.add(link.dataflowObjectId);
+          out.push({ dataflowId: link.dataflowObjectId, workspaceId: link.workspaceObjectId || workspaceId });
+        }
+      }
+      if (out.length > 0) return out;
+    } catch (error) {
+      console.warn('[PowerBI] upstreamDataflows lookup failed:', error);
+    }
+    // Fallback: exactly one dataflow in the workspace → assume it is upstream.
+    try {
+      const dfResp = await this.makeRequest<PowerBIApiResponse<{ objectId: string }>>(
+        `/groups/${workspaceId}/dataflows`,
+      );
+      const dfs = (dfResp.value ?? []).filter((d) => d.objectId);
+      const onlyDf = dfs.length === 1 ? dfs[0] : undefined;
+      if (onlyDf) return [{ dataflowId: onlyDf.objectId, workspaceId }];
+    } catch (error) {
+      console.warn('[PowerBI] dataflows list (fallback) failed:', error);
+    }
+    return [];
+  }
+
+  /** Most recent SUCCESSFUL refresh completion (endTime) for one dataflow, or null. */
+  private async getDataflowLastSuccess(workspaceId: string, dataflowId: string): Promise<string | null> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        status?: string;
+        startTime?: string;
+        endTime?: string;
+      }>>(`/groups/${workspaceId}/dataflows/${dataflowId}/transactions`);
+      let latest: string | null = null;
+      for (const t of resp.value ?? []) {
+        // A transaction can be InProgress/Failed/Cancelled or omit fields; only a
+        // Success with an endTime tells us when data was actually published.
+        if (t.status === 'Success' && t.endTime) {
+          if (!latest || Date.parse(t.endTime) > Date.parse(latest)) latest = t.endTime;
+        }
+      }
+      return latest;
+    } catch (error) {
+      console.warn('[PowerBI] dataflow transactions failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Aggregate data-freshness for a piece of content: the STALEST dataset
+   * last-refresh time and the STALEST upstream-dataflow last-success time across
+   * the content's datasets. Pass datasetIds for a report/app, or dashboardId to
+   * derive them from the dashboard's tiles.
+   */
+  async getDataFreshness(
+    workspaceId: string,
+    datasetIds: string[],
+    dashboardId?: string,
+  ): Promise<IPCResponse<DataFreshness>> {
+    try {
+      let ids = datasetIds;
+      if (dashboardId) {
+        ids = await this.getDashboardTileDatasetIds(dashboardId, workspaceId);
+      }
+      ids = Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.length > 0)));
+
+      // Dataset: stalest last-refresh across the datasets.
+      let datasetRefreshTime: string | null = null;
+      const datasetResults = await Promise.all(
+        ids.map((id) => this.getDatasetRefreshInfo(id, workspaceId)),
+      );
+      for (const r of datasetResults) {
+        if (r.success && r.data.lastRefreshTime) {
+          if (!datasetRefreshTime || Date.parse(r.data.lastRefreshTime) < Date.parse(datasetRefreshTime)) {
+            datasetRefreshTime = r.data.lastRefreshTime;
+          }
+        }
+      }
+
+      // Dataflow: stalest last-SUCCESS across all upstream dataflows.
+      let dataflowRefreshTime: string | null = null;
+      if (ids.length > 0) {
+        const dataflows = await this.resolveUpstreamDataflows(workspaceId, ids);
+        const dfTimes = await Promise.all(
+          dataflows.map((df) => this.getDataflowLastSuccess(df.workspaceId, df.dataflowId)),
+        );
+        for (const t of dfTimes) {
+          if (t && (!dataflowRefreshTime || Date.parse(t) < Date.parse(dataflowRefreshTime))) {
+            dataflowRefreshTime = t;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        data: { datasetRefreshTime, dataflowRefreshTime, datasetCount: ids.length },
+      };
+    } catch (error) {
+      console.warn('[PowerBI] Data freshness unavailable:', error);
+      return { success: false, error: buildErrorEnvelope('DATA_FRESHNESS_FAILED', error) };
     }
   }
 }

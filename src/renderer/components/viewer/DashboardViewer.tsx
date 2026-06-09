@@ -7,6 +7,7 @@ import { useContentStore } from '../../stores/content-store';
 import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
 import { useViewerExport } from './useViewerExport';
+import { useLiveFreshness } from '../../hooks/useLiveFreshness';
 
 export const DashboardViewer: React.FC = () => {
   const { workspaceId, dashboardId } = useParams<{ workspaceId: string; dashboardId: string }>();
@@ -29,7 +30,7 @@ export const DashboardViewer: React.FC = () => {
   // old?" signal. When no tile exposes a datasetId, or none have refresh
   // history, the call returns empty data and the indicator stays hidden
   // (graceful fallback — no misleading timestamp).
-  const [lastDataRefresh, setLastDataRefresh] = useState<string | null>(null);
+  const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
 
   // Fetch dashboard details to get the name (also drives UX-S14 breadcrumb)
   useEffect(() => {
@@ -50,6 +51,21 @@ export const DashboardViewer: React.FC = () => {
     };
     loadDashboardDetails();
   }, [workspaceId, dashboardId]);
+
+  // Live freshness across the dashboard's tile datasets (stalest = "Oldest data")
+  // plus their upstream dataflows' last-success time.
+  const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
+    useCallback(async () => {
+      if (!dashboardId || !workspaceId) return null;
+      const r = await window.electronAPI.content.getDataFreshness(workspaceId, [], dashboardId);
+      if (!r.success) return null;
+      return {
+        datasetRefreshTime: r.data.datasetRefreshTime,
+        dataflowRefreshTime: r.data.dataflowRefreshTime,
+      };
+    }, [dashboardId, workspaceId]),
+    lastLoadAt,
+  );
 
   // Build embed configuration.
   const buildConfig = useCallback(
@@ -86,24 +102,9 @@ export const DashboardViewer: React.FC = () => {
       // when no tile exposes a datasetId or none have refresh history) as "no
       // indicator", not a blank value.
       loaded: () => {
-        // Fire-and-forget: the embed event handler contract is `() => void`, so
-        // we explicitly void the async work rather than returning a Promise the
-        // lifecycle hook would ignore. Errors are intentionally swallowed (the
-        // freshness indicator is best-effort; absence is the graceful fallback).
-        if (!workspaceId || !dashboardId) return;
-        void (async () => {
-          try {
-            const refreshResponse = await window.electronAPI.content.getDashboardDataFreshness(
-              dashboardId,
-              workspaceId
-            );
-            if (refreshResponse.success && refreshResponse.data?.lastRefreshTime) {
-              setLastDataRefresh(refreshResponse.data.lastRefreshTime);
-            }
-          } catch (error) {
-            console.warn('[DashboardViewer] Dashboard data freshness unavailable:', error);
-          }
-        })();
+        // Mark when the on-screen content (re)loaded so the freshness hook can
+        // tell whether a later dataset refresh has left the visuals behind.
+        setLastLoadAt(Date.now());
       },
     }),
     [navigate, workspaceId, dashboardId]
@@ -185,7 +186,11 @@ export const DashboardViewer: React.FC = () => {
       <ViewerToolbar
         onBack={handleBack}
         itemName={dashboardName}
-        lastDataRefresh={lastDataRefresh}
+        lastDataRefresh={datasetRefreshTime}
+        dataflowRefresh={dataflowRefreshTime}
+        freshnessLabel="Oldest data"
+        showRelativeAge
+        newDataAvailable={newDataAvailable}
         exportStatus={exportStatus}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}

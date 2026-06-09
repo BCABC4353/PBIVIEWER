@@ -91,6 +91,20 @@ export interface DatasetRefreshInfo {
   lastRefreshStatus?: 'Unknown' | 'Completed' | 'Failed' | 'Disabled';
 }
 
+/**
+ * Aggregate data-freshness for a piece of content (report / app / dashboard).
+ * Both times are the STALEST (oldest) across the content's datasets/dataflows —
+ * a conservative "is anything behind?" signal that never overstates freshness.
+ */
+export interface DataFreshness {
+  /** Stalest dataset last-refresh time across the content's dataset(s), ISO or null. */
+  datasetRefreshTime: string | null;
+  /** Stalest upstream-dataflow last-SUCCESS completion time, ISO or null. */
+  dataflowRefreshTime: string | null;
+  /** How many datasets were considered (>1 → caller shows an "Oldest data" label). */
+  datasetCount: number;
+}
+
 // ============================================
 // APP SETTINGS TYPES
 // ============================================
