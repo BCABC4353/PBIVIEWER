@@ -181,7 +181,10 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     if (!iso) {
       if (!placeholder) return null;
       return (
-        <Text className="text-neutral-foreground-3 text-xs" title={`${label}: not yet known`}>
+        <Text
+          className="text-neutral-foreground-3 text-xs whitespace-nowrap"
+          title={`${label}: not yet known`}
+        >
           {label}: —
         </Text>
       );
@@ -202,7 +205,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
         : 'text-neutral-foreground-3';
     return (
       <Text
-        className={`${tone} text-xs`}
+        className={`${tone} text-xs whitespace-nowrap`}
         title={isStale ? `${label} is more than a day old` : undefined}
       >
         {isStale && !flashActive ? '⚠ ' : ''}
@@ -231,29 +234,38 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
         <>
           <div className="h-6 w-px bg-neutral-stroke-2" aria-hidden="true" />
 
+          {/* min-w-0 lets the TITLE be the element that gives up width when
+              the window narrows. Without it, flex refuses to shrink the text
+              and the right-side freshness stamps get crushed instead. */}
           {titleIcon ? (
             // App-style title: [icon] [name] without home crumb
-            <div className="flex items-center gap-2">
-              <span className="text-accent-primary">{titleIcon}</span>
-              <Text weight="semibold">{itemName}</Text>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-accent-primary shrink-0">{titleIcon}</span>
+              <Text weight="semibold" className="truncate" title={itemName}>
+                {itemName}
+              </Text>
             </div>
           ) : (
             // Report/Dashboard breadcrumb: Home > name
-            <Breadcrumb aria-label="Navigation breadcrumb">
-              <BreadcrumbItem>
-                <Button
-                  appearance="subtle"
-                  icon={<HomeRegular />}
-                  onClick={onBack}
-                  aria-label="Home"
-                >
-                  Home
-                </Button>
-              </BreadcrumbItem>
-              <BreadcrumbItem>
-                <Text>{itemName}</Text>
-              </BreadcrumbItem>
-            </Breadcrumb>
+            <div className="min-w-0 overflow-hidden">
+              <Breadcrumb aria-label="Navigation breadcrumb">
+                <BreadcrumbItem>
+                  <Button
+                    appearance="subtle"
+                    icon={<HomeRegular />}
+                    onClick={onBack}
+                    aria-label="Home"
+                  >
+                    Home
+                  </Button>
+                </BreadcrumbItem>
+                <BreadcrumbItem>
+                  <Text className="truncate" title={itemName}>
+                    {itemName}
+                  </Text>
+                </BreadcrumbItem>
+              </Breadcrumb>
+            </div>
           )}
         </>
       )}
@@ -261,8 +273,10 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right section */}
-      <div className="flex items-center gap-2">
+      {/* Right section. shrink-0 keeps the stamps and action buttons in
+          their own room at every window width — the left title truncates
+          instead (min-w-0 above). */}
+      <div className="flex items-center gap-2 shrink-0">
         {/* Freshness strip: dataset refresh time + upstream
             dataflow last-success time, persistently rendered (with placeholders
             until the first poll resolves) so the stamps never vanish from the
