@@ -104,6 +104,36 @@ describe('executeDax', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) })));
     await expect(executeDax(tokens, 'ds-9', 'EVALUATE X')).rejects.toThrow(/403.*ds-9/);
   });
+
+  it('surfaces the EXACT API error code and message when the body carries one', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: { code: 'PowerBINotAuthorizedException', message: 'Build permission required' },
+        }),
+      })),
+    );
+    await expect(executeDax(tokens, 'ds-9', 'EVALUATE X')).rejects.toThrow(
+      /PowerBINotAuthorizedException: Build permission required/,
+    );
+  });
+
+  it('still throws cleanly when the error body is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        json: async () => {
+          throw new Error('not json');
+        },
+      })),
+    );
+    await expect(executeDax(tokens, 'ds-9', 'EVALUATE X')).rejects.toThrow(/HTTP 500.*ds-9/);
+  });
 });
 
 describe('shapeForVisual', () => {

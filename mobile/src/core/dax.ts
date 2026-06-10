@@ -128,7 +128,23 @@ export async function executeDax(
     }),
   });
   if (!res.ok) {
-    throw new Error(`Execute Queries failed (HTTP ${res.status}) on dataset ${datasetId}`);
+    // Surface the EXACT API error — the fallback ladder shows it to the user
+    // verbatim (e.g. PowerBINotAuthorizedException on missing Build permission).
+    let detail = '';
+    try {
+      const body = (await res.json()) as {
+        error?: { code?: string; message?: string };
+      } | null;
+      const code = body?.error?.code;
+      const message = body?.error?.message;
+      detail = [code, message].filter(Boolean).join(': ');
+    } catch {
+      /* non-JSON error body — status alone will have to do */
+    }
+    throw new Error(
+      `Execute Queries failed (HTTP ${res.status}) on dataset ${datasetId}` +
+        (detail ? ` — ${detail.slice(0, 400)}` : ''),
+    );
   }
   return parseExecuteQueriesResponse(await res.json());
 }
