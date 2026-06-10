@@ -85,6 +85,10 @@ export class TokenManager {
   private tokens: TokenSet | null = null;
   /** Storage hydrated at most once (re-armed by clear()). */
   private loaded = false;
+  /** Single-flight hydration — concurrent first readers share one storage read. */
+  private hydration: Promise<TokenSet | null> | null = null;
+  /** Bumped by clear() so an in-flight hydration can't resurrect credentials. */
+  private epoch = 0;
   /** Single-flight lock — all concurrent getAccessToken callers share it. */
   private acquisitionInFlight: Promise<string> | null = null;
 
@@ -123,6 +127,8 @@ export class TokenManager {
 
   /** Sign out: wipe memory + storage. */
   async clear(): Promise<void> {
+    this.epoch += 1; // invalidate any hydration still in flight
+    this.hydration = null;
     this.tokens = null;
     this.loaded = false; // re-arm hydration so a later read sees the cleared store
     await this.storage.remove();
@@ -183,28 +189,46 @@ export class TokenManager {
     return !!t.accessToken && t.expiresAt - this.expiryMarginMs > this.now();
   }
 
-  /** Hydrate from storage at most once (until clear() re-arms it). */
-  private async load(): Promise<TokenSet | null> {
-    if (this.loaded) return this.tokens;
-    this.loaded = true;
+  /** Hydrate from storage at most once (until clear() re-arms it).
+   *  SINGLE-FLIGHT: concurrent first readers (e.g. isSignedIn() and
+   *  getAccessToken() racing at launch) share one storage read — otherwise
+   *  the second caller would observe `loaded = true, tokens = null` while the
+   *  first is still awaiting storage.get() and wrongly report signed-out. */
+  private load(): Promise<TokenSet | null> {
+    if (this.loaded) return Promise.resolve(this.tokens);
+    this.hydration ??= this.hydrate();
+    return this.hydration;
+  }
+
+  private async hydrate(): Promise<TokenSet | null> {
+    const epoch = this.epoch;
     let raw: string | null = null;
     try {
       raw = await this.storage.get();
     } catch {
       raw = null; // unreadable store (keychain invalidation…) = signed out
     }
+    let parsed: TokenSet | null = null;
     if (raw) {
       try {
         const p = JSON.parse(raw) as PersistedTokens;
-        this.tokens = {
+        parsed = {
           accessToken: p.accessToken ?? '',
           expiresAt: p.expiresAt ?? 0,
           refreshToken: p.refreshToken,
           user: p.user,
         };
       } catch {
-        this.tokens = null; // corrupted JSON = signed out
+        parsed = null; // corrupted JSON = signed out
       }
+    }
+    // Commit only if nothing changed underneath us: clear() bumps the epoch,
+    // and setTokens() flips `loaded` — in either case the in-memory state is
+    // newer than what we just read.
+    if (epoch === this.epoch && !this.loaded) {
+      this.tokens = parsed;
+      this.loaded = true;
+      this.hydration = null;
     }
     return this.tokens;
   }

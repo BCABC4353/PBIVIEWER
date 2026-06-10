@@ -56,8 +56,11 @@ export const LineChart: React.FC<{
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         // Yield to the surrounding ScrollView only when the drag is clearly
-        // vertical — horizontal scrubs keep the chart.
+        // vertical — horizontal scrubs keep the chart. The second hook is the
+        // Android path: native scrolling bypasses termination requests and is
+        // blocked by default, so it must be released explicitly.
         onPanResponderTerminationRequest: (_e, g) => Math.abs(g.dy) > Math.abs(g.dx),
+        onShouldBlockNativeResponder: (_e, g) => Math.abs(g.dx) >= Math.abs(g.dy),
         onPanResponderGrant: (e) => {
           movedRef.current = false;
           scrubTo(e.nativeEvent.locationX);
