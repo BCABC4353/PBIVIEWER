@@ -20,7 +20,8 @@ fires. Notification haptics are precious: flow completion only.
 | Hero number / count updates | `<AnimatedNumber value={n}>` | — (`tap()` at most, on land) |
 | Refresh in progress | `<Pulse active>` around the status glyph | — |
 | Scrubbing the sparkline past points | sparkline drag | `detent()` (self rate-limited ≤30/s) |
-| Content loading | `<Shimmer>` blocks mirroring layout | — |
+| Content loading | `<SkeletonPulse>` / `<Shimmer>` blocks mirroring layout | — |
+| Cold app launch (once, ever) | `<IgnitionOverlay>` | `apex()` at the overshoot apex |
 | Screen / tab transition | `springs.nav` | — |
 | Card expand / collapse | `springs.card` | `thunk()` on snap |
 
@@ -37,45 +38,34 @@ Pure logic (spring math, stagger, detent gate, formatting) lives in
 `motionCore.ts` (node-testable, no RN imports); RN bindings live in
 `springs.ts` / `haptics.ts` / `primitives.tsx`.
 
-## Ignition Sweep — the signature primitive
+## Ignition — the launch ceremony (once, ever, per cold start)
 
-**Concept.** The Fleet screen's loading state is a car's gauge-needle sweep at
-ignition. `<IgnitionSweep>` draws a 270° amber tachometer arc (gap at the
-bottom) whose needle — an `Animated.Value` chasing the host's `progress` on
-`springs.gesture` — sweeps as the fleet snapshot loads. Each batch of items the
-API actually answers ticks one `detent()` under the thumb (self rate-limited).
-On a clean load the needle settles flush on the end-stop and ONE warm
-`confirm()` fires as `onSettled` cues the hero number to land. If the load
-includes a failure the sweep **catches**: the needle halts at a proportional
-position (capped at `CATCH_CEILING` = 0.92 — a full sweep is the visual
-signature of a *clean* load, so a catch never lands flush), `fault()` fires,
-and `onCaught` reports the catch so the host can surface the failed item in
-red. Red belongs to the broken item, never to this chrome — the arc stays
-amber.
+**Concept.** `<IgnitionOverlay>` (IgnitionSweep.tsx) is the app's ignition
+moment: a 270° graduated instrument — minor/major tick arc, amber glow trail
+at two intensities, a needle with a hub and counterweight tail — whose needle
+makes ONE continuous underdamped sweep on the UI thread (Reanimated
+`useAnimatedProps` over react-native-svg): accelerate to full throw, one
+slight overshoot, settle. A single light `apex()` impact fires exactly at the
+overshoot apex; nothing else buzzes. Red never appears here — the chrome is
+amber only.
 
-Props: `{ progress: 0..1, itemsChecked: number, failed: boolean,
-onSettled?: () => void, onCaught?: () => void, size?: number }`. Settle and
-catch are terminal — later prop noise (progress regressions, late `failed`
-flips) can never revive a finished gauge. Pure brain (arc dash math, honest
-detent counting, the settle/catch state machine) lives in `ignition-logic.ts`,
-tested in `ignition-logic.test.ts`; the component is only the SVG/haptic shell.
+**The three rules.**
 
-**The honesty rule.** Every detent is caused by a real API response landing —
-`itemsChecked` increments map 1:1 to answers received. The sweep never fakes
-delay, never synthesizes ticks, never eases toward 100% on a timer, and never
-holds a finished load hostage to finish an animation. If data arrives
-instantly, the needle sweeps once and settles instantly. Decreases and garbage
-inputs in `itemsChecked` are silence, not clicks.
+1. **Once per cold launch.** A module-level latch in `ignition-logic.ts`
+   (`ignitionHasPlayed` / `markIgnitionPlayed`) survives every component
+   unmount/remount and resets only when the JS bundle restarts. Tab switches,
+   back-navigation, screen remounts, pull-to-refresh and data-mode switches
+   can NEVER replay the ceremony.
+2. **Loading never blocks content.** The overlay is a `pointerEvents="none"`
+   veil mounted above the app shell (Root.tsx) — content (or `<SkeletonPulse>`
+   placeholders) is laid out and interactive beneath it the whole time, and
+   the veil fades out to reveal the app within `IGNITION_TOTAL_MS` (≤ 1400 ms,
+   D6). Loading states themselves are quiet skeletons, never the dial, never
+   a spinner-as-wall.
+3. **Reduce Motion → no ceremony at all.** No sweep, no haptic, instant
+   content (the overlay dismisses itself before animating).
 
-**Host contract (FleetHealthScreen).** Ideally the host exposes per-workspace
-progress: `progress = workspacesAnswered / workspacesTotal` and
-`itemsChecked = refreshables received so far`, flipping `failed` the moment any
-response shows a failure — the needle then catches *where* the failure
-surfaced. The current `DataSource.getFleetSnapshot()` resolves once; that's
-fine: the host may derive progress as indeterminate → `1.0` on resolve (hold
-`progress` low, e.g. `0.1`, while in flight, then set `1.0` + final
-`itemsChecked` + `failed` together). The sweep still works — the completion
-batch yields one detent, then the settle (or the catch at `CATCH_CEILING`,
-visibly short of complete). Under OS Reduce Motion there is no sweep at all:
-instant settle to the final position and a single completion haptic only — no
-detents.
+Pure brain (the launch latch, arc dash math, needle throw + tick graduation,
+spring physics, the ≤ 1400 ms timeline) lives in `ignition-logic.ts`, tested
+in `ignition-logic.test.ts`; the component is only the Reanimated/SVG/haptic
+shell.

@@ -1,26 +1,54 @@
 /**
- * ignition-logic — the PURE brain of the Ignition Sweep (see IgnitionSweep.tsx
- * for the RN shell, README.md "Ignition Sweep" for the concept). Same contract
- * as motionCore.ts: no react-native, no expo imports, ever — everything here
- * runs in plain node and is covered by ignition-logic.test.ts.
+ * ignition-logic — the PURE brain of the Ignition ceremony (see
+ * IgnitionSweep.tsx for the RN shell, src/feel/README.md "Ignition" for the
+ * concept). Same contract as motionCore.ts: no react-native, no expo imports,
+ * ever — everything here runs in plain node and is covered by
+ * ignition-logic.test.ts.
  *
- * Three pure concerns live here:
- *   1. Arc math       — gauge geometry for the SVG dash trick
- *   2. Detent logic   — "did real items land?" → how many haptic ticks
- *   3. Settle machine — sweeping → settled (clean) | caught (failures)
+ * Four pure concerns live here:
+ *   1. Once-per-launch latch — the ceremony plays exactly once per JS bundle
+ *   2. Arc math             — gauge geometry for the SVG dash trick
+ *   3. Instrument geometry  — needle throw, graduated tick marks
+ *   4. Ceremony choreography — spring + timeline constants (D6: ≤ 1400 ms)
  */
 
 // ---------------------------------------------------------------------------
-// 1. Arc math — a 270° tachometer arc, gap at the bottom
+// 1. Once-per-launch latch
+// ---------------------------------------------------------------------------
+//
+// Module-level state ON PURPOSE: it survives component unmount/remount (tab
+// switches, back-navigation, pull-to-refresh, data-mode switches) and resets
+// ONLY when the JS bundle restarts — i.e. a cold app launch. "A ceremony
+// repeated becomes a nuisance: never replay on navigation" (D6).
+
+let ignitionPlayed = false;
+
+/** Has the launch ceremony already played in this JS bundle's lifetime? */
+export function ignitionHasPlayed(): boolean {
+  return ignitionPlayed;
+}
+
+/** Latch the ceremony as played. Idempotent; there is no un-play. */
+export function markIgnitionPlayed(): void {
+  ignitionPlayed = true;
+}
+
+/** Test-only escape hatch — production code must never reset the latch. */
+export function resetIgnitionForTests(): void {
+  ignitionPlayed = false;
+}
+
+// ---------------------------------------------------------------------------
+// 2. Arc math — a 270° tachometer arc, gap at the bottom
 // ---------------------------------------------------------------------------
 
 /** Angular span of the gauge arc. 270° like a car tachometer; gap faces down. */
 export const SWEEP_DEGREES = 270;
 
 /**
- * Rotation applied to the SVG so the arc's zero sits at lower-left.
- * SVG dash arcs start at 3 o'clock (0°); +135° puts the start at 7:30 and the
- * end at 4:30 — the classic gauge stance.
+ * Angle (SVG degrees: 0° = 3 o'clock, clockwise positive) of the needle's
+ * rest position. 135° puts zero at 7:30 and full throw at 4:30 — the classic
+ * gauge stance.
  */
 export const SWEEP_START_DEGREES = 135;
 
@@ -29,141 +57,144 @@ export function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
 
-export interface ArcGeometry {
-  /** Center of the circle (== size / 2 on both axes). */
-  center: number;
-  /** Radius of the stroke centerline — inset so the stroke never clips. */
-  radius: number;
-  /** Full circle circumference at that radius. */
+export interface ArcSpan {
+  /** Full circle circumference at the given radius. */
   circumference: number;
   /** Length along the circumference covered by the visible 270° sweep. */
   arcLength: number;
 }
 
-export function arcGeometry(size: number, strokeWidth: number): ArcGeometry {
-  if (!(size > 0)) throw new Error('arc size must be > 0');
-  if (!(strokeWidth > 0) || strokeWidth * 2 > size) {
-    throw new Error('strokeWidth must be > 0 and fit inside size');
-  }
-  const center = size / 2;
-  const radius = (size - strokeWidth) / 2;
+export function arcSpan(radius: number): ArcSpan {
+  if (!(radius > 0)) throw new Error('arc radius must be > 0');
   const circumference = 2 * Math.PI * radius;
-  const arcLength = circumference * (SWEEP_DEGREES / 360);
-  return { center, radius, circumference, arcLength };
+  return { circumference, arcLength: circumference * (SWEEP_DEGREES / 360) };
 }
 
 /**
  * strokeDasharray for the arc: one dash exactly as long as the 270° sweep,
  * then a gap longer than the rest of the circle so nothing wraps around.
  */
-export function arcDashArray(geometry: ArcGeometry): string {
-  return `${geometry.arcLength} ${geometry.circumference}`;
+export function arcDashArray(span: ArcSpan): string {
+  return `${span.arcLength} ${span.circumference}`;
 }
 
 /**
- * strokeDashoffset revealing `fraction` (0..1) of the sweep. The Animated
- * value chasing progress interpolates THIS: offset arcLength → 0 as the
- * needle sweeps 0 → 1.
+ * strokeDashoffset revealing `fraction` (0..1) of the sweep — the glow trail
+ * chases THIS: offset arcLength → 0 as the needle sweeps 0 → 1.
  */
-export function dashOffsetForFraction(geometry: ArcGeometry, fraction: number): number {
-  return geometry.arcLength * (1 - clamp01(fraction));
+export function dashOffsetForFraction(span: ArcSpan, fraction: number): number {
+  return span.arcLength * (1 - clamp01(fraction));
 }
 
 // ---------------------------------------------------------------------------
-// 2. Detent logic — ticks only for REAL increments
+// 3. Instrument geometry — needle throw + graduated ticks
 // ---------------------------------------------------------------------------
 
 /**
- * How many new items landed between two `itemsChecked` readings. Detents are
- * honest: a tick may ONLY be caused by a real API response landing, so
- * decreases (host reset) and garbage inputs yield zero — never a phantom tick.
- * The caller collapses any positive count into ONE gated detent() call (the
- * haptic layer rate-limits; a completion batch is one click, not a machine gun).
+ * Hard mechanical stop for the needle, a little past the end of the throw so
+ * the spring's overshoot has somewhere real to go — but a wild value can never
+ * spin the needle into the gauge's bottom gap.
  */
-export function detentTicks(prevChecked: number, nextChecked: number): number {
-  if (!Number.isFinite(prevChecked) || !Number.isFinite(nextChecked)) return 0;
-  const delta = Math.floor(nextChecked) - Math.floor(prevChecked);
-  return delta > 0 ? delta : 0;
+export const MAX_NEEDLE_FRACTION = 1.12;
+
+/** Needle angle (SVG degrees) for a sweep fraction; overshoot allowed, capped. */
+export function needleAngleDeg(fraction: number): number {
+  const f = Number.isFinite(fraction)
+    ? Math.min(MAX_NEEDLE_FRACTION, Math.max(0, fraction))
+    : 0;
+  return SWEEP_START_DEGREES + f * SWEEP_DEGREES;
+}
+
+export interface GaugeTick {
+  /** Position along the throw, 0 (rest) .. 1 (end-stop). */
+  fraction: number;
+  /** Absolute SVG angle of the tick. */
+  angleDeg: number;
+  /** Major ticks are longer/brighter — the graduation hierarchy. */
+  major: boolean;
+}
+
+/** Minor graduations every 6.75° → 41 ticks across the 270° throw. */
+export const TICK_MINOR_STEP_DEG = 6.75;
+/** Every 5th tick is major → 9 majors, like a 0–8 tachometer. */
+export const TICK_MAJOR_EVERY_NTH = 5;
+
+/** The graduated tick arc: minors with a major every Nth, ends always major. */
+export function gaugeTicks(
+  minorStepDeg: number = TICK_MINOR_STEP_DEG,
+  majorEveryNth: number = TICK_MAJOR_EVERY_NTH,
+): GaugeTick[] {
+  if (!(minorStepDeg > 0) || minorStepDeg > SWEEP_DEGREES) {
+    throw new Error('minorStepDeg must be > 0 and fit inside the sweep');
+  }
+  if (!Number.isInteger(majorEveryNth) || majorEveryNth < 1) {
+    throw new Error('majorEveryNth must be a positive integer');
+  }
+  const count = Math.round(SWEEP_DEGREES / minorStepDeg);
+  const ticks: GaugeTick[] = [];
+  for (let i = 0; i <= count; i++) {
+    const fraction = i / count;
+    ticks.push({
+      fraction,
+      angleDeg: SWEEP_START_DEGREES + fraction * SWEEP_DEGREES,
+      major: i % majorEveryNth === 0,
+    });
+  }
+  return ticks;
+}
+
+/** Point on a circle — tick endpoints, needle tip/tail. */
+export function polarPoint(
+  cx: number,
+  cy: number,
+  radius: number,
+  angleDeg: number,
+): { x: number; y: number } {
+  const a = (angleDeg * Math.PI) / 180;
+  return { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) };
 }
 
 // ---------------------------------------------------------------------------
-// 3. Settle-state machine
+// 4. Ceremony choreography — one continuous sweep, then the veil lifts
 // ---------------------------------------------------------------------------
+//
+// Timeline (D6: total ≤ 1400 ms, once per launch):
+//   0 .. KEYSET            — light arrives first: the dial fades in
+//   KEYSET .. ~820         — ONE underdamped spring: accelerate to full throw,
+//                            slight overshoot (the apex — the one haptic),
+//                            settle. Never staged hops, never retargeted.
+//   REVEAL .. REVEAL+FADE  — the veil fades out, revealing content (or
+//                            skeletons) already laid out beneath it.
 
-export type SweepPhase = 'sweeping' | 'settled' | 'caught';
+/** Dial fade-in before the needle moves — illumination before motion. */
+export const IGNITION_KEYSET_MS = 120;
+/** When the veil starts lifting (sweep has settled by here). */
+export const IGNITION_REVEAL_MS = 950;
+/** Veil fade duration — content is visible from this moment on. */
+export const IGNITION_FADE_MS = 300;
+/** Full ceremony budget. MUST stay ≤ 1400 ms (D6). */
+export const IGNITION_TOTAL_MS = IGNITION_REVEAL_MS + IGNITION_FADE_MS;
 
-export interface SweepState {
-  phase: SweepPhase;
-  /** Where the needle froze when the sweep caught; null unless phase==='caught'. */
-  catchAt: number | null;
-}
+/**
+ * The needle's spring: one continuous underdamped sweep 0 → 1. ζ ≈ 0.66 →
+ * a single ~6.5% overshoot (≈ 18° of proud needle mass past the end-stop),
+ * settled well inside the reveal window.
+ */
+export const IGNITION_SPRING = { mass: 1, stiffness: 158, damping: 16.5 } as const;
 
-export type SweepHaptic = 'confirm' | 'fault' | null;
-
-export interface SweepTransition {
-  state: SweepState;
-  /** Haptic to fire ON this transition (each fires at most once, ever). */
-  haptic: SweepHaptic;
-  /** True exactly on the sweeping→settled transition (host's onSettled cue). */
-  justSettled: boolean;
-  /** True exactly on the sweeping→caught transition (host's onCaught cue). */
-  justCaught: boolean;
+export interface SpringPhysicsLike {
+  mass: number;
+  stiffness: number;
+  damping: number;
 }
 
 /**
- * A caught needle never lands flush on the end-stop: a full 270° sweep is the
- * visual signature of a CLEAN load, so the catch position is capped just shy
- * of it. With per-item progress the needle catches proportionally where the
- * failure surfaced; with a single-resolve DataSource (failed only known at
- * progress 1) it halts here — visibly short of complete.
+ * First-overshoot magnitude of an underdamped spring released at 0 toward 1:
+ * exp(−ζπ/√(1−ζ²)). Returns 0 for critically/over-damped springs (no apex).
  */
-export const CATCH_CEILING = 0.92;
-
-export function initialSweepState(): SweepState {
-  return { phase: 'sweeping', catchAt: null };
-}
-
-/**
- * Advance the machine with the latest host readings. Terminal states
- * ('settled', 'caught') are absorbing: progress regressions or a late `failed`
- * flip can never un-settle a finished sweep — the gauge already spoke.
- *
- *   sweeping + failed          → caught  (fault haptic, needle freezes)
- *   sweeping + progress >= 1   → settled (confirm haptic as the hero lands)
- *   anything else              → keep sweeping
- */
-export function advanceSweep(state: SweepState, progress: number, failed: boolean): SweepTransition {
-  if (state.phase !== 'sweeping') {
-    return { state, haptic: null, justSettled: false, justCaught: false };
-  }
-  const p = clamp01(progress);
-  if (failed) {
-    return {
-      state: { phase: 'caught', catchAt: Math.min(p, CATCH_CEILING) },
-      haptic: 'fault',
-      justSettled: false,
-      justCaught: true,
-    };
-  }
-  if (p >= 1) {
-    return {
-      state: { phase: 'settled', catchAt: null },
-      haptic: 'confirm',
-      justSettled: true,
-      justCaught: false,
-    };
-  }
-  return { state, haptic: null, justSettled: false, justCaught: false };
-}
-
-/** Where the Animated value should chase to for a given state + live progress. */
-export function arcTargetFraction(state: SweepState, progress: number): number {
-  switch (state.phase) {
-    case 'settled':
-      return 1;
-    case 'caught':
-      return state.catchAt ?? CATCH_CEILING;
-    case 'sweeping':
-      return clamp01(progress);
-  }
+export function springOvershootFraction(s: SpringPhysicsLike): number {
+  const zeta = s.damping / (2 * Math.sqrt(s.stiffness * s.mass));
+  if (!(zeta > 0)) throw new Error('spring must be damped');
+  if (zeta >= 1) return 0;
+  return Math.exp((-zeta * Math.PI) / Math.sqrt(1 - zeta * zeta));
 }

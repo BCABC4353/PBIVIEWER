@@ -1,22 +1,72 @@
 /**
- * ignition-logic.test — pure node tests for the Ignition Sweep brain.
+ * ignition-logic.test — pure node tests for the Ignition ceremony brain.
  * No react-native, no expo, no mocks of either: if anything in here needs a
  * native import, the logic has leaked out of the pure layer.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
-  advanceSweep,
   arcDashArray,
-  arcGeometry,
-  arcTargetFraction,
-  CATCH_CEILING,
+  arcSpan,
   clamp01,
   dashOffsetForFraction,
-  detentTicks,
-  initialSweepState,
+  gaugeTicks,
+  ignitionHasPlayed,
+  IGNITION_FADE_MS,
+  IGNITION_KEYSET_MS,
+  IGNITION_REVEAL_MS,
+  IGNITION_SPRING,
+  IGNITION_TOTAL_MS,
+  markIgnitionPlayed,
+  MAX_NEEDLE_FRACTION,
+  needleAngleDeg,
+  polarPoint,
+  resetIgnitionForTests,
+  springOvershootFraction,
   SWEEP_DEGREES,
-  type SweepState,
+  SWEEP_START_DEGREES,
+  TICK_MAJOR_EVERY_NTH,
 } from './ignition-logic';
+
+// ---------------------------------------------------------------------------
+// Once-per-launch latch — THE rule: the ceremony plays exactly once per
+// JS bundle, surviving every unmount/remount in between.
+// ---------------------------------------------------------------------------
+
+describe('once-per-launch latch', () => {
+  afterEach(() => resetIgnitionForTests());
+
+  it('starts unplayed on a cold launch (fresh module state)', () => {
+    expect(ignitionHasPlayed()).toBe(false);
+  });
+
+  it('latches once played', () => {
+    markIgnitionPlayed();
+    expect(ignitionHasPlayed()).toBe(true);
+  });
+
+  it('is idempotent — marking again changes nothing', () => {
+    markIgnitionPlayed();
+    markIgnitionPlayed();
+    expect(ignitionHasPlayed()).toBe(true);
+  });
+
+  it('survives across callers: a second mount of ANY component sees played=true', () => {
+    // Simulates: FleetHealthScreen unmounts (tab switch / back-nav /
+    // data-mode switch), something remounts and asks again — module state
+    // persists, so the ceremony can never replay within one bundle.
+    markIgnitionPlayed(); // first mount claimed the ceremony
+    const secondMountSeesPlayed = ignitionHasPlayed();
+    const thirdMountSeesPlayed = ignitionHasPlayed();
+    expect(secondMountSeesPlayed).toBe(true);
+    expect(thirdMountSeesPlayed).toBe(true);
+  });
+
+  it('only the test reset (bundle restart stand-in) clears the latch', () => {
+    markIgnitionPlayed();
+    resetIgnitionForTests();
+    expect(ignitionHasPlayed()).toBe(false);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // clamp01
@@ -45,181 +95,153 @@ describe('clamp01', () => {
 // Arc math
 // ---------------------------------------------------------------------------
 
-describe('arcGeometry', () => {
-  it('insets the radius so the stroke never clips the viewbox', () => {
-    const g = arcGeometry(100, 8);
-    expect(g.center).toBe(50);
-    expect(g.radius).toBe(46); // (100 - 8) / 2
-    expect(g.circumference).toBeCloseTo(2 * Math.PI * 46, 10);
-  });
-
+describe('arcSpan', () => {
   it('covers exactly the 270° gauge throw', () => {
-    const g = arcGeometry(96, 6);
+    const s = arcSpan(46);
     expect(SWEEP_DEGREES).toBe(270);
-    expect(g.arcLength).toBeCloseTo(g.circumference * 0.75, 10);
+    expect(s.circumference).toBeCloseTo(2 * Math.PI * 46, 10);
+    expect(s.arcLength).toBeCloseTo(s.circumference * 0.75, 10);
   });
 
-  it('rejects degenerate inputs', () => {
-    expect(() => arcGeometry(0, 4)).toThrow();
-    expect(() => arcGeometry(-10, 4)).toThrow();
-    expect(() => arcGeometry(100, 0)).toThrow();
-    expect(() => arcGeometry(100, 60)).toThrow(); // stroke can't fit
+  it('rejects degenerate radii', () => {
+    expect(() => arcSpan(0)).toThrow();
+    expect(() => arcSpan(-10)).toThrow();
+    expect(() => arcSpan(NaN)).toThrow();
   });
 });
 
 describe('arcDashArray', () => {
   it('is one sweep-length dash + a gap longer than the remainder (no wrap)', () => {
-    const g = arcGeometry(100, 8);
-    expect(arcDashArray(g)).toBe(`${g.arcLength} ${g.circumference}`);
+    const s = arcSpan(46);
+    expect(arcDashArray(s)).toBe(`${s.arcLength} ${s.circumference}`);
   });
 });
 
 describe('dashOffsetForFraction', () => {
-  const g = arcGeometry(96, 6);
+  const s = arcSpan(45);
 
   it('hides the whole arc at 0 and reveals all of it at 1', () => {
-    expect(dashOffsetForFraction(g, 0)).toBeCloseTo(g.arcLength, 10);
-    expect(dashOffsetForFraction(g, 1)).toBe(0);
+    expect(dashOffsetForFraction(s, 0)).toBeCloseTo(s.arcLength, 10);
+    expect(dashOffsetForFraction(s, 1)).toBe(0);
   });
 
   it('is linear in the fraction', () => {
-    expect(dashOffsetForFraction(g, 0.5)).toBeCloseTo(g.arcLength / 2, 10);
-    expect(dashOffsetForFraction(g, 0.25)).toBeCloseTo(g.arcLength * 0.75, 10);
+    expect(dashOffsetForFraction(s, 0.5)).toBeCloseTo(s.arcLength / 2, 10);
+    expect(dashOffsetForFraction(s, 0.25)).toBeCloseTo(s.arcLength * 0.75, 10);
   });
 
   it('clamps wild fractions instead of drawing garbage', () => {
-    expect(dashOffsetForFraction(g, -3)).toBeCloseTo(g.arcLength, 10);
-    expect(dashOffsetForFraction(g, 42)).toBe(0);
-    expect(dashOffsetForFraction(g, NaN)).toBeCloseTo(g.arcLength, 10);
+    expect(dashOffsetForFraction(s, -3)).toBeCloseTo(s.arcLength, 10);
+    expect(dashOffsetForFraction(s, 42)).toBe(0);
+    expect(dashOffsetForFraction(s, NaN)).toBeCloseTo(s.arcLength, 10);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Detent logic — honest ticks only
+// Instrument geometry — needle + graduated ticks
 // ---------------------------------------------------------------------------
 
-describe('detentTicks', () => {
-  it('counts new items landing', () => {
-    expect(detentTicks(0, 1)).toBe(1);
-    expect(detentTicks(3, 7)).toBe(4);
+describe('needleAngleDeg', () => {
+  it('rests at the gauge start and lands at full throw', () => {
+    expect(needleAngleDeg(0)).toBe(SWEEP_START_DEGREES);
+    expect(needleAngleDeg(1)).toBe(SWEEP_START_DEGREES + SWEEP_DEGREES);
   });
 
-  it('never ticks when nothing new landed', () => {
-    expect(detentTicks(5, 5)).toBe(0);
+  it('allows the spring overshoot to carry past the end-stop…', () => {
+    expect(needleAngleDeg(1.05)).toBeGreaterThan(SWEEP_START_DEGREES + SWEEP_DEGREES);
   });
 
-  it('never ticks on a reset/decrease — no phantom detents', () => {
-    expect(detentTicks(8, 0)).toBe(0);
-    expect(detentTicks(3, 2)).toBe(0);
+  it('…but never past the mechanical stop', () => {
+    expect(needleAngleDeg(9)).toBe(SWEEP_START_DEGREES + MAX_NEEDLE_FRACTION * SWEEP_DEGREES);
   });
 
-  it('floors fractional counts (only whole real items click)', () => {
-    expect(detentTicks(0.9, 1.2)).toBe(1);
-    expect(detentTicks(1.1, 1.9)).toBe(0);
+  it('treats garbage as the rest position', () => {
+    expect(needleAngleDeg(NaN)).toBe(SWEEP_START_DEGREES);
+    expect(needleAngleDeg(-2)).toBe(SWEEP_START_DEGREES);
+  });
+});
+
+describe('gaugeTicks', () => {
+  const ticks = gaugeTicks();
+
+  it('spans the full throw, ends inclusive', () => {
+    expect(ticks[0]!.angleDeg).toBe(SWEEP_START_DEGREES);
+    expect(ticks[ticks.length - 1]!.angleDeg).toBeCloseTo(SWEEP_START_DEGREES + SWEEP_DEGREES, 10);
+    expect(ticks[0]!.fraction).toBe(0);
+    expect(ticks[ticks.length - 1]!.fraction).toBe(1);
   });
 
-  it('treats garbage as silence', () => {
-    expect(detentTicks(NaN, 4)).toBe(0);
-    expect(detentTicks(0, Infinity)).toBe(0);
+  it('graduates: both end-stops are major, majors land every Nth tick', () => {
+    expect(ticks[0]!.major).toBe(true);
+    expect(ticks[ticks.length - 1]!.major).toBe(true);
+    ticks.forEach((t, i) => expect(t.major).toBe(i % TICK_MAJOR_EVERY_NTH === 0));
+  });
+
+  it('default graduation reads as an instrument: 41 minors, 9 majors', () => {
+    expect(ticks).toHaveLength(41);
+    expect(ticks.filter((t) => t.major)).toHaveLength(9);
+  });
+
+  it('rejects degenerate graduations', () => {
+    expect(() => gaugeTicks(0)).toThrow();
+    expect(() => gaugeTicks(400)).toThrow();
+    expect(() => gaugeTicks(9, 0)).toThrow();
+    expect(() => gaugeTicks(9, 2.5)).toThrow();
+  });
+});
+
+describe('polarPoint', () => {
+  it('walks the compass correctly (SVG: 0° right, 90° down)', () => {
+    const r = 10;
+    expect(polarPoint(0, 0, r, 0).x).toBeCloseTo(10, 10);
+    expect(polarPoint(0, 0, r, 0).y).toBeCloseTo(0, 10);
+    expect(polarPoint(0, 0, r, 90).y).toBeCloseTo(10, 10);
+    expect(polarPoint(0, 0, r, 180).x).toBeCloseTo(-10, 10);
+  });
+
+  it('offsets from the given center', () => {
+    const p = polarPoint(50, 60, 10, 0);
+    expect(p.x).toBeCloseTo(60, 10);
+    expect(p.y).toBeCloseTo(60, 10);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Settle-state machine
+// Ceremony choreography — the D6 contract, enforced
 // ---------------------------------------------------------------------------
 
-describe('advanceSweep', () => {
-  it('starts sweeping with no catch position', () => {
-    expect(initialSweepState()).toEqual({ phase: 'sweeping', catchAt: null });
+describe('ceremony timeline', () => {
+  it('fits the D6 budget: the app is fully revealed within 1400 ms', () => {
+    expect(IGNITION_TOTAL_MS).toBe(IGNITION_REVEAL_MS + IGNITION_FADE_MS);
+    expect(IGNITION_TOTAL_MS).toBeLessThanOrEqual(1400);
   });
 
-  it('keeps sweeping silently while loading is honest and incomplete', () => {
-    const r = advanceSweep(initialSweepState(), 0.4, false);
-    expect(r.state.phase).toBe('sweeping');
-    expect(r.haptic).toBeNull();
-    expect(r.justSettled).toBe(false);
-    expect(r.justCaught).toBe(false);
-  });
-
-  it('settles clean at progress 1: confirm haptic + onSettled cue, exactly once', () => {
-    const first = advanceSweep(initialSweepState(), 1, false);
-    expect(first.state.phase).toBe('settled');
-    expect(first.haptic).toBe('confirm');
-    expect(first.justSettled).toBe(true);
-
-    // Re-advance with the same readings: terminal, silent, no double haptic.
-    const again = advanceSweep(first.state, 1, false);
-    expect(again.state.phase).toBe('settled');
-    expect(again.haptic).toBeNull();
-    expect(again.justSettled).toBe(false);
-  });
-
-  it('catches mid-sweep at the proportional position with a fault', () => {
-    const r = advanceSweep(initialSweepState(), 0.4, true);
-    expect(r.state).toEqual({ phase: 'caught', catchAt: 0.4 });
-    expect(r.haptic).toBe('fault');
-    expect(r.justCaught).toBe(true);
-    expect(r.justSettled).toBe(false);
-  });
-
-  it('a catch at completion halts visibly short of the clean end-stop', () => {
-    // Single-resolve DataSource: failure only known at progress 1.
-    const r = advanceSweep(initialSweepState(), 1, true);
-    expect(r.state.phase).toBe('caught');
-    expect(r.state.catchAt).toBe(CATCH_CEILING);
-    expect(CATCH_CEILING).toBeLessThan(1);
-  });
-
-  it('failure outranks completion when both arrive together', () => {
-    const r = advanceSweep(initialSweepState(), 1, true);
-    expect(r.state.phase).toBe('caught');
-    expect(r.haptic).toBe('fault');
-  });
-
-  it('caught is absorbing: later readings cannot revive the needle', () => {
-    const caught = advanceSweep(initialSweepState(), 0.6, true).state;
-    const r = advanceSweep(caught, 1, false);
-    expect(r.state).toEqual(caught);
-    expect(r.haptic).toBeNull();
-    expect(r.justSettled).toBe(false);
-    expect(r.justCaught).toBe(false);
-  });
-
-  it('settled is absorbing: a late failed flip cannot un-settle the gauge', () => {
-    const settled = advanceSweep(initialSweepState(), 1, false).state;
-    const r = advanceSweep(settled, 0.2, true);
-    expect(r.state).toEqual(settled);
-    expect(r.haptic).toBeNull();
-    expect(r.justCaught).toBe(false);
-  });
-
-  it('clamps insane progress before judging completion', () => {
-    expect(advanceSweep(initialSweepState(), 7, false).state.phase).toBe('settled');
-    expect(advanceSweep(initialSweepState(), NaN, false).state.phase).toBe('sweeping');
-    expect(advanceSweep(initialSweepState(), -2, true).state.catchAt).toBe(0);
+  it('light arrives before motion, and the fade is a real reveal', () => {
+    expect(IGNITION_KEYSET_MS).toBeGreaterThan(0);
+    expect(IGNITION_KEYSET_MS).toBeLessThan(IGNITION_REVEAL_MS);
+    expect(IGNITION_FADE_MS).toBeGreaterThanOrEqual(200);
   });
 });
 
-describe('arcTargetFraction', () => {
-  it('chases live progress while sweeping (clamped)', () => {
-    const s = initialSweepState();
-    expect(arcTargetFraction(s, 0.3)).toBe(0.3);
-    expect(arcTargetFraction(s, -1)).toBe(0);
-    expect(arcTargetFraction(s, 2)).toBe(1);
+describe('ignition spring', () => {
+  it('is underdamped: ONE proud overshoot exists (the haptic apex)', () => {
+    expect(springOvershootFraction(IGNITION_SPRING)).toBeGreaterThan(0.03);
   });
 
-  it('pins to the end-stop when settled, regardless of prop noise', () => {
-    const settled = advanceSweep(initialSweepState(), 1, false).state;
-    expect(arcTargetFraction(settled, 0.1)).toBe(1);
+  it('overshoots with restraint — slight, not toy bounce', () => {
+    expect(springOvershootFraction(IGNITION_SPRING)).toBeLessThan(0.1);
   });
 
-  it('freezes at the catch position when caught', () => {
-    const caught = advanceSweep(initialSweepState(), 0.55, true).state;
-    expect(arcTargetFraction(caught, 1)).toBe(0.55);
+  it('its overshoot fits inside the needle’s mechanical stop', () => {
+    expect(1 + springOvershootFraction(IGNITION_SPRING)).toBeLessThan(MAX_NEEDLE_FRACTION);
   });
 
-  it('falls back to the ceiling if a caught state lost its position', () => {
-    const weird: SweepState = { phase: 'caught', catchAt: null };
-    expect(arcTargetFraction(weird, 1)).toBe(CATCH_CEILING);
+  it('reports zero overshoot for critically/over-damped springs', () => {
+    expect(springOvershootFraction({ mass: 1, stiffness: 100, damping: 20 })).toBe(0);
+    expect(springOvershootFraction({ mass: 1, stiffness: 100, damping: 25 })).toBe(0);
+  });
+
+  it('rejects an undamped spring (it would never settle)', () => {
+    expect(() => springOvershootFraction({ mass: 1, stiffness: 100, damping: 0 })).toThrow();
   });
 });

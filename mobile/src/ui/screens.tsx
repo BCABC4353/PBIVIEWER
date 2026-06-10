@@ -7,7 +7,7 @@ import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
 import { sortWorstFirst } from '../core/refresh-health';
 import { DetailLine, FleetHero, FleetRow, StatusChip, detailTrigger } from './components';
 import { Sparkline } from './Sparkline';
-import { IgnitionSweep } from '../feel/IgnitionSweep';
+import { SkeletonPulse } from '../feel/primitives';
 import { thunk } from '../feel/haptics';
 import { relativeAge } from '../core/refresh-health';
 
@@ -18,33 +18,13 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  // Ignition Sweep state: real progress only (0 → 1 on the API answering);
-  // settled flips when the arc lands (clean) or catches (failure present).
-  const [ignition, setIgnition] = useState({ progress: 0, items: 0, failed: false, settled: false });
   const now = Date.now();
 
   const load = useCallback(
     async (force: boolean) => {
       setError(null);
       try {
-        // Sources that check items in stages (the staged sample loader; a
-        // future per-item live fan-out) report each REAL increment here so
-        // the sweep chases it and detents tick per landing. In-flight
-        // progress is capped below 1: settle-vs-catch is decided ONLY by the
-        // resolved snapshot, which is the first thing that knows `failed`.
-        // Single-resolve sources never call this — behavior unchanged.
-        const snap = await source.getFleetSnapshot(force, (progress, itemsChecked) => {
-          setIgnition((i) =>
-            i.settled ? i : { ...i, progress: Math.min(progress, 0.97), items: itemsChecked },
-          );
-        });
-        const failed = snap.refreshables.some(
-          (r) => r.lastStatus === 'Failed' || r.lastStatus === 'Cancelled' || r.scheduleOverdue,
-        );
-        setSnapshot(snap);
-        setIgnition((i) =>
-          i.settled ? i : { progress: 1, items: snap.refreshables.length, failed, settled: false },
-        );
+        setSnapshot(await source.getFleetSnapshot(force));
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load fleet status');
       }
@@ -53,9 +33,11 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   );
 
   useEffect(() => {
-    // New data source → fresh ignition.
+    // First mount or data source changed: the old rows would be the wrong
+    // data, so drop to quiet skeletons while the snapshot is in flight.
+    // No ceremony here, ever — the ignition sweep plays once per app launch
+    // (IgnitionOverlay in Root), never per screen, never per data source.
     setSnapshot(null);
-    setIgnition({ progress: 0, items: 0, failed: false, settled: false });
     void load(false);
   }, [load]);
 
@@ -74,18 +56,10 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
-      ) : !snapshot || !ignition.settled ? (
-        <View style={styles.center}>
-          {/* The Ignition Sweep — the gauge-needle ritual. Ticks are REAL API
-              responses; on failure the arc catches and the board opens on red. */}
-          <IgnitionSweep
-            progress={ignition.progress}
-            itemsChecked={ignition.items}
-            failed={ignition.failed}
-            onSettled={() => setIgnition((i) => ({ ...i, settled: true }))}
-            onCaught={() => setIgnition((i) => ({ ...i, settled: true }))}
-          />
-        </View>
+      ) : !snapshot ? (
+        // Loading never blocks: quiet dim blocks mirroring the hero + rows,
+        // shimmering as one cheap opacity loop. Never a dial, never a wall.
+        <FleetSkeleton />
       ) : (
         <FlatList
           data={sorted}
@@ -111,6 +85,21 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
     </SafeAreaView>
   );
 };
+
+/**
+ * The fleet's loading face: dim surface blocks in the exact shape of the
+ * content (hero number, hero label, rows), pulsed by ONE animated node.
+ * Reduce Motion → the same blocks, perfectly still.
+ */
+const FleetSkeleton: React.FC = () => (
+  <SkeletonPulse style={styles.skeleton}>
+    <View style={styles.skeletonHero} />
+    <View style={styles.skeletonHeroLabel} />
+    {[0, 1, 2, 3, 4, 5].map((i) => (
+      <View key={i} style={styles.skeletonRow} />
+    ))}
+  </SkeletonPulse>
+);
 
 export const RefreshDetailScreen: React.FC<{ item: Refreshable; onBack: () => void }> = ({ item, onBack }) => {
   const now = Date.now();
@@ -156,7 +145,18 @@ const styles = StyleSheet.create({
   errorText: { ...type.body, color: color.textSecondary, textAlign: 'center' },
   retry: { borderWidth: 1, borderColor: color.accent, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s },
   retryText: { ...type.body, color: color.accent },
-  skeletonRow: { width: '88%', height: 52, borderRadius: 12, backgroundColor: color.surface1, opacity: 0.5, marginVertical: 6 },
+
+  // Skeletons mirror the real layout: centered hero block, then row blocks.
+  skeleton: { flex: 1, paddingHorizontal: space.l },
+  skeletonHero: {
+    alignSelf: 'center', width: 96, height: 56, borderRadius: 12,
+    backgroundColor: color.surface1, marginTop: space.xl,
+  },
+  skeletonHeroLabel: {
+    alignSelf: 'center', width: 180, height: 13, borderRadius: 7,
+    backgroundColor: color.surface1, marginTop: space.s, marginBottom: space.xl,
+  },
+  skeletonRow: { height: 52, borderRadius: 12, backgroundColor: color.surface1, marginBottom: space.m },
 
   back: { paddingHorizontal: space.l, paddingVertical: space.s },
   backText: { ...type.body, color: color.accent },

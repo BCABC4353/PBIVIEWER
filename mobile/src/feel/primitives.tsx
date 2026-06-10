@@ -350,6 +350,41 @@ const shimmerStyles = StyleSheet.create({
   },
 });
 
+// ---------------------------------------------------------------------------
+// SkeletonPulse
+// ---------------------------------------------------------------------------
+
+export interface SkeletonPulseProps {
+  style?: StyleProp<ViewStyle>;
+  children?: React.ReactNode;
+}
+
+/**
+ * The quiet skeleton host: wrap dim placeholder blocks (surface-colored Views
+ * mirroring the real layout) and the WHOLE group shimmers as one cheap
+ * native-driver opacity loop (1 ↔ 0.55, ~1.6 s) — a single animated node no
+ * matter how many blocks. Under Reduce Motion the shimmer is disabled
+ * entirely: static blocks, zero animation.
+ */
+export function SkeletonPulse({ style, children }: SkeletonPulseProps) {
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!motionEnabled()) return; // Reduce Motion: no shimmer at all.
+    const half = 800;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.55, duration: half, easing: ease.inOut, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: half, easing: ease.inOut, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+
+  return <Animated.View style={[style, { opacity }]}>{children}</Animated.View>;
+}
+
 // Re-exports so screens can import the whole feel kit from one place.
 export { motionEnabled, springs, timing, ease } from './springs';
 export * as haptics from './haptics';
