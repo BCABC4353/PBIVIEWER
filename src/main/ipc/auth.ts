@@ -26,7 +26,7 @@ export function registerAuthIpc(): void {
     return await authService.validateToken();
   });
 
-  // PROD-B1: account switcher — logout() then login({ prompt: 'select_account' }).
+  // Account switcher — logout() then login({ prompt: 'select_account' }).
   ipcMain.handle('auth:switch-account', async () => {
     return await authService.switchAccount();
   });

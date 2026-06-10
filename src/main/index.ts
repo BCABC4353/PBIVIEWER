@@ -46,7 +46,7 @@ if (!app.requestSingleInstanceLock()) {
     // responses must NOT have their headers rewritten or Power BI embeds break.
     if (!isDev) installCsp(session.fromPartition(PARTITION_NAME));
 
-    // SEC-S1: webview guard is wired onto each WebContents in the
+    // Webview guard is wired onto each WebContents in the
     // web-contents-created handler below (will-attach-webview is a WebContents
     // event, not a Session event). Nothing to do here.
 
@@ -95,7 +95,7 @@ app.on('certificate-error', (_event, _webContents, url, error, _certificate, cal
   callback(false);
 });
 
-// SEC-S1: webview security guard (will-attach-webview / web-contents-created).
+// Webview security guard (will-attach-webview / web-contents-created).
 registerWebviewSecurity();
 
 // Register all IPC handlers (window, auth, content, settings, export, usage, app, log).

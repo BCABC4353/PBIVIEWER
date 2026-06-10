@@ -91,15 +91,14 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
     out.autoRefreshEnabled = src.autoRefreshEnabled;
   }
   if (typeof src.autoRefreshInterval === 'number' && Number.isFinite(src.autoRefreshInterval)) {
-    // PERF-B1: upper bound raised to AUTH.AUTO_REFRESH_MAX_MINUTES (120).
-    // Previously hard-coded as Math.min(60, ...) which re-clamped values the
-    // shared validator already accepted, silently discarding operator intent.
+    // Clamp to the SAME bounds as the shared validator — a tighter local clamp
+    // would re-clamp values it already accepted, silently discarding operator intent.
     out.autoRefreshInterval = Math.min(
       AUTH.AUTO_REFRESH_MAX_MINUTES,
       Math.max(AUTH.AUTO_REFRESH_MIN_MINUTES, src.autoRefreshInterval),
     );
   }
-  // PROD-B2: launch-time auto-start behavior.
+  // Launch-time auto-start behavior.
   if ('autoStartMode' in src) {
     const v = src.autoStartMode;
     if (v === 'off' || v === 'report' || v === 'app') out.autoStartMode = v;
@@ -126,7 +125,7 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
     }
     // Invalid value: silently drop.
   }
-  // BEH-B3: usage-history retention policy on logout.
+  // Usage-history retention policy on logout.
   if ('usageClearOnLogout' in src) {
     const v = src.usageClearOnLogout;
     if (v === 'always' || v === 'never' || v === 'on-shared-machine') out.usageClearOnLogout = v;

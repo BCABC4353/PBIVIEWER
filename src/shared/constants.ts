@@ -4,7 +4,7 @@ import type { AppSettings } from './types';
 export const APP_NAME = 'Power BI Viewer';
 
 // Title bar overlay colors — must visually match Fluent neutral chrome in each theme.
-// Consumed by main.tsx (UX-B1 caller) and Group 2 TitleBar component.
+// Consumed by main.tsx and the TitleBar component.
 export const TITLE_BAR_COLORS = {
   light: { background: '#FAF9F8', symbol: '#201F1E' },
   dark: { background: '#1F1F1F', symbol: '#FFFFFF' },
@@ -18,17 +18,12 @@ export const POWERBI_API_BASE = 'https://api.powerbi.com/v1.0/myorg';
 export const POWERBI_EMBED_BASE = 'https://app.powerbi.com';
 
 // Slideshow auto-advance interval bounds — single source of truth for BOTH the
-// Settings slider and the in-presentation slider (they previously disagreed).
+// Settings slider and the in-presentation slider.
 export const SLIDESHOW_INTERVAL = { MIN: 5, MAX: 300, STEP: 5, DEFAULT: 60 } as const;
 
-// ============================================
-// ARCH-S10: grouped magic numbers (named consts)
-//
-// Single source of truth for the tuning values that were previously scattered
-// as bare literals across main + renderer. Downstream lanes import these instead
-// of re-declaring locals. Each group is `as const` so the literal types are
-// preserved and the values can't be mutated.
-// ============================================
+// Grouped tuning constants — single source of truth for main + renderer.
+// Each group is `as const` so the literal types are preserved and the values
+// can't be mutated.
 
 // HTTP / fetch behavior for the Power BI REST client (powerbi-api.ts).
 export const NETWORK = {
@@ -62,7 +57,7 @@ export const EMBED = {
   WATCHDOG_MS: 45_000,
 } as const;
 
-// PROD-S1: Kiosk / unattended wall-display tuning.
+// Kiosk / unattended wall-display tuning.
 export const KIOSK = {
   /**
    * Slideshow auto-recovery backoff schedule (ms). When the embedded report
@@ -77,15 +72,11 @@ export const KIOSK = {
   ESCAPE_HOLD_MS: 3_000,
 } as const;
 
-/**
- * PROD-S1: convenience export of the recovery backoff schedule.
- * Equivalent to KIOSK.RECOVERY_BACKOFF_MS — exposed at top level because the
- * ticket names this constant directly.
- */
+/** Convenience top-level export of the recovery backoff schedule. */
 export const KIOSK_RECOVERY_BACKOFF_MS = KIOSK.RECOVERY_BACKOFF_MS;
 
 /**
- * PROD-S1: resolve the backoff delay (ms) for a given zero-based retry attempt.
+ * Resolve the backoff delay (ms) for a given zero-based retry attempt.
  * Clamps to the final entry so that after the last step it keeps retrying at the
  * longest interval. Negative indices clamp to the first entry.
  */
@@ -123,7 +114,7 @@ export const POWERBI_API = {
 export const AUTH = {
   /** Lower bound for autoRefreshInterval (minutes). */
   AUTO_REFRESH_MIN_MINUTES: 1,
-  /** Upper bound for autoRefreshInterval (minutes) — PERF-B1 raised to 120. */
+  /** Upper bound for autoRefreshInterval (minutes). */
   AUTO_REFRESH_MAX_MINUTES: 120,
   /** Default autoRefreshInterval (minutes). */
   AUTO_REFRESH_DEFAULT_MINUTES: 10,
@@ -145,10 +136,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoStartReportId: undefined,
   autoRefreshEnabled: true,
   autoRefreshInterval: 10,
-  // PROD-B2: launch-time auto-start of a specific report or app.
+  // Launch-time auto-start of a specific report or app.
   autoStartMode: 'off',
   autoStartWorkspaceId: undefined,
   autoStartAppId: undefined,
-  // BEH-B3: whether to wipe usage history on logout.
+  // Whether to wipe usage history on logout.
   usageClearOnLogout: 'never',
 };

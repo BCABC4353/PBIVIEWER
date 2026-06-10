@@ -18,7 +18,7 @@ export const DashboardViewer: React.FC = () => {
   const [dashboardName, setDashboardName] = useState<string>('Dashboard');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // PROD-S9: data-freshness indicator.
+  // Data-freshness indicator.
   // ReportViewer drives this off the report's single backing datasetId. A Power
   // BI dashboard, however, aggregates tiles from potentially MANY datasets, so
   // there is no single authoritative "last refreshed" timestamp — and the
@@ -32,7 +32,7 @@ export const DashboardViewer: React.FC = () => {
   // (graceful fallback — no misleading timestamp).
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
 
-  // Fetch dashboard details to get the name (also drives UX-S14 breadcrumb)
+  // Fetch dashboard details to get the name (also drives the breadcrumb)
   useEffect(() => {
     if (!workspaceId || !dashboardId) return;
 
@@ -89,14 +89,14 @@ export const DashboardViewer: React.FC = () => {
           navigate(`/report/${workspaceId}/${tileEvent.reportId}`);
         }
       },
-      // NEW-PROD-5: detect not-found/404 errors and evict the dead item from
+      // Detect not-found/404 errors and evict the dead item from
       // in-memory recent/frequent lists so the home page stops showing the tile.
       error: (event: pbi.service.ICustomEvent<unknown>) => {
         if (dashboardId && isNotFoundError(event?.detail)) {
           useContentStore.getState().evictDeadItem(dashboardId);
         }
       },
-      // PROD-S9: after the dashboard loads, populate the data-freshness
+      // After the dashboard loads, populate the data-freshness
       // indicator from the stalest tile dataset (see getDashboardDataFreshness
       // in the main process). Treat an empty/absent lastRefreshTime (returned
       // when no tile exposes a datasetId or none have refresh history) as "no
@@ -126,12 +126,12 @@ export const DashboardViewer: React.FC = () => {
     surfacePostLoadErrors: true,
   });
 
-  // NEW-ARCH-1: export hook (screenshot-only; no API export for dashboards)
+  // Export hook (screenshot-only; no API export for dashboards)
   const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
     containerRef: embedContainerRef,
   });
 
-  // NEW-UX-3: refresh with in-progress state.
+  // Refresh with in-progress state.
   // reload() is synchronous (it just bumps a nonce), so we cannot clear
   // isRefreshing in a finally block — React would batch both state updates
   // in the same tick, making isRefreshing never visibly true. Instead we
@@ -140,12 +140,15 @@ export const DashboardViewer: React.FC = () => {
   // refreshingRef gates the effect so a background initial load doesn't
   // clear the flag before the user has clicked Refresh.
   const refreshingRef = useRef(false);
+  const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
   useEffect(() => {
     if (!refreshingRef.current) return;
     if (isLoading) return; // still loading — wait for it to finish
     // isLoading has settled to false — the reload cycle completed.
     refreshingRef.current = false;
     setIsRefreshing(false);
+    // The dashboard re-embedded and repainted: confirm it in the toolbar.
+    setJustRefreshedAt(Date.now());
   }, [isLoading]);
 
   const handleRefresh = useCallback(() => {
@@ -164,7 +167,7 @@ export const DashboardViewer: React.FC = () => {
     }
   };
 
-  // PROD-S8 style: back navigates to home for dashboard (no history drill-through UX)
+  // Back navigates to home for dashboard (no history drill-through UX)
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -179,10 +182,10 @@ export const DashboardViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* A11Y-S7: sr-only heading for screen readers */}
+      {/* Sr-only heading for screen readers */}
       <h1 className="sr-only">Dashboard: {dashboardName}</h1>
 
-      {/* UX-B4: shared toolbar */}
+      {/* Shared toolbar */}
       <ViewerToolbar
         onBack={handleBack}
         itemName={dashboardName}
@@ -190,6 +193,8 @@ export const DashboardViewer: React.FC = () => {
         dataflowRefresh={dataflowRefreshTime}
         freshnessLabel="Oldest data"
         showRelativeAge
+        showFreshness
+        justRefreshedAt={justRefreshedAt}
         // Unlike ReportViewer (which suppresses the nudge when auto-refresh is on because it can
         // call report.refresh() in place), dashboard embeds CANNOT be refreshed in place, so the
         // "New data" nudge is intentionally always shown here regardless of the autoRefresh setting.

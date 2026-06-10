@@ -4,7 +4,7 @@ import { powerbiApiService } from '../services/powerbi-api';
 import { validateUUID } from '../../shared/validation';
 import { isValidExportPath } from '../security';
 
-// FIX-5 (G2 DoS hardening): bound renderer-supplied export inputs before they
+// Bound renderer-supplied export inputs before they
 // reach the request body. A compromised/buggy renderer could otherwise send an
 // arbitrarily large pageName/bookmarkState and bloat the outbound Power BI
 // request (memory + payload). pageNames are short identifiers; bookmark state
@@ -79,7 +79,7 @@ export function registerContentIpc(): void {
       const wId = validateUUID(workspaceId);
       if (!rId || !wId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
 
-      // FIX-5 (G2): cap renderer-supplied export inputs to bound the request body.
+      // Cap renderer-supplied export inputs to bound the request body.
       if (typeof pageName === 'string' && pageName.length > MAX_PAGE_NAME_LEN) {
         return { success: false, error: { code: 'INVALID_INPUT', message: 'pageName exceeds maximum length' } };
       }
@@ -141,7 +141,6 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getAllItems();
   });
 
-  // ARCH-S5: the dead 'content:get-recent' channel was removed — the renderer
-  // reads recents via 'usage:get-recent' (usageTrackingService), so this handler
-  // (which duplicated that logic) had no consumer.
+  // There is deliberately no 'content:get-recent' handler — the renderer reads
+  // recents via 'usage:get-recent' (usageTrackingService).
 }

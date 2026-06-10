@@ -1,5 +1,5 @@
 /**
- * PROD-S1: useKioskRecovery
+ * useKioskRecovery
  *
  * Slideshow auto-recovery with backoff for unattended wall-display use.
  *

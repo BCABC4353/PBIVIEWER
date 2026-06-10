@@ -1,5 +1,5 @@
 /**
- * NEW-A11Y-5: the global slideshow keydown handler must NOT hijack
+ * The global slideshow keydown handler must NOT hijack
  * Space/Arrows/Escape/p from interactive overlay controls (the scrubber
  * role="slider", ViewerToolbar buttons, the Settings slider, dot-indicator
  * buttons, inputs, contenteditable). It must still drive slideshow navigation
@@ -251,11 +251,11 @@ describe('PROD-S1 / antagonist P0: Escape is a global exit handled regardless of
     renderPresentation();
     const exitBtn = screen.getByRole('button', { name: 'Exit' });
 
-    // Regression guard for the P0: Escape must be handled BEFORE the
-    // interactive-target bail. Under the old code this returned early (no
-    // preventDefault) so Escape over a toolbar button never exited. preventDefault
-    // is called for Escape in both manual and kiosk modes, so this assertion is
-    // mode-independent and proves the global handler ran.
+    // Regression guard: Escape must be handled BEFORE the interactive-target
+    // bail — otherwise the handler returns early (no preventDefault) and Escape
+    // over a toolbar button never exits. preventDefault is called for Escape in
+    // both manual and kiosk modes, so this assertion is mode-independent and
+    // proves the global handler ran.
     expect(dispatchKeyFrom(exitBtn, 'Escape')).toBe(true);
   });
 

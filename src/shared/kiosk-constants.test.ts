@@ -1,5 +1,5 @@
 /**
- * PROD-S1: tests for the kiosk recovery-backoff constants + resolver.
+ * Tests for the kiosk recovery-backoff constants + resolver.
  */
 
 import { describe, it, expect } from 'vitest';

@@ -1,5 +1,5 @@
 /**
- * PROD-S1: tests for the slideshow auto-recovery backoff hook.
+ * Tests for the slideshow auto-recovery backoff hook.
  *
  * Verifies the 5s → 30s → 60s → 60s… schedule, that recovery only runs while
  * active, that the backoff index resets after a successful recovery (error

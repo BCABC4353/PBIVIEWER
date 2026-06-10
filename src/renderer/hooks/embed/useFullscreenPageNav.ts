@@ -37,16 +37,14 @@ export interface UseFullscreenPageNavResult {
 }
 
 /**
- * ARCH-S8: Fullscreen page navigation for ReportViewer.
+ * Fullscreen page navigation for ReportViewer.
  *
  * Owns the page list, current-page index, fullscreen flag, and the
  * keyboard-hint timer. Wires arrow-key page nav + slicer-click focus
  * reclamation while fullscreen.
  *
- * Page-list / current-index / fullscreen-flag logic is extracted verbatim from
- * the original in-component effects in ReportViewer.tsx. ARCH-S8 also replaces
- * the original setInterval(500) focus poll with an event-driven focusout +
- * requestAnimationFrame guard that reclaims keyboard focus only when it falls to
+ * Focus reclamation is an event-driven focusout + requestAnimationFrame guard
+ * (not a polling timer) that reclaims keyboard focus only when it falls to
  * <body>/null in fullscreen — never stealing it from the embed iframe or any
  * other focusable element (preserves slicer/visual interaction).
  */
@@ -169,11 +167,9 @@ export function useFullscreenPageNav(
       }
     };
 
-    // #E2: track the fire-and-forget focus-reclaim timeouts so they can be
-    // cancelled on unmount / dependency-change. They're short-lived (10ms /
-    // 100ms) and complete quickly — no real "leak" — but leaving them untracked
-    // means a refocus can fire after teardown; tracking + clearing makes them
-    // cancellable for correctness. Focus behavior is unchanged.
+    // Track the fire-and-forget focus-reclaim timeouts so they can be
+    // cancelled on unmount / dependency-change — an untracked refocus could
+    // fire after teardown.
     const focusReclaimTimers: ReturnType<typeof setTimeout>[] = [];
 
     // Prevent iframe from stealing focus on mouse clicks in fullscreen
@@ -200,7 +196,7 @@ export function useFullscreenPageNav(
       }
     };
 
-    // ARCH-S8: reclaim keyboard focus when it falls to <body>/null in
+    // Reclaim keyboard focus when it falls to <body>/null in
     // fullscreen (e.g. after a click on empty chrome) so arrow-key page nav
     // keeps working. Event-driven via focusout + requestAnimationFrame rather
     // than a polling timer. The rAF lets the browser settle focus first; we
@@ -234,7 +230,7 @@ export function useFullscreenPageNav(
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
       }
-      // #E2: cancel any pending focus-reclaim timeouts.
+      // Cancel any pending focus-reclaim timeouts.
       for (const t of focusReclaimTimers) {
         clearTimeout(t);
       }

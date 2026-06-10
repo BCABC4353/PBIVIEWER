@@ -41,7 +41,7 @@ function getRouteTitle(pathname: string): string {
 }
 
 /**
- * NEW-A11Y-1: on every route change —
+ * On every route change —
  *   1. Move focus to the main content region (id="main-content") so keyboard
  *      users are not stranded at whatever element triggered navigation.
  *   2. Announce the new page title via a visually-hidden aria-live="polite" region.
@@ -112,7 +112,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 /**
- * PROD-B2: boot auto-start router.
+ * Boot auto-start router.
  *
  * Runs once after checkAuth succeeds. If `autoStartMode === 'report'` and
  * both autoStartReportId + autoStartWorkspaceId are set, attempts to resolve
@@ -182,14 +182,14 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
 
 const App: React.FC = () => {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore();
-  // PROD-B2: tracks whether the auto-start routing check has completed.
+  // Tracks whether the auto-start routing check has completed.
   const [autoStartDone, setAutoStartDone] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // ARCH-B3: wire the evict-on-logout subscription once at app mount.
+  // Wire the evict-on-logout subscription once at app mount.
   // Returns an unsubscribe function so StrictMode double-invoke is clean.
   useEffect(() => {
     const unsubscribe = initEvictOnLogout();
@@ -200,7 +200,7 @@ const App: React.FC = () => {
     return <LoadingScreen />;
   }
 
-  // PROD-B2: after auth resolves to authenticated, run the auto-start check
+  // After auth resolves to authenticated, run the auto-start check
   // exactly once before handing off to the normal route tree. We render
   // AutoStartRouter (inside HashRouter) so it can call useNavigate().
   const needsAutoStartCheck = isAuthenticated && !autoStartDone;
@@ -208,9 +208,9 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <HashRouter>
-        {/* NEW-A11Y-1: route announcer lives inside HashRouter so useLocation works */}
+        {/* Route announcer lives inside HashRouter so useLocation works */}
         <RouteAnnouncer />
-        {/* PROD-B2: if authenticated and the auto-start check hasn't run yet,
+        {/* If authenticated and the auto-start check hasn't run yet,
             render AutoStartRouter which either deep-links or calls setAutoStartDone.
             Once done (or unauthenticated), fall through to the normal route tree. */}
         {needsAutoStartCheck && (

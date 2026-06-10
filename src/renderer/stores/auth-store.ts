@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         });
       }
     } catch (error) {
-      // BEH-S7: unwrap Error messages for cleaner user surfacing.
+      // Unwrap Error messages for cleaner user surfacing.
       set({
         user: null,
         isAuthenticated: false,
@@ -81,7 +81,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async () => {
     set({ isLoading: true, error: null });
 
-    // BEH-S6: Race the real IPC call against a 130-second timeout so
+    // Race the real IPC call against a 130-second timeout so
     // isLoading never stays true indefinitely (e.g. the Azure auth popup is
     // closed without completing, or the main process hangs).
     const LOGIN_TIMEOUT_MS = 130_000;
@@ -107,7 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         // continue to drive isLoading/user/error state.
         return;
       } else {
-        // BEH-S7: prefer the friendly userMessage over the raw message.
+        // Prefer the friendly userMessage over the raw message.
         const errorMessage = !response.success
           ? (response.error.userMessage ?? response.error.message)
           : (!response.data.success ? response.data.error : 'Login failed');
@@ -125,7 +125,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  // PROD-B1: in-app account switch. The main process logs out (clearing caches
+  // In-app account switch. The main process logs out (clearing caches
   // + partition cookies) and then re-runs an interactive login with the account
   // picker. On success we replicate login's success state (the new identity is
   // set; evict-on-logout.ts observes the identity change and wipes content +
@@ -144,7 +144,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           isLoading: false,
         });
       } else if (!response.success && response.error.code === 'LOGIN_IN_PROGRESS') {
-        // PROD-B1 (antagonist P1): a previous switch/login is still mid-flight
+        // A previous switch/login is still mid-flight
         // (e.g. a double-click). Ignore this duplicate invocation and let the
         // in-flight operation drive state. Falling through to the else branch
         // here would clobber user/isAuthenticated to null AFTER the first

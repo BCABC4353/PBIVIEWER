@@ -1,9 +1,9 @@
-// ARCH-B4: lazy production singleton accessors for the DI'd services.
+// Lazy production singleton accessors for the DI'd services.
 //
-// auth-service.ts and powerbi-api.ts now expose `createX(deps)` factories. In
+// auth-service.ts and powerbi-api.ts expose `createX(deps)` factories. In
 // production we still want a single shared instance, but we must NOT construct
 // it at import time — doing so reaches for electron + MSAL, which crashes under
-// the jsdom test environment and forces the old try/catch import dance.
+// the jsdom test environment.
 //
 // These accessors build the real instance on first use and memoize it. The
 // `authService` / `powerbiApiService` proxies exported from the service modules

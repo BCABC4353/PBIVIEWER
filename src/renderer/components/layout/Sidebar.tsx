@@ -41,7 +41,7 @@ const NavItem: React.FC<NavItemProps> = ({
   onClick,
 }) => {
   const button = (
-    /* UX-S7: brand-orange 3px left border indicator for active item.
+    /* Brand-orange 3px left border indicator for active item.
        The relative + before: pseudo-element approach keeps layout stable
        while painting the indicator outside the button's padding box. */
     <div className="relative">
@@ -53,7 +53,7 @@ const NavItem: React.FC<NavItemProps> = ({
       )}
       <Button
         appearance="subtle"
-        /* A11Y-B4: aria-label on icon-only (collapsed) buttons */
+        /* aria-label on icon-only (collapsed) buttons */
         aria-label={collapsed ? label : undefined}
         className={`w-full justify-start pl-3 ${
           active
@@ -86,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeItem,
   onNavigate,
 }) => {
-  /* UX-S8: different icon when expanded vs collapsed */
+  /* Different icon when expanded vs collapsed */
   const toggleIcon = collapsed ? <PanelLeftExpandRegular /> : <PanelLeftContractRegular />;
   const toggleLabel = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
 
@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         collapsed ? 'w-12' : 'w-60'
       }`}
     >
-      {/* Toggle button — A11Y-B4: explicit aria-label */}
+      {/* Toggle button — explicit aria-label */}
       <div className="p-2">
         <Tooltip
           content={toggleLabel}

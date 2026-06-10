@@ -1,5 +1,5 @@
 /**
- * NEW-CI-2: Preload contextBridge channel-map contract test.
+ * Preload contextBridge channel-map contract test.
  *
  * Asserts that every channel string declared in IPC_CHANNELS is invoked (or
  * sent) by the preload bridge, so a rename in the channel map is caught

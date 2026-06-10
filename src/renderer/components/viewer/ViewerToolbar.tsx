@@ -1,25 +1,25 @@
 /**
- * UX-B4: Single-source viewer toolbar shared by ReportViewer, DashboardViewer,
+ * Single-source viewer toolbar shared by ReportViewer, DashboardViewer,
  * and AppViewer. All three viewers delegate their toolbar geometry here.
  *
  * Slot layout (left → right):
  *   [Back] [divider?] [breadcrumb/title slot] [spacer] [right actions]
  *
  * Right-action visibility is controlled by the props each viewer passes:
- *   - onRefresh        → Refresh button (NEW-UX-3: disabled while isRefreshing)
+ *   - onRefresh        → Refresh button (disabled while isRefreshing)
  *   - onExportPdf      → Export PDF button (disabled while isExporting)
  *   - onFullScreen     → Full Screen button
  *   - onSlideshow      → Slideshow button (report-only)
  *   - exportStatus     → transient status text shown in the right section
- *   - lastDataRefresh  → freshness timestamp (UX-S14 / NEW-PROD-4)
- *   - itemName         → shown as breadcrumb text while loading (UX-S14)
+ *   - lastDataRefresh  → freshness timestamp
+ *   - itemName         → shown as breadcrumb text while loading
  *   - isExporting      → disables Export button and relabels it
- *   - isRefreshing     → disables Refresh button (NEW-UX-3)
+ *   - isRefreshing     → disables Refresh button
  *   - backLabel        → override "Back" text (AppViewer uses "Back to Apps")
  *   - titleIcon        → optional JSX icon in the breadcrumb area
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Text,
@@ -33,7 +33,11 @@ import {
   FullScreenMaximizeRegular,
   PlayRegular,
   HomeRegular,
+  CheckmarkCircleRegular,
 } from '@fluentui/react-icons';
+
+/** How long the green "✓ Updated" confirmation stays visible after a refresh. */
+const REFRESH_FLASH_MS = 5000;
 
 export interface ViewerToolbarProps {
   /** Called when the back button is pressed. */
@@ -41,7 +45,7 @@ export interface ViewerToolbarProps {
   /** Override label for the back button. Default: "Back". */
   backLabel?: string;
   /**
-   * UX-S14: name of the item shown while loading and as the breadcrumb leaf.
+   * Name of the item shown while loading and as the breadcrumb leaf.
    * When provided a breadcrumb [Home > name] is rendered.
    * When omitted only the back button and actions are shown.
    */
@@ -52,7 +56,7 @@ export interface ViewerToolbarProps {
    */
   titleIcon?: React.ReactNode;
   /**
-   * NEW-PROD-4: ISO-8601 freshness timestamp. Rendered with timezone label
+   * ISO-8601 freshness timestamp. Rendered with timezone label
    * and 4-digit year.
    */
   lastDataRefresh?: string | null;
@@ -60,7 +64,7 @@ export interface ViewerToolbarProps {
   exportStatus?: string | null;
   /** Shows and wires the Refresh button. */
   onRefresh?: () => void;
-  /** NEW-UX-3: while true the Refresh button is disabled and shows a spinner label. */
+  /** While true the Refresh button is disabled and shows a spinner label. */
   isRefreshing?: boolean;
   /** Shows and wires the Export PDF button. */
   onExportPdf?: () => void;
@@ -78,22 +82,36 @@ export interface ViewerToolbarProps {
   showRelativeAge?: boolean;
   /**
    * When true, the backing dataset has refreshed AFTER the on-screen content
-   * loaded, so the Refresh button is emphasized to prompt the user to pull in
-   * the newer data (the embedded Power BI service does not repaint on its own).
+   * loaded. Rendered as a small accent notice INSIDE the freshness strip
+   * ("Newer data available — Refresh to update"), not as a morphing Refresh
+   * button (a morphing primary button reads as a random call-to-action).
    */
   newDataAvailable?: boolean;
   /**
-   * NEW-PROD-4: ISO-8601 timestamp of the upstream dataflow's last SUCCESSFUL
+   * ISO-8601 timestamp of the upstream dataflow's last SUCCESSFUL
    * completion, shown as a second line. A dataset can report success on stale
    * data, so this is the independent "data is genuinely current" signal.
    */
   dataflowRefresh?: string | null;
   /** Label for the dataset stamp. "Data refreshed" (single dataset) or "Oldest data". */
   freshnessLabel?: string;
+  /**
+   * Render the freshness strip persistently (with "—" placeholders until the
+   * first poll resolves) instead of popping in once timestamps arrive. The
+   * three content viewers set this; PresentationMode does not.
+   */
+  showFreshness?: boolean;
+  /**
+   * Epoch-ms of the last refresh that actually completed and repainted the
+   * screen (in-place report.refresh() success, or a finished reload). Each new
+   * value flashes a green "✓ Updated" confirmation in the freshness strip for a
+   * few seconds — the explicit "yes, the screen really did repaint" signal.
+   */
+  justRefreshedAt?: number | null;
 }
 
 /**
- * NEW-PROD-4: Format an ISO-8601 date as M/D/YYYY HH:mm <TZ>.
+ * Format an ISO-8601 date as M/D/YYYY HH:mm <TZ>.
  * Uses full 4-digit year and appends the browser's short timezone abbreviation.
  */
 function formatRefreshTime(isoString: string): string {
@@ -101,7 +119,7 @@ function formatRefreshTime(isoString: string): string {
   if (Number.isNaN(date.getTime())) return '';
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  const year = String(date.getFullYear()); // 4-digit year (NEW-PROD-4)
+  const year = String(date.getFullYear());
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
 
@@ -136,13 +154,38 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   newDataAvailable = false,
   dataflowRefresh,
   freshnessLabel = 'Data refreshed',
+  showFreshness = false,
+  justRefreshedAt = null,
 }) => {
   const hasBreadcrumb = Boolean(itemName);
 
+  // Green "✓ Updated" confirmation: armed each time justRefreshedAt advances,
+  // cleared after REFRESH_FLASH_MS. This is the user-visible proof that a
+  // refresh actually completed and the screen repainted.
+  const [flashActive, setFlashActive] = useState(false);
+  useEffect(() => {
+    if (!justRefreshedAt) return;
+    setFlashActive(true);
+    const timer = setTimeout(() => setFlashActive(false), REFRESH_FLASH_MS);
+    return () => clearTimeout(timer);
+  }, [justRefreshedAt]);
+
   // Render one freshness line: "<label>: M/D/YYYY HH:mm TZ (N min ago)" with a
-  // ⚠ warning color when older than a day. Returns null when no timestamp.
-  const renderStamp = (label: string, iso?: string | null): React.ReactNode => {
-    if (!iso) return null;
+  // ⚠ warning color when older than a day. With `placeholder`, renders
+  // "<label>: —" when the timestamp is absent so the strip never pops in/out.
+  const renderStamp = (
+    label: string,
+    iso?: string | null,
+    placeholder = false,
+  ): React.ReactNode => {
+    if (!iso) {
+      if (!placeholder) return null;
+      return (
+        <Text className="text-neutral-foreground-3 text-xs" title={`${label}: not yet known`}>
+          {label}: —
+        </Text>
+      );
+    }
     const ageMs = Date.now() - new Date(iso).getTime();
     const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
     let relative = '';
@@ -152,12 +195,17 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     }
     const formatted = formatRefreshTime(iso);
     if (!formatted) return null;
+    const tone = flashActive
+      ? 'text-status-success'
+      : isStale
+        ? 'text-status-warning'
+        : 'text-neutral-foreground-3';
     return (
       <Text
-        className={`${isStale ? 'text-status-warning' : 'text-neutral-foreground-3'} text-xs`}
+        className={`${tone} text-xs`}
         title={isStale ? `${label} is more than a day old` : undefined}
       >
-        {isStale ? '⚠ ' : ''}
+        {isStale && !flashActive ? '⚠ ' : ''}
         {label}: {formatted}
         {relative}
       </Text>
@@ -178,7 +226,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
         {backLabel}
       </Button>
 
-      {/* Breadcrumb section — only when we have an item name (UX-S14) */}
+      {/* Breadcrumb section — only when we have an item name */}
       {hasBreadcrumb && (
         <>
           <div className="h-6 w-px bg-neutral-stroke-2" aria-hidden="true" />
@@ -215,14 +263,35 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 
       {/* Right section */}
       <div className="flex items-center gap-2">
-        {/* NEW-PROD-4: freshness timestamp with TZ label */}
-        {/* Freshness: dataset refresh time + upstream dataflow last-success time.
-            Two compact lines so a "succeeded on stale data" case (the two times
-            diverge) is visible at a glance. */}
-        {(lastDataRefresh || dataflowRefresh) && (
-          <div className="flex flex-col items-end mr-2 leading-tight">
-            {renderStamp(freshnessLabel, lastDataRefresh)}
-            {renderStamp('Dataflow', dataflowRefresh)}
+        {/* Freshness strip: dataset refresh time + upstream
+            dataflow last-success time, persistently rendered (with placeholders
+            until the first poll resolves) so the stamps never vanish from the
+            GUI. A green "✓ Updated" flash confirms a completed repaint; a small
+            accent line announces newer published data. */}
+        {(showFreshness || lastDataRefresh || dataflowRefresh) && (
+          <div
+            className="flex items-center gap-2 mr-2"
+            role="status"
+            aria-live="polite"
+            data-freshness-strip
+          >
+            {flashActive ? (
+              <span className="flex items-center gap-1 text-status-success text-xs whitespace-nowrap">
+                <CheckmarkCircleRegular aria-hidden="true" />
+                Updated
+              </span>
+            ) : newDataAvailable && !isRefreshing ? (
+              <span
+                className="text-accent-primary text-xs whitespace-nowrap"
+                title="The dataset has refreshed since this screen loaded — click Refresh to update"
+              >
+                ● Newer data available
+              </span>
+            ) : null}
+            <div className="flex flex-col items-end leading-tight">
+              {renderStamp(freshnessLabel, lastDataRefresh, showFreshness)}
+              {renderStamp('Dataflow', dataflowRefresh, showFreshness)}
+            </div>
           </div>
         )}
 
@@ -233,11 +302,11 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
           </Text>
         )}
 
-        {/* NEW-UX-3: Refresh — disabled while in-progress. When newer data has
-            landed since the screen loaded, emphasize it as a "New data" nudge. */}
+        {/* Refresh — disabled while in-progress. The new-data nudge
+            lives in the freshness strip; the button stays visually stable. */}
         {onRefresh && (
           <Button
-            appearance={newDataAvailable && !isRefreshing ? 'primary' : 'subtle'}
+            appearance="subtle"
             icon={<ArrowSyncRegular />}
             onClick={onRefresh}
             disabled={isRefreshing}
@@ -252,7 +321,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
               isRefreshing ? 'Refreshing' : newDataAvailable ? 'New data available, refresh' : 'Refresh'
             }
           >
-            {isRefreshing ? 'Refreshing…' : newDataAvailable ? 'New data — Refresh' : 'Refresh'}
+            {isRefreshing ? 'Refreshing…' : 'Refresh'}
           </Button>
         )}
 

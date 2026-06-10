@@ -1,8 +1,8 @@
 /**
- * ARCH-S7: useDebouncedSettings
+ * useDebouncedSettings
  *
  * Encapsulates the slideshow-interval slider's optimistic-update +
- * debounced-persist logic, extracted verbatim from PresentationMode.tsx.
+ * debounced-persist logic for PresentationMode.
  *
  * onIntervalChange(value):
  *   - Optimistic local update: push the new value into the settings store

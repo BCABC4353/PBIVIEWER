@@ -8,9 +8,8 @@ import { registerAppIpc } from './app';
 import { registerLogIpc } from './log';
 import { registerKioskIpc } from './kiosk';
 
-// Registers every domain IPC module. Order mirrors the original monolithic
-// index.ts: window controls, auth, content, settings, export, usage, app, log.
-// PROD-S1: kiosk power management registered last.
+// Registers every domain IPC module: window controls, auth, content, settings,
+// export, usage, app, log, kiosk.
 export function registerAllIpcHandlers(): void {
   registerWindowIpc();
   registerAuthIpc();

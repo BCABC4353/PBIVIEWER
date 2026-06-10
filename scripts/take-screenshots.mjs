@@ -336,20 +336,12 @@ async function main() {
     console.log('\n[2] Login error state...');
     try {
       const page = await newMockedPage(browser, { isAuthenticated: false });
-      // Inject error by pre-setting the auth-store error via React DevTools-like approach:
-      // We override login to return an error so clicking the button triggers it.
-      // Instead, directly manipulate Zustand store after mount.
+      // Override login to return an error so clicking Sign-in surfaces the
+      // error state in the auth store.
       await navigateTo(page, '#/login', 2000);
-      // Inject error into the zustand auth-store
       await page.evaluate(() => {
-        // Find the zustand store via the global module
-        // The store exposes setState on the store object.
-        // We use a custom event to trigger error injection.
-        // Direct DOM manipulation: look for the React fiber
         const root = document.querySelector('#root');
         if (!root) return;
-        // Walk fibers to find useAuthStore and call setState
-        // Alternative: override login to fail immediately then click
         window.electronAPI.auth.login = async () => ({
           success: false,
           error: {

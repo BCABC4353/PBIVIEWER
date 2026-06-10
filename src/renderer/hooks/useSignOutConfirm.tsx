@@ -1,5 +1,5 @@
 /**
- * PROD-S7: useSignOutConfirm
+ * useSignOutConfirm
  *
  * Returns a trigger function and a Dialog element. Calling the trigger shows
  * a Fluent UI confirmation dialog; if the user confirms, the auth-store
@@ -25,9 +25,7 @@ import {
 import { SignOutRegular } from '@fluentui/react-icons';
 import { useAuthStore } from '../stores/auth-store';
 
-// ============================================================
 // Internal dialog component
-// ============================================================
 
 interface SignOutDialogInternalProps {
   open: boolean;
@@ -71,9 +69,7 @@ const SignOutDialogInternal: React.FC<SignOutDialogInternalProps> = ({
   </Dialog>
 );
 
-// ============================================================
 // Public hook
-// ============================================================
 
 export interface UseSignOutConfirmReturn {
   /** Call this to open the confirmation dialog (e.g. from a MenuItem onClick). */

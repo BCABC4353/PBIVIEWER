@@ -18,12 +18,10 @@ export interface UseEmbedTokenRefreshResult {
 }
 
 /**
- * ARCH-S2: Token lifecycle for the embed.
+ * Token lifecycle for the embed.
  *
  * Owns the proactive-refresh timer, the manual/automatic `refreshEmbedToken`
- * call, and the visibilitychange backstop. Extracted verbatim from the
- * original monolithic hook — the generation guards, in-progress flag, and
- * loaded-state checks are preserved exactly.
+ * call, and the visibilitychange backstop.
  */
 export function useEmbedTokenRefresh(
   ctx: EmbedContext,
@@ -89,9 +87,8 @@ export function useEmbedTokenRefresh(
     // on the new one.
     const myGen = generationRef.current;
     // Skip work if the embed isn't actually loaded — visibility-change and
-    // proactive-timer callers can fire mid-load. The reload trigger that used
-    // to live in the !loaded branch is exactly the kind of "stale callback
-    // stomps new load" race we want to avoid.
+    // proactive-timer callers can fire mid-load. Do NOT trigger a reload from
+    // this branch: a stale callback reloading would stomp the new load.
     if (!embedRef.current || !hasLoadedRef.current) return;
     tokenRefreshInProgressRef.current = true;
     try {
@@ -104,7 +101,7 @@ export function useEmbedTokenRefresh(
       if (myGen !== generationRef.current) return;
 
       if (!tokenResponse.success) {
-        // BEH-S7: prefer the friendly userMessage when the main process supplies
+        // Prefer the friendly userMessage when the main process supplies
         // one; fall back to the raw message so logs still carry full detail.
         throw new Error(
           tokenResponse.error.userMessage ||
@@ -118,7 +115,7 @@ export function useEmbedTokenRefresh(
 
       // Re-check the embed is still alive and loaded after the await.
       if (embedRef.current && hasLoadedRef.current && myGen === generationRef.current) {
-        // Powerbi-client typings split setAccessToken between Report/Dashboard,
+        // powerbi-client typings split setAccessToken between Report/Dashboard,
         // but the runtime method exists on all loaded embeds.
         await (embedRef.current as pbi.Report).setAccessToken(token);
         // Same story for refresh().

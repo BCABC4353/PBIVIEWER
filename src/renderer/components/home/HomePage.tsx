@@ -15,7 +15,7 @@ import type { ContentItem, Workspace } from '../../../shared/types';
 
 // -----------------------------------------------------------------------
 // FeaturedWorkspacesStrip
-// PROD-B3: always shows the top-3 workspaces the user has access to.
+// Always shows the top-3 workspaces the user has access to.
 // Rendered as simple cards so the user can orient themselves on first launch.
 // -----------------------------------------------------------------------
 interface FeaturedWorkspacesStripProps {
@@ -33,7 +33,7 @@ const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
 
   return (
     <section aria-labelledby="featured-workspaces-heading" className="mb-6">
-      {/* A11Y-S7: h2 for section heading */}
+      {/* H2 for section heading */}
       <h2
         id="featured-workspaces-heading"
         className="text-base font-semibold text-neutral-foreground-1 mb-3"
@@ -114,9 +114,9 @@ export const HomePage: React.FC = () => {
   };
 
   const handleOpenItem = (item: ContentItem) => {
-    // Fire-and-forget — STATE-05 made recordItemOpened return void so the
-    // navigate() fires on the same tick as the click, not after the
-    // usage-bookkeeping IPC + recent/frequent reloads (~100-400ms saved).
+    // Fire-and-forget — recordItemOpened returns void so the navigate()
+    // fires on the same tick as the click, not after the usage-bookkeeping
+    // IPC + recent/frequent reloads (~100-400ms saved).
     recordItemOpened(item);
     if (item.type === 'dashboard') {
       navigate(`/dashboard/${item.workspaceId}/${item.id}`);
@@ -162,7 +162,7 @@ export const HomePage: React.FC = () => {
           </Button>
         </div>
 
-        {/* PROD-B3: always-visible Browse Workspaces CTA + Featured Workspaces strip */}
+        {/* Always-visible Browse Workspaces CTA + Featured Workspaces strip */}
         <div className="flex items-center justify-between mb-4">
           <FeaturedWorkspacesStrip
             workspaces={workspaces}
@@ -171,7 +171,7 @@ export const HomePage: React.FC = () => {
           />
         </div>
 
-        {/* PROD-B3: always-visible Browse Workspaces primary CTA */}
+        {/* Always-visible Browse Workspaces primary CTA */}
         <div className="mb-6">
           <Button
             appearance="primary"
@@ -190,7 +190,7 @@ export const HomePage: React.FC = () => {
           </div>
         )}
 
-        {/* PROD-B3: substantive empty state — shows signed-in email + Sign Out */}
+        {/* Substantive empty state — shows signed-in email + Sign Out */}
         {!isLoading && !hasUsageData && (
           <div className="bg-neutral-background-2 rounded-lg p-8 text-center">
             <FolderRegular className="text-4xl text-brand-primary mx-auto mb-4" />
@@ -220,7 +220,7 @@ export const HomePage: React.FC = () => {
         {/* Content - show when user has usage history */}
         {hasUsageData && (
           <>
-            {/* A11Y-S7: h2 on Frequent section */}
+            {/* H2 on Frequent section */}
             {frequentItems.length > 0 && (
               <FrequentStrip
                 items={frequentItems}
@@ -239,7 +239,7 @@ export const HomePage: React.FC = () => {
             {recentItems.length > 0 && (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  {/* A11Y-S7: h2 on Recent section */}
+                  {/* H2 on Recent section */}
                   <h2 className="text-base font-semibold text-neutral-foreground-1">
                     Recent
                   </h2>

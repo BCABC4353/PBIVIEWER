@@ -30,13 +30,9 @@ export interface TitleBarProps {
   variant?: 'authenticated' | 'unauthenticated';
 }
 
-// ============================================================
-// PROD-S3: Deterministic tenant badge color
-//
-// Derive a stable hue from the tenant domain string so repeat users always
-// see the same color. Uses a simple djb2-style hash over the character codes
-// then maps to one of eight Fluent-safe badge colors.
-// ============================================================
+// Deterministic tenant badge color: derive a stable hue from the tenant domain
+// string so repeat users always see the same color. Uses a simple djb2-style
+// hash over the character codes, mapped to one of eight Fluent-safe badge colors.
 
 const BADGE_COLORS = [
   'brand',
@@ -65,9 +61,7 @@ function emailToDomain(email: string): string {
   return at >= 0 ? email.slice(at + 1) : email;
 }
 
-// ============================================================
 // Component
-// ============================================================
 
 export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' }) => {
   const { user, switchAccount, isLoading } = useAuthStore();
@@ -113,13 +107,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openSearch, variant]);
 
-  // PROD-S3: derive tenant domain once from user.email
+  // Derive tenant domain once from user.email
   const tenantDomain = user ? emailToDomain(user.email) : '';
   const badgeColor: BadgeColor = tenantDomain ? tenantBadgeColor(tenantDomain) : 'brand';
 
   return (
     <>
-      {/* PROD-S7: SignOutDialog is rendered here — it is invisible until
+      {/* SignOutDialog is rendered here — it is invisible until
           triggerSignOut() opens it. Placing it as a sibling of the title bar
           keeps it outside the drag region and avoids portal-stacking issues. */}
       {variant === 'authenticated' && <SignOutDialog />}
@@ -172,7 +166,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                       aria-haspopup="menu"
                       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     >
-                      {/* PROD-S3: Avatar + tenant chip side-by-side.
+                      {/* Avatar + tenant chip side-by-side.
                           The Badge is hidden below the 768 px breakpoint via
                           Tailwind's responsive hidden/inline-flex utilities. */}
                       <div className="flex items-center gap-1.5">
@@ -207,7 +201,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                         </div>
                       </MenuItem>
                       <MenuDivider />
-                      {/* PROD-B1: switch account — logs out then re-runs an
+                      {/* Switch account — logs out then re-runs an
                           interactive login with the account picker. */}
                       <MenuItem
                         icon={<PersonSwapRegular />}
@@ -217,7 +211,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                       >
                         Switch account
                       </MenuItem>
-                      {/* PROD-S7: open the confirmation dialog instead of
+                      {/* Open the confirmation dialog instead of
                           calling logout() directly */}
                       <MenuItem icon={<SignOutRegular />} onClick={triggerSignOut}>
                         Sign out

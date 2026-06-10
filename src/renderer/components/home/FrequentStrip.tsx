@@ -19,7 +19,7 @@ export const FrequentStrip: React.FC<FrequentStripProps> = ({
   if (isLoading) {
     return (
       <section aria-labelledby="frequent-heading" className="py-8">
-        {/* A11Y-S7: h2 heading even in loading state */}
+        {/* H2 heading even in loading state */}
         <h2
           id="frequent-heading"
           className="text-base font-semibold text-neutral-foreground-1 mb-4"
@@ -41,9 +41,9 @@ export const FrequentStrip: React.FC<FrequentStripProps> = ({
   const frequentItems = items.slice(0, 6);
 
   return (
-    // A11Y-S7: section with h2 heading so screen readers can navigate by landmark.
+    // Section with h2 heading so screen readers can navigate by landmark.
     <section aria-labelledby="frequent-heading" className="py-4">
-      {/* A11Y-S7: h2 heading for Frequent section */}
+      {/* H2 heading for Frequent section */}
       <h2
         id="frequent-heading"
         className="text-base font-semibold text-neutral-foreground-1 mb-4"

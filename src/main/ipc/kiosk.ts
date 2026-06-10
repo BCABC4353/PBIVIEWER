@@ -1,5 +1,5 @@
 /**
- * PROD-S1: Kiosk power-management IPC handlers.
+ * Kiosk power-management IPC handlers.
  *
  * Exposes start/stop control over an Electron powerSaveBlocker so the display
  * stays awake while a presentation/slideshow runs on an unattended wall display.

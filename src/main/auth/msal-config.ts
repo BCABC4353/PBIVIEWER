@@ -7,6 +7,18 @@ import { AZURE_CONFIG } from './azure-config.generated';
 const clientId = AZURE_CONFIG.clientId;
 const tenantId = AZURE_CONFIG.tenantId;
 
+/**
+ * A build is only usable if both Azure credentials are real (GUID-shaped, not
+ * the .env.example placeholders). When they are not, MSAL silently produces an
+ * auth URL the AAD endpoint rejects — which surfaces to the user as a BLANK
+ * Microsoft sign-in window with no explanation (the exact "credentials are
+ * completely broken, can't even see the O365 login" outage). login() checks
+ * this up front and shows a clear, actionable error instead of a blank window.
+ */
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const azureConfigValid: boolean =
+  GUID_RE.test((clientId ?? '').trim()) && GUID_RE.test((tenantId ?? '').trim());
+
 export const msalConfig: Configuration = {
   auth: {
     clientId,

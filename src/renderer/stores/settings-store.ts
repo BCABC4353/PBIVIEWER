@@ -25,7 +25,7 @@ export const useSettingsStore = create<SettingsState>((set, _get) => ({
       if (response.success) {
         set({ settings: response.data, isLoading: false });
       } else {
-        // BEH-S7: prefer the friendly userMessage over the raw upstream message.
+        // Prefer the friendly userMessage over the raw upstream message.
         set({
           isLoading: false,
           error:
@@ -40,7 +40,7 @@ export const useSettingsStore = create<SettingsState>((set, _get) => ({
   },
 
   updateSettings: async (updates: Partial<AppSettings>) => {
-    // BEH-S2: Optimistic-authoritative write with rollback.
+    // Optimistic-authoritative write with rollback.
     // Apply the delta immediately so slider / toggle feedback is instant and
     // never reverts mid-drag. Capture a snapshot so we can restore on failure.
     // The IPC call persists the new state to disk; we do NOT write
@@ -51,18 +51,18 @@ export const useSettingsStore = create<SettingsState>((set, _get) => ({
     try {
       const response = await window.electronAPI.settings.update(updates);
       if (!response.success) {
-        // BEH-S7: prefer the friendly userMessage over the raw message.
+        // Prefer the friendly userMessage over the raw message.
         console.error(
           'Failed to update settings:',
           response.error.userMessage ?? response.error.message,
         );
-        // BEH-S2 rollback: restore the pre-optimistic snapshot so the store
+        // Rollback: restore the pre-optimistic snapshot so the store
         // does not diverge from what was actually persisted to disk.
         set({ settings: previousSettings });
       }
     } catch (error) {
       console.error('Failed to update settings:', error);
-      // BEH-S2 rollback: restore the pre-optimistic snapshot on IPC throw.
+      // Rollback: restore the pre-optimistic snapshot on IPC throw.
       set({ settings: previousSettings });
     }
   },

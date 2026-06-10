@@ -31,6 +31,7 @@ export const AppViewer: React.FC = () => {
   const [userAgent, setUserAgent] = useState<string | undefined>(undefined);
   const [partitionLoaded, setPartitionLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
 
   // --- Live data-freshness indicator (App view) ---
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
@@ -145,6 +146,11 @@ export const AppViewer: React.FC = () => {
 
     const handleDidStartLoading = () => {
       setIsLoading(true);
+      // Clear any prior error the moment a (re)load begins. Without this, a
+      // successful reload after a failed load renders the app behind a
+      // permanent error overlay (the webview is only visibility:hidden, never
+      // unmounted), so "Try again" appears to do nothing.
+      setError(null);
       clearWatchdog();
       watchdog = setTimeout(() => {
         console.error('[AppViewer] Webview load watchdog fired after', EMBED.WATCHDOG_MS, 'ms');
@@ -170,8 +176,8 @@ export const AppViewer: React.FC = () => {
       // Only a MAIN-FRAME failure means the app page itself didn't load. The
       // embedded Power BI app pulls dozens of sub-resources / sub-frames; a blip
       // in any of those (common on a cold first open, then cached on retry) fires
-      // did-fail-load with isMainFrame=false. Treating those as fatal is what put
-      // up a spurious "Failed to load app" that then worked on the second try.
+      // did-fail-load with isMainFrame=false. Treating those as fatal puts up a
+      // spurious "Failed to load app" that then works on the second try.
       if (e.detail?.isMainFrame === false) return;
       clearWatchdog();
       console.error('[AppViewer] Webview failed to load:', e.detail);
@@ -216,7 +222,7 @@ export const AppViewer: React.FC = () => {
     };
   }, [partitionLoaded]);
 
-  // NEW-UX-3: refresh with in-progress state.
+  // Refresh with in-progress state.
   // webview.reload() is synchronous, so clearing isRefreshing in a finally
   // block means React batches both state updates in the same tick and the
   // toolbar 'Refreshing…' label never actually renders. Instead we drive
@@ -230,6 +236,10 @@ export const AppViewer: React.FC = () => {
   const handleRefresh = useCallback(() => {
     const webview = webviewRef.current;
     if (!webview) return;
+    // Clear the error overlay immediately so the user gets feedback that the
+    // retry took, and so a successful reload isn't hidden behind a stale error.
+    setError(null);
+    setIsLoading(true);
     isRefreshingRef.current = true;
     setIsRefreshing(true);
     webview.reload();
@@ -244,6 +254,8 @@ export const AppViewer: React.FC = () => {
     if (isLoading) return; // still loading — wait for did-stop-loading
     isRefreshingRef.current = false;
     setIsRefreshing(false);
+    // The webview finished reloading: confirm the repaint in the toolbar.
+    setJustRefreshedAt(Date.now());
   }, [isLoading]);
 
   const handleBack = () => {
@@ -255,10 +267,10 @@ export const AppViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* A11Y-S7: sr-only heading for screen readers */}
+      {/* Sr-only heading for screen readers */}
       <h1 className="sr-only">App: {appName}</h1>
 
-      {/* UX-B4: shared toolbar */}
+      {/* Shared toolbar */}
       <ViewerToolbar
         onBack={handleBack}
         backLabel="Back to Apps"
@@ -270,6 +282,8 @@ export const AppViewer: React.FC = () => {
         dataflowRefresh={dataflowRefreshTime}
         freshnessLabel={freshnessLabel}
         showRelativeAge
+        showFreshness
+        justRefreshedAt={justRefreshedAt}
         // Unlike ReportViewer (which suppresses the nudge when auto-refresh is on because it can
         // silently call report.refresh()), App embeds cannot be refreshed in place, so the "New
         // data" nudge is intentionally always shown here regardless of the auto-refresh setting.

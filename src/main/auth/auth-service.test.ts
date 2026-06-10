@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { InteractionRequiredAuthError, type AccountInfo } from '@azure/msal-node';
 
-// ARCH-B4: msal-config pulls in electron-log/main at module load. Stub the
+// Msal-config pulls in electron-log/main at module load. Stub the
 // electron surface so importing auth-service under jsdom never touches real
 // electron internals. The DI factory (createAuthService) means the SERVICE
 // itself needs none of this — but the module-level `import` of msal-config
@@ -51,7 +51,7 @@ interface Harness {
   accounts: AccountInfo[];
   corruptionListeners: Array<() => void>;
   cookieClearCalls: Array<{ jar: 'a' | 'b'; storages?: string[] }>;
-  // FIX-2: records which jars had their HTTP cache flushed.
+  // Records which jars had their HTTP cache flushed.
   cacheClearCalls: Array<'a' | 'b'>;
   clearedUsageAccounts: string[];
   // mutable knobs
@@ -112,7 +112,7 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     clearCache: vi.fn(async () => {
       persisted.cache = null;
       persisted.userInfo = null;
-      // NEW-AUTH-1: token-cache deletes the active id in lockstep with the cache.
+      // Token-cache deletes the active id in lockstep with the cache.
       persisted.activeId = null;
     }),
     saveUserInfo: vi.fn(async (u: CachedUserInfo) => {
@@ -136,7 +136,7 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     clearStorageData: vi.fn(async (opts?: { storages?: string[] }) => {
       cookieClearCalls.push({ jar: 'a', storages: opts?.storages });
     }),
-    // FIX-2: each jar must also flush the HTTP cache on logout/switch.
+    // Each jar must also flush the HTTP cache on logout/switch.
     clearCache: vi.fn(async () => {
       cacheClearCalls.push('a');
     }),
@@ -198,7 +198,7 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// validateToken short-circuit honesty (existing intent, now actually running)
+// validateToken short-circuit honesty
 // ---------------------------------------------------------------------------
 describe('authService.validateToken (cache short-circuit)', () => {
   it('returns { success: true, data: false } on a fresh service with no account', async () => {
@@ -231,7 +231,7 @@ describe('authService.validateToken (cache short-circuit)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SEC-S4 + getAccessToken expiry lifecycle (now ACTIVE with a real msal fake)
+// getAccessToken expiry lifecycle
 // ---------------------------------------------------------------------------
 describe('authService.getAccessToken (SEC-S4: InteractionRequired drops expiry)', () => {
   it('returns NO_ACCOUNT and leaves no cached expiry on a fresh service', async () => {
@@ -260,7 +260,7 @@ describe('authService.getAccessToken (SEC-S4: InteractionRequired drops expiry)'
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error.code).toBe('INTERACTION_REQUIRED');
 
-    // SEC-S4 live assertion: the cached expiry for this account is gone, so
+    // The cached expiry for this account is gone, so
     // validateToken can no longer short-circuit to a stale `true`. It falls
     // through to getAccessToken, which now returns INTERACTION_REQUIRED → false.
     const validated = await svc.validateToken();
@@ -269,7 +269,7 @@ describe('authService.getAccessToken (SEC-S4: InteractionRequired drops expiry)'
 });
 
 // ---------------------------------------------------------------------------
-// BEH-B2: token-cache corruption honesty
+// Token-cache corruption honesty
 // ---------------------------------------------------------------------------
 describe('BEH-B2: corruption invalidates in-memory auth state', () => {
   it('registers a corruption hook on construction', () => {
@@ -310,7 +310,7 @@ describe('BEH-B2: corruption invalidates in-memory auth state', () => {
 });
 
 // ---------------------------------------------------------------------------
-// NEW-AUTH-2: isAuthenticated non-mutating + initializeCache idempotent
+// isAuthenticated non-mutating + initializeCache idempotent
 // ---------------------------------------------------------------------------
 describe('NEW-AUTH-2: non-mutating reads, idempotent cache init', () => {
   it('initializeCache() deserializes at most once across many reads', async () => {
@@ -337,7 +337,7 @@ describe('NEW-AUTH-2: non-mutating reads, idempotent cache init', () => {
 });
 
 // ---------------------------------------------------------------------------
-// BEH-B1: logout cookie symmetry + reusedPreviousAccount + proactive sweep
+// Logout cookie symmetry + reusedPreviousAccount + proactive sweep
 // ---------------------------------------------------------------------------
 describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
   it('clears cookie jars sequentially (jar a then jar b), not via allSettled', async () => {
@@ -481,7 +481,7 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
 });
 
 // ---------------------------------------------------------------------------
-// NEW-AUTH-1: ACTIVE-account source of truth (homeAccountId-keyed)
+// ACTIVE-account source of truth (homeAccountId-keyed)
 // ---------------------------------------------------------------------------
 describe('NEW-AUTH-1: active account selection', () => {
   it('(a) first login adopts the new account as active and persists it', async () => {
@@ -549,7 +549,7 @@ describe('NEW-AUTH-1: active account selection', () => {
     const before = await svc.getCurrentUser();
     expect(before.success && before.data?.id).toBe('acct-1');
 
-    // Switch to acct-2 (the seam PROD-B1/Stage 3 will call).
+    // Switch to acct-2.
     const switched = await svc.setActiveAccount('acct-2');
     expect(switched.success).toBe(true);
     expect(h.persisted.activeId).toBe('acct-2');
@@ -602,7 +602,7 @@ describe('NEW-AUTH-1: active account selection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PROD-B1: in-app account switch — logout() THEN login(prompt=select_account)
+// In-app account switch — logout() THEN login(prompt=select_account)
 // ---------------------------------------------------------------------------
 describe('PROD-B1: switchAccount', () => {
   it('logs out (clears cookies, expiry map, active id) THEN logs in', async () => {

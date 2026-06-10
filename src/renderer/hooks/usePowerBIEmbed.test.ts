@@ -1,9 +1,9 @@
 /**
- * #7 Embed core behavioral coverage — lifecycle / orchestrator.
+ * Embed core behavioral coverage — lifecycle / orchestrator.
  *
  * Drives the full usePowerBIEmbed composition (lifecycle + token refresh +
  * watchdog) against a controllable fake Power BI service + fake embed, with the
- * getEmbedToken IPC mocked. Asserts REAL behavior, not tautologies:
+ * getEmbedToken IPC mocked. Asserts:
  *   - mount fetches a token, builds the config, and embeds it
  *   - the built-in 'loaded' handler clears loading + runs the caller's loaded
  *   - the built-in 'error' handler (pre-load) surfaces the error to UI

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type * as pbi from 'powerbi-client';
 
 /**
- * NEW-ARCH-1: shared export hook for ReportViewer + DashboardViewer.
+ * Shared export hook for ReportViewer + DashboardViewer.
  *
  * Encapsulates the ~70-line export flow: path dialog, bounds calculation,
  * HiDPI correction, status message lifecycle, and the isExporting flag.
@@ -51,6 +51,10 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const exportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Re-entry guard: the isExporting state lands a render late, so a fast
+  // double-click (or Enter-key repeat) could start two concurrent export flows
+  // racing for the same file path.
+  const exportInFlightRef = useRef(false);
 
   const showExportStatus = (message: string) => {
     setExportStatus(message);
@@ -65,6 +69,8 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
   const handleExportPdf = async (
     embedRef: React.MutableRefObject<pbi.Embed | null>
   ): Promise<void> => {
+    if (exportInFlightRef.current) return;
+    exportInFlightRef.current = true;
     setIsExporting(true);
     try {
       const pathResponse = await window.electronAPI.export.choosePdfPath();
@@ -199,6 +205,7 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
     } catch (err) {
       showExportStatus(err instanceof Error ? err.message : 'Export failed');
     } finally {
+      exportInFlightRef.current = false;
       setIsExporting(false);
     }
   };

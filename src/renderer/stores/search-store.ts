@@ -153,9 +153,9 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         dashboards = allItemsResponse.success ? allItemsResponse.data.dashboards : [];
 
         // Surface partial-failure warning if the bulk fetch couldn't reach
-        // every workspace. DEV-D extended getAllItems' payload with
-        // partialFailure + failedWorkspaces; tolerate older shapes by
-        // reading via an unknown cast.
+        // every workspace. Tolerate payload shapes without partialFailure /
+        // failedWorkspaces by reading via an unknown cast.
+        let partialFailure = false;
         if (allItemsResponse.success) {
           const bulk = allItemsResponse.data as unknown as {
             reports: Report[];
@@ -164,6 +164,7 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
             failedWorkspaces?: { id: string; name: string; error: string }[];
           };
           if (bulk.partialFailure && bulk.failedWorkspaces && bulk.failedWorkspaces.length > 0) {
+            partialFailure = true;
             const names = bulk.failedWorkspaces.map((w) => w.name).join(', ');
             set({
               partialFailureWarning: `Some workspaces could not be loaded: ${names}`,
@@ -173,14 +174,19 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
           }
         }
 
-        // Update cache
-        searchCache = {
-          workspaces,
-          apps,
-          reports,
-          dashboards,
-          lastFetched: now,
-        };
+        // Update cache — but never cache a partial (or failed) fetch. Caching it
+        // would pin searches to an incomplete catalog for the full TTL with no
+        // way to self-heal; leaving lastFetched at 0 makes the next keystroke
+        // retry the fetch instead.
+        if (!partialFailure && workspacesResponse.success && appsResponse.success && allItemsResponse.success) {
+          searchCache = {
+            workspaces,
+            apps,
+            reports,
+            dashboards,
+            lastFetched: now,
+          };
+        }
       }
 
       // Check again if this search is still current

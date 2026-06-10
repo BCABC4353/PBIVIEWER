@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// In-memory electron-store stub. token-cache.ts now relies on electron-store's
+// In-memory electron-store stub. token-cache.ts relies on electron-store's
 // built-in encryptionKey (no Electron safeStorage), so only electron-store needs
 // mocking — the stub ignores the constructor options (name/encryptionKey/
 // clearInvalidConfig) and just backs get/set/delete with a Map.

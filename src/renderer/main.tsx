@@ -62,8 +62,8 @@ const ThemedApp: React.FC = () => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
 
-  // UX-B1: Update title bar overlay colors when theme changes.
-  // Uses optional chaining so this compiles before the preload method is added by Group 6.
+  // Update title bar overlay colors when theme changes. Optional chaining
+  // guards environments where the preload bridge is absent (tests).
   useEffect(() => {
     const colors = TITLE_BAR_COLORS[isDark ? 'dark' : 'light'];
     window.electronAPI?.window?.setTitleBarOverlay?.({

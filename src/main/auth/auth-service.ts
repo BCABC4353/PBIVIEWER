@@ -7,21 +7,17 @@ import {
 } from '@azure/msal-node';
 import { BrowserWindow, session, shell } from 'electron';
 import { randomFillSync } from 'crypto';
-import { msalConfig, loginRequest, silentRequest } from './msal-config';
+import { msalConfig, loginRequest, silentRequest, azureConfigValid } from './msal-config';
 import { tokenCache as realTokenCache, CachedUserInfo } from './token-cache';
 import { settingsService } from '../services/settings-service';
 import { usageTrackingService } from '../services/usage-tracking-service';
 import { UserInfo, AuthResult, IPCResponse, TokenResult } from '../../shared/types';
 import { PARTITION_NAME, TOKEN } from '../../shared/constants';
 
-// ---------------------------------------------------------------------------
-// ARCH-B4: dependency-injection seam
-// ---------------------------------------------------------------------------
-// The auth service used to construct MSAL + reach for electron singletons at
-// module load, which (a) made it impossible to unit-test under jsdom and (b)
-// hard-wired the production wiring. We now describe every external collaborator
-// as an injectable dependency. `createAuthService(deps)` builds a service from
-// fakes in tests; `getAuthService()` builds the real one lazily in production.
+// Dependency-injection seam: every external collaborator (MSAL, electron
+// singletons) is an injectable dependency so the service is unit-testable under
+// jsdom. `createAuthService(deps)` builds a service from fakes in tests;
+// `getAuthService()` builds the real one lazily in production.
 
 /** Minimal slice of the MSAL token cache the service depends on. */
 export interface TokenCachePort {
@@ -52,7 +48,7 @@ export interface PersistentCachePort {
   saveUserInfo(userInfo: CachedUserInfo): Promise<void>;
   loadUserInfo(): Promise<CachedUserInfo | null>;
   onCorruption(listener: () => void): () => void;
-  // NEW-AUTH-1: persist/restore which cached account is "active" so the choice
+  // Persist/restore which cached account is "active" so the choice
   // survives restart. saveActiveAccountId(null) clears it (logout / corruption).
   saveActiveAccountId(homeAccountId: string | null): Promise<void>;
   loadActiveAccountId(): Promise<string | null>;
@@ -65,7 +61,7 @@ export interface CookieJarPort {
       'cookies' | 'localstorage' | 'indexdb' | 'serviceworkers' | 'cachestorage'
     >;
   }): Promise<void>;
-  // FIX-2 (multi-tenant isolation): flush the HTTP cache too. clearStorageData
+  // Flush the HTTP cache too. clearStorageData
   // does NOT touch Electron's HTTP cache, so cached api.powerbi.com responses
   // could survive a logout/account-switch and bleed across tenants. The real
   // Electron Session exposes clearCache(); we wire it in production.
@@ -88,7 +84,7 @@ export interface AuthServiceDeps {
   openAuthWindow: AuthWindowOpener;
   /** Reads usageClearOnLogout so the logout path can honor the retention policy. */
   getUsageClearOnLogout: () => 'always' | 'never' | 'on-shared-machine';
-  /** Wipes per-account usage history (BEH-B3). */
+  /** Wipes per-account usage history. */
   clearUsageForAccount: (homeAccountId: string) => void;
   logger: Pick<typeof console, 'warn' | 'error'>;
 }
@@ -97,18 +93,18 @@ class AuthService {
   private readonly deps: AuthServiceDeps;
   private account: AccountInfo | null = null;
   private pendingAuthState: string | null = null; // For CSRF validation
-  // BEH-B2 / NEW-AUTH-2: guard so initializeCache() runs its deserialize+hydrate
+  // Guard so initializeCache() runs its deserialize+hydrate
   // at most once. Repeated reads (isAuthenticated, getAccessToken) must not keep
   // re-deserializing and clobbering this.account on every call.
   private cacheInitialized = false;
-  // NEW-AUTH-3: lastKnownExpiry is keyed by homeAccountId so a 5-minute
-  // short-circuit can never trust an expiry that belongs to a DIFFERENT account.
+  // Keyed by homeAccountId so the 5-minute validateToken short-circuit can
+  // never trust an expiry that belongs to a DIFFERENT account.
   // Cleared wholesale on logout / corruption.
   private lastKnownExpiryByAccount = new Map<string, number>();
-  // NEW-AUTH-1: the ACTIVE account's homeAccountId — the single source of truth
-  // for which cached MSAL account token/user/expiry operations target. Replaces
-  // the old hard-coded accounts[0] reads. Persisted via the token cache so the
-  // choice survives restart; mirrored here so hot reads don't hit disk.
+  // The ACTIVE account's homeAccountId — the single source of truth for which
+  // cached MSAL account token/user/expiry operations target. Persisted via the
+  // token cache so the choice survives restart; mirrored here so hot reads
+  // don't hit disk.
   private activeHomeAccountId: string | null = null;
   // Load the persisted active id from disk AT MOST ONCE (mirrors cacheInitialized).
   // Re-armed alongside cacheInitialized on logout/corruption so a later read
@@ -118,14 +114,14 @@ class AuthService {
   // reason (consent_required, access_denied, etc.) instead of generic
   // LOGIN_FAILED. Cleared after consumption.
   private lastAuthError: string | null = null;
-  // Single-flight lock for getAccessToken(): concurrent IPC calls used to race
+  // Single-flight lock for getAccessToken(): concurrent IPC calls would race
   // two acquireTokenSilent + persistCache cycles against each other, which can
-  // corrupt the MSAL cache. All callers now await the same in-flight promise.
+  // corrupt the MSAL cache. All callers await the same in-flight promise.
   private tokenAcquisitionInFlight: Promise<IPCResponse<TokenResult>> | null = null;
 
   constructor(deps: AuthServiceDeps) {
     this.deps = deps;
-    // BEH-B2: register the corruption hook up front. When the persistent cache
+    // Register the corruption hook up front. When the persistent cache
     // detects an undecryptable entry it purges itself AND calls this, so we drop
     // our in-memory account + expiries and stop returning a stale `true`.
     this.deps.persistentCache.onCorruption(() => this.invalidateCache());
@@ -141,14 +137,14 @@ class AuthService {
   }
 
   /**
-   * BEH-B2: drop all in-memory auth state after a cache corruption. Nulls the
+   * Drop all in-memory auth state after a cache corruption. Nulls the
    * account and clears every cached expiry so validateToken() cannot
    * short-circuit to a stale `true` against a cache that no longer exists.
    */
   invalidateCache(): void {
     this.account = null;
     this.lastKnownExpiryByAccount.clear();
-    // NEW-AUTH-1: drop the active-account selection too. The persistent cache has
+    // Drop the active-account selection too. The persistent cache has
     // already purged itself (token-cache's decrypt corruption path clears
     // activeHomeAccountId in lockstep with msalCache), so we only clear in memory
     // and re-arm the loader; the next getActiveAccount() re-adopts from scratch.
@@ -163,10 +159,10 @@ class AuthService {
   }
 
   /**
-   * NEW-AUTH-2: idempotent. Deserializes the persisted MSAL cache and hydrates
-   * `this.account` AT MOST ONCE. Previously every isAuthenticated()/getAccessToken()
-   * call re-ran this and overwrote this.account from accounts[0], which both wasted
-   * work and could silently switch the active account out from under a caller.
+   * Idempotent. Deserializes the persisted MSAL cache and hydrates
+   * `this.account` AT MOST ONCE — re-running on every probe would overwrite
+   * this.account from accounts[0] and could silently switch the active account
+   * out from under a caller.
    */
   private async initializeCache(): Promise<void> {
     if (this.cacheInitialized) return;
@@ -188,9 +184,9 @@ class AuthService {
           return;
         }
 
-        // NEW-AUTH-1: hydrate the active account only if we don't already have
-        // one. getActiveAccount() resolves by the persisted activeHomeAccountId
-        // (adopting accounts[0] on first run), replacing the old bare accounts[0].
+        // Hydrate the active account only if we don't already have one.
+        // getActiveAccount() resolves by the persisted activeHomeAccountId
+        // (adopting accounts[0] on first run).
         if (this.account === null) {
           this.account = await this.getActiveAccount();
         }
@@ -214,7 +210,7 @@ class AuthService {
   }
 
   /**
-   * NEW-AUTH-1: lazily hydrate activeHomeAccountId from the persistent store
+   * Lazily hydrate activeHomeAccountId from the persistent store
    * AT MOST ONCE per cache generation. Mirrors initializeCache's idempotence so
    * hot reads (getActiveAccount on every token acquisition) don't hit disk. The
    * loaded flag is re-armed on logout/corruption so a later read re-hydrates.
@@ -233,7 +229,7 @@ class AuthService {
   }
 
   /**
-   * NEW-AUTH-1: the ACTIVE-account source of truth. Returns the cached MSAL
+   * The ACTIVE-account source of truth. Returns the cached MSAL
    * account whose homeAccountId === activeHomeAccountId. If the active id is unset
    * (first run) or no longer present in the cache (e.g. that account was removed),
    * fall back to accounts[0] AND adopt it — set+persist activeHomeAccountId — so
@@ -260,7 +256,7 @@ class AuthService {
   }
 
   /**
-   * NEW-AUTH-1: the seam Stage 3's account switcher (PROD-B1) calls after a
+   * The seam the account switcher calls after a
    * login(prompt=select_account). Validates the id exists in the cache, then
    * sets+persists it as the active account and re-points this.account. Returns a
    * structured response so the caller can surface an unknown-account error.
@@ -288,7 +284,7 @@ class AuthService {
   }
 
   /**
-   * NEW-AUTH-1: set+persist the active id without re-validating (callers that
+   * Set+persist the active id without re-validating (callers that
    * already hold a known-good account: login success, getActiveAccount adoption,
    * setActiveAccount after its own validation). Marks the id as loaded so a later
    * loadActiveIdOnce() doesn't clobber the in-memory value from disk.
@@ -300,9 +296,8 @@ class AuthService {
   }
 
   /**
-   * NEW-AUTH-2: NON-mutating. Reports whether any account exists WITHOUT
-   * overwriting this.account. Earlier this called initializeCache() in a way that
-   * re-set the active account on every authentication probe; now it only reads.
+   * NON-mutating. Reports whether any account exists WITHOUT overwriting
+   * this.account — an authentication probe must never re-set the active account.
    */
   async isAuthenticated(): Promise<IPCResponse<boolean>> {
     try {
@@ -324,10 +319,10 @@ class AuthService {
   async validateToken(): Promise<IPCResponse<boolean>> {
     try {
       // Short-circuit when we know the cached token is comfortably valid.
-      // NEW-AUTH-3: the expiry MUST belong to the CURRENT account — look it up by
+      // The expiry MUST belong to the CURRENT account — look it up by
       // homeAccountId, never trust a global "last expiry". Defense-in-depth: also
       // require a live account, so a corruption that nulled the account cannot let
-      // a leftover expiry return a stale `true` (BEH-B2).
+      // a leftover expiry return a stale `true`.
       if (this.account !== null) {
         const expiry = this.lastKnownExpiryByAccount.get(this.account.homeAccountId);
         if (expiry !== undefined && expiry - Date.now() > TOKEN.VALIDATE_SHORT_CIRCUIT_MS) {
@@ -344,7 +339,7 @@ class AuthService {
 
   async getCurrentUser(): Promise<IPCResponse<UserInfo | null>> {
     try {
-      // NEW-AUTH-1: this.account is now ALWAYS the ACTIVE account — it is set from
+      // this.account is ALWAYS the ACTIVE account — it is set from
       // the active-account source of truth on every path that assigns it (login
       // adopts the new account, getAccessToken resolves via getActiveAccount,
       // setActiveAccount re-points it). So reading this.account here reflects the
@@ -389,26 +384,40 @@ class AuthService {
   }
 
   /**
-   * PROD-B1 / FIX-3 (auth-friction): optional knobs for an interactive login.
+   * Optional knobs for an interactive login.
    *
    * `prompt` is forwarded to MSAL's authorization request ONLY when supplied.
-   * A NORMAL login (no args) now passes NO `prompt`, so AAD can silently
-   * continue an existing session and only show UI when it genuinely must
-   * (no session, MFA, consent). This removes the forced account-picker that
-   * fired on EVERY interactive login — the unattended wall-display restart and
-   * the owner's #1 complaint. The explicit account switch STILL forces the
-   * picker by passing { prompt: 'select_account' } at its call site
-   * (switchAccount()), so that intent stays explicit and unchanged.
-   *
-   * NOTE: the actual silent-vs-interactive AAD behaviour (does omitting prompt
-   * truly skip the picker for a live SSO session?) MUST be confirmed in the
-   * runtime smoke test — it cannot be asserted from a unit test alone.
+   * A NORMAL login (no args) passes NO `prompt`, so AAD can silently continue
+   * an existing session and only show UI when it genuinely must (no session,
+   * MFA, consent). Do NOT default a prompt here: forcing the account picker on
+   * every interactive login breaks unattended wall-display restarts. The
+   * explicit account switch forces the picker by passing
+   * { prompt: 'select_account' } at its call site (switchAccount()), so that
+   * intent stays explicit.
    */
   async login(options?: { prompt?: string }): Promise<IPCResponse<AuthResult>> {
     const prompt = options?.prompt;
     try {
-      // A fast double-click on the Sign-in button used to overwrite
-      // pendingAuthState mid-flight, which then tripped the CSRF check on the
+      // Fail loud, not blank: a build whose Azure credentials weren't injected
+      // (or are the .env.example placeholders) would otherwise open a Microsoft
+      // sign-in window that renders blank — the "credentials completely broken,
+      // can't even see the login" outage. Surface a specific, actionable error
+      // so the operator knows it's a bad build, not a user/network problem.
+      if (!azureConfigValid) {
+        return {
+          success: false,
+          error: {
+            code: 'MISCONFIGURED_CREDENTIALS',
+            message:
+              'This build is missing its Microsoft sign-in credentials and cannot sign in. ' +
+              'Reinstall the previous working version, or rebuild with AZURE_CLIENT_ID and ' +
+              'AZURE_TENANT_ID set.',
+          },
+        };
+      }
+
+      // A fast double-click on the Sign-in button would overwrite
+      // pendingAuthState mid-flight, which then trips the CSRF check on the
       // first window's redirect. Treat the second click as a no-op so the
       // in-flight login can complete; the renderer ignores LOGIN_IN_PROGRESS.
       if (this.pendingAuthState !== null) {
@@ -418,7 +427,7 @@ class AuthService {
         };
       }
 
-      // BEH-B1: PROACTIVE pre-login sweep. When there is no in-flight login AND
+      // PROACTIVE pre-login sweep. When there is no in-flight login AND
       // no signed-in account, wipe the partition cookies BEFORE we open the auth
       // window. Sign-out and sign-in must be symmetric: a prior crash or an
       // out-of-band cookie can otherwise leave a half-authenticated jar that
@@ -430,7 +439,7 @@ class AuthService {
       // subsequent cancel doesn't surface yesterday's consent_required message.
       this.lastAuthError = null;
 
-      // BEH-B1: remember who was signed in (if anyone) so we can report whether
+      // Remember who was signed in (if anyone) so we can report whether
       // this login reused the same account. After the proactive sweep the live
       // account is normally null, so we also consult the persisted user info.
       const previousAccountId =
@@ -445,7 +454,7 @@ class AuthService {
       const state = this.generateState();
       this.pendingAuthState = state;
 
-      // Get authorization URL with state parameter. FIX-3: only include
+      // Get authorization URL with state parameter. Only include
       // `prompt` when a caller explicitly asked for one (switchAccount →
       // 'select_account'). Omitting it lets AAD silently continue an existing
       // session instead of always forcing the account picker.
@@ -509,7 +518,7 @@ class AuthService {
       if (tokenResponse && tokenResponse.account) {
         this.account = tokenResponse.account;
         this.cacheInitialized = true; // we now hold an authoritative account
-        // NEW-AUTH-1: the just-signed-in account becomes the active one. Set+persist
+        // The just-signed-in account becomes the active one. Set+persist
         // it so token/user/expiry reads target it now and after a restart. This also
         // overwrites any stale active id from a previous account (account switch).
         await this.setActiveAccountInternal(tokenResponse.account.homeAccountId);
@@ -522,7 +531,7 @@ class AuthService {
         };
         await this.deps.persistentCache.saveUserInfo(userInfo);
 
-        // BEH-B1: true only when we resolved to the SAME account that was signed
+        // True only when we resolved to the SAME account that was signed
         // in before this login. Lets the renderer/main preserve per-account state
         // on a re-login and reset it on an account switch.
         const reusedPreviousAccount =
@@ -560,7 +569,7 @@ class AuthService {
   }
 
   /**
-   * BEH-B1: proactive pre-login cookie sweep. Only runs when there is genuinely
+   * Proactive pre-login cookie sweep. Only runs when there is genuinely
    * no session in flight and no account — i.e. a clean "signed out" state — so we
    * never disturb a re-auth that is mid-handshake. Sequential + fail-loud, mirror
    * of logout(): a sweep that silently fails would re-introduce the stale-cookie
@@ -574,17 +583,16 @@ class AuthService {
   }
 
   /**
-   * BEH-B1: clear every cookie jar ONE AT A TIME and fail loud. Replaces the old
-   * Promise.allSettled (which swallowed per-jar errors). If any jar fails to
-   * clear we throw so the caller surfaces it instead of pretending the session
-   * was fully cleared.
+   * Clear every cookie jar ONE AT A TIME and fail loud (not Promise.allSettled,
+   * which swallows per-jar errors). If any jar fails to clear we throw so the
+   * caller surfaces it instead of pretending the session was fully cleared.
    *
-   * SEC-S5: clear the FULL per-account web-storage set on the partition session,
-   * not just cookies. Power BI's embedded content caches workspace/report data in
-   * localStorage, IndexedDB, service workers, and the cache storage; clearing only
-   * cookies on logout/account-switch left that data behind, so a second account
-   * could surface the first account's cached content. These are the valid Electron
-   * `clearStorageData` storage keys (verified for Electron 42).
+   * Clears the FULL per-account web-storage set on the partition session, not
+   * just cookies. Power BI's embedded content caches workspace/report data in
+   * localStorage, IndexedDB, service workers, and the cache storage; clearing
+   * only cookies on logout/account-switch would leave that data behind, letting
+   * a second account surface the first account's cached content. These are the
+   * valid Electron `clearStorageData` storage keys (verified for Electron 42).
    */
   private async clearCookieJarsSequential(): Promise<void> {
     const jars = this.deps.getCookieJars();
@@ -592,7 +600,7 @@ class AuthService {
       await jar.clearStorageData({
         storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
       });
-      // FIX-2: clearStorageData leaves Electron's HTTP cache intact, so a stale
+      // clearStorageData leaves Electron's HTTP cache intact, so a stale
       // api.powerbi.com response could bleed across tenants after a logout /
       // account switch. Flush the HTTP cache on each jar too. Same sequential +
       // fail-loud contract: a swallowed failure would re-introduce the leak.
@@ -602,7 +610,7 @@ class AuthService {
 
   async getAccessToken(): Promise<IPCResponse<TokenResult>> {
     // Single-flight: parallel IPC callers (e.g. workspace expansion firing many
-    // getEmbedToken requests at once) used to race two acquireTokenSilent +
+    // getEmbedToken requests at once) would race two acquireTokenSilent +
     // persistCache cycles, which can corrupt the MSAL cache. Coalesce them.
     if (this.tokenAcquisitionInFlight !== null) {
       return await this.tokenAcquisitionInFlight;
@@ -612,7 +620,7 @@ class AuthService {
       try {
         if (!this.account) {
           await this.initializeCache();
-          // NEW-AUTH-1: resolve the ACTIVE account (by persisted homeAccountId,
+          // Resolve the ACTIVE account (by persisted homeAccountId,
           // adopting accounts[0] on first run) instead of a bare accounts[0] read.
           const active = await this.getActiveAccount();
           if (!active) {
@@ -634,7 +642,7 @@ class AuthService {
           });
 
           await this.persistCache();
-          // NEW-AUTH-3: record expiry keyed by THIS account's homeAccountId so the
+          // Record expiry keyed by THIS account's homeAccountId so the
           // validateToken short-circuit can only ever trust this account's token.
           if (result.expiresOn) {
             this.lastKnownExpiryByAccount.set(account.homeAccountId, result.expiresOn.getTime());
@@ -650,7 +658,7 @@ class AuthService {
           };
         } catch (error) {
           if (error instanceof InteractionRequiredAuthError) {
-            // SEC-S4: drop THIS account's expiry so the validateToken short-circuit
+            // Drop THIS account's expiry so the validateToken short-circuit
             // cannot return success:true for a session that requires interaction.
             this.lastKnownExpiryByAccount.delete(account.homeAccountId);
             // Token expired or scopes changed. Do NOT clear the cache — just report that
@@ -688,7 +696,7 @@ class AuthService {
 
   async logout(): Promise<IPCResponse<void>> {
     try {
-      // BEH-B3: capture who is signing out BEFORE we wipe state, so we can honor
+      // Capture who is signing out BEFORE we wipe state, so we can honor
       // usageClearOnLogout and wipe that account's usage history if configured.
       const loggedOutAccountId =
         this.account?.homeAccountId ??
@@ -698,7 +706,7 @@ class AuthService {
       await this.deps.persistentCache.clearCache();
       this.account = null;
       this.lastKnownExpiryByAccount.clear();
-      // NEW-AUTH-1: clear the active-account selection. clearCache() already
+      // Clear the active-account selection. clearCache() already
       // deleted the persisted id; null the in-memory copy and re-arm the loader so
       // a subsequent read re-hydrates from the (now-empty) store rather than the
       // stale value. Belt-and-braces persist(null) in case clearCache is partial.
@@ -714,19 +722,19 @@ class AuthService {
         await this.deps.msalClient.getTokenCache().removeAccount(account);
       }
 
-      // BEH-B1: clear cookies from BOTH sessions SEQUENTIALLY and FAIL LOUD.
+      // Clear cookies from BOTH sessions SEQUENTIALLY and FAIL LOUD.
       // - partition session (PARTITION_NAME): hosts the AAD auth window AND the
       //   embedded AppViewer <webview> that loads app.powerbi.com — this is where
       //   the active AAD SSO cookies live. Clearing it ends the single-sign-on
       //   session that lets app-opens skip credential prompts.
       // - defaultSession: legacy / belt-and-braces for pre-bridge installs.
-      // The old code used Promise.allSettled, which swallowed per-jar failures
-      // and let logout report success while cookies survived (the user stayed
-      // silently signed in). A clear error now fails the whole logout so the
-      // renderer can warn instead of lying.
+      // Promise.allSettled would swallow per-jar failures and let logout report
+      // success while cookies survived (the user stays silently signed in); a
+      // clear error fails the whole logout so the renderer can warn instead of
+      // lying.
       await this.clearCookieJarsSequential();
 
-      // BEH-B3: honor the usage-history retention policy. 'always' wipes this
+      // Honor the usage-history retention policy. 'always' wipes this
       // account's records; 'on-shared-machine' is treated as a wipe on logout
       // (the machine is, by configuration, shared). 'never' keeps history.
       if (loggedOutAccountId) {
@@ -746,7 +754,7 @@ class AuthService {
   }
 
   /**
-   * PROD-B1: in-app account switch. Fully tears down the current session
+   * In-app account switch. Fully tears down the current session
    * (logout: clears the persistent + MSAL caches, the lastKnownExpiry map, the
    * active-account selection, AND both cookie jars incl. the partition jar) and
    * then re-runs an interactive login with prompt=select_account so AAD shows
@@ -780,7 +788,7 @@ class AuthService {
 export type { AuthService };
 
 /**
- * ARCH-B4: construct an AuthService from explicit dependencies. Tests pass fakes;
+ * Construct an AuthService from explicit dependencies. Tests pass fakes;
  * production passes the electron/MSAL-backed deps built by buildProductionDeps().
  */
 export function createAuthService(deps: AuthServiceDeps): AuthService {
@@ -871,7 +879,7 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
         }
       };
 
-      // NEW-SEC-1: deny any attempt by the auth page to open a child window.
+      // Deny any attempt by the auth page to open a child window.
       // Vetted https links are forwarded to the system browser instead.
       authWindow.webContents.setWindowOpenHandler(({ url }) => {
         try {
@@ -912,7 +920,7 @@ function createElectronAuthWindowOpener(): AuthWindowOpener {
         settle(null);
       });
 
-      // SYMPTOM-1 NOTE (v2.1.6): a CDP / DevTools-protocol WebAuthn-passkey
+      // NOTE: a CDP / DevTools-protocol WebAuthn-passkey
       // suppression used to live here (attach the debugger, then inject a
       // document-start script that neutered window.PublicKeyCredential). It was
       // REMOVED: attaching the debugger + injecting into Microsoft's sign-in page

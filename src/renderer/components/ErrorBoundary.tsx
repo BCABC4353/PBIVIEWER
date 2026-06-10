@@ -2,14 +2,12 @@ import React, { Component, ErrorInfo, ReactNode, useState, useCallback } from 'r
 import { Button, Text, Card } from '@fluentui/react-components';
 import { ArrowSyncRegular, HomeRegular } from '@fluentui/react-icons';
 
-// ============================================================
 // Internal class boundary
-// ============================================================
 
 interface ClassProps {
   children: ReactNode;
   /**
-   * NEW-BEH-2: Called when the user presses "Try Again". The functional
+   * Called when the user presses "Try Again". The functional
    * wrapper provides this; it bumps the recovery key so the entire subtree
    * is re-mounted, breaking out of any deterministic render-error loop.
    */
@@ -64,9 +62,7 @@ class ErrorBoundaryClass extends Component<ClassProps, ClassState> {
   }
 }
 
-// ============================================================
 // Fallback UI
-// ============================================================
 
 interface ErrorFallbackProps {
   error: Error | null;
@@ -120,16 +116,14 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onGoHome, onTryAga
   </div>
 );
 
-// ============================================================
-// Public export — functional wrapper (NEW-BEH-2)
-// ============================================================
+// Public export — functional wrapper
 
 interface Props {
   children: ReactNode;
 }
 
 /**
- * NEW-BEH-2: The functional wrapper owns a `recoveryKey` counter.
+ * The functional wrapper owns a `recoveryKey` counter.
  *
  * When the user presses "Try Again", `onTryAgain` is called:
  *   1. The recovery key is incremented, which changes the `key` prop on the

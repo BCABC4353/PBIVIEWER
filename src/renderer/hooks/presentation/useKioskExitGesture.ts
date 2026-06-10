@@ -1,5 +1,5 @@
 /**
- * PROD-S1: useKioskExitGesture
+ * useKioskExitGesture
  *
  * Explicit, kiosk-safe exit affordances layered on top of the single-Escape
  * exit (which the browser already wires via fullscreenchange):
@@ -7,9 +7,9 @@
  *      KIOSK.ESCAPE_HOLD_MS to exit.
  *   2. Ctrl+Shift+Q chord    — immediate deliberate exit.
  *
- * #6: the chord was previously Ctrl+Shift+Esc, which is the Windows Task Manager
- * system hotkey — the OS intercepts it before it can reach the app, so it never
- * fired. Ctrl+Shift+Q is not OS-reserved on Windows and is not a default
+ * Do NOT use Ctrl+Shift+Esc for the chord: it is the Windows Task Manager
+ * system hotkey, and the OS intercepts it before it can reach the app.
+ * Ctrl+Shift+Q is not OS-reserved on Windows and is not a default
  * Chromium/Electron renderer shortcut, so the keydown actually reaches the app.
  * (Alt+F4 is deliberately avoided: it kills the window instead of running the
  * graceful doExit teardown.)
@@ -41,8 +41,8 @@ export function isEscape(e: GestureKey): boolean {
 /**
  * True for the Ctrl+Shift+Q deliberate-exit chord.
  *
- * #6: Ctrl+Shift+Q replaces the old Ctrl+Shift+Esc, which the Windows OS
- * intercepts as the Task Manager hotkey before it can reach the app. The `q`
+ * Not Ctrl+Shift+Esc — Windows intercepts that as the Task Manager hotkey
+ * before it can reach the app. The `q`
  * comparison is case-insensitive because Shift uppercases the emitted `key`.
  */
 export function isChordExit(e: GestureKey): boolean {

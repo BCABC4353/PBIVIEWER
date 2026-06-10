@@ -37,9 +37,9 @@ export const SettingsPage: React.FC = () => {
   const [appVersion, setAppVersion] = useState<string>('');
 
   // Stable ID for the theme-toggle group label (aria-labelledby on the group).
-  // The slider IDs have been removed — Field owns the label association for
-  // the Slider components (A11Y-S5: aria-label on a Field-wrapped Slider
-  // shadows the visible Field label, so we remove it and let Field wire them).
+  // Field owns the label association for the Slider components: an aria-label
+  // on a Field-wrapped Slider shadows the visible Field label, so we omit it
+  // and let Field wire them.
   const themeGroupId = useId();
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   // Build a deduplicated list of recent + frequent items for the auto-start picker.
-  // Reports only (dashboards are not valid auto-start targets for PROD-B2).
+  // Reports only (dashboards are not valid auto-start targets).
   const autoStartCandidates: ContentItem[] = React.useMemo(() => {
     const seen = new Set<string>();
     const all = [...recentItems, ...frequentItems].filter(
@@ -211,7 +211,7 @@ export const SettingsPage: React.FC = () => {
                 Appearance
               </h2>
               <div className="space-y-4">
-                {/* A11Y-S6: theme toggle group with role=group + aria-pressed */}
+                {/* Theme toggle group with role=group + aria-pressed */}
                 <div>
                   <Text
                     id={themeGroupId}
@@ -264,7 +264,7 @@ export const SettingsPage: React.FC = () => {
                 Slideshow / Presentation Mode
               </h2>
               <div className="space-y-5">
-                {/* A11Y-S5: slider wrapped in Field */}
+                {/* Slider wrapped in Field */}
                 <Field
                   label={
                     <div className="flex items-center justify-between w-full">
@@ -285,7 +285,7 @@ export const SettingsPage: React.FC = () => {
                   />
                 </Field>
 
-                {/* A11Y-S5: select wrapped in Field */}
+                {/* Select wrapped in Field */}
                 <Field label="Slideshow mode">
                   <Select
                     value={settings.slideshowMode}
@@ -299,7 +299,7 @@ export const SettingsPage: React.FC = () => {
                   </Select>
                 </Field>
 
-                {/* A11Y-S5: switch wrapped in Field */}
+                {/* Switch wrapped in Field */}
                 <Field label="Auto-start slideshow">
                   <Switch
                     checked={settings.autoStartSlideshow}
@@ -311,14 +311,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* PROD-B2: Launch on startup section */}
+          {/* Launch on startup section */}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Launch on Startup
               </h2>
               <div className="space-y-5">
-                {/* A11Y-S5: radio group wrapped in Field */}
+                {/* Radio group wrapped in Field */}
                 <Field
                   label="Startup behavior"
                   hint="Controls what the app opens when it launches."
@@ -433,7 +433,7 @@ export const SettingsPage: React.FC = () => {
                 Data Refresh
               </h2>
               <div className="space-y-5">
-                {/* A11Y-S5: switch wrapped in Field */}
+                {/* Switch wrapped in Field */}
                 <Field label="Auto-refresh reports">
                   <Switch
                     checked={settings.autoRefreshEnabled}
@@ -470,14 +470,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* BEH-B3: Usage history section */}
+          {/* Usage history section */}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Usage History
               </h2>
               <div className="space-y-5">
-                {/* A11Y-S5: radio group in Field for usageClearOnLogout */}
+                {/* Radio group in Field for usageClearOnLogout */}
                 <Field
                   label="Clear usage history on sign-out"
                   hint="Controls when Recent and Frequent data is cleared. Use 'On shared machine' if multiple people sign in to this device."
