@@ -11,6 +11,7 @@ import type {
   DataFreshness,
   AppSettings,
   InsightsSnapshot,
+  AdminInsights,
 } from './types';
 
 // IPC envelope types — re-exported from types.ts for backward compatibility.
@@ -108,6 +109,8 @@ export interface ElectronAPI {
     }>>;
     /** Insights one-pager snapshot; force=true bypasses the 5-minute cache. */
     getInsights: (force?: boolean) => Promise<IPCResponse<InsightsSnapshot>>;
+    /** Admin tier (Fabric admin only): App audiences + who-uses-what activity. */
+    getAdminInsights: (days?: number, force?: boolean) => Promise<IPCResponse<AdminInsights>>;
   };
 
   window: {

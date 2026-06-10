@@ -51,6 +51,9 @@ const electronAPI: ElectronAPI = {
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
     // Insights one-pager snapshot; force=true bypasses the 5-minute cache.
     getInsights: (force?: boolean) => ipcRenderer.invoke('content:get-insights', force),
+    // Admin tier (Fabric admin only): App audiences + who-uses-what activity.
+    getAdminInsights: (days?: number, force?: boolean) =>
+      ipcRenderer.invoke('content:get-admin-insights', days, force),
   },
 
   window: {

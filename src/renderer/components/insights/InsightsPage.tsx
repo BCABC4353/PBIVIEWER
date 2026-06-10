@@ -8,11 +8,17 @@ import {
   ClockRegular,
   PeopleRegular,
   DatabaseRegular,
+  ShieldPersonRegular,
   ChevronDownRegular,
   ChevronRightRegular,
 } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
-import type { InsightsSnapshot, InsightsRefreshable, ContentItem } from '../../../shared/types';
+import type {
+  InsightsSnapshot,
+  InsightsRefreshable,
+  ContentItem,
+  AdminInsights,
+} from '../../../shared/types';
 
 /**
  * Insights — the data-health one-pager.
@@ -59,6 +65,13 @@ function relativeAge(iso?: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function triggerLabel(refreshType?: string): string {
+  if (!refreshType) return '\u2014';
+  if (refreshType === 'ViaApi') return 'Power Automate / API';
+  if (refreshType === 'OnDemand') return 'Manual';
+  return refreshType; // 'Scheduled' and any future values render as-is
 }
 
 const StatusBadge: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
@@ -122,6 +135,34 @@ export const InsightsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedWs, setExpandedWs] = useState<Set<string>>(new Set());
+
+  // Admin tier — loaded only on explicit request so the incremental-consent
+  // window can never appear unprompted.
+  const [admin, setAdmin] = useState<AdminInsights | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
+
+  const loadAdmin = useCallback(async (force: boolean) => {
+    setAdminLoading(true);
+    setAdminError(null);
+    try {
+      const resp = await window.electronAPI.content.getAdminInsights(7, force);
+      if (!resp.success) {
+        setAdminError(
+          resp.error.code === 'ADMIN_REQUIRED'
+            ? 'Power BI says this account is not a Fabric administrator, so the tenant-wide view is unavailable.'
+            : resp.error.userMessage || resp.error.message || 'Could not load the admin view',
+        );
+        return;
+      }
+      setAdmin(resp.data);
+    } catch (err) {
+      setAdminError(err instanceof Error ? err.message : 'Could not load the admin view');
+    } finally {
+      setAdminLoading(false);
+    }
+  }, []);
 
   // Usage cross-reference: most-opened (frequent) + the full catalog so we can
   // derive "items you have access to but have never opened".
@@ -326,6 +367,7 @@ export const InsightsPage: React.FC = () => {
                     <th className="px-3 py-2 font-medium text-neutral-foreground-2">Type</th>
                     <th className="px-3 py-2 font-medium text-neutral-foreground-2">Workspace</th>
                     <th className="px-3 py-2 font-medium text-neutral-foreground-2">Last success</th>
+                    <th className="px-3 py-2 font-medium text-neutral-foreground-2">Trigger</th>
                     <th className="px-3 py-2 font-medium text-neutral-foreground-2">Owner</th>
                   </tr>
                 </thead>
@@ -333,7 +375,19 @@ export const InsightsPage: React.FC = () => {
                   {sortedRefreshables.map((r) => (
                     <tr key={`${r.kind}-${r.workspaceId}-${r.id}`} className="bg-neutral-background-1">
                       <td className="px-3 py-2">
-                        <StatusBadge item={r} />
+                        <span className="inline-flex items-center gap-1">
+                          <StatusBadge item={r} />
+                          {r.scheduleOverdue && (
+                            <Tooltip
+                              content={`Schedule: ${r.scheduleSummary || 'enabled'} — but no recent successful refresh`}
+                              relationship="description"
+                            >
+                              <Badge appearance="tint" color="severe">
+                                Overdue
+                              </Badge>
+                            </Tooltip>
+                          )}
+                        </span>
                       </td>
                       <td className="px-3 py-2 text-neutral-foreground-1">{r.name}</td>
                       <td className="px-3 py-2 text-neutral-foreground-3 capitalize">{r.kind}</td>
@@ -343,6 +397,9 @@ export const InsightsPage: React.FC = () => {
                         {r.lastSuccessTime && (
                           <span className="text-neutral-foreground-3"> · {relativeAge(r.lastSuccessTime)}</span>
                         )}
+                      </td>
+                      <td className="px-3 py-2 text-neutral-foreground-3 whitespace-nowrap">
+                        {r.kind === 'dataset' ? triggerLabel(r.lastRefreshType) : '—'}
                       </td>
                       <td className="px-3 py-2 text-neutral-foreground-3">{r.configuredBy || '—'}</td>
                     </tr>
@@ -468,10 +525,183 @@ export const InsightsPage: React.FC = () => {
             </div>
           </div>
           <Text size={200} className="text-neutral-foreground-3 block mt-2">
-            Usage is what this app has recorded for your account on this computer. Tenant-wide
-            usage (every user's activity) requires Power BI admin permissions and is deliberately
-            not collected here.
+            Usage above is what this app has recorded for your account on this computer. The
+            admin view below adds tenant-wide activity for Fabric administrators.
           </Text>
+        </section>
+
+        {/* Admin tier — App audiences + tenant activity (Fabric admin only) */}
+        <section aria-labelledby="insights-admin-heading">
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldPersonRegular className="text-accent-primary" />
+            <h2 id="insights-admin-heading" className="text-lg font-semibold text-neutral-foreground-1">
+              Admin view — everyone's usage and App audiences
+            </h2>
+          </div>
+
+          {!admin && (
+            <div className="rounded-lg border border-neutral-stroke-2 p-4">
+              <Text className="text-neutral-foreground-2 block mb-3">
+                For Fabric administrators: see who opened what across ALL users (last 7 days)
+                and who has access to each published App. The first unlock may show a Microsoft
+                permission window — approve it once (you can tick "consent on behalf of your
+                organization") and it never asks again.
+              </Text>
+              {adminError && (
+                <Text role="alert" className="text-status-error block mb-3">
+                  {adminError}
+                </Text>
+              )}
+              <Button appearance="primary" disabled={adminLoading} onClick={() => void loadAdmin(false)}>
+                {adminLoading ? 'Checking with Microsoft…' : 'Unlock admin view'}
+              </Button>
+            </div>
+          )}
+
+          {admin && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <Text size={200} className="text-neutral-foreground-3">
+                  Last {admin.days} days · snapshot {formatTime(admin.generatedAt)}
+                  {admin.fromCache ? ' (cached)' : ''}
+                  {admin.failedDays > 0 ? ` · ${admin.failedDays} day(s) could not be read — counts are partial` : ''}
+                </Text>
+                <Button
+                  appearance="subtle"
+                  size="small"
+                  icon={<ArrowSyncRegular />}
+                  disabled={adminLoading}
+                  onClick={() => void loadAdmin(true)}
+                >
+                  Refresh
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-neutral-stroke-2 overflow-hidden">
+                  <div className="px-3 py-2 bg-neutral-background-2">
+                    <Text weight="semibold">What's being used</Text>
+                  </div>
+                  {admin.activityByItem.length === 0 ? (
+                    <Text size={200} className="text-neutral-foreground-3 block p-3">
+                      No report views recorded in this window.
+                    </Text>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left">
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">Report</th>
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">Views</th>
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">People</th>
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">Last viewed</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-stroke-2">
+                        {admin.activityByItem.slice(0, 15).map((it) => (
+                          <tr key={it.name}>
+                            <td className="px-3 py-1.5 text-neutral-foreground-1">{it.name}</td>
+                            <td className="px-3 py-1.5 text-neutral-foreground-3">{it.views}</td>
+                            <td className="px-3 py-1.5 text-neutral-foreground-3">{it.uniqueUsers}</td>
+                            <td className="px-3 py-1.5 text-neutral-foreground-3 whitespace-nowrap">
+                              {relativeAge(it.lastViewed) || formatTime(it.lastViewed)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-neutral-stroke-2 overflow-hidden">
+                  <div className="px-3 py-2 bg-neutral-background-2">
+                    <Text weight="semibold">Who's using it</Text>
+                  </div>
+                  {admin.activityByUser.length === 0 ? (
+                    <Text size={200} className="text-neutral-foreground-3 block p-3">
+                      No user activity recorded in this window.
+                    </Text>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left">
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">User</th>
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">Views</th>
+                          <th className="px-3 py-1.5 font-medium text-neutral-foreground-2">Last active</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-stroke-2">
+                        {admin.activityByUser.slice(0, 15).map((u) => (
+                          <tr key={u.user}>
+                            <td className="px-3 py-1.5 text-neutral-foreground-1">{u.user}</td>
+                            <td className="px-3 py-1.5 text-neutral-foreground-3">{u.views}</td>
+                            <td className="px-3 py-1.5 text-neutral-foreground-3 whitespace-nowrap">
+                              {relativeAge(u.lastActive) || formatTime(u.lastActive)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Text weight="semibold" className="text-neutral-foreground-1 block mb-2">
+                  App audiences — who can open each published App
+                </Text>
+                <div className="space-y-2">
+                  {admin.appAudiences.length === 0 && (
+                    <Text size={200} className="text-neutral-foreground-3">
+                      No published Apps visible to this account.
+                    </Text>
+                  )}
+                  {admin.appAudiences.map((app) => (
+                    <div key={app.appId} className="rounded-lg border border-neutral-stroke-2">
+                      <button
+                        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-neutral-background-2"
+                        onClick={() =>
+                          setExpandedApps((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(app.appId)) next.delete(app.appId);
+                            else next.add(app.appId);
+                            return next;
+                          })
+                        }
+                        aria-expanded={expandedApps.has(app.appId)}
+                      >
+                        <span className="flex items-center gap-2 text-neutral-foreground-1">
+                          {expandedApps.has(app.appId) ? <ChevronDownRegular /> : <ChevronRightRegular />}
+                          {app.appName}
+                        </span>
+                        <Text size={200} className="text-neutral-foreground-3">
+                          {app.users === null ? 'audience not readable' : `${app.users.length} member(s)`}
+                        </Text>
+                      </button>
+                      {expandedApps.has(app.appId) && app.users !== null && (
+                        <div className="px-3 pb-3 divide-y divide-neutral-stroke-2">
+                          {app.users.map((u, i) => (
+                            <div key={`${u.email || u.name}-${i}`} className="flex items-center justify-between py-1.5">
+                              <div>
+                                <Text className="text-neutral-foreground-1 block">{u.name}</Text>
+                                {u.email && (
+                                  <Text size={200} className="text-neutral-foreground-3">
+                                    {u.email}
+                                  </Text>
+                                )}
+                              </div>
+                              <Badge appearance="outline" size="small">
+                                {u.accessRight}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </div>

@@ -71,3 +71,11 @@ export const loginRequest = {
 export const silentRequest = {
   scopes: loginRequest.scopes,
 };
+
+// Admin tier (Insights admin view): tenant-wide read — App audiences and the
+// activity log. Deliberately NOT in loginRequest: it is requested on demand
+// (incremental consent) only when an admin opens the admin view, so regular
+// client sign-ins never see this scope and can never be blocked by it. The
+// scope is admin-restricted; a Fabric admin grants it from the app's own
+// consent screen ("consent on behalf of your organization") — no Entra portal.
+export const adminScopes = ['https://analysis.windows.net/powerbi/api/Tenant.Read.All'];

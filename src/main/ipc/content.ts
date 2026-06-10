@@ -145,6 +145,11 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getInsightsSnapshot(force === true);
   });
 
+  ipcMain.handle('content:get-admin-insights', async (_event, days?: number, force?: boolean) => {
+    const d = typeof days === 'number' && Number.isFinite(days) ? days : 7;
+    return await powerbiApiService.getAdminInsights(d, force === true);
+  });
+
   // There is deliberately no 'content:get-recent' handler — the renderer reads
   // recents via 'usage:get-recent' (usageTrackingService).
 }

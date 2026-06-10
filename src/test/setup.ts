@@ -96,6 +96,10 @@ function createElectronAPIMock(): ElectronAPI {
           failedWorkspaces: [],
         },
       }),
+      getAdminInsights: vi.fn().mockResolvedValue({
+        success: false,
+        error: { code: 'ADMIN_REQUIRED', message: 'not an admin in tests' },
+      }),
       getInsights: vi.fn().mockResolvedValue({
         success: true,
         data: {

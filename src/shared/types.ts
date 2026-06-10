@@ -168,6 +168,14 @@ export interface InsightsRefreshable {
   lastSuccessTime?: string;
   /** Power BI error code from the last failed attempt, when present. */
   errorCode?: string;
+  /** How the last refresh was triggered: 'Scheduled', 'OnDemand', or
+   *  'ViaApi' (API callers such as Power Automate flows). Datasets only. */
+  lastRefreshType?: string;
+  /** Human summary of the configured refresh schedule, when one exists. */
+  scheduleSummary?: string;
+  /** True when a schedule is enabled but the last success is far older than
+   *  the schedule's cadence — "supposed to refresh, but hasn't". */
+  scheduleOverdue?: boolean;
 }
 
 /** Who can see a workspace. users is null when the caller may not list them
@@ -196,4 +204,43 @@ export interface InsightsSnapshot {
   access: InsightsWorkspaceAccess[];
   partialFailure: boolean;
   failedWorkspaces: Array<{ id: string; name: string; error: string }>;
+}
+
+// ============================================
+// Insights admin tier (Fabric admin only — App audiences + activity log)
+// ============================================
+
+export interface AdminAppAudience {
+  appId: string;
+  appName: string;
+  /** null when the audience list could not be read for this app. */
+  users: Array<{ name: string; email?: string; accessRight: string; type: string }> | null;
+}
+
+export interface AdminActivityUser {
+  /** UPN/email of the user. */
+  user: string;
+  views: number;
+  /** ISO-8601 of their most recent activity. */
+  lastActive: string;
+}
+
+export interface AdminActivityItem {
+  /** Report/dashboard name as reported by the activity log. */
+  name: string;
+  views: number;
+  uniqueUsers: number;
+  lastViewed: string;
+}
+
+export interface AdminInsights {
+  generatedAt: string;
+  fromCache: boolean;
+  /** Number of days of activity aggregated (activity log retains 30). */
+  days: number;
+  activityByUser: AdminActivityUser[];
+  activityByItem: AdminActivityItem[];
+  appAudiences: AdminAppAudience[];
+  /** Days that could not be fetched (throttling/transient) — counts are then partial. */
+  failedDays: number;
 }
