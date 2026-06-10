@@ -7,7 +7,7 @@ import {
 } from '@azure/msal-node';
 import { BrowserWindow, session, shell } from 'electron';
 import { randomFillSync } from 'crypto';
-import { msalConfig, loginRequest, silentRequest } from './msal-config';
+import { msalConfig, loginRequest, silentRequest, azureConfigValid } from './msal-config';
 import { tokenCache as realTokenCache, CachedUserInfo } from './token-cache';
 import { settingsService } from '../services/settings-service';
 import { usageTrackingService } from '../services/usage-tracking-service';
@@ -407,6 +407,24 @@ class AuthService {
   async login(options?: { prompt?: string }): Promise<IPCResponse<AuthResult>> {
     const prompt = options?.prompt;
     try {
+      // Fail loud, not blank: a build whose Azure credentials weren't injected
+      // (or are the .env.example placeholders) would otherwise open a Microsoft
+      // sign-in window that renders blank — the "credentials completely broken,
+      // can't even see the login" outage. Surface a specific, actionable error
+      // so the operator knows it's a bad build, not a user/network problem.
+      if (!azureConfigValid) {
+        return {
+          success: false,
+          error: {
+            code: 'MISCONFIGURED_CREDENTIALS',
+            message:
+              'This build is missing its Microsoft sign-in credentials and cannot sign in. ' +
+              'Reinstall the previous working version, or rebuild with AZURE_CLIENT_ID and ' +
+              'AZURE_TENANT_ID set.',
+          },
+        };
+      }
+
       // A fast double-click on the Sign-in button used to overwrite
       // pendingAuthState mid-flight, which then tripped the CSRF check on the
       // first window's redirect. Treat the second click as a no-op so the

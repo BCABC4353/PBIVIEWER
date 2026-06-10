@@ -36,6 +36,27 @@ if (!clientId || !tenantId) {
   process.exit(1);
 }
 
+// Normalize: env-var values (CI secrets) may carry stray surrounding whitespace
+// or a trailing newline that would corrupt the embedded GUID.
+clientId = clientId.trim();
+tenantId = tenantId.trim();
+
+// Fail the build if the credentials aren't real GUIDs (e.g. the .env.example
+// placeholders). Shipping a placeholder produces an installer whose Microsoft
+// sign-in window comes up BLANK with no error — the worst failure for end users.
+// Catch it here, where the operator building the release actually sees it.
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const bad = [];
+if (!GUID_RE.test(clientId)) bad.push(`AZURE_CLIENT_ID (got "${clientId}")`);
+if (!GUID_RE.test(tenantId)) bad.push(`AZURE_TENANT_ID (got "${tenantId}")`);
+if (bad.length > 0) {
+  console.error('ERROR: Azure AD configuration is not a valid GUID:');
+  for (const b of bad) console.error(`  - ${b}`);
+  console.error('\nThese must be the real Application (client) ID and Directory (tenant) ID');
+  console.error('from the Entra app registration. A placeholder ships a broken sign-in.');
+  process.exit(1);
+}
+
 const configContent = `// AUTO-GENERATED FILE - DO NOT EDIT
 // Generated at build time with Azure AD credentials
 // This file is gitignored and should never be committed

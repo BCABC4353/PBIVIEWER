@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 
 // Real temp directories stand in for the user's well-known folders so the

@@ -21,8 +21,9 @@ interface WorkspaceWithContent extends Workspace {
   // Per-workspace error surfacing for partial failures during expand.
   // null when both halves loaded (or neither has been attempted yet);
   // 'reports' or 'dashboards' when only that half failed; 'both' when
-  // the whole expand failed (existing error UI handles 'both' via the
-  // empty-state path).
+  // the whole expand failed. Every non-null state renders an inline warning
+  // with a Retry button (a 'both' failure is no longer mistaken for an empty
+  // workspace — the empty-state branch defers when loadWarning is set).
   loadWarning?: 'reports' | 'dashboards' | 'both' | null;
 }
 
@@ -133,6 +134,34 @@ export const WorkspacesPage: React.FC = () => {
             }
           : ws
       )
+    );
+  }, []);
+
+  // Re-fetch a single workspace's content after a partial or total load
+  // failure. Clears the contentLoaded mark so the slot is eligible again, shows
+  // the spinner, then calls the shared helper. Used by the Retry button for
+  // every loadWarning state ('reports', 'dashboards', or 'both').
+  const retryWorkspaceContent = useCallback(async (workspaceId: string) => {
+    contentLoadedRef.current.delete(workspaceId);
+    setWorkspaces((prev) =>
+      prev.map((ws) =>
+        ws.id === workspaceId ? { ...ws, isLoading: true, loadWarning: null } : ws,
+      ),
+    );
+    contentLoadedRef.current.add(workspaceId);
+    const result = await fetchWorkspaceContent(workspaceId);
+    setWorkspaces((prev) =>
+      prev.map((ws) =>
+        ws.id === workspaceId
+          ? {
+              ...ws,
+              reports: result.reports,
+              dashboards: result.dashboards,
+              isLoading: false,
+              loadWarning: result.loadWarning,
+            }
+          : ws,
+      ),
     );
   }, []);
 
@@ -260,7 +289,9 @@ export const WorkspacesPage: React.FC = () => {
                         <Spinner size="small" />
                         <Text className="ml-2 text-neutral-foreground-2">Loading content...</Text>
                       </div>
-                    ) : workspace.reports.length === 0 && workspace.dashboards.length === 0 ? (
+                    ) : workspace.reports.length === 0 &&
+                      workspace.dashboards.length === 0 &&
+                      !workspace.loadWarning ? (
                       <div className="p-4 text-center">
                         <Text className="text-neutral-foreground-3">
                           No reports or dashboards in this workspace.
@@ -268,9 +299,10 @@ export const WorkspacesPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="divide-y divide-neutral-stroke-2">
-                        {/* Partial / total failure warning. Without this a
-                            both-halves-failed state is indistinguishable from
-                            an empty workspace. */}
+                        {/* Partial / total failure warning + Retry. The empty-
+                            state branch above now defers to this whenever a
+                            loadWarning is set, so a both-halves-failed workspace
+                            shows an actionable error instead of looking empty. */}
                         {workspace.loadWarning && (
                           <div
                             role="status"
@@ -281,44 +313,16 @@ export const WorkspacesPage: React.FC = () => {
                                 ? 'Could not load this workspace. Check your connection or your permissions.'
                                 : `Could not load ${workspace.loadWarning} for this workspace.`}
                             </Text>
-                            {workspace.loadWarning === 'both' && (
-                              <Button
-                                size="small"
-                                appearance="subtle"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  // BEH-S3: Single refetch action — clear the
-                                  // contentLoaded mark so the slot is eligible
-                                  // again, then call the shared helper directly
-                                  // (no double-toggle dance).
-                                  contentLoadedRef.current.delete(workspace.id);
-                                  setWorkspaces((prev) =>
-                                    prev.map((ws) =>
-                                      ws.id === workspace.id
-                                        ? { ...ws, isLoading: true, loadWarning: null }
-                                        : ws,
-                                    ),
-                                  );
-                                  contentLoadedRef.current.add(workspace.id);
-                                  const result = await fetchWorkspaceContent(workspace.id);
-                                  setWorkspaces((prev) =>
-                                    prev.map((ws) =>
-                                      ws.id === workspace.id
-                                        ? {
-                                            ...ws,
-                                            reports: result.reports,
-                                            dashboards: result.dashboards,
-                                            isLoading: false,
-                                            loadWarning: result.loadWarning,
-                                          }
-                                        : ws,
-                                    ),
-                                  );
-                                }}
-                              >
-                                Retry
-                              </Button>
-                            )}
+                            <Button
+                              size="small"
+                              appearance="subtle"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void retryWorkspaceContent(workspace.id);
+                              }}
+                            >
+                              Retry
+                            </Button>
                           </div>
                         )}
                         {/* Reports */}

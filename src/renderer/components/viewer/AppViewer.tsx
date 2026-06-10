@@ -145,6 +145,12 @@ export const AppViewer: React.FC = () => {
 
     const handleDidStartLoading = () => {
       setIsLoading(true);
+      // Clear any prior error the moment a (re)load begins. Without this, a
+      // successful reload after a failed load renders the app behind a
+      // permanent error overlay (the webview is only visibility:hidden, never
+      // unmounted), so "Try again" appeared to do nothing. This is what made
+      // the Apps experience feel worse than reports, which clear error on reload.
+      setError(null);
       clearWatchdog();
       watchdog = setTimeout(() => {
         console.error('[AppViewer] Webview load watchdog fired after', EMBED.WATCHDOG_MS, 'ms');
@@ -230,6 +236,10 @@ export const AppViewer: React.FC = () => {
   const handleRefresh = useCallback(() => {
     const webview = webviewRef.current;
     if (!webview) return;
+    // Clear the error overlay immediately so the user gets feedback that the
+    // retry took, and so a successful reload isn't hidden behind a stale error.
+    setError(null);
+    setIsLoading(true);
     isRefreshingRef.current = true;
     setIsRefreshing(true);
     webview.reload();
