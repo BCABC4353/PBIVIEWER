@@ -5,7 +5,7 @@ import type { DataSource, Refreshable } from '../core/types';
 import type { ReportsModel } from '../core/data-source-factory';
 import type { ReportRef } from '../core/report-catalog';
 import { FleetHealthScreen, RefreshDetailScreen } from './screens';
-import { ReportsScreen } from './ReportsScreen';
+import { ReportsScreen, SignedOutCard } from './ReportsScreen';
 import { LiveReportScreen } from './LiveReportScreen';
 import { AlertsScreen } from './AlertsScreen';
 import { tap } from '../feel/haptics';
@@ -48,11 +48,21 @@ export const Root: React.FC<{
   let body: React.ReactNode;
   switch (tab) {
     case 'fleet':
-      body = fleetDetail ? (
-        <RefreshDetailScreen item={fleetDetail} onBack={() => setFleetDetail(null)} />
-      ) : (
-        <FleetHealthScreen source={source} onOpen={setFleetDetail} />
-      );
+      // Signed out, the landing tab leads to Power BI — never to fiction.
+      body =
+        reports === null ? (
+          <SignedOutCard
+            onSignIn={() => setTab('settings')}
+            screenTitle="Fleet"
+            screenSubtitle="Refresh health across your tenant"
+            title="Connect to Power BI"
+            body="Sign in once and this page shows the live health of your datasets and dataflows — what refreshed, what's late, what's broken."
+          />
+        ) : fleetDetail ? (
+          <RefreshDetailScreen item={fleetDetail} onBack={() => setFleetDetail(null)} />
+        ) : (
+          <FleetHealthScreen source={source} onOpen={setFleetDetail} />
+        );
       break;
     case 'reports':
       body =
@@ -71,13 +81,22 @@ export const Root: React.FC<{
         );
       break;
     case 'alerts':
-      body = alertDetail ? (
-        <RefreshDetailScreen item={alertDetail} onBack={() => setAlertDetail(null)} />
-      ) : (
-        <View style={styles.edge}>
-          <AlertsScreen source={source} onOpen={setAlertDetail} />
-        </View>
-      );
+      body =
+        reports === null ? (
+          <SignedOutCard
+            onSignIn={() => setTab('settings')}
+            screenTitle="Alerts"
+            screenSubtitle="Broken and overdue, nothing else"
+            title="Connect to Power BI"
+            body="Alerts come from your real refresh history — sign in and anything broken or overdue lands here."
+          />
+        ) : alertDetail ? (
+          <RefreshDetailScreen item={alertDetail} onBack={() => setAlertDetail(null)} />
+        ) : (
+          <View style={styles.edge}>
+            <AlertsScreen source={source} onOpen={setAlertDetail} />
+          </View>
+        );
       break;
     case 'settings':
       body = <View style={styles.settingsHost}>{settings}</View>;

@@ -29,17 +29,30 @@ export const ReportsScreen: React.FC<{
 }> = ({ model, onOpen, onSignIn }) =>
   model ? <LiveReportList model={model} onOpen={onOpen} /> : <SignedOutCard onSignIn={onSignIn} />;
 
-/** Signed out: one quiet card, sign-in right there. Nothing fake to browse. */
-const SignedOutCard: React.FC<{ onSignIn: () => void }> = ({ onSignIn }) => (
+/** Signed out: one quiet card, sign-in right there. Nothing fake to browse.
+ *  Exported — the Fleet and Alerts tabs show the same card (with their own
+ *  copy) so no tab ever lands on fictional data. */
+export const SignedOutCard: React.FC<{
+  onSignIn: () => void;
+  title?: string;
+  body?: string;
+  /** Tab name for the screen header (the card is shared across tabs). */
+  screenTitle?: string;
+  screenSubtitle?: string;
+}> = ({
+  onSignIn,
+  title = 'Sign in to see your reports',
+  body = "Your Power BI apps and workspaces appear here once you're connected.",
+  screenTitle,
+  screenSubtitle,
+}) => (
   <SafeAreaView style={styles.screen}>
     <StatusBar barStyle="light-content" />
-    <Header />
+    <Header title={screenTitle} subtitle={screenSubtitle} />
     <View style={styles.signInWrap}>
       <View style={styles.signInCard}>
-        <Text style={styles.signInTitle}>Sign in to see your reports</Text>
-        <Text style={styles.signInBody}>
-          Your Power BI apps and workspaces appear here once you're connected.
-        </Text>
+        <Text style={styles.signInTitle}>{title}</Text>
+        <Text style={styles.signInBody}>{body}</Text>
         <Pressable
           onPress={onSignIn}
           accessibilityRole="button"
@@ -190,10 +203,13 @@ const ReportRow: React.FC<{ report: ReportRef; onOpen: (r: ReportRef) => void }>
   </Pressable>
 );
 
-const Header: React.FC = () => (
+const Header: React.FC<{ title?: string; subtitle?: string }> = ({
+  title = 'Reports',
+  subtitle = 'Rendered natively — no embedded canvas',
+}) => (
   <View style={styles.header}>
-    <Text style={styles.title}>Reports</Text>
-    <Text style={styles.subtitle}>Rendered natively — no embedded canvas</Text>
+    <Text style={styles.title}>{title}</Text>
+    {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
   </View>
 );
 
