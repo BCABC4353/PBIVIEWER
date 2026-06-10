@@ -12,12 +12,15 @@
  *   - It plays once per JS bundle — the module-level latch in ignition-logic
  *     survives unmount/remount, so tab switches, back-navigation, pull-to-
  *     refresh and data-mode switches can NEVER replay it.
- *   - The dial is an instrument, not a line: graduated minor/major tick arc,
- *     a needle with a hub and counterweight tail, and a soft amber glow trail
- *     (two intensities, D8). One continuous underdamped spring — accelerate
- *     to full throw, one proud overshoot, settle. Never staged hops.
- *   - ONE light haptic impact at the overshoot apex (haptics.apex), nothing
- *     else. Reduce Motion → no ceremony at all, no haptic, instant content.
+ *   - The dial is an instrument with a BODY: a radially-lit face under one
+ *     top light (D1/D4), graduated minor/major ticks, an unlit groove, a lit
+ *     arc built from three stops of one light (breath, bloom, filament — the
+ *     filament at FULL opacity is what makes it read as light, not mud), a
+ *     tapered needle blade with a counterweight stub, and a machined hub.
+ *     Geometry was tuned by rendering frames and judging them BY EYE —
+ *     change numbers here only with a rendered before/after.
+ *   - One continuous underdamped spring — accelerate, one proud overshoot,
+ *     settle. ONE light haptic at the apex. Reduce Motion → nothing at all.
  *
  * Animation runs on the UI thread: react-native-reanimated useAnimatedProps
  * over react-native-svg. All decisions (latch, arc math, tick layout, spring
@@ -37,7 +40,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Svg, { Circle, Defs, Line, Polygon, RadialGradient, Stop } from 'react-native-svg';
 import { color } from '../design/tokens';
 import { apex } from './haptics';
 import {
@@ -59,20 +62,35 @@ import { motionEnabled, motionReady } from './springs';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedLine = Animated.createAnimatedComponent(Line);
+const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
 
-/** Dial proportions, all derived from `size` so the instrument scales whole. */
+/** Tick contrast: minors present, majors authoritative. */
+const TICK_MINOR_COLOR = 'rgba(255,255,255,0.18)';
+const TICK_MAJOR_COLOR = 'rgba(255,255,255,0.55)';
+/** The unlit groove the light travels in. */
+const TRACK_COLOR = 'rgba(255,255,255,0.06)';
+/** Needle blade half-widths: machined taper, wide at the hub, fine at the tip. */
+const NEEDLE_BASE_HALF = 2.4;
+const NEEDLE_TIP_HALF = 0.6;
+
+/** Dial proportions, all derived from `size` so the instrument scales whole.
+ *  The lit arc hugs the tick band (no empty moat) and the needle tip reaches
+ *  INTO the ticks — the blade and the light meet at the same radius. */
 function dialLayout(size: number) {
   const c = size / 2;
-  const tickOuter = c - 4;
+  const faceRadius = c - 2;
+  const tickOuter = c - 10;
+  const arcRadius = tickOuter - 16;
   return {
     c,
+    faceRadius,
     tickOuter,
-    tickMinorInner: tickOuter - 7,
-    tickMajorInner: tickOuter - 13,
-    trailRadius: tickOuter - 24,
-    needleTip: tickOuter - 18,
-    needleTail: 16,
-    hubRadius: 9,
+    tickMinorInner: tickOuter - 6,
+    tickMajorInner: tickOuter - 11,
+    arcRadius,
+    needleTip: arcRadius + 4,
+    needleTail: 14,
+    hubRadius: 12,
   };
 }
 
@@ -88,7 +106,7 @@ export interface IgnitionOverlayProps {
  * everything); it claims the launch latch, plays the sweep, lifts, and
  * unmounts itself. On every subsequent mount of anything, it renders null.
  */
-export function IgnitionOverlay({ size = 184 }: IgnitionOverlayProps) {
+export function IgnitionOverlay({ size = 200 }: IgnitionOverlayProps) {
   // The latch read happens once, before first paint: if this bundle already
   // played the ceremony, this overlay never exists at all.
   const [visible, setVisible] = useState(() => !ignitionHasPlayed());
@@ -143,34 +161,61 @@ export function IgnitionOverlay({ size = 184 }: IgnitionOverlayProps) {
   );
 
   const layout = dialLayout(size);
-  const trail = arcSpan(layout.trailRadius);
+  const arc = arcSpan(layout.arcRadius);
 
   const veilStyle = useAnimatedStyle(() => ({ opacity: veil.value }));
   const dialStyle = useAnimatedStyle(() => ({ opacity: dial.value }));
 
-  // Glow trail chases the needle (clamped — the trail never overshoots the
-  // throw; only the needle's mass does).
-  const trailHaloProps = useAnimatedProps(() => {
+  // The lit arc chases the needle (clamped — the light never overshoots the
+  // throw; only the needle's mass does). Three stops of ONE light share the
+  // same offset: breath (wide, faint), bloom (mid), filament (full opacity).
+  const litArcBreathProps = useAnimatedProps(() => {
     const f = Math.min(1, Math.max(0, progress.value));
-    return { strokeDashoffset: trail.arcLength * (1 - f) };
+    return { strokeDashoffset: arc.arcLength * (1 - f) };
   });
-  const trailCoreProps = useAnimatedProps(() => {
+  const litArcBloomProps = useAnimatedProps(() => {
     const f = Math.min(1, Math.max(0, progress.value));
-    return { strokeDashoffset: trail.arcLength * (1 - f) };
+    return { strokeDashoffset: arc.arcLength * (1 - f) };
+  });
+  const litArcFilamentProps = useAnimatedProps(() => {
+    const f = Math.min(1, Math.max(0, progress.value));
+    return { strokeDashoffset: arc.arcLength * (1 - f) };
   });
 
-  // The needle: tip + counterweight tail, rotated by raw trig so the whole
-  // move is a single UI-thread interpolation.
-  const needleProps = useAnimatedProps(() => {
+  // The needle blade: a tapered polygon (machined, not drawn) — wide at the
+  // hub, fine at the tip, the whole move one UI-thread interpolation.
+  const bladeProps = useAnimatedProps(() => {
     const f = Math.min(MAX_NEEDLE_FRACTION, Math.max(0, progress.value));
     const a = ((SWEEP_START_DEGREES + f * SWEEP_DEGREES) * Math.PI) / 180;
-    const cos = Math.cos(a);
-    const sin = Math.sin(a);
+    const dirX = Math.cos(a);
+    const dirY = Math.sin(a);
+    const perpX = -dirY;
+    const perpY = dirX;
+    const baseR = layout.hubRadius - 2;
+    const bx = layout.c + baseR * dirX;
+    const by = layout.c + baseR * dirY;
+    const nx = layout.c + (layout.needleTip - 1) * dirX;
+    const ny = layout.c + (layout.needleTip - 1) * dirY;
+    const tx = layout.c + layout.needleTip * dirX;
+    const ty = layout.c + layout.needleTip * dirY;
+    const points =
+      `${bx + NEEDLE_BASE_HALF * perpX},${by + NEEDLE_BASE_HALF * perpY} ` +
+      `${nx + NEEDLE_TIP_HALF * perpX},${ny + NEEDLE_TIP_HALF * perpY} ` +
+      `${tx},${ty} ` +
+      `${nx - NEEDLE_TIP_HALF * perpX},${ny - NEEDLE_TIP_HALF * perpY} ` +
+      `${bx - NEEDLE_BASE_HALF * perpX},${by - NEEDLE_BASE_HALF * perpY}`;
+    return { points };
+  });
+
+  // Counterweight stub: short, deeper amber — the mass behind the blade.
+  const tailProps = useAnimatedProps(() => {
+    const f = Math.min(MAX_NEEDLE_FRACTION, Math.max(0, progress.value));
+    const a = ((SWEEP_START_DEGREES + f * SWEEP_DEGREES) * Math.PI) / 180;
     return {
-      x1: layout.c - layout.needleTail * cos,
-      y1: layout.c - layout.needleTail * sin,
-      x2: layout.c + layout.needleTip * cos,
-      y2: layout.c + layout.needleTip * sin,
+      x1: layout.c,
+      y1: layout.c,
+      x2: layout.c - layout.needleTail * Math.cos(a),
+      y2: layout.c - layout.needleTail * Math.sin(a),
     };
   });
 
@@ -187,7 +232,39 @@ export function IgnitionOverlay({ size = 184 }: IgnitionOverlayProps) {
     >
       <Animated.View style={dialStyle}>
         <Svg width={size} height={size}>
-          {/* Graduated tick arc: minors faint, majors brighter and longer. */}
+          <Defs>
+            {/* One top light over the whole face (D4). */}
+            <RadialGradient id="ignition-face" cx="50%" cy="38%" rx="75%" ry="75%">
+              <Stop offset="0%" stopColor="#1A1A1E" />
+              <Stop offset="62%" stopColor={color.surface1} />
+              <Stop offset="100%" stopColor="#0E0E11" />
+            </RadialGradient>
+            <RadialGradient id="ignition-hub" cx="50%" cy="35%" rx="80%" ry="80%">
+              <Stop offset="0%" stopColor="#26262C" />
+              <Stop offset="100%" stopColor={color.surface1} />
+            </RadialGradient>
+          </Defs>
+
+          {/* Instrument body: a material, not a void. */}
+          <Circle cx={layout.c} cy={layout.c} r={layout.faceRadius} fill="url(#ignition-face)" />
+          <Circle
+            cx={layout.c}
+            cy={layout.c}
+            r={layout.faceRadius}
+            fill="none"
+            stroke="rgba(255,255,255,0.07)"
+            strokeWidth={1}
+          />
+          <Circle
+            cx={layout.c}
+            cy={layout.c - 0.5}
+            r={layout.faceRadius - 1}
+            fill="none"
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth={1}
+          />
+
+          {/* Graduated tick arc: minors present, majors authoritative. */}
           {TICKS.map((t) => {
             const inner = t.major ? layout.tickMajorInner : layout.tickMinorInner;
             const p1 = polarPoint(layout.c, layout.c, inner, t.angleDeg);
@@ -199,73 +276,95 @@ export function IgnitionOverlay({ size = 184 }: IgnitionOverlayProps) {
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke={t.major ? color.textTertiary : color.hairline}
+                stroke={t.major ? TICK_MAJOR_COLOR : TICK_MINOR_COLOR}
                 strokeWidth={t.major ? 2 : 1}
                 strokeLinecap="round"
               />
             );
           })}
-          {/* Track: the full throw, hairline-faint — the unlit gauge face. */}
+
+          {/* Unlit groove: the full throw the light will travel. */}
           <Circle
             cx={layout.c}
             cy={layout.c}
-            r={layout.trailRadius}
-            stroke={color.hairline}
-            strokeWidth={2}
+            r={layout.arcRadius}
+            stroke={TRACK_COLOR}
+            strokeWidth={3}
             strokeLinecap="round"
-            strokeDasharray={arcDashArray(trail)}
+            strokeDasharray={arcDashArray(arc)}
             strokeDashoffset={0}
             fill="none"
             rotation={SWEEP_START_DEGREES}
             origin={`${layout.c}, ${layout.c}`}
           />
-          {/* Glow trail — two intensities only (D8): wide soft halo… */}
+
+          {/* The lit arc — three stops of one light (D8: two glow intensities
+              around a full-opacity filament). Breath… */}
           <AnimatedCircle
             cx={layout.c}
             cy={layout.c}
-            r={layout.trailRadius}
+            r={layout.arcRadius}
             stroke={color.accent}
-            strokeOpacity={0.16}
-            strokeWidth={10}
+            strokeOpacity={0.07}
+            strokeWidth={13}
             strokeLinecap="round"
-            strokeDasharray={arcDashArray(trail)}
-            animatedProps={trailHaloProps}
+            strokeDasharray={arcDashArray(arc)}
+            animatedProps={litArcBreathProps}
             fill="none"
             rotation={SWEEP_START_DEGREES}
             origin={`${layout.c}, ${layout.c}`}
           />
-          {/* …and a narrow lit core. */}
+          {/* …bloom… */}
           <AnimatedCircle
             cx={layout.c}
             cy={layout.c}
-            r={layout.trailRadius}
+            r={layout.arcRadius}
             stroke={color.accent}
-            strokeOpacity={0.45}
+            strokeOpacity={0.22}
+            strokeWidth={6}
+            strokeLinecap="round"
+            strokeDasharray={arcDashArray(arc)}
+            animatedProps={litArcBloomProps}
+            fill="none"
+            rotation={SWEEP_START_DEGREES}
+            origin={`${layout.c}, ${layout.c}`}
+          />
+          {/* …filament: FULL opacity — this is what reads as light. */}
+          <AnimatedCircle
+            cx={layout.c}
+            cy={layout.c}
+            r={layout.arcRadius}
+            stroke={color.accent}
+            strokeOpacity={1}
             strokeWidth={2.5}
             strokeLinecap="round"
-            strokeDasharray={arcDashArray(trail)}
-            animatedProps={trailCoreProps}
+            strokeDasharray={arcDashArray(arc)}
+            animatedProps={litArcFilamentProps}
             fill="none"
             rotation={SWEEP_START_DEGREES}
             origin={`${layout.c}, ${layout.c}`}
           />
-          {/* The needle: full amber, with mass — tail balances the tip. */}
+
+          {/* Counterweight stub behind the hub, then the tapered blade. */}
           <AnimatedLine
-            animatedProps={needleProps}
-            stroke={color.accent}
-            strokeWidth={3}
+            animatedProps={tailProps}
+            stroke={color.accentDeep}
+            strokeWidth={4.5}
             strokeLinecap="round"
           />
-          {/* Hub: a machined boss with a lit center cap. */}
+          <AnimatedPolygon animatedProps={bladeProps} fill={color.accent} />
+
+          {/* Hub: a machined boss with weight, top-lit, amber pip center. */}
+          <Circle cx={layout.c} cy={layout.c} r={layout.hubRadius} fill="url(#ignition-hub)" />
           <Circle
             cx={layout.c}
             cy={layout.c}
             r={layout.hubRadius}
-            fill={color.surface1}
-            stroke={color.surface2}
-            strokeWidth={2}
+            fill="none"
+            stroke="rgba(255,255,255,0.12)"
+            strokeWidth={1}
           />
-          <Circle cx={layout.c} cy={layout.c} r={2.5} fill={color.accent} />
+          <Circle cx={layout.c} cy={layout.c} r={3.2} fill={color.accent} />
         </Svg>
       </Animated.View>
     </Animated.View>
