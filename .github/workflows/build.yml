@@ -213,3 +213,42 @@ jobs:
           generate_release_notes: true
           draft: false
           make_latest: true
+
+  # 6) Owner mandate (2026-06-10): EVERY release is a mandatory update.
+  #    After the release publishes, point the force lever at the new version so
+  #    every running Windows app below it downloads and auto-restarts into it
+  #    within ~10-15 minutes. The manual lever in update-policy.json still
+  #    works for emergencies; this job simply keeps it at "latest" forever.
+  force-policy:
+    needs: [version, release]
+    if: ${{ always() && needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Point forceMinVersion at the new release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ver="${{ needs.version.outputs.version }}"
+          python3 - "$ver" <<'PY'
+          import json, sys
+          p = 'update-policy.json'
+          d = json.load(open(p))
+          d['forceMinVersion'] = sys.argv[1]
+          json.dump(d, open(p, 'w'), indent=2)
+          open(p, 'a').write('\n')
+          PY
+          git add update-policy.json
+          git commit -m "ops: force fleet to v${ver} (mandatory-update policy)"
+          # The version job may have pushed to main after our checkout; rebase-retry.
+          for i in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          git push origin HEAD:main

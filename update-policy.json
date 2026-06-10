@@ -1,4 +1,4 @@
 {
-  "_comment": "FORCE LEVER for urgent updates. To push a fix to all Windows apps NOW: publish the new version, then set forceMinVersion to that version number (e.g. 2.1.5). Every running Windows app below it downloads it and auto-restarts into the latest within ~10-15 minutes. Leave at 0.0.0 for normal (gentle, install-on-next-restart) updates. macOS cannot be force-updated (manual install). See docs/UPDATING.md.",
+  "_comment": "MANDATORY-UPDATE POLICY (owner mandate 2026-06-10): the release pipeline automatically sets forceMinVersion to every new release, so all running Windows apps auto-restart into it within ~10-15 minutes. To pause mandatory updates for one release, edit this back to 0.0.0 AFTER the release's force-policy job runs. macOS cannot be force-updated (manual install). See docs/UPDATING.md.",
   "forceMinVersion": "0.0.0"
 }
