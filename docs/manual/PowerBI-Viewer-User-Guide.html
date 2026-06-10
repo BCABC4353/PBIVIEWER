@@ -1,1082 +1,814 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Power BI Viewer — User Guide</title>
+<meta name="description" content="The complete user guide for the Power BI Viewer desktop app.">
 <style>
-  /* =====================================================================
-     Power BI Viewer — User Guide
-     One self-contained file: inline CSS, no external fetches.
-     Brand accent: Safety-Orange #FF5F15. Light, print-first design.
-     ===================================================================== */
-
-  @page { size: A4; margin: 14mm; }
-
+  /* ============================================================
+     Power BI Viewer — User Guide  ·  self-contained, zero fetches
+     Light theme primary · brand-orange accent · print-friendly
+     ============================================================ */
   :root {
-    --accent: #FF5F15;
-    --accent-deep: #c44a0d;
-    --accent-tint: #fff1e9;
-
-    --ink: #20242a;
-    --ink-soft: #444b53;
-    --muted: #6e757d;
-    --line: #e3e6ea;
-    --bg: #fafbfc;
-    --panel: #ffffff;
-    --sunken: #f1f3f5;
-
-    --note-bg: #eef5fc;  --note-line: #2f6fae; --note-ink: #1e4f7f;
-    --warn-bg: #fff8e8;  --warn-line: #c79100; --warn-ink: #7d5a00;
-    --ok: #1d8a43;
-    --ok-bg: #ebf7ef;
-
-    --radius: 10px;
-    --maxw: 1080px;
-    --nav-w: 270px;
-    --font: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    --ink:        #1f2328;
+    --ink-2:      #4b535c;
+    --ink-3:      #6e7781;
+    --paper:      #fcfbfa;
+    --paper-2:    #f4f2ef;
+    --line:       #e4e0db;
+    --accent:     #ff5f15;     /* the app's brand orange */
+    --accent-ink: #b34508;
+    --accent-soft:#fff1e9;
+    --ok:         #2e8b62;
+    --ok-soft:    #e9f6ef;
+    --warn:       #9a6700;
+    --warn-soft:  #fdf6e3;
+    --bad:        #c4313a;
+    --bad-soft:   #fbeef0;
+    /* Luce (Insights) facsimile tokens — mirror src/renderer/components/insights/insights-luce.ts */
+    --luce-canvas:   #0b0b0d;
+    --luce-surface1: #141417;
+    --luce-surface2: #1c1c21;
+    --luce-hairline: rgba(255,255,255,0.08);
+    --luce-text:     rgba(255,255,255,0.92);
+    --luce-text2:    rgba(255,255,255,0.64);
+    --luce-text3:    rgba(255,255,255,0.40);
+    --luce-accent:   #e8a33d;
+    --luce-ok:       #3fb68b;
+    --luce-bad:      #e5484d;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, Menlo, monospace;
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 2rem; }
   body {
-    background: var(--bg);
+    margin: 0;
+    background: var(--paper);
     color: var(--ink);
-    font-family: var(--font);
-    font-size: 16px;
-    line-height: 1.6;
+    font: 16px/1.65 -apple-system, "Segoe UI", BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
-    scroll-behavior: smooth;
-  }
-  a { color: var(--accent-deep); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-
-  /* ---------- Layout: sticky TOC + content ---------- */
-  .layout {
-    max-width: var(--maxw);
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: var(--nav-w) 1fr;
-    gap: 36px;
-    padding: 30px 24px 90px;
-  }
-  main { min-width: 0; }
-
-  nav.toc {
-    position: sticky; top: 24px; align-self: start;
-    max-height: calc(100vh - 48px); overflow-y: auto;
-    padding-right: 4px;
-  }
-  nav.toc .toc-brand {
-    display: flex; align-items: center; gap: 10px;
-    margin: 2px 0 16px 10px; font-weight: 700; font-size: 15px;
-  }
-  nav.toc .toc-brand .mark {
-    width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto;
-    background: var(--accent); color: #fff; font-weight: 800; font-size: 13px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  nav.toc .toc-title {
-    font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-    text-transform: uppercase; color: var(--muted); margin: 0 0 8px 10px;
-  }
-  nav.toc ol { list-style: none; margin: 0; padding: 0; }
-  nav.toc a {
-    display: flex; gap: 9px; align-items: baseline;
-    padding: 6px 10px; border-radius: 7px; border-left: 3px solid transparent;
-    color: var(--ink-soft); font-size: 13.5px; line-height: 1.35;
-  }
-  nav.toc a .n {
-    color: var(--muted); font-size: 11.5px; min-width: 18px;
-    font-variant-numeric: tabular-nums;
-  }
-  nav.toc a:hover { background: var(--sunken); text-decoration: none; color: var(--ink); }
-  nav.toc a.active {
-    background: var(--accent-tint); border-left-color: var(--accent);
-    color: var(--accent-deep); font-weight: 600;
   }
 
-  /* ---------- Cover ---------- */
-  .cover {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
-    text-align: center; padding: 44px 26px 38px; margin-bottom: 28px;
-    position: relative; overflow: hidden;
+  /* ---------- masthead ---------- */
+  header.masthead {
+    background: linear-gradient(135deg, #1d1b19 0%, #2e2018 55%, #41250e 100%);
+    color: #fff;
+    padding: 4.5rem 2rem 4rem;
   }
-  .cover::before {
-    content: ""; position: absolute; inset: 0 0 auto 0; height: 6px;
-    background: linear-gradient(90deg, var(--accent), #ff9a5c);
+  .masthead-inner { max-width: 70rem; margin: 0 auto; }
+  .masthead .mark {
+    display: inline-flex; align-items: center; gap: .65rem;
+    font-weight: 600; letter-spacing: .02em; color: rgba(255,255,255,.85);
+    font-size: .95rem; margin-bottom: 1.5rem;
   }
-  .cover .mark {
-    width: 68px; height: 68px; margin: 0 auto 16px; border-radius: 16px;
-    background: var(--accent); color: #fff; font-size: 26px; font-weight: 800;
-    display: flex; align-items: center; justify-content: center;
+  .masthead .mark .logo, .logo-chip {
+    width: 28px; height: 28px; border-radius: 6px; flex: none;
+    background: conic-gradient(from 220deg at 35% 65%, var(--accent) 0 95deg, #1d4f91 95deg 230deg, var(--accent) 230deg 360deg);
   }
-  .cover h1 { font-size: 36px; margin: 0 0 4px; letter-spacing: -.5px; }
-  .cover .sub {
-    color: var(--accent); font-weight: 700; letter-spacing: 3.5px;
-    text-transform: uppercase; font-size: 15px; margin: 0 0 14px;
-  }
-  .cover .tagline { color: var(--ink-soft); max-width: 560px; margin: 0 auto; font-size: 16px; }
-  .cover .meta { color: var(--muted); font-size: 13px; margin-top: 16px; }
-
-  /* ---------- Sections ---------- */
-  section.card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 24px 28px; margin-bottom: 22px;
-  }
-  h2.sec {
-    font-size: 24px; margin: 4px 0 8px; letter-spacing: -.3px;
-    scroll-margin-top: 20px;
-  }
-  h2.sec .n { color: var(--accent); font-weight: 800; margin-right: 9px; }
-  h3 { font-size: 17.5px; margin: 22px 0 6px; color: var(--accent-deep); }
-  h4 { font-size: 15px; margin: 16px 0 4px; }
-  p { margin: 8px 0; color: var(--ink-soft); }
-  .lead { font-size: 16.5px; color: var(--ink); }
-  ul, ol { margin: 8px 0 12px; padding-left: 22px; color: var(--ink-soft); }
-  li { margin: 5px 0; }
-  strong { color: var(--ink); }
-  code {
-    font-family: Consolas, "Courier New", monospace; font-size: 13.5px;
-    background: var(--sunken); border: 1px solid var(--line);
-    border-radius: 5px; padding: 1px 6px; white-space: nowrap;
+  .masthead h1 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.12; margin: 0 0 .75rem; font-weight: 700; letter-spacing: -.015em; }
+  .masthead p.tagline { font-size: 1.15rem; color: rgba(255,255,255,.72); max-width: 38rem; margin: 0 0 1.75rem; }
+  .masthead .meta { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .masthead .meta span {
+    font-size: .8rem; padding: .3rem .75rem; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.25); color: rgba(255,255,255,.8);
   }
 
-  /* ---------- Callouts ---------- */
-  .box {
-    border: 1px solid var(--line); border-left: 5px solid var(--accent);
-    background: var(--accent-tint); border-radius: 8px;
-    padding: 12px 16px; margin: 14px 0;
-  }
-  .box .t { display: block; font-weight: 700; color: var(--accent-deep); margin-bottom: 2px; }
-  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
-  .box.note { background: var(--note-bg); border-left-color: var(--note-line); }
-  .box.note .t { color: var(--note-ink); }
-  .box.warn { background: var(--warn-bg); border-left-color: var(--warn-line); }
-  .box.warn .t { color: var(--warn-ink); }
+  /* ---------- layout: sticky TOC + content ---------- */
+  .page { max-width: 70rem; margin: 0 auto; padding: 0 2rem 5rem; display: grid; grid-template-columns: 1fr; gap: 3rem; }
+  @media (min-width: 1000px) { .page { grid-template-columns: 15.5rem minmax(0, 1fr); } }
 
-  /* The big "how to exit kiosk" box */
-  .exit-box {
-    border: 3px solid var(--accent); background: var(--accent-tint);
-    border-radius: 12px; padding: 16px 20px; margin: 18px 0;
+  nav.toc { padding-top: 2.5rem; }
+  @media (min-width: 1000px) {
+    nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding-bottom: 2rem; }
   }
-  .exit-box h3 { margin-top: 0; font-size: 19px; }
-  .exit-box .row {
-    display: flex; gap: 14px; padding: 9px 0;
-    border-top: 1px dashed var(--line); align-items: flex-start;
+  nav.toc .toc-title { font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .75rem; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+  nav.toc li a {
+    display: block; padding: .32rem .85rem; color: var(--ink-2); text-decoration: none;
+    font-size: .87rem; border-left: 2px solid transparent; margin-left: -2px; border-radius: 0 6px 6px 0;
   }
-  .exit-box .row:first-of-type { border-top: none; }
-  .exit-box .row .label { min-width: 165px; font-weight: 700; }
-  .exit-box .row .label small { display: block; font-weight: 400; color: var(--muted); }
+  nav.toc li a:hover { color: var(--accent-ink); border-left-color: var(--accent); background: var(--accent-soft); }
+  nav.toc li a .n { display: inline-block; min-width: 1.5em; color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: .78rem; }
 
-  /* ---------- kbd ---------- */
+  main { padding-top: 2.5rem; min-width: 0; }
+
+  /* ---------- typography ---------- */
+  main section { margin-bottom: 4.25rem; }
+  main h2 {
+    font-size: 1.65rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.25;
+    margin: 0 0 .35rem; padding-top: 1rem; border-top: 3px solid var(--ink);
+  }
+  main h2 .kicker { display: block; font-size: .74rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: .5rem; }
+  main h3 { font-size: 1.12rem; font-weight: 650; margin: 2.2rem 0 .5rem; }
+  main p { margin: .65rem 0 1rem; max-width: 46rem; color: var(--ink); }
+  main p.lede { font-size: 1.06rem; color: var(--ink-2); }
+  main ul, main ol { max-width: 44rem; padding-left: 1.35rem; margin: .5rem 0 1.1rem; }
+  main li { margin: .35rem 0; }
+  main li::marker { color: var(--accent); }
+  main a { color: var(--accent-ink); text-decoration: underline; text-decoration-color: #f3c4a4; text-underline-offset: 2px; }
+  main a:hover { text-decoration-color: var(--accent-ink); }
+  strong { font-weight: 650; }
+
   kbd {
-    display: inline-block; font-family: var(--font);
-    font-size: 12.5px; font-weight: 600; color: var(--ink);
-    background: #fff; border: 1px solid #c9ced4; border-bottom-width: 2px;
-    border-radius: 6px; padding: 1px 7px; line-height: 1.5; white-space: nowrap;
+    font: 600 .8em var(--mono);
+    background: #fff; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 5px; padding: .12em .45em; white-space: nowrap; color: var(--ink);
   }
+  code { font: .88em var(--mono); background: var(--paper-2); border-radius: 4px; padding: .1em .35em; }
 
-  /* ---------- Tables ---------- */
-  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14.5px; }
-  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th {
-    color: var(--muted); font-size: 12px; text-transform: uppercase;
-    letter-spacing: .6px; border-bottom: 2px solid var(--line);
+  /* ---------- callouts ---------- */
+  .callout {
+    border-radius: 10px; padding: .9rem 1.1rem; margin: 1.1rem 0; max-width: 46rem;
+    border: 1px solid; font-size: .93rem;
   }
+  .callout p { margin: .25rem 0; }
+  .callout .label { display: block; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: .25rem; }
+  .callout.note { background: var(--accent-soft); border-color: #f6d3ba; }
+  .callout.note .label { color: var(--accent-ink); }
+  .callout.tip { background: var(--ok-soft); border-color: #c4e5d3; }
+  .callout.tip .label { color: var(--ok); }
+  .callout.warn { background: var(--warn-soft); border-color: #ecd9a4; }
+  .callout.warn .label { color: var(--warn); }
+  .callout.owner { background: #16161a; border-color: #2c2c33; color: rgba(255,255,255,.82); }
+  .callout.owner .label { color: var(--luce-accent); }
+  .callout.owner strong { color: rgba(255,255,255,.95); }
+  .callout.owner code, .callout.owner kbd { background: #26262c; border-color: #3a3a42; color: rgba(255,255,255,.85); }
+
+  /* ---------- tables ---------- */
+  table { border-collapse: collapse; width: 100%; max-width: 46rem; margin: 1rem 0 1.4rem; font-size: .92rem; }
+  th { text-align: left; font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding: .5rem .75rem; border-bottom: 2px solid var(--ink); }
+  td { padding: .55rem .75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
   td:first-child { white-space: nowrap; }
 
-  /* ---------- Steps ---------- */
-  ol.steps { counter-reset: step; list-style: none; padding-left: 0; }
-  ol.steps > li { position: relative; padding: 3px 0 12px 42px; }
-  ol.steps > li::before {
-    counter-increment: step; content: counter(step);
-    position: absolute; left: 0; top: 3px;
-    width: 27px; height: 27px; border-radius: 50%;
-    background: var(--accent); color: #fff; font-weight: 700; font-size: 13.5px;
-    display: flex; align-items: center; justify-content: center;
+  /* ---------- mock panels (illustrative facsimiles of the UI) ---------- */
+  figure.mock { margin: 1.4rem 0 1.6rem; max-width: 46rem; }
+  figure.mock figcaption { font-size: .8rem; color: var(--ink-3); margin-top: .55rem; padding-left: .15rem; }
+  .panel {
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.05), 0 8px 24px -18px rgba(31,35,40,.25);
+    font-size: .82rem; line-height: 1.45;
   }
-  ol.steps > li:not(:last-child)::after {
-    content: ""; position: absolute; left: 13px; top: 32px; bottom: 0;
-    width: 2px; background: var(--line);
-  }
+  .panel.luce { background: var(--luce-canvas); border-color: #26262b; color: var(--luce-text2); }
 
-  /* ---------- Figures ---------- */
-  figure { margin: 16px 0; }
-  figure img {
-    width: 100%; height: auto; display: block;
-    border: 1px solid var(--line); border-radius: 8px; background: var(--sunken);
-  }
-  figure.narrow { max-width: 540px; }
-  figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; text-align: center; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
-  .grid2 figure { margin: 0; }
+  .mk-titlebar { display: flex; align-items: center; gap: .6rem; padding: .45rem .8rem; background: #2a2a2a; color: rgba(255,255,255,.9); font-weight: 600; font-size: .78rem; }
+  .mk-titlebar .logo { width: 15px; height: 15px; border-radius: 3px; flex: none;
+    background: conic-gradient(from 220deg at 35% 65%, var(--accent) 0 95deg, #1d4f91 95deg 230deg, var(--accent) 230deg 360deg); }
+  .mk-titlebar .searchpill { flex: 1; max-width: 16rem; margin: 0 auto; display: flex; align-items: center; gap: .4rem;
+    background: #1d1d1d; border: 1px solid #3d3d3d; border-radius: 6px; padding: .2rem .55rem; color: rgba(255,255,255,.45); font-weight: 400; }
+  .mk-titlebar .searchpill .k { margin-left: auto; font: 600 .68rem var(--mono); border: 1px solid #4a4a4a; border-radius: 4px; padding: 0 .3rem; }
+  .mk-titlebar .avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .58rem; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .mk-titlebar .tenant { font-size: .62rem; background: #1d4f91; border-radius: 999px; padding: .06rem .45rem; font-weight: 600; }
 
-  /* ---------- Feature mini-cards ---------- */
-  .mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
-  .mini { border: 1px solid var(--line); border-radius: 9px; padding: 13px 15px; background: var(--sunken); }
-  .mini h4 { margin: 0 0 4px; color: var(--accent-deep); }
-  .mini p { margin: 0; font-size: 14px; }
+  .mk-body { display: flex; min-height: 11rem; }
+  .mk-sidebar { width: 9.5rem; flex: none; background: #2a2a2a; color: rgba(255,255,255,.8); padding: .5rem .4rem; display: flex; flex-direction: column; gap: .15rem; }
+  .mk-sidebar .item { display: flex; align-items: center; gap: .5rem; padding: .32rem .55rem; border-radius: 6px; position: relative; }
+  .mk-sidebar .item.active { background: #3a3a3a; color: var(--accent); font-weight: 600; }
+  .mk-sidebar .item.active::before { content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+  .mk-sidebar .spacer { flex: 1; }
+  .mk-sidebar .rule { border-top: 1px solid #3d3d3d; margin: .3rem 0; }
+  .mk-main { flex: 1; padding: .9rem 1rem; background: #1f1f1f; color: rgba(255,255,255,.85); min-width: 0; }
+  .mk-main h4 { margin: 0 0 .2rem; font-size: 1rem; color: #fff; }
+  .mk-main .sub { color: rgba(255,255,255,.5); font-size: .74rem; }
 
-  /* ---------- Toolbar diagrams (drawn, not screenshots) ---------- */
-  .dg {
-    border: 1px dashed #c9ced4; border-radius: 10px;
-    background: var(--sunken); padding: 12px; margin: 14px 0;
-  }
-  .dg .dg-bar {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    background: #fff; border: 1px solid var(--line); border-radius: 7px;
-    padding: 7px 10px; font-size: 12.5px; color: var(--ink-soft);
-  }
-  .dg .dg-btn {
-    border: 1px solid var(--line); border-radius: 6px; background: #fff;
-    padding: 3px 9px; white-space: nowrap; color: var(--ink);
-  }
-  .dg .dg-crumb { color: var(--muted); white-space: nowrap; }
-  .dg .dg-spacer { flex: 1; min-width: 8px; }
-  .dg .dg-stamps { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.35; }
-  .dg .dg-stamps span { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-  .dg .dg-new { color: var(--accent); font-weight: 700; font-size: 11.5px; white-space: nowrap; }
-  .dg .dg-ok { color: var(--ok); font-weight: 700; font-size: 11.5px; white-space: nowrap; }
-  .dg .dg-stale { color: #a87900; }
-  .dg .dg-label {
-    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
-    color: var(--muted); margin: 10px 0 4px 2px;
-  }
-  .dg .dg-label:first-child { margin-top: 0; }
-  .dg-caption { font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center; }
+  .ico { display: inline-block; width: 1em; text-align: center; flex: none; }
 
-  /* status chips used in running text */
-  .chip {
-    display: inline-block; font-size: 12px; font-weight: 700;
-    border-radius: 14px; padding: 1px 9px; border: 1px solid; white-space: nowrap;
-  }
-  .chip.new { color: var(--accent-deep); border-color: var(--accent); background: var(--accent-tint); }
-  .chip.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
-  .chip.stale { color: var(--warn-ink); border-color: var(--warn-line); background: var(--warn-bg); }
+  /* generic light rows (workspaces) */
+  .mk-rows { padding: .8rem; background: var(--paper); }
+  .mk-row { border: 1px solid var(--line); border-radius: 8px; margin-bottom: .5rem; overflow: hidden; background: #fff; }
+  .mk-row:last-child { margin-bottom: 0; }
+  .mk-row .head { display: flex; align-items: center; gap: .55rem; padding: .55rem .75rem; font-weight: 600; }
+  .mk-row .head .badge { margin-left: auto; font-size: .68rem; font-weight: 600; border: 1px solid var(--line); border-radius: 999px; padding: .05rem .5rem; color: var(--ink-3); }
+  .mk-row .child { display: flex; align-items: center; gap: .55rem; padding: .45rem .75rem .45rem 2.4rem; border-top: 1px solid var(--line); background: var(--paper); }
+  .mk-row .child .typebadge { margin-left: auto; font-size: .66rem; font-weight: 600; border-radius: 999px; padding: .05rem .5rem; }
+  .typebadge.report { background: #e7f0fb; color: #1d4f91; }
+  .typebadge.dashboard { background: var(--ok-soft); color: var(--ok); }
+  .mk-row .warnbar { display: flex; align-items: center; gap: .6rem; padding: .45rem .75rem; border-top: 1px solid var(--line); background: var(--warn-soft); color: var(--warn); font-size: .78rem; }
+  .mk-row .warnbar .retry { margin-left: auto; border: 1px solid #ecd9a4; background: #fff; border-radius: 6px; padding: .12rem .6rem; font-weight: 600; color: var(--ink-2); }
 
-  /* ---------- Troubleshooting Q&A ---------- */
-  .qa { border: 1px solid var(--line); border-radius: 9px; margin: 12px 0; overflow: hidden; }
-  .qa .q {
-    background: var(--sunken); padding: 11px 16px; font-weight: 700; color: var(--ink);
-    border-bottom: 1px solid var(--line);
-  }
-  .qa .a { padding: 4px 16px 12px; }
+  /* viewer toolbar mock */
+  .mk-toolbar { display: flex; align-items: center; gap: .65rem; padding: .5rem .75rem; background: #fff; font-size: .76rem; flex-wrap: wrap; }
+  .mk-toolbar .crumb { color: var(--ink-2); }
+  .mk-toolbar .crumb b { color: var(--ink); font-weight: 600; }
+  .mk-toolbar .gap { flex: 1; }
+  .mk-toolbar .btn { border: 1px solid var(--line); border-radius: 6px; padding: .2rem .55rem; color: var(--ink-2); background: var(--paper); white-space: nowrap; }
+  .mk-toolbar .fresh { text-align: right; line-height: 1.35; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: .72rem; }
+  .fresh .updated { color: var(--ok); font-weight: 650; }
+  .fresh .newer { color: var(--accent-ink); font-weight: 650; }
+  .fresh .stale { color: var(--warn); }
 
-  /* ---------- Footer ---------- */
-  .footer-note { color: var(--muted); font-size: 13px; text-align: center; margin-top: 26px; }
+  /* search mock */
+  .mk-search { padding: .8rem; }
+  .mk-search .input { display: flex; align-items: center; gap: .5rem; border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem; color: var(--ink-3); background: #fff; }
+  .mk-search .result { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem; border-radius: 8px; margin-top: .3rem; }
+  .mk-search .result.sel { background: var(--paper-2); }
+  .mk-search .result .meta { color: var(--ink-3); font-size: .72rem; }
+  .mk-search .foot { display: flex; gap: 1rem; color: var(--ink-3); font-size: .72rem; border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .55rem; }
 
-  /* ---------- Responsive ---------- */
-  @media (max-width: 880px) {
-    .layout { grid-template-columns: 1fr; }
-    nav.toc { position: static; max-height: none; }
-    nav.toc ol { columns: 2; column-gap: 16px; }
-    .grid2, .mini-grid { grid-template-columns: 1fr; }
-  }
+  /* Luce / insights mocks */
+  .luce-pad { padding: .9rem; }
+  .luce-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: .45rem; margin-bottom: .8rem; }
+  .luce-tile { background: var(--luce-surface1); border: 1px solid var(--luce-hairline); border-radius: 10px; padding: .55rem .6rem; }
+  .luce-tile .v { font-size: 1.35rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .luce-tile .l { font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; color: var(--luce-text3); margin-top: .2rem; }
+  .luce-tile.loud { background: var(--luce-surface2); border-color: rgba(229,72,77,.3); }
+  .luce-group { background: var(--luce-surface1); border: 1px solid var(--luce-hairline); border-radius: 10px; overflow: hidden; margin-bottom: .5rem; }
+  .luce-group:last-child { margin-bottom: 0; }
+  .luce-group .ghead { display: flex; align-items: center; gap: .55rem; padding: .5rem .7rem; background: var(--luce-surface2); color: var(--luce-text); font-weight: 600; font-size: .78rem; }
+  .luce-group .ghead .sum { margin-left: auto; font-weight: 400; font-size: .7rem; color: var(--luce-bad); font-variant-numeric: tabular-nums; }
+  .luce-item { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem; border-top: 1px solid var(--luce-hairline); font-size: .74rem; flex-wrap: wrap; }
+  .luce-item .name { color: var(--luce-text); font-weight: 500; }
+  .luce-item .kind { font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; color: var(--luce-text3); border: 1px solid var(--luce-hairline); border-radius: 4px; padding: 0 .3rem; }
+  .luce-item .down { color: var(--luce-bad); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .luce-item .last { margin-left: auto; color: var(--luce-text3); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: .66rem; }
+  .chip { display: inline-flex; align-items: center; gap: .3rem; border-radius: 999px; padding: .05rem .5rem; font-size: .62rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  .chip.ok      { color: var(--luce-ok);     background: rgba(63,182,139,.14); border: 1px solid rgba(63,182,139,.25); }
+  .chip.failed  { color: var(--luce-bad);    background: rgba(229,72,77,.14);  border: 1px solid rgba(229,72,77,.25); }
+  .chip.warnc   { color: var(--luce-accent); background: rgba(232,163,61,.14); border: 1px solid rgba(232,163,61,.25); }
+  .chip.live    { color: var(--luce-text3);  background: rgba(255,255,255,.06); border: 1px solid var(--luce-hairline); }
+  table .chip { font-size: .6rem; }
+  .dots { display: inline-flex; gap: 3px; align-items: center; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .dots i.g { background: var(--luce-ok); }
+  .dots i.r { background: var(--luce-bad); }
+  .dots i.h { background: transparent; border: 1px solid var(--luce-hairline); }
 
-  /* ---------- Print ---------- */
+  /* slideshow stage mock */
+  .mk-stage { position: relative; height: 9rem; background: linear-gradient(150deg, #161616, #242424); color: rgba(255,255,255,.35); display: flex; align-items: center; justify-content: center; font-size: .85rem; }
+  .mk-stage .exit-hint { position: absolute; right: .7rem; bottom: .55rem; text-align: right; font-size: .62rem; line-height: 1.5; color: rgba(255,255,255,.45); }
+  .mk-stage .keys-hint { position: absolute; left: .7rem; bottom: .55rem; font-size: .62rem; line-height: 1.5; color: rgba(255,255,255,.45); }
+  .mk-stage .controls { position: absolute; left: 50%; transform: translateX(-50%); bottom: 2.4rem; display: flex; gap: .4rem; align-items: center; }
+  .mk-stage .controls .cbtn { border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: .1rem .55rem; font-size: .66rem; color: rgba(255,255,255,.75); }
+  .mk-stage .controls .cbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  /* login mock */
+  .mk-login { background: #232323; padding: 1.6rem 1rem; display: flex; justify-content: center; }
+  .mk-login .card { background: #2c2c2c; border-radius: 12px; padding: 1.3rem 1.5rem; text-align: center; width: 15.5rem; box-shadow: 0 10px 30px -12px rgba(0,0,0,.6); }
+  .mk-login .logo { width: 38px; height: 38px; border-radius: 8px; margin: 0 auto .6rem;
+    background: conic-gradient(from 220deg at 35% 65%, var(--accent) 0 95deg, #1d4f91 95deg 230deg, var(--accent) 230deg 360deg); }
+  .mk-login .t { color: #fff; font-weight: 700; font-size: .95rem; margin-bottom: .8rem; }
+  .mk-login .signin { background: var(--accent); color: #fff; font-weight: 600; border-radius: 7px; padding: .45rem .6rem; font-size: .78rem; }
+
+  .shortcut-context { font-size: .78rem; color: var(--ink-3); }
+
+  /* ---------- print ---------- */
+  @page { size: A4; margin: 14mm; }
   @media print {
-    body { background: #fff; font-size: 11pt; }
-    .layout { display: block; max-width: none; padding: 0; }
-    nav.toc { display: none !important; }
-    .cover { border: none; page-break-after: always; }
-    section.card { border: 1px solid #ddd; break-inside: auto; margin-bottom: 12px; }
-    figure img { max-height: 160mm; width: auto; max-width: 100%; }
-    figure, figcaption, .box, .exit-box, .exit-box .row, .mini, .mini-grid,
-    .dg, .qa, ol.steps > li, li, thead, tr { break-inside: avoid; page-break-inside: avoid; }
-    thead { display: table-header-group; }
-    h2.sec, h3, h4, .qa .q, .box .t { break-after: avoid; page-break-after: avoid; }
-    a { color: var(--ink); }
+    body { background: #fff; font-size: 11.5px; }
+    header.masthead { padding: 2rem 1rem 1.6rem; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { grid-template-columns: 1fr; padding: 0 .5rem; max-width: none; gap: 0; }
+    nav.toc { position: static; max-height: none; page-break-after: always; }
+    main section { page-break-inside: avoid; margin-bottom: 2.2rem; }
+    figure.mock, .callout, table { page-break-inside: avoid; }
+    .panel { box-shadow: none; }
+    main a { text-decoration: none; color: var(--ink); }
+    .backtop { display: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
+
+  .backtop { font-size: .78rem; margin-top: 1.4rem; }
+  footer.colophon { border-top: 1px solid var(--line); color: var(--ink-3); font-size: .8rem; padding: 1.5rem 2rem 2.5rem; text-align: center; }
 </style>
 </head>
 <body>
 
-<div class="layout">
-
-  <!-- ============================ TOC ============================ -->
-  <nav class="toc" aria-label="Table of contents">
-    <div class="toc-brand"><span class="mark">PB</span><span>Power BI Viewer</span></div>
-    <div class="toc-title">Contents</div>
-    <ol id="tocList">
-      <li><a href="#s1"><span class="n">1</span><span>Welcome</span></a></li>
-      <li><a href="#s2"><span class="n">2</span><span>Install &amp; sign in</span></a></li>
-      <li><a href="#s3"><span class="n">3</span><span>Finding your way around</span></a></li>
-      <li><a href="#s4"><span class="n">4</span><span>Home</span></a></li>
-      <li><a href="#s5"><span class="n">5</span><span>Workspaces</span></a></li>
-      <li><a href="#s6"><span class="n">6</span><span>Power BI Apps</span></a></li>
-      <li><a href="#s7"><span class="n">7</span><span>Insights</span></a></li>
-      <li><a href="#s8"><span class="n">8</span><span>Reports &amp; dashboards</span></a></li>
-      <li><a href="#s9"><span class="n">9</span><span>Is my data up to date?</span></a></li>
-      <li><a href="#s10"><span class="n">10</span><span>Search</span></a></li>
-      <li><a href="#s11"><span class="n">11</span><span>Slideshow &amp; wall displays</span></a></li>
-      <li><a href="#s12"><span class="n">12</span><span>Export to PDF</span></a></li>
-      <li><a href="#s13"><span class="n">13</span><span>Your account</span></a></li>
-      <li><a href="#s14"><span class="n">14</span><span>Settings</span></a></li>
-      <li><a href="#s15"><span class="n">15</span><span>App updates</span></a></li>
-      <li><a href="#s16"><span class="n">16</span><span>Keyboard shortcuts</span></a></li>
-      <li><a href="#s17"><span class="n">17</span><span>Troubleshooting</span></a></li>
-    </ol>
-  </nav>
-
-  <!-- ============================ MAIN ============================ -->
-  <main>
-
-    <!-- COVER -->
-    <div class="cover">
-      <div class="mark">PB</div>
-      <h1>Power BI Viewer</h1>
-      <div class="sub">User Guide</div>
-      <p class="tagline">Sign in once and see all your Power BI apps, reports, and dashboards in one clean desktop window — with live data-freshness at a glance and a hands-free slideshow for wall displays.</p>
-      <div class="meta">Windows &amp; Mac &nbsp;&middot;&nbsp; Your app version is shown in <strong>Settings &rarr; About</strong></div>
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="mark"><span class="logo" aria-hidden="true"></span> Power BI Viewer</div>
+    <h1>User Guide</h1>
+    <p class="tagline">Everything you need to view, present, and keep an eye on your Power&nbsp;BI reports — in one fast desktop app.</p>
+    <div class="meta">
+      <span>For version 2.1.9</span>
+      <span>Windows &amp; macOS</span>
+      <span>No Power BI experience required</span>
     </div>
+  </div>
+</header>
 
-    <!-- ===================== 1. WELCOME ===================== -->
-    <section class="card" id="s1">
-      <h2 class="sec"><span class="n">1</span>Welcome</h2>
-      <p class="lead">Power BI Viewer is one tidy desktop window for everything your team publishes to you in Power BI — apps, reports, and dashboards. No browser tabs. No repeated logins.</p>
+<div class="page">
 
-      <div class="box">
-        <span class="t">Sign in once — that's it</span>
-        <p>You sign in with your normal Microsoft 365 work account <strong>one time</strong>. The app remembers you, even after you close it or restart your computer. Everything inside — including Power BI Apps — uses that same sign-in, so nothing asks you to log in again.</p>
-      </div>
+<nav class="toc" aria-label="Table of contents">
+  <p class="toc-title">Contents</p>
+  <ol>
+    <li><a href="#welcome"><span class="n">1</span> Welcome</a></li>
+    <li><a href="#install"><span class="n">2</span> Install &amp; sign in</a></li>
+    <li><a href="#orientation"><span class="n">3</span> Finding your way</a></li>
+    <li><a href="#home"><span class="n">4</span> Home</a></li>
+    <li><a href="#workspaces"><span class="n">5</span> Workspaces</a></li>
+    <li><a href="#apps"><span class="n">6</span> Power BI Apps</a></li>
+    <li><a href="#insights"><span class="n">7</span> Insights</a></li>
+    <li><a href="#viewing"><span class="n">8</span> Reports &amp; dashboards</a></li>
+    <li><a href="#search"><span class="n">9</span> Search</a></li>
+    <li><a href="#slideshow"><span class="n">10</span> Slideshow &amp; wall displays</a></li>
+    <li><a href="#export"><span class="n">11</span> Export to PDF</a></li>
+    <li><a href="#account"><span class="n">12</span> Your account</a></li>
+    <li><a href="#settings"><span class="n">13</span> Settings</a></li>
+    <li><a href="#updates"><span class="n">14</span> App updates</a></li>
+    <li><a href="#shortcuts"><span class="n">15</span> Keyboard shortcuts</a></li>
+    <li><a href="#troubleshooting"><span class="n">16</span> Troubleshooting</a></li>
+  </ol>
+</nav>
 
-      <h3>What you get</h3>
-      <div class="mini-grid">
-        <div class="mini"><h4>Everything in one place</h4><p>Your Power BI Apps, plus any reports and dashboards shared with you.</p></div>
-        <div class="mini"><h4>Always-current data</h4><p>The toolbar shows exactly when your data was last refreshed, and reports can update themselves the moment new data arrives.</p></div>
-        <div class="mini"><h4>Instant search</h4><p>Press <kbd>Ctrl</kbd>+<kbd>K</kbd> and find any report, dashboard, app, or workspace as you type.</p></div>
-        <div class="mini"><h4>Wall-display slideshow</h4><p>A full-screen, hands-free presentation mode for TVs and lobby screens.</p></div>
-      </div>
+<main>
 
-      <div class="box note">
-        <span class="t">New here? Start with these</span>
-        <p>Read <a href="#s2">Install &amp; sign in</a>, then <a href="#s6">Power BI Apps</a> — that is where most of your content lives. If you run a wall display, also read <a href="#s11">Slideshow &amp; wall displays</a>.</p>
-      </div>
-    </section>
+<!-- ============================================================ -->
+<section id="welcome">
+  <h2><span class="kicker">Section 1</span>Welcome</h2>
+  <p class="lede">Power BI Viewer is a simple desktop app for one job: opening the Power&nbsp;BI reports and dashboards that have been shared with you — without the clutter of a web browser.</p>
+  <p>With it you can:</p>
+  <ul>
+    <li><strong>Open reports and dashboards</strong> from any workspace you have access to, and from published Power&nbsp;BI Apps.</li>
+    <li><strong>See how fresh the data is</strong> at all times — every report shows when its data was last refreshed, and tells you the moment newer data is published.</li>
+    <li><strong>Check the health of your data</strong> on the Insights board: which refreshes succeeded, which failed, and for how long something has been down.</li>
+    <li><strong>Run unattended slideshows</strong> on TVs and wall displays, with automatic recovery if anything goes wrong.</li>
+    <li><strong>Export what you see to PDF</strong> in two clicks.</li>
+  </ul>
+  <p>You sign in once with your normal Microsoft work account, and the app only ever shows you content you already have permission to see. Nothing in this guide requires any technical knowledge.</p>
+</section>
 
-    <!-- ===================== 2. INSTALL & SIGN IN ===================== -->
-    <section class="card" id="s2">
-      <h2 class="sec"><span class="n">2</span>Install &amp; sign in</h2>
+<!-- ============================================================ -->
+<section id="install">
+  <h2><span class="kicker">Section 2</span>Install &amp; sign in</h2>
 
-      <h3>Download</h3>
-      <p>Your administrator shares a download link. Pick the file for your computer:</p>
-      <ul>
-        <li><strong>Windows:</strong> the file ending in <code>Windows-Setup.exe</code></li>
-        <li><strong>Mac with Apple chip (M1/M2/M3):</strong> the <code>Mac-arm64.zip</code> file</li>
-        <li><strong>Mac with Intel chip:</strong> the <code>Mac-x64.zip</code> file</li>
-      </ul>
-      <div class="box note">
-        <span class="t">Not sure which Mac you have?</span>
-        <p>Click the Apple menu &rarr; <strong>About This Mac</strong>. If it says "Apple M1/M2/M3", pick <strong>arm64</strong>. If it says "Intel", pick <strong>x64</strong>.</p>
-      </div>
+  <h3>Installing on Windows</h3>
+  <ol>
+    <li>Run the installer you were given (a file named like <code>PowerBI-Viewer-2.1.9-Windows-Setup.exe</code>).</li>
+    <li>Windows may show a blue <strong>“Windows protected your PC”</strong> (SmartScreen) screen. This is expected for a privately distributed app — it simply means Microsoft hasn’t seen this particular installer before. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</li>
+    <li>Follow the installer; the app starts automatically when it finishes.</li>
+  </ol>
 
-      <h3>Install on Windows</h3>
-      <ol class="steps">
-        <li>Double-click the downloaded <code>...Windows-Setup.exe</code>.</li>
-        <li>Windows may show a blue <strong>"Windows protected your PC"</strong> screen. This is expected — see the note below.</li>
-        <li>Click <strong>More info</strong>, then <strong>Run anyway</strong>.</li>
-        <li>The installer finishes in a few seconds. No admin rights needed.</li>
-        <li>Open <strong>Power BI Viewer</strong> from the Start menu or desktop shortcut.</li>
-      </ol>
-      <div class="box warn">
-        <span class="t">Why does Windows warn me?</span>
-        <p>The app does not yet carry a paid publisher certificate, so Windows is cautious the first time. It is your own organization's app and safe to run. You will only see this during install — not every day.</p>
-      </div>
+  <h3>Installing on macOS</h3>
+  <ol>
+    <li>Open the <code>.dmg</code> you were given and drag <strong>Power BI Viewer</strong> into <strong>Applications</strong>.</li>
+    <li>The first time you open it, right-click the app and choose <strong>Open</strong> if macOS warns about an unidentified developer.</li>
+  </ol>
 
-      <h3>Install on Mac</h3>
-      <ol class="steps">
-        <li>Double-click the downloaded <code>.zip</code> to unzip it.</li>
-        <li>Drag <strong>Power BI Viewer.app</strong> into your <strong>Applications</strong> folder.</li>
-        <li>The first time you open it, the Mac may say it <strong>"cannot be opened"</strong>. Click <strong>Cancel</strong> (not Move to Trash).</li>
-        <li>Open <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down, and click <strong>Open Anyway</strong>.</li>
-        <li>Confirm once. After this, the app opens normally every time.</li>
-      </ol>
-
-      <h3>Sign in (one time only)</h3>
-      <ol class="steps">
-        <li>Open the app. You will see the sign-in screen.</li>
-        <li>Click the orange <strong>Sign in with Microsoft</strong> button.</li>
-        <li>A Microsoft window appears. Enter your <strong>work email and password</strong>, and approve the usual security prompt on your phone if asked.</li>
-        <li>You land on the <strong>Home</strong> screen. Done.</li>
-      </ol>
-      <figure>
-        <img src="screenshots/01-login.png" alt="Sign-in screen with the orange Sign in with Microsoft button" />
-        <figcaption>The sign-in screen. One click, your normal Microsoft password, and you're in.</figcaption>
-      </figure>
-
-      <div class="box">
-        <span class="t">You stay signed in</span>
-        <p>Your sign-in is stored safely on your computer. The next time you open the app — even after a restart — you go <strong>straight to Home</strong>. You are only asked to sign in again if you sign out, switch accounts, change your password, or leave the app unused for a very long time.</p>
-      </div>
-
-      <div class="box warn">
-        <span class="t">If sign-in fails</span>
-        <p>A red <strong>"Sign in failed"</strong> bar appears with the reason. Just click <strong>Sign in with Microsoft</strong> again. If it keeps failing, see <a href="#s17">Troubleshooting</a>.</p>
-      </div>
-      <figure>
-        <img src="screenshots/02-login-error.png" alt="Sign-in screen showing a red Sign in failed bar" />
-        <figcaption>If something goes wrong, a red bar explains why — click the button to try again.</figcaption>
-      </figure>
-    </section>
-
-    <!-- ===================== 3. FINDING YOUR WAY ===================== -->
-    <section class="card" id="s3">
-      <h2 class="sec"><span class="n">3</span>Finding your way around</h2>
-      <p class="lead">The window has three parts: a title bar across the top, a sidebar on the left, and the main area in the middle.</p>
-
-      <h3>The title bar (top)</h3>
-      <ul>
-        <li><strong>Left:</strong> the logo and app name. Drag this bar to move the window.</li>
-        <li><strong>Center:</strong> the search box — "Search reports and dashboards..." — with a <kbd>Ctrl</kbd>+<kbd>K</kbd> hint. Click it or press the keys to search.</li>
-        <li><strong>Right:</strong> your <strong>avatar</strong> (your initials in a colored circle) and a badge showing your organization. Click the avatar for <strong>Switch account</strong> and <strong>Sign out</strong>.</li>
-      </ul>
-      <figure>
-        <img src="screenshots/05-titlebar.png" alt="The title bar: logo on the left, centered search box with Ctrl+K hint, avatar and organization badge on the right" />
-        <figcaption>The title bar: logo (left), search (center), your account (right).</figcaption>
-      </figure>
-      <figure>
-        <img src="screenshots/05b-titlebar-menu.png" alt="The open account menu showing name, email, Switch account, and Sign out" />
-        <figcaption>Click your avatar to see your name and email, Switch account, and Sign out.</figcaption>
-      </figure>
-
-      <h3>The sidebar (left)</h3>
-      <p>The button at the top expands or collapses the sidebar. Collapsed, it shows only icons — hover over an icon to see its name. The items are <strong>Home</strong>, <strong>Workspaces</strong>, and <strong>Apps</strong>, with <strong>Settings</strong> at the bottom. The screen you are on is marked with an orange bar.</p>
-      <div class="box note">
-        <span class="t">The sidebar starts collapsed</span>
-        <p>It begins as icons-only every time you open the app. Click the toggle at the top whenever you want the labels back.</p>
-      </div>
-      <div class="grid2">
-        <figure>
-          <img src="screenshots/06-sidebar-expanded.png" alt="Sidebar expanded with labels: Home, Workspaces, Apps, Settings" />
-          <figcaption>Expanded — labels visible.</figcaption>
-        </figure>
-        <figure>
-          <img src="screenshots/07-sidebar-collapsed.png" alt="Sidebar collapsed to icons only" />
-          <figcaption>Collapsed — icons only (the default).</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- ===================== 4. HOME ===================== -->
-    <section class="card" id="s4">
-      <h2 class="sec"><span class="n">4</span>Home</h2>
-      <p class="lead">Home greets you by name and gives you quick ways back into your content. A <strong>Refresh</strong> button at the top-right reloads the lists.</p>
-      <figure>
-        <img src="screenshots/03-home-populated.png" alt="Home screen with greeting, Featured Workspaces, Browse Workspaces button, Frequent strip, and Recent list" />
-        <figcaption>A populated Home: greeting, Featured Workspaces, Browse Workspaces, plus Frequent and Recent.</figcaption>
-      </figure>
-
-      <h3>What's on Home</h3>
-      <ul>
-        <li><strong>Featured Workspaces</strong> — up to three cards as a quick signpost. Clicking any of them takes you to the Workspaces page.</li>
-        <li><strong>Browse Workspaces</strong> — the orange button, always visible. Your main door into everything.</li>
-        <li><strong>Frequent</strong> — a strip of the items you open most.</li>
-        <li><strong>Recent</strong> — what you opened lately. Each item has an <strong>Open</strong> action and a <strong>Slideshow</strong> action.</li>
-      </ul>
-
-      <div class="box note">
-        <span class="t">First run looks emptier — that's normal</span>
-        <p>Before you have any history, Home shows a simple Welcome card with your email. Open a few things and the Frequent and Recent areas fill in on their own.</p>
-      </div>
-      <figure>
-        <img src="screenshots/04-home-empty.png" alt="Home first-run state with a Welcome card showing the signed-in email" />
-        <figcaption>First-run Home, before you have opened anything.</figcaption>
-      </figure>
-    </section>
-
-    <!-- ===================== 5. WORKSPACES ===================== -->
-    <section class="card" id="s5">
-      <h2 class="sec"><span class="n">5</span>Workspaces</h2>
-      <p class="lead">The Workspaces page lists every workspace you can see. Click a workspace row to expand it and load what's inside.</p>
-      <ul>
-        <li><strong>Reports</strong> — document icon with a <em>Report</em> badge.</li>
-        <li><strong>Dashboards</strong> — board icon with a <em>Dashboard</em> badge.</li>
-        <li>A small <strong>count badge</strong> shows how many items the workspace holds.</li>
-      </ul>
-      <p>Click any item to open it. The <strong>Refresh</strong> button at the top re-fetches the whole list.</p>
-      <figure>
-        <img src="screenshots/09b-workspaces-expanded.png" alt="Workspaces page with one workspace expanded, showing Reports and Dashboards with badges and an item count" />
-        <figcaption>An expanded workspace, showing its reports and dashboards.</figcaption>
-      </figure>
-
-      <div class="box note">
-        <span class="t">If something doesn't load: look for Retry</span>
-        <p>If a workspace's contents fail to load — all of it or just part of it — a small warning row appears in that workspace with a <strong>Retry</strong> button. For example: <em>"Could not load this workspace. Check your connection or your permissions."</em> Click <strong>Retry</strong> and it fetches again. The rest of the page keeps working.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 6. APPS ===================== -->
-    <section class="card" id="s6">
-      <h2 class="sec"><span class="n">6</span>Power BI Apps</h2>
-      <p class="lead">Apps are the polished, packaged way your team delivers a whole suite of reports to you. For most people, this is the main place to work.</p>
-
-      <h3>The Apps page</h3>
-      <p>Click <strong>Apps</strong> in the sidebar. You see a card for each app — its name, who published it, and when it was last updated — with an <strong>Open</strong> button.</p>
-      <figure>
-        <img src="screenshots/10-apps-page.png" alt="Apps page showing a grid of app cards with name, publisher, date, and Open buttons" />
-        <figcaption>The Apps page. Click Open on any card.</figcaption>
-      </figure>
-
-      <h3>Inside an app</h3>
-      <ul>
-        <li>The app opens as the <strong>full Power BI app experience</strong>, right inside the window — the same menus and navigation you would see on the Power BI website.</li>
-        <li>The toolbar above it keeps things simple: <strong>Back to Apps</strong>, the app's name, the <a href="#s9">data freshness strip</a>, and <strong>Refresh</strong>.</li>
-        <li>Because of the shared sign-in, the app <strong>never asks you to log in again</strong>.</li>
-      </ul>
-
-      <div class="box">
-        <span class="t">Use the app's own menus to move around</span>
-        <p>Inside an app, navigate with the app's own left-hand menu and tabs — exactly like the web. Use the toolbar's <strong>Back to Apps</strong> button when you want to leave.</p>
-      </div>
-
-      <div class="box warn">
-        <span class="t">Don't see an app you were given?</span>
-        <p>The list only shows apps that are installed for your account. Ask your administrator to push it to you, or open it once on <strong>app.powerbi.com</strong> in your browser, then come back and click <strong>Refresh</strong> on the Apps page. See <a href="#s17">Troubleshooting</a>.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 7. INSIGHTS ===================== -->
-    <section class="card" id="s7">
-      <h2 class="sec"><span class="n">7</span>Insights</h2>
-      <p class="lead">Insights is one page that shows the health of all your data — what's refreshing, what's broken, who has access, and what you actually use. Open it from the <strong>Insights</strong> item in the left sidebar (the trending-chart icon).</p>
-
-      <h3>The summary tiles</h3>
-      <p>Six tiles across the top give you the headline before you read anything else:</p>
-      <table>
-        <thead><tr><th>Tile</th><th>What it counts</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Healthy</strong></td><td>Data whose last refresh worked. The more here, the better.</td></tr>
-          <tr><td><strong>Broken</strong></td><td>Data whose last refresh failed or was cancelled. If this isn't zero, look at the table below — the broken items are already at the top.</td></tr>
-          <tr><td><strong>Never refreshed</strong></td><td>Data on which a refresh has never run at all.</td></tr>
-          <tr><td><strong>Live</strong></td><td>Data that connects directly to its source and doesn't use scheduled refreshes. <strong>Not a problem</strong> — there is simply nothing to refresh.</td></tr>
-          <tr><td><strong>Workspaces</strong></td><td>How many workspaces you can see.</td></tr>
-          <tr><td><strong>Reports</strong></td><td>How many reports you can see.</td></tr>
-        </tbody>
-      </table>
-
-      <div class="dg" role="img" aria-label="Diagram of the six summary tiles: Healthy 24, Broken 2, Never refreshed 1, Live 5, Workspaces 8, Reports 31">
-        <div class="dg-bar">
-          <span class="dg-btn"><span class="dg-ok">24</span> Healthy</span>
-          <span class="dg-btn"><span class="dg-new">2</span> Broken</span>
-          <span class="dg-btn">1 Never refreshed</span>
-          <span class="dg-btn">5 Live</span>
-          <span class="dg-spacer"></span>
-          <span class="dg-btn">8 Workspaces</span>
-          <span class="dg-btn">31 Reports</span>
-        </div>
-        <div class="dg-caption">The summary tiles. Broken and Never refreshed light up in color when they need attention.</div>
-      </div>
-
-      <h3>What's refreshing — and what's broken</h3>
-      <p>Below the tiles, a table lists every dataset and dataflow you can see, with the <strong>worst problems sorted to the top</strong> — failures first, healthy items last — so you never have to hunt for trouble. Each row shows the status, the item's name, its workspace, when it last refreshed successfully, and who set the refresh up.</p>
-      <table>
-        <thead><tr><th>Status</th><th>What it means</th></tr></thead>
-        <tbody>
-          <tr><td><strong>OK</strong></td><td>The last refresh worked.</td></tr>
-          <tr><td><strong>Failed</strong></td><td>The last refresh did not work. <strong>Hover over the badge</strong> to see the Power BI error code — useful to pass on to your data team.</td></tr>
-          <tr><td><strong>Running</strong></td><td>A refresh is happening right now.</td></tr>
-          <tr><td><strong>Cancelled</strong></td><td>The last refresh was stopped before it finished.</td></tr>
-          <tr><td><strong>Never</strong></td><td>A refresh has never run on this item.</td></tr>
-          <tr><td><strong>Live</strong></td><td>This data connects directly to its source and doesn't use scheduled refreshes — <strong>not a problem</strong>.</td></tr>
-        </tbody>
-      </table>
-      <div class="box note">
-        <span class="t">If part of the picture is missing</span>
-        <p>When some workspaces can't be fully read, a small notice at the top of the page names them — their items may be missing from the lists until you click <strong>Refresh</strong>.</p>
-      </div>
-
-      <h3>Who has access</h3>
-      <p>This section lists each of your workspaces. <strong>Click a workspace to expand its member list</strong> — each person's name, email, and role.</p>
-      <div class="box note">
-        <span class="t">"Access list not visible to you"</span>
-        <p>Some workspaces show this instead of a member count. It means your account isn't allowed to see that workspace's member list — completely normal for viewers, and nothing is wrong.</p>
-      </div>
-
-      <h3>Your usage</h3>
-      <ul>
-        <li><strong>You open most</strong> — the items you open most often. Click one to jump straight to it.</li>
-        <li><strong>Never opened by you</strong> — items you have access to but have never opened. A handy reminder of what you might be missing.</li>
-      </ul>
-
-      <div class="box note">
-        <span class="t">Everyone sees their own view</span>
-        <p>Insights only shows what <strong>your own account</strong> has access to — workspaces, datasets, access lists, and your usage. Your page and a colleague's page can legitimately look different.</p>
-      </div>
-
-      <div class="box">
-        <span class="t">How fresh is the page itself?</span>
-        <p>The line under the title shows when the current snapshot was taken. The page refreshes its snapshot <strong>at most every 5 minutes</strong> — click the <strong>Refresh</strong> button at the top-right to force a new one right away.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 8. REPORTS & DASHBOARDS ===================== -->
-    <section class="card" id="s8">
-      <h2 class="sec"><span class="n">8</span>Reports &amp; dashboards</h2>
-      <p class="lead">Open a report or dashboard from Home, Workspaces, or Search. A slim toolbar sits above it.</p>
-
-      <h3>The toolbar, left to right</h3>
-      <ul>
-        <li><strong>Back</strong> — returns to where you came from. Next to it, a breadcrumb shows "Home &rsaquo; &lt;name&gt;".</li>
-        <li><strong>Data freshness strip</strong> — two small timestamps that tell you how current the data is. This is important enough to get <a href="#s9">its own section</a>.</li>
-        <li><strong>Refresh</strong> — pulls the latest data. While working it reads "Refreshing…" and is briefly disabled. When it finishes, a green <span class="chip ok">&#10003; Updated</span> appears for a few seconds.</li>
-        <li><strong>Export PDF</strong> — saves the current view as a PDF. See <a href="#s12">Export to PDF</a>.</li>
-        <li><strong>Slideshow</strong> — reports only. Starts presentation mode. See <a href="#s11">Slideshow</a>.</li>
-        <li><strong>Full screen</strong> — the corner-arrows icon. Press <kbd>Esc</kbd> to leave full screen.</li>
-      </ul>
-
-      <div class="dg" role="img" aria-label="Diagram of the report toolbar: Back button, breadcrumb, freshness timestamps, then Refresh, Export PDF, Slideshow, and Full screen buttons">
-        <div class="dg-bar">
-          <span class="dg-btn">&larr; Back</span>
-          <span class="dg-crumb">Home &rsaquo; Monthly Sales</span>
-          <span class="dg-spacer"></span>
-          <span class="dg-stamps">
-            <span>Data refreshed: 06/10/2026 07:45 CT (12 min ago)</span>
-            <span>Dataflow: 06/10/2026 07:30 CT</span>
-          </span>
-          <span class="dg-btn">&#10227; Refresh</span>
-          <span class="dg-btn">&#8681; Export PDF</span>
-          <span class="dg-btn">&#9654; Slideshow</span>
-          <span class="dg-btn">&#x26F6;</span>
-        </div>
-        <div class="dg-caption">The report toolbar (drawn to scale of meaning, not pixels). Dashboards look the same but have no Slideshow button.</div>
-      </div>
-
-      <h3>Working with a report</h3>
-      <ul>
-        <li>The report keeps its normal Power BI <strong>filters pane</strong> and <strong>page tabs</strong> — use them exactly as on the web.</li>
-        <li>In full screen on a multi-page report, the <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> arrow keys change pages. A small hint in the corner shows the page count.</li>
-        <li>When you click <strong>Refresh</strong> on a report, it updates the data <strong>in place</strong> — your current page, filters, and selections are kept.</li>
-      </ul>
-
-      <h3>Working with a dashboard</h3>
-      <ul>
-        <li>Click any <strong>tile</strong> to drill into the report behind it. Use <strong>Back</strong> to return.</li>
-        <li>A dashboard draws from several data sources, so its freshness label reads <strong>"Oldest data"</strong> — the age of the <em>oldest</em> tile, your "is anything stale?" signal.</li>
-        <li>Slideshow is not available on dashboards — it is a report feature.</li>
-      </ul>
-
-      <div class="box warn">
-        <span class="t">If something won't load</span>
-        <p>You'll see a short message and a <strong>Try again</strong> button — click it to reload. If an item was truly deleted, it disappears from your Recent and Frequent lists automatically. More help in <a href="#s17">Troubleshooting</a>.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 9. FRESHNESS ===================== -->
-    <section class="card" id="s9">
-      <h2 class="sec"><span class="n">9</span>Is my data up to date?</h2>
-      <p class="lead">Every viewer — report, dashboard, or app — shows a small <strong>freshness strip</strong> on the right side of the toolbar. It answers one question at a glance: <em>how current is what I'm looking at?</em></p>
-
-      <h3>The two timestamps</h3>
-      <table>
-        <thead><tr><th>Line</th><th>What it means</th></tr></thead>
-        <tbody>
-          <tr>
-            <td><strong>Data refreshed</strong></td>
-            <td>When the data behind this screen was last refreshed inside Power BI. A live age in brackets — "(12 min ago)" — ticks up every minute. On dashboards (and apps that bundle several reports) this line is labelled <strong>"Oldest data"</strong> and shows the oldest source on screen.</td>
-          </tr>
-          <tr>
-            <td><strong>Dataflow</strong></td>
-            <td>When the <em>pipeline that feeds the data</em> last finished bringing in new source data. Think of it as the step before: the dataflow gathers fresh numbers, then the dataset refresh loads them into your report.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="box note">
-        <span class="t">Why two timestamps?</span>
-        <p>A refresh can run on time but re-use old source data. If <strong>Data refreshed</strong> is recent but <strong>Dataflow</strong> is much older, the screen refreshed — but the underlying numbers may not have changed since the dataflow last ran. When both are recent, your data is genuinely current.</p>
-      </div>
-
-      <h3>What the strip looks like in each state</h3>
-      <div class="dg" role="img" aria-label="Diagram of the four freshness strip states: just opened with dashes, normal, newer data available in orange, and a green Updated confirmation">
-        <div class="dg-label">Just opened (checking…)</div>
-        <div class="dg-bar">
-          <span class="dg-spacer"></span>
-          <span class="dg-stamps">
-            <span>Data refreshed: &mdash;</span>
-            <span>Dataflow: &mdash;</span>
-          </span>
-          <span class="dg-btn">&#10227; Refresh</span>
-        </div>
-        <div class="dg-label">Normal</div>
-        <div class="dg-bar">
-          <span class="dg-spacer"></span>
-          <span class="dg-stamps">
-            <span>Data refreshed: 06/10/2026 07:45 CT (12 min ago)</span>
-            <span>Dataflow: 06/10/2026 07:30 CT</span>
-          </span>
-          <span class="dg-btn">&#10227; Refresh</span>
-        </div>
-        <div class="dg-label">Newer data has been published</div>
-        <div class="dg-bar">
-          <span class="dg-spacer"></span>
-          <span class="dg-new">&#9679; Newer data available</span>
-          <span class="dg-stamps">
-            <span>Data refreshed: 06/10/2026 08:02 CT (just now)</span>
-            <span>Dataflow: 06/10/2026 08:00 CT</span>
-          </span>
-          <span class="dg-btn">&#10227; Refresh</span>
-        </div>
-        <div class="dg-label">Right after a refresh completes (shows for about 5 seconds)</div>
-        <div class="dg-bar">
-          <span class="dg-spacer"></span>
-          <span class="dg-ok">&#10003; Updated</span>
-          <span class="dg-stamps">
-            <span>Data refreshed: 06/10/2026 08:02 CT (just now)</span>
-            <span>Dataflow: 06/10/2026 08:00 CT</span>
-          </span>
-          <span class="dg-btn">&#10227; Refresh</span>
-        </div>
-        <div class="dg-caption">The freshness strip is always there. The dashes ("&mdash;") appear only for the first few moments while the app checks.</div>
-      </div>
-
-      <h3>Reading the signals</h3>
-      <ul>
-        <li><strong>"&mdash;" dashes:</strong> the app is still checking. The real times appear within moments of opening.</li>
-        <li><span class="chip new">&#9679; Newer data available</span> &nbsp;The data behind this screen has refreshed <em>since you opened it</em>. The screen is showing slightly older numbers — click <strong>Refresh</strong> to catch up.</li>
-        <li><span class="chip ok">&#10003; Updated</span> &nbsp;A refresh just finished and the screen now shows the latest data. The green confirmation fades after about 5 seconds.</li>
-        <li><span class="chip stale">&#9888; Older than a day</span> &nbsp;If a timestamp is more than 24 hours old it turns an amber warning color with a &#9888; marker — worth a second look, or a question to your data team.</li>
-      </ul>
-
-      <h3>Auto-refresh: reports update themselves</h3>
-      <p>In <strong>Settings &rarr; Data Refresh</strong> there is a switch called <strong>Auto-refresh reports</strong>. It is <strong>On</strong> by default, and with it on:</p>
-      <ul>
-        <li>An open report quietly checks for newer data every few minutes.</li>
-        <li>The moment newer data is found, the report <strong>re-pulls it in place</strong> — your page, filters, and selections are untouched.</li>
-        <li>You'll simply see the green <span class="chip ok">&#10003; Updated</span> flash. No clicks needed.</li>
-      </ul>
-      <p>With auto-refresh <strong>off</strong>, reports show the orange <span class="chip new">&#9679; Newer data available</span> notice instead, and you choose when to click Refresh.</p>
-
-      <div class="box note">
-        <span class="t">Dashboards and apps don't refresh themselves</span>
-        <p>A dashboard or app can't be updated invisibly in place, so they always show the <strong>"&#9679; Newer data available"</strong> notice when new data lands — click <strong>Refresh</strong> when you see it.</p>
-      </div>
-
-      <div class="box">
-        <span class="t">Manual Refresh works the same everywhere</span>
-        <p>Click <strong>Refresh</strong> any time. The button reads "Refreshing…" while it works, then the <span class="chip ok">&#10003; Updated</span> confirmation appears and the "newer data" notice clears. If nothing seems to happen, wait a few seconds and click again — Power BI ignores refreshes fired within about 15 seconds of each other.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 10. SEARCH ===================== -->
-    <section class="card" id="s10">
-      <h2 class="sec"><span class="n">10</span>Search</h2>
-      <p class="lead">Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd>+<kbd>K</kbd> on Mac) from anywhere, or click the search box in the title bar.</p>
-      <p>Results appear <strong>as you type</strong>. Each result shows what it is — Report, Dashboard, App, or Workspace — plus the workspace it lives in.</p>
-      <figure>
-        <img src="screenshots/08-search-dialog.png" alt="The search dialog open with results labelled Report, App, and Workspace, plus keyboard hints in the footer" />
-        <figcaption>Search shows everything that matches, with type labels and keyboard hints in the footer.</figcaption>
-      </figure>
-      <h3>Using the keyboard</h3>
-      <ul>
-        <li><kbd>&uarr;</kbd> / <kbd>&darr;</kbd> — move through the results</li>
-        <li><kbd>Enter</kbd> — open the highlighted result</li>
-        <li><kbd>Esc</kbd> — close search</li>
-      </ul>
-      <div class="box note">
-        <span class="t">Picking a Workspace result</span>
-        <p>Choosing a workspace jumps you to the Workspaces page with that workspace <strong>already expanded</strong>.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 11. SLIDESHOW ===================== -->
-    <section class="card" id="s11">
-      <h2 class="sec"><span class="n">11</span>Slideshow &amp; wall displays</h2>
-      <p class="lead">Slideshow turns a report into a full-screen presentation that advances on its own — ideal for a TV or lobby screen.</p>
-
-      <h3>Start a slideshow</h3>
-      <ol class="steps">
-        <li>Open a <strong>report</strong> (slideshow is for reports only).</li>
-        <li>Click <strong>Slideshow</strong> in the toolbar. The report goes full screen.</li>
-        <li>Press <strong>Play</strong> to start auto-advancing; <strong>Pause</strong> to stop on a slide.</li>
-      </ol>
-      <p>Slides can be the report's <strong>pages</strong>, its <strong>bookmarks</strong>, or both — choose in <a href="#s14">Settings &rarr; Slideshow</a>.</p>
-
-      <h3>On-screen controls</h3>
-      <p>The controls fade away after a few seconds while playing; move the mouse to bring them back.</p>
-      <ul>
-        <li><strong>Top:</strong> Exit, the current slide name, a counter, and a <strong>gear</strong> to adjust the advance speed on the spot.</li>
-        <li><strong>Bottom:</strong> Previous / Play-Pause / Next, plus dots (or a slider for very long decks) showing where you are.</li>
-        <li>A small corner panel lists the keyboard keys.</li>
-      </ul>
-
-      <h3>Kiosk mode — unattended wall displays</h3>
-      <p>Turn on <strong>Auto-start slideshow</strong> in Settings and the slideshow starts playing by itself and runs unattended. In kiosk mode the app:</p>
-      <ul>
-        <li>Keeps the screen <strong>awake</strong> (no sleep, no screensaver) while playing.</li>
-        <li>Hides the mouse pointer after a few seconds of stillness.</li>
-        <li>If a slide hits an error, it <strong>retries on its own</strong> until the screen recovers.</li>
-      </ul>
-
-      <div class="exit-box">
-        <h3>&#128682; How to exit a slideshow</h3>
-        <div class="row">
-          <div class="label">Manual slideshow<small>(you clicked Slideshow)</small></div>
-          <div>Press <kbd>Esc</kbd> once.</div>
-        </div>
-        <div class="row">
-          <div class="label">Kiosk / auto-started<small>(it started by itself)</small></div>
-          <div>A single <kbd>Esc</kbd> tap is <strong>ignored on purpose</strong> so a stray key can't kill the display. To exit: <strong>hold <kbd>Esc</kbd> down for 3 seconds</strong>, or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>.</div>
-        </div>
-        <div class="row">
-          <div class="label">Always on screen</div>
-          <div>A faint reminder sits in the <strong>bottom-right corner</strong> the whole time, telling you which exit applies.</div>
+  <h3>Signing in — once</h3>
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-login">
+        <div class="card">
+          <div class="logo" aria-hidden="true"></div>
+          <div class="t">Power BI Viewer</div>
+          <div class="signin">&#128100;&nbsp; Sign in with Microsoft</div>
         </div>
       </div>
-      <figure>
-        <img src="screenshots/17-kiosk-exit-overlay.png" alt="The faint bottom-right reminder overlay that explains how to exit the slideshow" />
-        <figcaption>The persistent corner reminder. In kiosk mode it reads "Hold Esc 3s to exit / or Ctrl+Shift+Q".</figcaption>
-      </figure>
-      <div class="box warn">
-        <span class="t">Note the exit keys</span>
-        <p>It is <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd> — not <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Esc</kbd>, which Windows reserves for Task Manager.</p>
+    </div>
+    <figcaption>The sign-in screen. One button — your normal Microsoft work account.</figcaption>
+  </figure>
+  <ol>
+    <li>Click <strong>Sign in with Microsoft</strong>.</li>
+    <li>A Microsoft sign-in window opens. Enter your work email and password (and your usual two-factor prompt, if your organization uses one).</li>
+    <li>That’s it. The app remembers you: the next time you open it, it signs you in automatically and goes straight to your content.</li>
+  </ol>
+  <div class="callout tip">
+    <span class="label">Good to know</span>
+    <p>You stay signed in until you choose <strong>Sign out</strong> yourself. If your organization ever expires the session, the app will tell you plainly — <em>“Your session expired. Please sign in again.”</em> — and one click signs you back in.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="orientation">
+  <h2><span class="kicker">Section 3</span>Finding your way</h2>
+  <p class="lede">The app has three permanent landmarks: the title bar across the top, the sidebar down the left, and the page you’re viewing.</p>
+
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-titlebar">
+        <span class="logo" aria-hidden="true"></span> Power BI Viewer
+        <span class="searchpill">&#128269; Search reports and dashboards…<span class="k">Ctrl+K</span></span>
+        <span class="avatar">AB</span><span class="tenant">yourcompany.com</span>
       </div>
-
-      <h3>Slideshow keys</h3>
-      <ul>
-        <li><kbd>&rarr;</kbd> or <kbd>Space</kbd> — next slide &nbsp;&middot;&nbsp; <kbd>&larr;</kbd> — previous slide</li>
-        <li><kbd>P</kbd> — play / pause</li>
-        <li><kbd>Esc</kbd> — exit a manual slideshow</li>
-      </ul>
-    </section>
-
-    <!-- ===================== 12. EXPORT ===================== -->
-    <section class="card" id="s12">
-      <h2 class="sec"><span class="n">12</span>Export to PDF</h2>
-      <p class="lead">On a report or dashboard, click <strong>Export PDF</strong> in the toolbar to save what you're looking at.</p>
-      <ol class="steps">
-        <li>Set up the view first — the export captures the <strong>current view</strong>: the active page, plus any filters or selections you have applied.</li>
-        <li>Click <strong>Export PDF</strong>. The button reads "Exporting…" while it works.</li>
-        <li>A short message appears in the toolbar — for example "Exported to PDF" — when it's done.</li>
-      </ol>
-      <div class="box note">
-        <span class="t">Apps can't be exported</span>
-        <p>Export PDF is available on reports and dashboards. Inside an app, open the specific report you need from a workspace if you want to export it.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 13. ACCOUNT ===================== -->
-    <section class="card" id="s13">
-      <h2 class="sec"><span class="n">13</span>Your account</h2>
-      <p class="lead">Click your <strong>avatar</strong> in the top-right to see your name and email, with two actions.</p>
-
-      <h3>Switch account</h3>
-      <p><strong>Switch account</strong> signs the current account fully out — clearing everything it left behind, so nothing carries over — and then opens Microsoft's account picker so you can sign in as someone else.</p>
-
-      <h3>Sign out</h3>
-      <p><strong>Sign out</strong> shows a confirmation: <em>"You will be returned to the sign-in screen. Any open reports will be closed."</em> Choose <strong>Cancel</strong> or <strong>Sign out</strong>. There is also a Sign out button in <a href="#s14">Settings &rarr; Account</a>.</p>
-      <figure>
-        <img src="screenshots/15-signout-dialog.png" alt="The Sign out confirmation dialog with Cancel and Sign out buttons" />
-        <figcaption>The sign-out confirmation.</figcaption>
-      </figure>
-    </section>
-
-    <!-- ===================== 14. SETTINGS ===================== -->
-    <section class="card" id="s14">
-      <h2 class="sec"><span class="n">14</span>Settings</h2>
-      <p class="lead">Open Settings from the bottom of the sidebar. Changes save and apply immediately.</p>
-      <div class="grid2">
-        <figure>
-          <img src="screenshots/13a-settings-top.png" alt="Top half of the Settings page: Account, Appearance, and Slideshow cards" />
-          <figcaption>Settings — top half.</figcaption>
-        </figure>
-        <figure>
-          <img src="screenshots/13b-settings-bottom.png" alt="Bottom half of the Settings page: Data Refresh, Usage History, Reset, and About cards" />
-          <figcaption>Settings — bottom half. (Your version may show one or two newer options than this picture.)</figcaption>
-        </figure>
-      </div>
-
-      <table>
-        <thead><tr><th>Card</th><th>What it does</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Account</strong></td><td>Your name and email, plus a <strong>Sign out</strong> button.</td></tr>
-          <tr><td><strong>Appearance</strong></td><td><strong>Theme:</strong> Light / Dark / System. Applies instantly. The app starts out Dark.</td></tr>
-          <tr><td><strong>Slideshow / Presentation Mode</strong></td><td><strong>Auto-advance interval</strong> (5 seconds to 5 minutes); <strong>Slideshow mode</strong> (Pages only / Bookmarks only / Pages and bookmarks); <strong>Auto-start slideshow</strong> (On turns on the kiosk behavior described in <a href="#s11">Slideshow</a>).</td></tr>
-          <tr><td><strong>Launch on Startup</strong></td><td>What the app opens when it launches: <strong>Show home screen</strong>, <strong>Open a specific report</strong>, or <strong>Open a specific app</strong>. A picker appears for the report (from your recent/frequent reports) or the app.</td></tr>
-          <tr><td><strong>Data Refresh</strong></td><td><strong>Auto-refresh reports</strong> (On by default) — open reports update themselves the moment newer data is published; see <a href="#s9">Is my data up to date?</a>. The <strong>Refresh interval</strong> slider (1 minute to 2 hours) sets the refresh pace for slideshows and kiosk displays.</td></tr>
-          <tr><td><strong>Usage History</strong></td><td><strong>Clear usage history on sign-out:</strong> Never / Always / On shared machine. Plus <strong>Clear usage history now</strong>, which empties Recent and Frequent.</td></tr>
-          <tr><td><strong>Reset</strong></td><td><strong>Reset all settings to defaults.</strong> This does <em>not</em> sign you out.</td></tr>
-          <tr><td><strong>About</strong></td><td>Your app version and an <strong>Open user guide</strong> button that opens this guide.</td></tr>
-        </tbody>
-      </table>
-
-      <h3>Light vs. Dark</h3>
-      <div class="grid2">
-        <figure>
-          <img src="screenshots/16-home-light.png" alt="Home screen in the Light theme" />
-          <figcaption>Light theme.</figcaption>
-        </figure>
-        <figure>
-          <img src="screenshots/16b-home-dark.png" alt="Home screen in the Dark theme" />
-          <figcaption>Dark theme (the default).</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- ===================== 15. UPDATES ===================== -->
-    <section class="card" id="s15">
-      <h2 class="sec"><span class="n">15</span>App updates</h2>
-      <p class="lead">You don't need to manage updates. Here is what to expect on each platform.</p>
-
-      <h3>On Windows: it updates itself</h3>
-      <ul>
-        <li>The app quietly checks for new versions in the background and downloads them while you work.</li>
-        <li>The update installs <strong>the next time you close and reopen the app</strong>. You won't see installers or progress bars — one day it's simply the newer version.</li>
-        <li>Very occasionally an update is urgent. Then you'll see a short message — <em>"A required update is ready"</em> — and the app restarts itself within about half a minute to apply it.</li>
-      </ul>
-
-      <h3>On Mac: a polite nudge</h3>
-      <ul>
-        <li>When you open the app and a newer version exists, a message offers a <strong>Download</strong> button.</li>
-        <li>Click Download, then drag the new <strong>Power BI Viewer.app</strong> into Applications to replace the old one — the same as installing.</li>
-        <li>Choose <strong>Later</strong> if it's a bad moment; it will offer again next launch.</li>
-      </ul>
-
-      <div class="box note">
-        <span class="t">Which version do I have?</span>
-        <p>Look in <strong>Settings &rarr; About</strong>. Support may ask for this number.</p>
-      </div>
-    </section>
-
-    <!-- ===================== 16. SHORTCUTS ===================== -->
-    <section class="card" id="s16">
-      <h2 class="sec"><span class="n">16</span>Keyboard shortcuts</h2>
-      <table>
-        <thead><tr><th>Where</th><th>Keys</th><th>What it does</th></tr></thead>
-        <tbody>
-          <tr><td>Anywhere</td><td><kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd>+<kbd>K</kbd> Mac)</td><td>Open Search</td></tr>
-          <tr><td>Search</td><td><kbd>&uarr;</kbd> / <kbd>&darr;</kbd>, <kbd>Enter</kbd>, <kbd>Esc</kbd></td><td>Move, open, close</td></tr>
-          <tr><td>Report (full screen)</td><td><kbd>&larr;</kbd> / <kbd>&rarr;</kbd></td><td>Previous / next page</td></tr>
-          <tr><td>Report (full screen)</td><td><kbd>Esc</kbd></td><td>Leave full screen</td></tr>
-          <tr><td>Slideshow</td><td><kbd>&rarr;</kbd> or <kbd>Space</kbd> / <kbd>&larr;</kbd></td><td>Next / previous slide</td></tr>
-          <tr><td>Slideshow</td><td><kbd>P</kbd></td><td>Play / pause</td></tr>
-          <tr><td>Slideshow (manual)</td><td><kbd>Esc</kbd></td><td>Exit</td></tr>
-          <tr><td><strong>Kiosk slideshow</strong></td><td><strong>Hold <kbd>Esc</kbd> 3 seconds</strong>, or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd></td><td>Exit (a single <kbd>Esc</kbd> tap is ignored)</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <!-- ===================== 17. TROUBLESHOOTING ===================== -->
-    <section class="card" id="s17">
-      <h2 class="sec"><span class="n">17</span>Troubleshooting</h2>
-      <p class="lead">Most problems fix themselves with one click — the app always offers a <strong>Try again</strong> or <strong>Retry</strong> button when something fails.</p>
-
-      <div class="qa">
-        <div class="q">An app is blank, slow, or says "taking too long to load"</div>
-        <div class="a">
-          <p>Click <strong>Try again</strong> — it reloads the app cleanly and usually works on the second attempt. If the message mentions your connection, a proxy, or a VPN, check your internet (or switch off the VPN) first, then Try again. The first-ever open of an app is also the slowest; later opens are faster.</p>
+      <div class="mk-body">
+        <div class="mk-sidebar">
+          <div class="item active"><span class="ico">&#8962;</span> Home</div>
+          <div class="item"><span class="ico">&#128193;</span> Workspaces</div>
+          <div class="item"><span class="ico">&#9638;</span> Apps</div>
+          <div class="item"><span class="ico">&#10547;</span> Insights</div>
+          <div class="spacer"></div>
+          <div class="rule"></div>
+          <div class="item"><span class="ico">&#9881;</span> Settings</div>
+        </div>
+        <div class="mk-main">
+          <h4>Good morning, Alex</h4>
+          <div class="sub">Access your Power BI reports and dashboards</div>
         </div>
       </div>
+    </div>
+    <figcaption>The main window: title bar with search and your account; sidebar with the five pages.</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">A report or dashboard won't load</div>
-        <div class="a">
-          <p>Click <strong>Try again</strong>. If it still fails, you may not have access anymore, or the item was moved or deleted. Items that no longer exist are removed from your Recent and Frequent lists automatically. Use <kbd>Ctrl</kbd>+<kbd>K</kbd> search to check whether it's still there under the same name.</p>
+  <ul>
+    <li><strong>Title bar</strong> — the search box (or <kbd>Ctrl</kbd>+<kbd>K</kbd>) and, on the right, your avatar with your organization’s domain chip. Click the avatar for account options.</li>
+    <li><strong>Sidebar</strong> — <strong>Home</strong>, <strong>Workspaces</strong>, <strong>Apps</strong>, <strong>Insights</strong>, and <strong>Settings</strong> at the bottom. The top button collapses the sidebar to icons; hover an icon to see its name.</li>
+    <li><strong>While viewing a report</strong> — a toolbar appears across the top with Back, the report name, data-freshness stamps, and action buttons (covered in <a href="#viewing">Section 8</a>).</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="home">
+  <h2><span class="kicker">Section 4</span>Home</h2>
+  <p class="lede">Home greets you by name and gets you back to the things you actually use.</p>
+  <ul>
+    <li><strong>Featured Workspaces</strong> — quick cards for your first few workspaces. Clicking one takes you to the Workspaces page.</li>
+    <li><strong>Browse Workspaces</strong> — the big orange button; the full catalog of everything you can open.</li>
+    <li><strong>Frequent</strong> — the reports and dashboards you open most, as large tiles.</li>
+    <li><strong>Recent</strong> — everything you’ve opened lately, most recent first.</li>
+  </ul>
+  <p>Frequent and Recent build up as you use the app, so on a brand-new install Home shows a short welcome with your signed-in email instead. Open a few reports and it fills in. The <strong>Refresh</strong> button at the top-right reloads these lists.</p>
+  <div class="callout tip">
+    <span class="label">Tip</span>
+    <p>Tiles on Home offer a one-click <em>presentation mode</em> option — handy when you want a report full-screen for a meeting without any clicking around. See <a href="#slideshow">Section 10</a>.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="workspaces">
+  <h2><span class="kicker">Section 5</span>Workspaces</h2>
+  <p class="lede">Workspaces are the folders your organization publishes content into — each typically belongs to one client or team. This page lists every workspace you can see.</p>
+
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-rows">
+        <div class="mk-row">
+          <div class="head"><span class="ico">&#9656;</span><span class="ico">&#128193;</span> Northwind Trading</div>
+        </div>
+        <div class="mk-row">
+          <div class="head"><span class="ico">&#9662;</span><span class="ico">&#128193;</span> Acme Retail <span class="badge">3 items</span></div>
+          <div class="child"><span class="ico">&#128196;</span> Monthly Sales <span class="typebadge report">Report</span></div>
+          <div class="child"><span class="ico">&#9638;</span> Executive Overview <span class="typebadge dashboard">Dashboard</span></div>
+          <div class="child"><span class="ico">&#128196;</span> Inventory Detail <span class="typebadge report">Report</span></div>
+        </div>
+        <div class="mk-row">
+          <div class="head"><span class="ico">&#9662;</span><span class="ico">&#128193;</span> Fabrikam Logistics</div>
+          <div class="warnbar">&#9888; Could not load dashboards for this workspace. <span class="retry">Retry</span></div>
+          <div class="child"><span class="ico">&#128196;</span> Fleet Status <span class="typebadge report">Report</span></div>
         </div>
       </div>
+    </div>
+    <figcaption>Workspaces expand in place. If part of one fails to load, a warning bar with a Retry button appears for just that workspace.</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">"Could not load this workspace" on the Workspaces page</div>
-        <div class="a">
-          <p>A warning row appears inside that workspace with a <strong>Retry</strong> button — click it. If it says only reports (or only dashboards) failed, the other half still works while you retry. If Retry keeps failing, it's usually a connection blip or a permissions change — try the page-level <strong>Refresh</strong>, and ask your administrator if it persists.</p>
+  <ul>
+    <li><strong>Click a workspace</strong> to expand it and see its reports and dashboards; click again to collapse. An item count appears once it’s loaded.</li>
+    <li><strong>Click any item</strong> to open it. Reports carry a blue <em>Report</em> badge; dashboards a green <em>Dashboard</em> badge.</li>
+    <li><strong>Refresh</strong> (top-right) re-reads the whole workspace list — use it if something was just published for you.</li>
+  </ul>
+
+  <h3>If a workspace doesn’t load</h3>
+  <p>Loading can partially fail — for example, the reports arrive but the dashboards don’t. The app never hides this:</p>
+  <ul>
+    <li><em>“Could not load reports for this workspace.”</em> or <em>“…dashboards…”</em> — the half that did load is still shown; click <strong>Retry</strong> to fetch the missing half.</li>
+    <li><em>“Could not load this workspace. Check your connection or your permissions.”</em> — nothing could be read. <strong>Retry</strong> tries the whole workspace again. A workspace that failed to load will never silently pretend to be empty.</li>
+  </ul>
+  <p><strong>Retry</strong> only re-fetches that one workspace — everything else you’ve already loaded stays put.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="apps">
+  <h2><span class="kicker">Section 6</span>Power BI Apps</h2>
+  <p class="lede">An App is a curated, packaged collection of reports that someone publishes to you — a polished front door, rather than a folder of files.</p>
+  <ul>
+    <li>The <strong>Apps</strong> page shows a card for each App published to you, with who published it and when it was last updated. Click <strong>Open</strong> (or anywhere on the card).</li>
+    <li>The App opens inside the viewer with its own navigation, exactly as its publisher designed it. Use <strong>Back to Apps</strong> in the toolbar to leave.</li>
+    <li>The toolbar shows the same <a href="#viewing">data-freshness stamps</a> as reports. If an App contains several reports built on different datasets, the stamp is labelled <strong>“Oldest data”</strong> — a single honest worst-case figure, since the app can’t know which report you’re looking at inside the App.</li>
+    <li>If no Apps appear, none have been published to your account yet — that’s normal for many users.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="insights">
+  <h2><span class="kicker">Section 7</span>Insights</h2>
+  <p class="lede">Insights is the data-health board: every client workspace on one dark screen — what’s refreshing, what’s broken, for how long, and who has access. It only ever shows what <em>your</em> account is allowed to see.</p>
+
+  <figure class="mock">
+    <div class="panel luce">
+      <div class="luce-pad">
+        <div class="luce-tiles">
+          <div class="luce-tile loud"><div class="v" style="color:var(--luce-bad)">2</div><div class="l">Broken</div></div>
+          <div class="luce-tile"><div class="v" style="color:var(--luce-accent)">1</div><div class="l">Overdue</div></div>
+          <div class="luce-tile"><div class="v" style="color:var(--luce-text3)">0</div><div class="l">Running</div></div>
+          <div class="luce-tile"><div class="v" style="color:var(--luce-ok)">23</div><div class="l">Healthy</div></div>
+          <div class="luce-tile"><div class="v" style="color:var(--luce-text)">8</div><div class="l">Workspaces</div></div>
+        </div>
+        <div class="luce-group">
+          <div class="ghead"><span style="color:var(--luce-bad)">&#11041;</span> Acme Retail <span class="sum">2 broken &middot; 4 OK</span></div>
+          <div class="luce-item">
+            <span class="chip failed">&#11041; Failed</span>
+            <span class="name">Sales dataset</span><span class="kind">dataset</span>
+            <span class="down">down 26h</span>
+            <span class="dots"><i class="h"></i><i class="h"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="r"></i><i class="r"></i><i class="r"></i></span>
+            <span class="last">last success 6/9/2026 07:00 &middot; 26h ago</span>
+          </div>
+          <div class="luce-item">
+            <span class="chip ok">&#9679; OK</span><span class="chip warnc">&#9650; Overdue</span>
+            <span class="name">Inventory dataflow</span><span class="kind">dataflow</span>
+            <span class="dots"><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i></span>
+            <span class="last">last success 6/8/2026 23:30 &middot; 2d ago</span>
+          </div>
+        </div>
+        <div class="luce-group">
+          <div class="ghead"><span style="color:var(--luce-ok)">&#9679;</span> Northwind Trading <span class="sum" style="color:var(--luce-text3)">6 OK</span></div>
         </div>
       </div>
+    </div>
+    <figcaption>The Insights board (illustrative): summary tiles, then clients grouped worst-first. Troubled clients start opened; quiet ones stay folded.</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">It's asking me to sign in again</div>
-        <div class="a">
-          <p>Normally you stay signed in across restarts. A new prompt is expected after you sign out, switch accounts, change your password, or leave the app unused for a very long time. Just click <strong>Sign in with Microsoft</strong> again.</p>
-        </div>
+  <h3>The summary tiles</h3>
+  <table>
+    <tr><th>Tile</th><th>What it counts</th></tr>
+    <tr><td><strong>Broken</strong></td><td>Datasets and dataflows whose last refresh <strong>failed or was cancelled</strong>. Red, and impossible to miss when above zero.</td></tr>
+    <tr><td><strong>Overdue</strong></td><td>Items that have a refresh schedule turned on but <strong>no recent successful refresh</strong> — quietly late even though nothing has visibly “failed”.</td></tr>
+    <tr><td><strong>Running</strong></td><td>Refreshes happening right now.</td></tr>
+    <tr><td><strong>Healthy</strong></td><td>Items whose last refresh completed successfully.</td></tr>
+    <tr><td><strong>Workspaces</strong></td><td>How many client workspaces the board is watching for you.</td></tr>
+  </table>
+
+  <h3>The client health board</h3>
+  <p>Below the tiles, every dataset and dataflow is grouped by <strong>workspace — i.e. by client</strong>. Groups with problems sort to the top and start expanded; all-quiet groups stay collapsed behind a one-line summary like <em>“2 broken · 1 overdue · 14 OK”</em>. Each group header carries the symbol of its <em>worst</em> item, so a single red mark on a folded group still tells you to look inside.</p>
+
+  <h3>What the status labels mean</h3>
+  <table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td><span class="chip ok">&#9679; OK</span></td><td>The last refresh completed successfully.</td></tr>
+    <tr><td><span class="chip failed">&#11041; Failed</span></td><td>The last refresh failed. The row shows how long it has been down, and the Power&nbsp;BI error code when one is available.</td></tr>
+    <tr><td><span class="chip warnc">&#9650; Cancelled</span></td><td>The last refresh was cancelled before it finished.</td></tr>
+    <tr><td><span class="chip warnc">&#9711; Never run</span></td><td>This item has never been refreshed.</td></tr>
+    <tr><td><span class="chip warnc">&#9685; Running</span></td><td>A refresh is in progress right now.</td></tr>
+    <tr><td><span class="chip live">&#9671; Live</span></td><td>This item doesn’t use scheduled refresh — it reads its data live, so there is no refresh to monitor. Quiet by design.</td></tr>
+    <tr><td><span class="chip warnc">&#9650; Overdue</span></td><td>An extra chip on any item whose schedule is on but which has no recent successful refresh.</td></tr>
+  </table>
+  <p>Status is always shown as <em>shape + color + word</em>, never color alone — so it stays readable for everyone.</p>
+
+  <h3>“Down for” and the dot strips</h3>
+  <ul>
+    <li><strong>down 26h</strong> — how long since this item last succeeded. If it has <em>never</em> succeeded, it reads <strong>“down — never succeeded”</strong>. This is the number to quote when telling a client how long their data has been stale.</li>
+    <li><strong>The 12 dots</strong> — the item’s last 12 refresh runs, oldest on the left, newest on the right. Green = succeeded, red = failed, hollow = no history yet. A red caption like <em>“3 of last 12 runs failed”</em> appears when any run failed — red scattered among green means an unreliable refresh, not a one-off.</li>
+    <li>Each row also shows the <strong>last success time</strong>, what <strong>triggered</strong> the last refresh (Scheduled, Manual, or Power Automate / API), and who configured it.</li>
+  </ul>
+
+  <h3>Who has access &amp; your usage</h3>
+  <ul>
+    <li><strong>Who has access</strong> — expand any workspace to see its members and their roles. People who reach content only through a published App are not in this list (Microsoft restricts App audience lists to tenant admins — see the admin view below).</li>
+    <li><strong>You open most / Never opened by you</strong> — what this app has recorded for your account on this computer: your top items, and items you can see but have never opened.</li>
+  </ul>
+  <p>The board is a snapshot — its header shows when it was taken and whether it came from cache. Click <strong>Refresh</strong> for a fresh read. If some workspaces couldn’t be fully read, a banner names them so you know the board may be incomplete.</p>
+
+  <div class="callout owner">
+    <span class="label">For the owner — Unlock admin view</span>
+    <p>At the bottom of Insights, Fabric administrators can click <strong>Unlock admin view</strong> to add tenant-wide extras: who opened what across <em>all</em> users (last 2 days to start), and the audience of each published App.</p>
+    <p><strong>First unlock only:</strong> a Microsoft permission window appears. It can open <em>behind</em> the app window — if nothing seems to happen, check your taskbar. Approve it once (you can tick “consent on behalf of your organization”) and it never asks again.</p>
+    <p>While it loads, the app reports progress honestly — “Opening Microsoft consent…”, then “Reading App audiences…”, then “Crunching activity log — large tenants can take a couple minutes…”. A <strong>Cancel</strong> button is always available; cancelling simply stops waiting and changes nothing. If your account isn’t a Fabric administrator, the app says so plainly and the rest of the board is unaffected.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="viewing">
+  <h2><span class="kicker">Section 8</span>Reports &amp; dashboards</h2>
+  <p class="lede">Open any item and it fills the window, topped by a single toolbar that answers the question that matters most: <em>how current is what I’m looking at?</em></p>
+
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-toolbar">
+        <span class="btn">&#8592; Back</span>
+        <span class="crumb">Home &rsaquo; <b>Monthly Sales</b></span>
+        <span class="gap"></span>
+        <span class="fresh">Data refreshed: 06/10/2026 09:41 CST (3 min ago)<br>Dataflow: 06/10/2026 09:12 CST</span>
+        <span class="btn">&#8635; Refresh</span><span class="btn">&#8595; Export PDF</span><span class="btn">&#9654; Slideshow</span><span class="btn">&#x26F6;</span>
       </div>
+    </div>
+    <figcaption>The viewer toolbar: breadcrumb on the left, freshness strip and actions on the right.</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">Sign-in keeps failing</div>
-        <div class="a">
-          <p>The red bar tells you why. Most often it's a network hiccup or a closed Microsoft window — just retry. If the message mentions permission or consent, your administrator needs to approve the app for your organization; send them the exact message.</p>
-        </div>
+  <h3>The freshness strip</h3>
+  <ul>
+    <li><strong>Data refreshed</strong> — when this report’s dataset last refreshed, with a live “(N min ago)” age. Shows “—” for a moment after opening, until the first check completes.</li>
+    <li><strong>Dataflow</strong> — when the upstream data <em>source</em> last completed successfully. This is the independent “the data is genuinely current” signal: a dataset can refresh “successfully” on top of stale source data, and this line catches that.</li>
+    <li><strong><span class="fresh"><span class="stale">⚠ amber stamp</span></span></strong> — that timestamp is more than a day old.</li>
+  </ul>
+
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-toolbar">
+        <span class="fresh"><span class="updated">&#10003; Updated</span>&nbsp; Data refreshed: 06/10/2026 09:45 CST (just now)</span>
+        <span class="gap"></span>
+        <span class="fresh"><span class="newer">&#9679; Newer data available</span>&nbsp; Data refreshed: 06/10/2026 08:00 CST (105 min ago)</span>
       </div>
+    </div>
+    <figcaption>The two freshness signals: a green “✓ Updated” flash after a refresh completes (left), and the “● Newer data available” notice when new data is published (right).</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">I don't see an app I was given access to</div>
-        <div class="a">
-          <p>The Apps page only lists apps installed for your account. Two fixes:</p>
-          <ul>
-            <li><strong>Easiest:</strong> ask your administrator to push the app to you — then it appears on its own.</li>
-            <li><strong>Self-serve:</strong> open the app once at <strong>app.powerbi.com</strong> in your web browser, then come back and click <strong>Refresh</strong> on the Apps page.</li>
-          </ul>
-        </div>
+  <ul>
+    <li><strong><span style="color:var(--ok)">✓ Updated</span></strong> — flashes green for a few seconds whenever a refresh actually completes and the screen repaints. It’s your proof the refresh really happened.</li>
+    <li><strong><span style="color:var(--accent-ink)">● Newer data available</span></strong> — the dataset has refreshed <em>since</em> this screen loaded. Click <strong>Refresh</strong> to bring the visuals up to date.</li>
+  </ul>
+
+  <h3>Automatic refresh</h3>
+  <p>With <strong>Auto-refresh reports</strong> turned on in Settings (it is by default), you’ll rarely see the “newer data” notice at all: the moment the app detects a newer dataset refresh, it re-pulls the report <em>in place</em> — your current page, filters, and slicer choices are preserved — and flashes <strong>✓ Updated</strong>. With it off, the notice appears and refreshing is up to you.</p>
+
+  <h3>Toolbar actions</h3>
+  <table>
+    <tr><th>Button</th><th>What it does</th></tr>
+    <tr><td><strong>Refresh</strong></td><td>Re-pulls the data behind the visuals, keeping your page and filters. (Power&nbsp;BI ignores refreshes made within ~15 seconds of each other — if nothing happens, wait a moment and try again.)</td></tr>
+    <tr><td><strong>Export PDF</strong></td><td>Saves the current view as a PDF — see <a href="#export">Section 11</a>.</td></tr>
+    <tr><td><strong>Slideshow</strong></td><td>Reports only: starts presentation mode — see <a href="#slideshow">Section 10</a>.</td></tr>
+    <tr><td><strong>Full screen</strong></td><td>Fills the display with the report. In full screen, <kbd>←</kbd> / <kbd>→</kbd> change report pages; press <kbd>Esc</kbd> to leave.</td></tr>
+  </table>
+
+  <p><strong>Dashboards</strong> work the same way, with one difference: a dashboard combines tiles from several datasets, so its stamp is labelled <strong>“Oldest data”</strong> — the most pessimistic (and therefore most honest) figure across all of them.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="search">
+  <h2><span class="kicker">Section 9</span>Search</h2>
+  <p class="lede">The fastest way to anything: press <kbd>Ctrl</kbd>+<kbd>K</kbd> (or click the search box in the title bar) and start typing.</p>
+
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-search">
+        <div class="input">&#128269; sales</div>
+        <div class="result sel"><span class="ico">&#128196;</span><span><strong>Monthly Sales</strong><br><span class="meta">Report &middot; Acme Retail</span></span></div>
+        <div class="result"><span class="ico">&#9638;</span><span><strong>Sales Overview</strong><br><span class="meta">Dashboard &middot; Northwind Trading</span></span></div>
+        <div class="result"><span class="ico">&#128193;</span><span><strong>Sales Team</strong><br><span class="meta">Workspace</span></span></div>
+        <div class="foot"><span><kbd>↑↓</kbd> Navigate</span><span><kbd>↵</kbd> Open</span><span><kbd>Esc</kbd> Close</span></div>
       </div>
+    </div>
+    <figcaption>Search covers reports, dashboards, Apps, and workspaces, and is entirely keyboard-drivable.</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">The numbers look old</div>
-        <div class="a">
-          <p>Check the <a href="#s9">freshness strip</a> in the toolbar. If you see the orange <strong>"&#9679; Newer data available"</strong> notice, click <strong>Refresh</strong>. If "Data refreshed" is recent but "Dataflow" is old, the data pipeline hasn't delivered new numbers yet — that's a question for your data team, not a problem with the app. An amber &#9888; means the data is more than a day old.</p>
-        </div>
+  <ul>
+    <li>Results appear as you type, across <strong>reports, dashboards, Apps, and workspaces</strong>, each labelled with its type and workspace.</li>
+    <li><kbd>↑</kbd>/<kbd>↓</kbd> move the highlight, <kbd>Enter</kbd> opens it, <kbd>Esc</kbd> closes the dialog.</li>
+    <li>Choosing a <strong>workspace</strong> result jumps to the Workspaces page with that workspace already expanded.</li>
+    <li>If part of your catalog couldn’t be read, a small warning appears above the results — what you see is still real, just possibly incomplete.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="slideshow">
+  <h2><span class="kicker">Section 10</span>Slideshow &amp; wall displays</h2>
+  <p class="lede">Slideshow turns any report into a full-screen, auto-advancing presentation — for a meeting room screen or an unattended TV that runs all day.</p>
+
+  <h3>Starting and driving a slideshow</h3>
+  <ul>
+    <li>Open a report and click <strong>Slideshow</strong> in the toolbar (or use a Home tile’s presentation option).</li>
+    <li>The report goes full screen and steps through its pages — and, if you choose in Settings, its bookmarks — at your chosen pace (5&nbsp;seconds to 5&nbsp;minutes per slide).</li>
+    <li>Move the mouse to reveal the controls: <strong>Play/Pause</strong>, previous/next, a slide counter, and a small settings popover for adjusting the pace on the spot. The controls fade away after a few seconds; the screen stays clean.</li>
+    <li>Keyboard: <kbd>→</kbd> or <kbd>Space</kbd> next slide, <kbd>←</kbd> previous, <kbd>P</kbd> play/pause, <kbd>Esc</kbd> exit.</li>
+  </ul>
+
+  <h3>Unattended wall displays (kiosk)</h3>
+  <p>For a display that should run forever, turn on <strong>Auto-start slideshow</strong> in Settings (and optionally <a href="#settings">Launch on Startup</a> so the machine boots straight into a report). In this mode the app takes care of itself:</p>
+  <ul>
+    <li><strong>The display is kept awake</strong> — no screensaver, no sleep, for as long as the slideshow runs.</li>
+    <li><strong>It heals itself.</strong> If the embedded report ever errors out, the slideshow automatically reloads it — retrying after 5, then 30, then 60 seconds until it recovers.</li>
+    <li><strong>Data stays current</strong> using the auto-refresh interval from Settings.</li>
+  </ul>
+
+  <figure class="mock">
+    <div class="panel">
+      <div class="mk-stage">
+        <span>— slideshow running —</span>
+        <span class="keys-hint">← → Navigate &nbsp;·&nbsp; Space: Next &nbsp;·&nbsp; P: Play/Pause</span>
+        <span class="controls"><span class="cbtn">&#10094;</span><span class="cbtn primary">&#10074;&#10074; Pause</span><span class="cbtn">&#10095;</span></span>
+        <span class="exit-hint">Hold Esc 3s to exit<br>or Ctrl+Shift+Q</span>
       </div>
+    </div>
+    <figcaption>In kiosk mode a small permanent hint in the bottom-right corner always shows the exit gesture — it never fades.</figcaption>
+  </figure>
 
-      <div class="qa">
-        <div class="q">I'm stuck in a slideshow</div>
-        <div class="a">
-          <p>If you started it yourself, press <kbd>Esc</kbd> once. If it started on its own (kiosk), <strong>hold <kbd>Esc</kbd> for 3 seconds</strong> or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>. The reminder in the bottom-right corner always shows which one applies.</p>
-        </div>
-      </div>
+  <h3>The exit gesture</h3>
+  <p>In an auto-started (kiosk) slideshow, a stray tap of <kbd>Esc</kbd> from a curious passer-by must <em>not</em> kill the display — so a single press does nothing. To exit deliberately:</p>
+  <ul>
+    <li><strong>Hold <kbd>Esc</kbd> for 3 seconds</strong>, or</li>
+    <li>press <strong><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd></strong> for an immediate exit.</li>
+  </ul>
+  <p>In a slideshow you started by hand, a single <kbd>Esc</kbd> exits as you’d expect. (If the slideshow settings popover is open, <kbd>Esc</kbd> closes that first.)</p>
+</section>
 
-      <div class="qa">
-        <div class="q">The wall display went dark</div>
-        <div class="a">
-          <p>The app keeps the screen awake only while the slideshow is actually <strong>playing</strong> — check it isn't paused. If it still sleeps, the monitor's or computer's own power settings are overriding it; ask whoever set up the display to check those.</p>
-        </div>
-      </div>
+<!-- ============================================================ -->
+<section id="export">
+  <h2><span class="kicker">Section 11</span>Export to PDF</h2>
+  <ol>
+    <li>Click <strong>Export PDF</strong> in the viewer toolbar.</li>
+    <li>Choose where to save. The app suggests your <strong>Downloads</strong> folder with a timestamped name like <code>powerbi-export-2026-06-10.pdf</code>.</li>
+    <li>Wait a moment — the button reads <em>Exporting…</em> — then <strong>“Exported to PDF”</strong> confirms in the toolbar.</li>
+  </ol>
+  <ul>
+    <li><strong>Reports</strong> are exported through Power&nbsp;BI’s own export service whenever your subscription supports it, capturing the exact page you’re on <em>with your current filters and slicer selections applied</em>. If that service isn’t available on your plan, the app automatically falls back to a clean snapshot of the current view with the side panes hidden — you don’t have to do anything different.</li>
+    <li><strong>Dashboards and Apps</strong> export as a crisp snapshot of what’s on screen.</li>
+    <li>Cancelling the save dialog simply shows “Export cancelled” — nothing is written.</li>
+  </ul>
+</section>
 
-      <div class="qa">
-        <div class="q">Support asked me for the log files</div>
-        <div class="a">
-          <p>The app keeps a small technical log that helps support see what happened. If your Settings page has an <strong>Open log folder</strong> button, click it and send the files. Otherwise you can find the folder yourself:</p>
-          <ul>
-            <li><strong>Windows:</strong> press <kbd>Win</kbd>+<kbd>R</kbd>, paste <code>%AppData%\Power BI Viewer\logs</code>, press Enter.</li>
-            <li><strong>Mac:</strong> in Finder choose <strong>Go &rarr; Go to Folder…</strong> and paste <code>~/Library/Logs/Power BI Viewer</code>.</li>
-          </ul>
-          <p>Send the <code>main.log</code> file (and <code>main.old.log</code> if present). Logs contain technical events only — not your report data.</p>
-        </div>
-      </div>
+<!-- ============================================================ -->
+<section id="account">
+  <h2><span class="kicker">Section 12</span>Your account</h2>
+  <p class="lede">Click your avatar at the top-right of the window. The colored chip beside it shows which organization you’re signed in to — useful if you work across more than one.</p>
+  <ul>
+    <li><strong>Your name and email</strong> — confirms who is signed in.</li>
+    <li><strong>Switch account</strong> — signs you out and immediately opens Microsoft’s account picker, so you can move to a different account in one step.</li>
+    <li><strong>Sign out</strong> — asks you to confirm, then returns to the sign-in screen. You’ll stay signed out until you sign in again.</li>
+  </ul>
+  <div class="callout note">
+    <span class="label">Shared computers</span>
+    <p>If several people use the same machine, see the <em>Usage History</em> setting in <a href="#settings">Section 13</a> — it can clear the Recent/Frequent lists automatically at sign-out.</p>
+  </div>
+</section>
 
-      <div class="qa">
-        <div class="q">Still stuck?</div>
-        <div class="a">
-          <p>Note your app version (<strong>Settings &rarr; About</strong>), what you clicked, and the exact message on screen, and send those to your administrator. A screenshot helps a lot.</p>
-        </div>
-      </div>
-    </section>
+<!-- ============================================================ -->
+<section id="settings">
+  <h2><span class="kicker">Section 13</span>Settings</h2>
+  <p class="lede">Everything configurable lives on one page. Changes apply immediately — there is no Save button to forget.</p>
 
-    <p class="footer-note">Power BI Viewer &middot; User Guide &middot; Your version is shown in Settings &rarr; About</p>
+  <table>
+    <tr><th>Section</th><th>What you can do</th></tr>
+    <tr><td><strong>Account</strong></td><td>See your name and email; sign out.</td></tr>
+    <tr><td><strong>Appearance</strong></td><td>Theme: <strong>Light</strong>, <strong>Dark</strong>, or <strong>System</strong> (follow the operating system). Applies instantly. The Insights board stays dark by design regardless of theme.</td></tr>
+    <tr><td><strong>Slideshow</strong></td><td>Auto-advance interval (5&nbsp;s – 5&nbsp;min); slideshow mode — <em>Pages only</em>, <em>Bookmarks only</em>, or <em>Pages and bookmarks</em>; <strong>Auto-start slideshow</strong> for kiosk displays (see <a href="#slideshow">Section 10</a>).</td></tr>
+    <tr><td><strong>Launch on Startup</strong></td><td>What the app opens when it launches: the home screen, a specific report (picked from your recent and frequent reports), or a specific App. Pair with auto-start slideshow for a boot-to-wall-display machine.</td></tr>
+    <tr><td><strong>Data Refresh</strong></td><td><strong>Auto-refresh reports</strong> on/off, and the refresh interval (1&nbsp;min – 2&nbsp;h). The interval applies to slideshow/kiosk auto-refresh; ordinary report viewing refreshes automatically the moment new data is published, regardless of the interval.</td></tr>
+    <tr><td><strong>Usage History</strong></td><td>When to clear your Recent/Frequent lists on sign-out: <em>Never</em>, <em>Always</em>, or <em>On shared machine</em>. Plus a <strong>Clear usage history now</strong> button.</td></tr>
+    <tr><td><strong>Reset</strong></td><td>Put every setting back to its default.</td></tr>
+    <tr><td><strong>About</strong></td><td>Your app version, and <strong>Open user guide</strong> — which opens this very document in your browser.</td></tr>
+  </table>
+</section>
 
-  </main>
+<!-- ============================================================ -->
+<section id="updates">
+  <h2><span class="kicker">Section 14</span>App updates</h2>
+  <h3>Windows — automatic and invisible</h3>
+  <ul>
+    <li>The app checks for updates in the background every couple of hours and downloads them quietly. The download never touches the running app, so it can’t break anything.</li>
+    <li><strong>Updates install silently the next time you close or restart the app.</strong> No pop-ups, no “update now?” nagging — you simply find yourself on the new version next launch.</li>
+    <li><strong>Critical fixes</strong> can be marked as required. In that rare case the app shows <em>“A required update is ready”</em> and restarts itself about 30&nbsp;seconds later — including on unattended wall displays, so every machine is fixed within minutes without anyone touching it.</li>
+  </ul>
+  <h3>macOS — notify only</h3>
+  <ul>
+    <li>The Mac app checks at launch and, if a newer version exists, offers a <strong>Download</strong> button. Updating is manual: download, then replace the app in Applications. The app never modifies itself.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="shortcuts">
+  <h2><span class="kicker">Section 15</span>Keyboard shortcuts</h2>
+  <table>
+    <tr><th>Keys</th><th>Action</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd> <span class="shortcut-context">(⌘K on Mac)</span></td><td>Open search — works anywhere once signed in</td></tr>
+    <tr><td><kbd>↑</kbd> / <kbd>↓</kbd> · <kbd>Enter</kbd> · <kbd>Esc</kbd></td><td><span class="shortcut-context">In search:</span> move highlight · open · close</td></tr>
+    <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td><span class="shortcut-context">Report in full screen:</span> previous / next report page</td></tr>
+    <tr><td><kbd>→</kbd> or <kbd>Space</kbd></td><td><span class="shortcut-context">Slideshow:</span> next slide</td></tr>
+    <tr><td><kbd>←</kbd></td><td><span class="shortcut-context">Slideshow:</span> previous slide</td></tr>
+    <tr><td><kbd>P</kbd></td><td><span class="shortcut-context">Slideshow:</span> play / pause</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td><span class="shortcut-context">Slideshow you started by hand:</span> exit (closes the settings popover first if open)</td></tr>
+    <tr><td><kbd>Esc</kbd> held 3&nbsp;s</td><td><span class="shortcut-context">Kiosk / auto-started slideshow:</span> exit</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd></td><td><span class="shortcut-context">Kiosk / auto-started slideshow:</span> exit immediately</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<section id="troubleshooting">
+  <h2><span class="kicker">Section 16</span>Troubleshooting</h2>
+
+  <h3>“This is taking too long to load. Check your connection and try again.”</h3>
+  <p>A report waited about 45&nbsp;seconds without loading. Usually a network hiccup — click <strong>Try again</strong>. If it persists, check your internet connection; on office networks, a proxy or VPN can also block the Power&nbsp;BI service (the App viewer says so explicitly when that’s the likely cause).</p>
+
+  <h3>“Could not load this workspace. Check your connection or your permissions.”</h3>
+  <p>Click <strong>Retry</strong> in the warning bar — it re-fetches just that workspace. If it keeps failing while others load fine, your access to that workspace may have been removed; ask whoever manages your Power&nbsp;BI access.</p>
+
+  <h3>“This report could not be loaded. You may not have access, or it may have been removed.”</h3>
+  <p>The item was deleted or your permission changed. Tiles for removed items disappear from your Home lists automatically once detected.</p>
+
+  <h3>Sign-in problems</h3>
+  <ul>
+    <li><em>“Your session expired. Please sign in again.”</em> — normal after a long absence or an organization-wide policy change. Just sign in again.</li>
+    <li><strong>Nothing happens after clicking Sign in</strong> — the Microsoft window may have opened behind the app. Check your taskbar / Dock.</li>
+    <li><strong>Signed in as the wrong account?</strong> Use <strong>Switch account</strong> in the avatar menu — it always shows the account picker.</li>
+  </ul>
+
+  <h3>The data looks old</h3>
+  <p>Read the freshness strip (<a href="#viewing">Section 8</a>): if <em>Data refreshed</em> is recent but <em>Dataflow</em> is old, the report refreshed on top of stale source data — the problem is upstream, and the <a href="#insights">Insights board</a> will show you exactly which dataset or dataflow is down and for how long.</p>
+
+  <h3>If support asks for log files</h3>
+  <p>The app keeps a small diagnostic log (no report data, no passwords). Find it here and attach <code>main.log</code>:</p>
+  <ul>
+    <li><strong>Windows:</strong> <code>%APPDATA%\Power BI Viewer\logs</code> — paste that into the File Explorer address bar.</li>
+    <li><strong>macOS:</strong> <code>~/Library/Logs/Power BI Viewer</code></li>
+  </ul>
+
+  <p class="backtop"><a href="#welcome">↑ Back to top</a></p>
+</section>
+
+</main>
 </div>
 
-<script>
-(function () {
-  "use strict";
-  /* Scroll-spy: highlight the TOC link for the section in view. Purely
-     cosmetic — the document works fully without JavaScript (and in print). */
-  var links = {};
-  Array.prototype.forEach.call(document.querySelectorAll('nav.toc a'), function (a) {
-    links[a.getAttribute('href').slice(1)] = a;
-  });
-  function setActive(id) {
-    for (var k in links) links[k].classList.remove('active');
-    if (links[id]) links[id].classList.add('active');
-  }
-  if ('IntersectionObserver' in window) {
-    var spy = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (en.isIntersecting) setActive(en.target.id);
-      });
-    }, { rootMargin: '-60px 0px -65% 0px', threshold: 0 });
-    Array.prototype.forEach.call(document.querySelectorAll('main section.card'), function (s) {
-      spy.observe(s);
-    });
-  }
-})();
-</script>
+<footer class="colophon">
+  Power BI Viewer User Guide · written for version 2.1.9 · June 2026<br>
+  This guide is bundled with the app — open it any time from <strong>Settings → About → Open user guide</strong>.
+</footer>
+
 </body>
 </html>
