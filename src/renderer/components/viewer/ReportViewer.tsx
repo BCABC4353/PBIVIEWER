@@ -29,6 +29,10 @@ export const ReportViewer: React.FC = () => {
 
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Epoch-ms of the last refresh that actually completed (in-place
+  // report.refresh() resolved). Drives the toolbar's green "✓ Updated" flash —
+  // the visible confirmation that the screen really repainted.
+  const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
   const datasetIdRef = useRef<string | null>(null);
 
   // UX-S14: report name visible while loading (breadcrumb)
@@ -221,10 +225,19 @@ export const ReportViewer: React.FC = () => {
     if (isLoading) return;
     const report = embedRef.current as pbi.Report | null;
     if (!report) return;
-    void report.refresh().catch(() => {
-      /* non-fatal; the manual Refresh button remains */
-    });
-    setLastLoadAt(Date.now()); // screen now reflects the latest refresh
+    void report
+      .refresh()
+      .then(() => {
+        // Stamp ONLY on success. Stamping before/despite failure marked the
+        // screen as current when the repaint never happened, silently hiding
+        // the "new data" state behind stale visuals.
+        const now = Date.now();
+        setLastLoadAt(now);
+        setJustRefreshedAt(now); // toolbar flashes "✓ Updated"
+      })
+      .catch(() => {
+        /* non-fatal; the nudge + manual Refresh button remain */
+      });
   }, [autoRefreshEnabled, newDataAvailable, isLoading, embedRef]);
 
   // NEW-ARCH-1: export hook
@@ -256,18 +269,24 @@ export const ReportViewer: React.FC = () => {
     },
   });
 
-  // NEW-UX-3: Refresh with in-progress state
+  // NEW-UX-3: Refresh with in-progress state. On success, re-baseline
+  // lastLoadAt so the "newer data" notice clears (it used to stay lit even
+  // after the user had just refreshed) and flash the "✓ Updated" confirmation.
   const handleRefresh = useCallback(async () => {
     const report = embedRef.current as pbi.Report | null;
     setIsRefreshing(true);
     try {
       if (report) {
-        await report.refresh().catch(() => {
-          // Refresh errors are non-fatal
-        });
+        await report.refresh();
+        const now = Date.now();
+        setLastLoadAt(now);
+        setJustRefreshedAt(now);
       } else {
         reload();
       }
+    } catch {
+      // Refresh errors are non-fatal (e.g. Power BI throttles refreshes within
+      // 15s of each other); the screen keeps its previous state.
     } finally {
       setIsRefreshing(false);
     }
@@ -312,6 +331,8 @@ export const ReportViewer: React.FC = () => {
         lastDataRefresh={datasetRefreshTime}
         dataflowRefresh={dataflowRefreshTime}
         showRelativeAge
+        showFreshness
+        justRefreshedAt={justRefreshedAt}
         newDataAvailable={autoRefreshEnabled ? false : newDataAvailable}
         exportStatus={exportStatus}
         onRefresh={handleRefresh}

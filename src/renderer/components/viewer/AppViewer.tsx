@@ -31,6 +31,7 @@ export const AppViewer: React.FC = () => {
   const [userAgent, setUserAgent] = useState<string | undefined>(undefined);
   const [partitionLoaded, setPartitionLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
 
   // --- Live data-freshness indicator (App view) ---
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
@@ -254,6 +255,8 @@ export const AppViewer: React.FC = () => {
     if (isLoading) return; // still loading — wait for did-stop-loading
     isRefreshingRef.current = false;
     setIsRefreshing(false);
+    // The webview finished reloading: confirm the repaint in the toolbar.
+    setJustRefreshedAt(Date.now());
   }, [isLoading]);
 
   const handleBack = () => {
@@ -280,6 +283,8 @@ export const AppViewer: React.FC = () => {
         dataflowRefresh={dataflowRefreshTime}
         freshnessLabel={freshnessLabel}
         showRelativeAge
+        showFreshness
+        justRefreshedAt={justRefreshedAt}
         // Unlike ReportViewer (which suppresses the nudge when auto-refresh is on because it can
         // silently call report.refresh()), App embeds cannot be refreshed in place, so the "New
         // data" nudge is intentionally always shown here regardless of the auto-refresh setting.

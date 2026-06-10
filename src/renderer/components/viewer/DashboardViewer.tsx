@@ -140,12 +140,15 @@ export const DashboardViewer: React.FC = () => {
   // refreshingRef gates the effect so a background initial load doesn't
   // clear the flag before the user has clicked Refresh.
   const refreshingRef = useRef(false);
+  const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
   useEffect(() => {
     if (!refreshingRef.current) return;
     if (isLoading) return; // still loading — wait for it to finish
     // isLoading has settled to false — the reload cycle completed.
     refreshingRef.current = false;
     setIsRefreshing(false);
+    // The dashboard re-embedded and repainted: confirm it in the toolbar.
+    setJustRefreshedAt(Date.now());
   }, [isLoading]);
 
   const handleRefresh = useCallback(() => {
@@ -190,6 +193,8 @@ export const DashboardViewer: React.FC = () => {
         dataflowRefresh={dataflowRefreshTime}
         freshnessLabel="Oldest data"
         showRelativeAge
+        showFreshness
+        justRefreshedAt={justRefreshedAt}
         // Unlike ReportViewer (which suppresses the nudge when auto-refresh is on because it can
         // call report.refresh() in place), dashboard embeds CANNOT be refreshed in place, so the
         // "New data" nudge is intentionally always shown here regardless of the autoRefresh setting.
