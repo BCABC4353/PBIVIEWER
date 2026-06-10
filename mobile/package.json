@@ -5,6 +5,7 @@
   "dependencies": {
     "expo": "~54.0.0",
     "expo-auth-session": "~7.0.11",
+    "expo-clipboard": "~8.0.8",
     "expo-crypto": "~15.0.9",
     "expo-haptics": "~15.0.8",
     "expo-secure-store": "~15.0.8",
@@ -21,6 +22,7 @@
     "vitest": "^2.1.9"
   },
   "scripts": {
+    "prestart": "node scripts/ensure-azure-config.mjs",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",

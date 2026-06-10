@@ -1,27 +1,57 @@
 /**
- * Settings — account, data-source mode, about. Same "quiet instrument
- * cluster" language as the rest of the app: near-black canvas, one amber
- * accent, hairline separators, no third-party UI.
+ * Settings — account, data-source mode, feel diagnostics, about. Same "quiet
+ * instrument cluster" language as the rest of the app: near-black canvas, one
+ * amber accent, hairline separators, no third-party UI.
  *
  * Self-contained: talks to the auth module directly (signIn/signOut/
- * getCurrentUser). The host only supplies the current mode and listens for
- * mode / data-source changes so it can rebuild its DataSource.
+ * getCurrentUser, plus the device-code flow when the AuthSession redirect
+ * isn't configured — i.e. Expo Go). The host only supplies the current mode
+ * and listens for mode / data-source changes so it can rebuild its DataSource.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Linking,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { color, space, type } from '../design/tokens';
 import {
+  adoptTokenSet,
+  authSessionRedirectConfigured,
   azureConfigValid,
   getCurrentUser,
+  SCOPES,
   signIn,
   signOut,
   type UserInfo,
 } from '../auth/msal-auth';
+import { AZURE_CONFIG } from '../auth/azure-config';
+import {
+  DeviceCodeCancelledError,
+  pollDeviceCode,
+  requestDeviceCode,
+  type DeviceCodeFetch,
+} from '../auth/device-code-auth';
+import { probeHaptics, type HapticProbeResult } from '../feel/haptics';
 import { setSavedMode, type DataMode } from '../core/data-source-factory';
 
 // Keep in sync with app.json "version" (no expo-constants dependency — this
 // screen stays importable anywhere).
 const APP_VERSION = '1.0.0';
+
+const DEVICE_LOGIN_URL = 'https://microsoft.com/devicelogin';
+
+/** Live device-code flow state, while a code is pending. */
+interface DeviceFlowState {
+  userCode: string;
+  status: string;
+}
 
 export interface SettingsScreenProps {
   mode: DataMode;
@@ -41,28 +71,131 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [user, setUser] = useState<UserInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState | null>(null);
+  const [feelRunning, setFeelRunning] = useState(false);
+  const [feelResults, setFeelResults] = useState<HapticProbeResult[]>([]);
+
+  // Cancellation for the device-code poll loop: user tap or unmount.
+  const cancelPollRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      cancelPollRef.current = true;
+    },
+    [],
+  );
 
   useEffect(() => {
-    void getCurrentUser().then(setUser);
+    void getCurrentUser().then((u) => {
+      if (mountedRef.current) setUser(u);
+    });
   }, []);
+
+  const finishSignIn = useCallback(
+    async (u: UserInfo | null) => {
+      setUser(u);
+      await setSavedMode('live');
+      onModeChange('live');
+      onDataSourceChange?.();
+    },
+    [onModeChange, onDataSourceChange],
+  );
+
+  /**
+   * Device-code sign-in (RFC 8628): zero Entra redirect changes — show a
+   * short code, the owner enters it at microsoft.com/devicelogin on any
+   * browser, we poll until AAD hands over tokens, then TokenManager owns
+   * persistence/refresh exactly as for a browser sign-in.
+   */
+  const connectViaDeviceCode = useCallback(async (): Promise<UserInfo | null> => {
+    const cfg = {
+      clientId: AZURE_CONFIG.clientId,
+      tenantId: AZURE_CONFIG.tenantId,
+      scopes: SCOPES,
+    };
+    const deps = { fetch: fetch as unknown as DeviceCodeFetch };
+    cancelPollRef.current = false;
+    const challenge = await requestDeviceCode(cfg, deps);
+    if (!mountedRef.current) return null;
+    setDeviceFlow({
+      userCode: challenge.userCode,
+      status: 'Waiting for you to enter the code…',
+    });
+    try {
+      const tokens = await pollDeviceCode(cfg, challenge, deps, {
+        cancelled: () => cancelPollRef.current,
+        onStatus: (s) => {
+          if (mountedRef.current) {
+            setDeviceFlow((d) =>
+              d
+                ? {
+                    ...d,
+                    status:
+                      s === 'slow_down'
+                        ? 'Microsoft asked us to poll slower — still waiting…'
+                        : 'Waiting for you to enter the code…',
+                  }
+                : d,
+            );
+          }
+        },
+      });
+      const u = await adoptTokenSet(tokens);
+      if (mountedRef.current) {
+        setDeviceFlow(null);
+        await finishSignIn(u);
+      }
+      return u;
+    } catch (e) {
+      if (mountedRef.current) setDeviceFlow(null);
+      if (e instanceof DeviceCodeCancelledError) return null; // quiet
+      throw e;
+    }
+  }, [finishSignIn]);
 
   const connect = useCallback(async (): Promise<UserInfo | null> => {
     setError(null);
     setBusy(true);
     try {
-      const u = await signIn();
-      if (u) {
-        setUser(u);
-        onDataSourceChange?.();
+      if (!authSessionRedirectConfigured) {
+        // Expo Go: the exp:// redirect can't be registered in Entra —
+        // device code is the path that needs zero portal redirect changes.
+        return await connectViaDeviceCode();
       }
+      const u = await signIn();
+      if (u) await finishSignIn(u);
       return u;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      if (mountedRef.current) {
+        setError(e instanceof Error ? e.message : 'Sign-in failed');
+      }
       return null;
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
-  }, [onDataSourceChange]);
+  }, [connectViaDeviceCode, finishSignIn]);
+
+  const cancelDeviceFlow = useCallback(() => {
+    cancelPollRef.current = true;
+    setDeviceFlow(null);
+    setBusy(false);
+  }, []);
+
+  const copyAndOpen = useCallback(async (code: string) => {
+    try {
+      await Clipboard.setStringAsync(code);
+    } catch {
+      // clipboard unavailable — the code is on screen to type by hand
+    }
+    try {
+      await Linking.openURL(DEVICE_LOGIN_URL);
+    } catch {
+      if (mountedRef.current) {
+        setError(`Could not open the browser — go to ${DEVICE_LOGIN_URL} and enter the code.`);
+      }
+    }
+  }, []);
 
   const disconnect = useCallback(async () => {
     setError(null);
@@ -79,11 +212,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       if (next === mode || busy) return;
       setError(null);
       if (next === 'live') {
-        // Live needs credentials: reuse the session if present, else sign in.
+        // Live needs credentials: reuse the session if present, else sign in
+        // (connect() already flips mode to live on success).
         const existing = user ?? (await getCurrentUser());
         if (!existing) {
-          const u = await connect();
-          if (!u) return; // dismissed or failed — stay on sample data
+          await connect();
+          return;
         }
       }
       await setSavedMode(next);
@@ -92,6 +226,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     },
     [mode, busy, user, connect, onModeChange, onDataSourceChange],
   );
+
+  /** The LOUD haptic diagnostic — production verbs are fail-silent by design,
+   *  so this row fires each one raw and prints exactly what happened. */
+  const runFeelTest = useCallback(async () => {
+    if (feelRunning) return;
+    setFeelRunning(true);
+    setFeelResults([]);
+    await probeHaptics((r) => {
+      if (mountedRef.current) setFeelResults((rs) => [...rs, r]);
+    });
+    if (mountedRef.current) setFeelRunning(false);
+  }, [feelRunning]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -140,10 +286,45 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </Pressable>
           )}
         </View>
+
+        {/* ── Device-code sign-in in flight ───────────────────────── */}
+        {deviceFlow ? (
+          <View style={[styles.card, styles.deviceCard]}>
+            <Text style={styles.deviceLead}>
+              On any computer or phone, go to microsoft.com/devicelogin and enter:
+            </Text>
+            <Text
+              style={styles.deviceCode}
+              accessibilityLabel={`Sign-in code ${deviceFlow.userCode.split('').join(' ')}`}
+            >
+              {deviceFlow.userCode}
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.deviceButton, pressed && styles.rowPressed]}
+              onPress={() => void copyAndOpen(deviceFlow.userCode)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.deviceButtonText}>
+                Copy code & open microsoft.com/devicelogin
+              </Text>
+            </Pressable>
+            <Text style={styles.deviceStatus}>{deviceFlow.status}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              onPress={cancelDeviceFlow}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.rowAction, styles.deviceCancel]}>Cancel</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {!azureConfigValid ? (
           <Text style={styles.caption}>
-            This build has no Azure credentials baked in, so live mode is unavailable.
-            Paste the desktop app's clientId/tenantId into src/auth/azure-config.ts.
+            This build has no Azure credentials, so live mode is unavailable. Put the
+            desktop app's clientId/tenantId into mobile/src/auth/azure-config.local.json
+            (created by `npm start`; gitignored) and restart — no Entra portal changes
+            needed: sign-in uses a device code at microsoft.com/devicelogin.
           </Text>
         ) : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -167,6 +348,44 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           />
         </View>
 
+        {/* ── Feel diagnostics ────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>FEEL</Text>
+        <View style={styles.card}>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => void runFeelTest()}
+            disabled={feelRunning}
+            accessibilityRole="button"
+          >
+            <Text style={styles.rowAction}>{feelRunning ? 'Testing feel…' : 'Test feel'}</Text>
+            <Text style={styles.rowSub}>
+              Fires every haptic verb in sequence and reports each result
+            </Text>
+          </Pressable>
+          {feelResults.length > 0 ? (
+            <>
+              <View style={styles.hairline} />
+              <View style={styles.row}>
+                {feelResults.map((r) => (
+                  <Text
+                    key={r.verb}
+                    style={[styles.feelLine, { color: r.ok ? color.textSecondary : color.broken }]}
+                  >
+                    {r.ok ? '✓' : '✗'} {r.verb}
+                    {r.detail ? ` — ${r.detail}` : ''}
+                  </Text>
+                ))}
+                {!feelRunning ? (
+                  <Text style={styles.rowSub}>
+                    All ✓ but felt nothing? Check iPhone Settings → Sounds & Haptics →
+                    System Haptics, and that Silent Mode haptics are on.
+                  </Text>
+                ) : null}
+              </View>
+            </>
+          ) : null}
+        </View>
+
         {/* ── About ───────────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>ABOUT</Text>
         <View style={styles.card}>
@@ -176,7 +395,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </View>
         </View>
         <Text style={styles.caption}>
-          How live mode works: you sign in once with your Microsoft account.
+          How live mode works: you sign in once with your Microsoft account
+          (in Expo Go that's a one-time code at microsoft.com/devicelogin).
           Tokens stay in this device's secure storage and renew silently —
           no passwords are stored. The app then reads refresh health straight
           from the Power BI REST API; nothing leaves your device.
@@ -243,6 +463,35 @@ const styles = StyleSheet.create({
   radio: { fontSize: 16 },
   radioOn: { color: color.accent },
   radioOff: { color: color.textTertiary },
+
+  // Device-code flow — the user code is the hero: BIG, amber, tabular.
+  deviceCard: { marginTop: space.m, paddingVertical: space.m, alignItems: 'center' },
+  deviceLead: {
+    ...type.caption,
+    color: color.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: space.l,
+  },
+  deviceCode: {
+    color: color.accent,
+    fontSize: 40,
+    fontWeight: '700',
+    letterSpacing: 6,
+    fontVariant: ['tabular-nums'],
+    marginVertical: space.m,
+  },
+  deviceButton: {
+    borderWidth: 1,
+    borderColor: color.accent,
+    borderRadius: 12,
+    paddingHorizontal: space.l,
+    paddingVertical: space.s,
+  },
+  deviceButtonText: { ...type.body, color: color.accent, textAlign: 'center' },
+  deviceStatus: { ...type.caption, color: color.textTertiary, marginTop: space.m },
+  deviceCancel: { color: color.textTertiary },
+
+  feelLine: { ...type.caption, marginTop: 2 },
 
   caption: {
     ...type.caption,

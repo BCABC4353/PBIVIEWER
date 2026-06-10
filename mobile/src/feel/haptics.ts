@@ -88,3 +88,54 @@ export function detent(): void {
   if (!detentGate()) return;
   fire(() => Haptics.selectionAsync());
 }
+
+// ---------------------------------------------------------------------------
+// Diagnostics — the LOUD path the fail-silent verbs deliberately lack
+// ---------------------------------------------------------------------------
+
+export interface HapticProbeResult {
+  verb: string;
+  ok: boolean;
+  /** The caught error message, when the underlying call rejected/threw. */
+  detail?: string;
+}
+
+/** The raw generator behind each verb, exposed for the probe only. */
+const PROBE_VERBS: ReadonlyArray<[string, () => Promise<void>]> = [
+  ['tap', () => Haptics.selectionAsync()],
+  ['confirm', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)],
+  ['warn', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)],
+  ['fault', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)],
+  ['thunk', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid)],
+  ['detent', () => Haptics.selectionAsync()],
+];
+
+/**
+ * Fire every verb in sequence and REPORT what happened — the production
+ * wrappers swallow all errors by design (feel must never crash function), so
+ * when a device feels dead-silent this is the one place that says WHY.
+ * Bypasses the master switch and the detent rate limiter on purpose: it is a
+ * diagnostic, not a feel moment. `onResult` streams each verdict as it lands
+ * so the UI can render the sequence live. Note: a `✓` means the OS accepted
+ * the call — if it still felt like nothing, check iPhone Settings → Sounds &
+ * Haptics → System Haptics.
+ */
+export async function probeHaptics(
+  onResult?: (result: HapticProbeResult) => void,
+  pause: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<HapticProbeResult[]> {
+  const results: HapticProbeResult[] = [];
+  for (const [verb, trigger] of PROBE_VERBS) {
+    let result: HapticProbeResult;
+    try {
+      await trigger();
+      result = { verb, ok: true };
+    } catch (e) {
+      result = { verb, ok: false, detail: e instanceof Error ? e.message : String(e) };
+    }
+    results.push(result);
+    onResult?.(result);
+    await pause(450); // space the pulses so each one is distinguishable
+  }
+  return results;
+}
