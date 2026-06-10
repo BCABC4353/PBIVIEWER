@@ -24,7 +24,18 @@ export function isValidExportPath(filePath: string): boolean {
   const downloads = app.getPath('downloads');
   const desktop = app.getPath('desktop');
   const documents = app.getPath('documents');
-  const allowedRoots = [downloads, desktop, documents];
+  // Canonicalize the roots the same way the candidate path was canonicalized
+  // above. Without this, a root that sits behind a symlink (e.g. macOS's
+  // /var -> /private/var tmpdir firmlink, or a user-relocated Downloads
+  // folder) never prefix-matches the realpath'd candidate and valid exports
+  // are wrongly rejected.
+  const allowedRoots = [downloads, desktop, documents].map((root) => {
+    try {
+      return fs.realpathSync(root);
+    } catch {
+      return root; // root missing/unreadable — keep raw path; prefix check still applies
+    }
+  });
   return (
     allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root) &&
     resolved.toLowerCase().endsWith('.pdf')
