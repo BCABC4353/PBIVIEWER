@@ -471,7 +471,7 @@
     animation: luce-keyset 150ms ease-out both;
   }
 
-  /* the flow: amber travels from the identity mark into the hero gauge */
+  /* the flow: amber light passes from the identity mark to the hero gauge */
   .luce-ignite .luce-flow {
     animation: luce-flow-travel 400ms var(--spring-settle) both;
     animation-delay: 150ms;

@@ -233,7 +233,7 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.queryByText('Dusty Model')).not.toBeInTheDocument();
   });
 
-  it('marks dormant items with the gray-violet DORMANT chip and down-for label (Matt #4)', async () => {
+  it('marks dormant items with the gray DORMANT chip and down-for label (Matt #4)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });

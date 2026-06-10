@@ -14,27 +14,32 @@ import type { InsightsRefreshable } from '../../../shared/types';
 // Tokens (mirrors mobile/src/design/tokens.ts)
 // ---------------------------------------------------------------------------
 
+// The white ladder — single source for every text/identity tier (D12).
+const TEXT_PRIMARY = 'rgba(255,255,255,0.92)';
+const TEXT_SECONDARY = 'rgba(255,255,255,0.64)';
+const TEXT_TERTIARY = 'rgba(255,255,255,0.40)';
+
 export const luce = {
   canvas: '#0B0B0D',
   surface1: '#141417',
   surface2: '#1C1C21',
 
-  textPrimary: 'rgba(255,255,255,0.92)',
-  textSecondary: 'rgba(255,255,255,0.64)',
-  textTertiary: 'rgba(255,255,255,0.40)',
+  textPrimary: TEXT_PRIMARY,
+  textSecondary: TEXT_SECONDARY,
+  textTertiary: TEXT_TERTIARY,
 
   accent: '#E8A33D', // the ONLY chrome accent
   // D12: healthy is the resting state — it reads by glyph + label in the
   // grayscale ladder. A green hue restating "fine" was decoration (Pierre).
-  ok: 'rgba(255,255,255,0.64)',
+  ok: TEXT_SECONDARY,
   warn: '#E8A33D',
   broken: '#E5484D', // sacred: failures only, never decoration
 
   // D12: identity is carried by the chip's own WORD (DATASET / DATAFLOW) and
   // glyph — a hue restating a label is decoration. Grayscale ladder only.
-  kindDataset: 'rgba(255,255,255,0.40)',
-  kindDataflow: 'rgba(255,255,255,0.40)',
-  dormant: 'rgba(255,255,255,0.40)', // "abandoned, not on fire"
+  kindDataset: TEXT_TERTIARY,
+  kindDataflow: TEXT_TERTIARY,
+  dormant: TEXT_TERTIARY, // "abandoned, not on fire"
 } as const;
 
 /** Kind → identity tint, used for every DATASET/DATAFLOW chip on the page. */
