@@ -92,6 +92,17 @@ export interface DatasetRefreshInfo {
 }
 
 /**
+ * A dataset paired with its OWN home workspace. App content can reference
+ * shared datasets that live in a different workspace than the app's source
+ * workspace, so freshness queries must carry a per-dataset workspace rather
+ * than assuming every dataset sits in one group.
+ */
+export interface DatasetWorkspaceRef {
+  datasetId: string;
+  workspaceId: string;
+}
+
+/**
  * Aggregate data-freshness for a piece of content (report / app / dashboard).
  * Both times are the STALEST (oldest) across the content's datasets/dataflows —
  * a conservative "is anything behind?" signal that never overstates freshness.

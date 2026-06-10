@@ -46,8 +46,13 @@ const electronAPI: ElectronAPI = {
     getDashboardDataFreshness: (dashboardId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-dashboard-data-freshness', dashboardId, workspaceId),
     // Dataset + upstream-dataflow freshness for the viewer "Data refreshed / Dataflow" stamps.
-    getDataFreshness: (workspaceId: string, datasetIds: string[], dashboardId?: string) =>
-      ipcRenderer.invoke('content:get-data-freshness', workspaceId, datasetIds, dashboardId),
+    // Entries are plain dataset ids (report/dashboard) or {datasetId, workspaceId}
+    // pairs (App — each dataset queried in its own home workspace).
+    getDataFreshness: (
+      workspaceId: string,
+      datasetIds: Array<string | { datasetId: string; workspaceId: string }>,
+      dashboardId?: string,
+    ) => ipcRenderer.invoke('content:get-data-freshness', workspaceId, datasetIds, dashboardId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
     // Insights one-pager snapshot; force=true bypasses the 5-minute cache.
     getInsights: (force?: boolean) => ipcRenderer.invoke('content:get-insights', force),

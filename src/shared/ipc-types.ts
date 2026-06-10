@@ -8,6 +8,7 @@ import type {
   ContentItem,
   EmbedToken,
   DatasetRefreshInfo,
+  DatasetWorkspaceRef,
   DataFreshness,
   AppSettings,
   InsightsSnapshot,
@@ -93,11 +94,14 @@ export interface ElectronAPI {
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
     // Dashboard freshness — stalest lastRefreshTime across tile datasets.
     getDashboardDataFreshness: (dashboardId: string, workspaceId: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
-    /** Dataset refresh + upstream dataflow last-success times. Pass datasetIds for
-     *  a report/app, or a dashboardId to derive them from the dashboard's tiles. */
+    /** Dataset refresh + upstream dataflow last-success times. Pass plain
+     *  datasetIds for a report (all in workspaceId), {datasetId, workspaceId}
+     *  pairs for an app (each dataset queried in its OWN home workspace — app
+     *  content can use shared datasets from other workspaces), or a dashboardId
+     *  to derive the datasets from the dashboard's tiles. */
     getDataFreshness: (
       workspaceId: string,
-      datasetIds: string[],
+      datasetIds: Array<string | DatasetWorkspaceRef>,
       dashboardId?: string,
     ) => Promise<IPCResponse<DataFreshness>>;
     getAllItems: () => Promise<IPCResponse<{

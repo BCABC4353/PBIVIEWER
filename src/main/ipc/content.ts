@@ -134,12 +134,31 @@ export function registerContentIpc(): void {
 
   ipcMain.handle(
     'content:get-data-freshness',
-    async (_event, workspaceId: string, datasetIds: string[], dashboardId?: string) => {
+    async (
+      _event,
+      workspaceId: string,
+      datasetIds: Array<string | { datasetId: string; workspaceId: string }>,
+      dashboardId?: string,
+    ) => {
       const wsId = validateUUID(workspaceId);
       if (!wsId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid workspace ID' } };
-      const ids = Array.isArray(datasetIds)
-        ? datasetIds.filter((id): id is string => validateUUID(id) !== null)
-        : [];
+      // Entries are either plain dataset ids (report/dashboard callers — all in
+      // wsId) or {datasetId, workspaceId} pairs (App caller — each dataset
+      // queried in its OWN home workspace). Both GUIDs are validated; invalid
+      // entries are dropped rather than failing the whole call.
+      const ids: Array<string | { datasetId: string; workspaceId: string }> = [];
+      if (Array.isArray(datasetIds)) {
+        for (const entry of datasetIds) {
+          if (typeof entry === 'string') {
+            const id = validateUUID(entry);
+            if (id) ids.push(id);
+          } else if (entry && typeof entry === 'object') {
+            const dId = validateUUID(entry.datasetId);
+            const dWsId = validateUUID(entry.workspaceId);
+            if (dId && dWsId) ids.push({ datasetId: dId, workspaceId: dWsId });
+          }
+        }
+      }
       const dbId = dashboardId ? validateUUID(dashboardId) : undefined;
       if (dashboardId && !dbId) {
         return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid dashboard ID' } };

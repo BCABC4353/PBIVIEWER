@@ -113,10 +113,12 @@ export const AppViewer: React.FC = () => {
       const ds = datasetsRef.current;
       const first = ds[0];
       if (!first) return null;
-      const r = await window.electronAPI.content.getDataFreshness(
-        first.workspaceId,
-        ds.map((d) => d.datasetId),
-      );
+      // Pass full {datasetId, workspaceId} PAIRS, not bare ids: an app's reports
+      // can be bound to shared datasets living in other workspaces, and querying
+      // them all under the first dataset's workspace 404s every refreshes call
+      // (the "Data refreshed: —" forever bug). Each dataset is queried in its
+      // own home workspace, with a groupless fallback for app-audience access.
+      const r = await window.electronAPI.content.getDataFreshness(first.workspaceId, ds);
       if (!r.success) return null;
       return {
         datasetRefreshTime: r.data.datasetRefreshTime,
