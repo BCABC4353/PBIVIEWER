@@ -44,6 +44,10 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "backgroundColor": "#0B0B0D"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser"
+    ]
   }
 }
