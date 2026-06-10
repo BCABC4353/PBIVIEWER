@@ -27,7 +27,17 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
     async (force: boolean) => {
       setError(null);
       try {
-        const snap = await source.getFleetSnapshot(force);
+        // Sources that check items in stages (the staged sample loader; a
+        // future per-item live fan-out) report each REAL increment here so
+        // the sweep chases it and detents tick per landing. In-flight
+        // progress is capped below 1: settle-vs-catch is decided ONLY by the
+        // resolved snapshot, which is the first thing that knows `failed`.
+        // Single-resolve sources never call this — behavior unchanged.
+        const snap = await source.getFleetSnapshot(force, (progress, itemsChecked) => {
+          setIgnition((i) =>
+            i.settled ? i : { ...i, progress: Math.min(progress, 0.97), items: itemsChecked },
+          );
+        });
         const failed = snap.refreshables.some(
           (r) => r.lastStatus === 'Failed' || r.lastStatus === 'Cancelled' || r.scheduleOverdue,
         );

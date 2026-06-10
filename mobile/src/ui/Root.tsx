@@ -7,6 +7,7 @@ import { ReportsScreen } from './ReportsScreen';
 import { ReportCanvasScreen } from './ReportCanvasScreen';
 import { AlertsScreen } from './AlertsScreen';
 import { makeDemoRunner, type DemoCanvas } from '../visuals/demo-canvases';
+import { tap } from '../feel/haptics';
 
 /**
  * App shell — own bottom tab bar (Pressable + tokens, no navigation dep).
@@ -80,7 +81,13 @@ export const Root: React.FC<{ source: DataSource; settings: React.ReactNode }> =
           return (
             <Pressable
               key={t.key}
-              onPress={() => setTab(t.key)}
+              onPress={() => {
+                // The taxonomy's canonical tap() site (haptics.ts: "tab
+                // change") — previously unwired, so normal navigation was
+                // haptically dead.
+                if (t.key !== tab) tap();
+                setTab(t.key);
+              }}
               style={({ pressed }) => [styles.tab, pressed && styles.tabPressed]}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}

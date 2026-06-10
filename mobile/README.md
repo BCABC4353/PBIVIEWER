@@ -9,8 +9,12 @@ broken, status always shape + color + label.
 ```bash
 cd mobile
 npm install
-npx expo start
+npm start
 ```
+
+(Use `npm start` rather than `npx expo start` — it first runs
+`scripts/ensure-azure-config.mjs`, which creates the gitignored
+`src/auth/azure-config.local.json` stub Metro needs to bundle.)
 
 Scan the QR code with the iPhone camera → opens in **Expo Go** (free App Store
 app). You'll see the Fleet Health board with sample data: hero number, worst-
@@ -25,18 +29,45 @@ duration sparkline.
 | Four-tab interface (Fleet / Reports / Alerts / Settings) | Built, typechecked — **never yet rendered on a device**; first `expo start` is the moment of truth, expect layout fixes |
 | Native visuals (KPI, bar, line, donut, table) + demo report canvases | Built; render offline from realistic mock query results; live mode binds the same DAX runner |
 | The feel layer (springs, haptic verbs, entrances, count-ups) + **Ignition Sweep** | Built; SwiftUI spring values translated losslessly; Reduce Motion safe |
-| Auth (AAD PKCE, SecureStore persistence, silent refresh, single-flight) | Built + 21 tests; **live mode needs the Azure GUIDs pasted into `src/auth/azure-config.ts` and a redirect URI in Entra** (see that file's header) |
+| Auth (AAD PKCE + device code flow, SecureStore persistence, silent refresh, single-flight) | Built + tested; **live mode needs only the Azure GUIDs in the gitignored `src/auth/azure-config.local.json`** — no Entra redirect changes (device code flow) |
 | Data | Sample mode by default; Live switch in Settings once auth is configured |
 | Push alerts | Not built (needs the small backend — `../docs/PHONE-OPS-CONSOLE-PLAN.md` Phase 2) |
 
-## Wiring live data (two config steps, both yours)
+## Wiring live data (one local file, zero Entra redirect changes)
 
-1. Paste the same `clientId`/`tenantId` the desktop uses into
-   `src/auth/azure-config.ts` (values from `scripts/generate-config.js` env).
-2. Add the mobile redirect URI to the existing Entra app registration
-   (Expo Go dev: the `exp://…/--/auth` URI printed at sign-in; standalone:
-   `msauth.{bundleId}://auth`). Same scopes the desktop already uses — no
-   new consent. Then Settings → Live → Connect to Power BI.
+1. Put the same `clientId`/`tenantId` the desktop uses into the gitignored
+   `mobile/src/auth/azure-config.local.json` (created empty by `npm start`):
+
+   ```json
+   { "clientId": "<app GUID>", "tenantId": "<tenant GUID>" }
+   ```
+
+2. Settings → Live → **Connect to Power BI**. In Expo Go the app uses the
+   OAuth **device code flow** (RFC 8628): it shows a short code, you enter it
+   at <https://microsoft.com/devicelogin> in any browser (the button copies
+   the code and opens the page for you), and the phone polls until Microsoft
+   hands over tokens. No redirect URI is registered, no new consent — same
+   scopes the desktop already uses.
+
+   The one Entra *toggle* device code needs: the app registration must have
+   **Authentication → "Allow public client flows" = Yes**. If it's still No,
+   AAD answers `invalid_client` (AADSTS7000218) and the app shows exactly
+   that fix on screen.
+
+   In a standalone/dev build (non-`exp://` redirect) the original AuthSession
+   browser flow is used instead, unchanged.
+
+Tokens then live in SecureStore and renew silently through the same
+TokenManager regardless of which flow acquired them.
+
+## Feel diagnostics
+
+Settings → FEEL → **Test feel** fires every haptic verb in sequence
+(tap / confirm / warn / fault / thunk / detent) and prints a per-verb ✓/✗
+line *including the caught error message* — the loud counterpart to the
+production wrappers, which stay deliberately fail-silent. If every verb
+shows ✓ but the phone stays still, check iPhone Settings → Sounds &
+Haptics → System Haptics.
 
 ## Visuals doctrine (owner's call, locked)
 

@@ -48,7 +48,7 @@ export type { UserInfo };
  * (refresh token), openid/profile/email (id_token identity). The admin tier
  * (Tenant.Read.All) stays out, same as desktop: incremental consent later.
  */
-const SCOPES = [
+export const SCOPES = [
   'https://analysis.windows.net/powerbi/api/Report.Read.All',
   'https://analysis.windows.net/powerbi/api/Dashboard.Read.All',
   'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
@@ -71,6 +71,15 @@ const discovery: AuthSession.DiscoveryDocument = {
 };
 
 const redirectUri = AuthSession.makeRedirectUri({ path: 'auth' });
+
+/**
+ * In Expo Go the redirect URI is the dev server's `exp://<host>:<port>` —
+ * effectively never registered in Entra (it changes per host/port). When
+ * that's what makeRedirectUri() produced, the AuthSession browser flow is a
+ * guaranteed dead end and the caller should use the DEVICE CODE flow instead
+ * (device-code-auth.ts), which involves no redirect URI at all.
+ */
+export const authSessionRedirectConfigured: boolean = !redirectUri.startsWith('exp://');
 
 const STORE_KEY = 'pbiviewer.auth.tokens';
 
@@ -139,6 +148,17 @@ export async function signIn(): Promise<UserInfo | null> {
     discovery,
   );
   const set = toTokenSet(tokens);
+  await manager.setTokens(set);
+  return set.user ?? null;
+}
+
+/**
+ * Adopt a token set acquired OUTSIDE the AuthSession flow (the device code
+ * flow in device-code-auth.ts). From here on it is indistinguishable from a
+ * browser sign-in: same TokenManager, same SecureStore persistence, same
+ * silent single-flight refresh on expiry.
+ */
+export async function adoptTokenSet(set: TokenSet): Promise<UserInfo | null> {
   await manager.setTokens(set);
   return set.user ?? null;
 }

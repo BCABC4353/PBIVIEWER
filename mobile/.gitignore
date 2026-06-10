@@ -33,6 +33,10 @@ yarn-error.*
 # local env files
 .env*.local
 
+# local Azure GUIDs (clientId/tenantId) — never committed; `npm start`
+# writes an empty stub when missing (scripts/ensure-azure-config.mjs)
+src/auth/azure-config.local.json
+
 # typescript
 *.tsbuildinfo
 
