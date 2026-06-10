@@ -192,8 +192,12 @@ export interface InsightsRefreshable {
    * same history the health fields come from. Powers the run-history dot
    * strip ("fails once or twice a day" patterns) and the failure-rate caption.
    * In-flight attempts (no terminal status yet) are excluded.
+   *
+   * Failed dataset runs may carry the Power BI error code plus any richer
+   * detail parsed from serviceExceptionJson. Dataflow transactions expose no
+   * failure detail, so dataflow runs never carry these fields.
    */
-  recentRuns?: Array<{ ok: boolean; endTime?: string }>;
+  recentRuns?: Array<{ ok: boolean; endTime?: string; errorCode?: string; errorDetail?: string }>;
 }
 
 /** Who can see a workspace. users is null when the caller may not list them

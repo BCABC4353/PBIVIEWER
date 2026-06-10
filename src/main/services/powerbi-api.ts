@@ -1085,19 +1085,63 @@ class PowerBIApiService {
   }
 
   /**
+   * Parse a dataset refresh entry's serviceExceptionJson into the error code
+   * plus the richest human detail the payload carries: errorDescription when
+   * present, and any pbi.error detail values. Returns {} for missing or
+   * malformed payloads. (Dataflow transactions carry no such field.)
+   */
+  private static parseServiceException(json?: string): { errorCode?: string; errorDetail?: string } {
+    if (!json) return {};
+    try {
+      const parsed = JSON.parse(json) as {
+        errorCode?: string;
+        errorDescription?: string;
+        'pbi.error'?: {
+          code?: string;
+          details?: Array<{ code?: string; detail?: { value?: string } | string }>;
+        };
+      };
+      const pbiError = parsed['pbi.error'];
+      const detailParts: string[] = [];
+      if (parsed.errorDescription) detailParts.push(parsed.errorDescription);
+      for (const d of pbiError?.details ?? []) {
+        const value = typeof d.detail === 'string' ? d.detail : d.detail?.value;
+        if (value) detailParts.push(d.code ? `${d.code}: ${value}` : value);
+      }
+      return {
+        errorCode: parsed.errorCode || pbiError?.code,
+        errorDetail: detailParts.length > 0 ? detailParts.join(' · ') : undefined,
+      };
+    } catch {
+      return {}; // malformed exception payload — omit error info
+    }
+  }
+
+  /**
    * Map a refresh/transaction history (newest first, as the API returns it)
    * to the `recentRuns` strip: OLDEST → NEWEST, terminal attempts only
    * (in-flight entries with no terminal status are skipped). `successLike`
-   * decides which statuses count as ok for the given endpoint.
+   * decides which statuses count as ok for the given endpoint. Failed dataset
+   * runs carry errorCode/errorDetail parsed from serviceExceptionJson so the
+   * UI can explain each red dot; dataflows have no such payload.
    */
   private static deriveRecentRuns(
-    entries: Array<{ status?: string; endTime?: string }>,
+    entries: Array<{ status?: string; endTime?: string; serviceExceptionJson?: string }>,
     successLike: (s?: string) => boolean,
     inFlight: (e: { status?: string; endTime?: string }) => boolean,
   ): InsightsRefreshable['recentRuns'] {
     return entries
       .filter((e) => !inFlight(e))
-      .map((e) => ({ ok: successLike(e.status), endTime: e.endTime }))
+      .map((e) => {
+        const ok = successLike(e.status);
+        const run: NonNullable<InsightsRefreshable['recentRuns']>[number] = { ok, endTime: e.endTime };
+        if (!ok && e.serviceExceptionJson) {
+          const { errorCode, errorDetail } = PowerBIApiService.parseServiceException(e.serviceExceptionJson);
+          if (errorCode) run.errorCode = errorCode;
+          if (errorDetail) run.errorDetail = errorDetail;
+        }
+        return run;
+      })
       .reverse();
   }
 
@@ -1138,12 +1182,7 @@ class PowerBIApiService {
 
       let errorCode: string | undefined;
       if (lastStatus === 'Failed' && newest.serviceExceptionJson) {
-        try {
-          const parsed = JSON.parse(newest.serviceExceptionJson) as { errorCode?: string };
-          errorCode = parsed.errorCode;
-        } catch {
-          /* malformed exception payload — omit the code */
-        }
+        errorCode = PowerBIApiService.parseServiceException(newest.serviceExceptionJson).errorCode;
       }
 
       return {

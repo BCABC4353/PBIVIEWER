@@ -2,10 +2,11 @@
  * InsightsPage (Luce board) rendering cases.
  *
  * Drives the page through its main states with a mocked getInsights bridge:
- * summary tiles, workspace grouping (broken expanded + first, healthy
- * collapsed), down-for labels, run-history dot strips, the partial-failure
- * banner, access lists, the error + retry path, and the admin unlock UX
- * (staged loading text + client-side cancel).
+ * clickable summary-tile filters, workspace grouping (broken first, ALL
+ * groups collapsed until opened), dormant detection, down-for labels,
+ * run-history dot strips with failure tooltips, the sticky section nav,
+ * the partial-failure banner, access lists, the error + retry path, and
+ * the admin unlock UX (staged loading text + client-side cancel).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
@@ -54,6 +55,9 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
         recentRuns: Array.from({ length: 12 }, (_, i) => ({
           ok: i % 4 !== 3,
           endTime: '2026-06-09T02:00:00.000Z',
+          ...(i % 4 === 3
+            ? { errorCode: 'ModelRefreshFailed_CredentialsNotSpecified', errorDetail: 'Credentials expired' }
+            : {}),
         })),
       },
       {
@@ -71,6 +75,17 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
         workspaceId: 'ws-2',
         workspaceName: 'Ops',
         lastStatus: 'Disabled',
+      },
+      {
+        // Dormant: finished fine, but nobody has touched it in years (Matt #4).
+        kind: 'dataset',
+        id: 'ds-dusty',
+        name: 'Dusty Model',
+        workspaceId: 'ws-2',
+        workspaceName: 'Ops',
+        lastStatus: 'Completed',
+        lastAttemptTime: '2024-01-01T00:00:00.000Z',
+        lastSuccessTime: '2024-01-01T00:00:00.000Z',
       },
     ],
     access: [
@@ -105,7 +120,7 @@ beforeEach(() => {
 });
 
 describe('InsightsPage — Luce board', () => {
-  it('renders the summary tiles row', async () => {
+  it('renders the summary tiles row, including the Dormant tile', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -115,31 +130,55 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0);
     expect(screen.getByText('Running')).toBeInTheDocument();
     expect(screen.getByText('Healthy')).toBeInTheDocument();
+    expect(screen.getByText('Dormant')).toBeInTheDocument();
     expect(screen.getByText('Workspaces')).toBeInTheDocument();
+    // The Dormant tile counts the abandoned Dusty Model.
+    expect(screen.getByRole('button', { name: '1 Dormant' })).toBeInTheDocument();
   });
 
-  it('groups by workspace: broken section first and auto-expanded, quiet sections collapsed', async () => {
+  it('groups by workspace: broken section first, but EVERY section starts collapsed (Matt #7)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
 
-    // Sales (broken) is expanded by default → its rows are visible.
+    // Nothing is expanded — even the broken Sales section.
+    expect(screen.queryByText('Broken Model')).not.toBeInTheDocument();
+    expect(screen.queryByText('Staging Flow')).not.toBeInTheDocument();
+    const salesHeader = screen.getByRole('button', { name: /Sales.*broken/ });
+    expect(salesHeader).toHaveAttribute('aria-expanded', 'false');
+
+    // The header still carries the wayfinding: item count + damage summary.
+    expect(salesHeader).toHaveTextContent('2 items');
+    expect(screen.getByText(/1 broken/)).toBeInTheDocument();
+
+    // Opening Sales reveals its rows, worst first.
+    await act(async () => {
+      fireEvent.click(salesHeader);
+    });
+    expect(salesHeader).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Broken Model')).toBeInTheDocument();
     expect(screen.getByText('Healthy Model')).toBeInTheDocument();
     expect(screen.getByText('Failed')).toBeInTheDocument();
     expect(screen.getByText('OK')).toBeInTheDocument();
+    const rows = screen.getAllByRole('row').map((r) => r.textContent ?? '');
+    const failedIdx = rows.findIndex((t) => t.includes('Broken Model'));
+    const okIdx = rows.findIndex((t) => t.includes('Healthy Model'));
+    expect(failedIdx).toBeGreaterThanOrEqual(0);
+    expect(failedIdx).toBeLessThan(okIdx);
 
-    // Ops (no broken/overdue) is collapsed → its items are hidden until toggled.
-    expect(screen.queryByText('Staging Flow')).not.toBeInTheDocument();
+    // Ops opens (and closes) independently.
     const opsHeader = screen.getByRole('button', { name: /Ops.*OK/ });
-    expect(opsHeader).toHaveAttribute('aria-expanded', 'false');
     await act(async () => {
       fireEvent.click(opsHeader);
     });
     expect(screen.getByText('Staging Flow')).toBeInTheDocument();
     expect(screen.getByText('Never run')).toBeInTheDocument();
     expect(screen.getByText('Live')).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(opsHeader);
+    });
+    expect(screen.queryByText('Staging Flow')).not.toBeInTheDocument();
 
     // Section order: the troubled Sales section renders before Ops.
     const sections = screen.getAllByRole('button', { name: /broken|OK/ });
@@ -147,22 +186,69 @@ describe('InsightsPage — Luce board', () => {
     const opsIdx = sections.findIndex((b) => /Ops/.test(b.textContent ?? ''));
     expect(salesIdx).toBeGreaterThanOrEqual(0);
     expect(salesIdx).toBeLessThan(opsIdx);
+  });
 
-    // Section header carries the mini health summary.
-    expect(screen.getByText(/1 broken/)).toBeInTheDocument();
+  it('summary tiles filter the board: matches auto-expand, clear chip removes the filter (Matt #2)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
 
-    // Inside Sales, the broken row sorts before the healthy one.
-    const rows = screen.getAllByRole('row').map((r) => r.textContent ?? '');
-    const failedIdx = rows.findIndex((t) => t.includes('Broken Model'));
-    const okIdx = rows.findIndex((t) => t.includes('Healthy Model'));
-    expect(failedIdx).toBeGreaterThanOrEqual(0);
-    expect(failedIdx).toBeLessThan(okIdx);
+    // Activate the Broken filter.
+    const brokenTile = screen.getByRole('button', { name: '1 Broken' });
+    await act(async () => {
+      fireEvent.click(brokenTile);
+    });
+    expect(brokenTile).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/Showing: Broken/)).toBeInTheDocument();
+    // Matching group auto-expands; only the broken row shows.
+    expect(screen.getByText('Broken Model')).toBeInTheDocument();
+    expect(screen.queryByText('Healthy Model')).not.toBeInTheDocument();
+    // Ops has no broken items, so the whole group disappears from the board.
+    expect(screen.queryByRole('button', { name: /Ops.*OK/ })).not.toBeInTheDocument();
+
+    // The visible "Showing: Broken ✕" chip clears the filter.
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Showing: Broken/));
+    });
+    expect(screen.queryByText(/Showing: Broken/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ops.*OK/ })).toBeInTheDocument();
+    expect(screen.queryByText('Broken Model')).not.toBeInTheDocument(); // collapsed again
+
+    // Clicking an active tile also clears (toggle).
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '1 Dormant' }));
+    });
+    expect(screen.getByText(/Showing: Dormant/)).toBeInTheDocument();
+    expect(screen.getByText('Dusty Model')).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '1 Dormant' }));
+    });
+    expect(screen.queryByText(/Showing: Dormant/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Dusty Model')).not.toBeInTheDocument();
+  });
+
+  it('marks dormant items with the gray-violet DORMANT chip and down-for label (Matt #4)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Ops.*OK/ }));
+    });
+    // Chip reads "Dormant · down NNNd" off the 2024-01-01 last success.
+    expect(screen.getByText(/^Dormant · down \d+d$/)).toBeInTheDocument();
+    expect(screen.getByText(/1 dormant/)).toBeInTheDocument();
   });
 
   it('shows the down-for label, failure-rate caption, dot strip, trigger, owner, and error code', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
     });
 
     // Down since the last success (clock-relative — assert shape, not value).
@@ -175,6 +261,136 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.getByText('Power Automate / API')).toBeInTheDocument();
     expect(screen.getByText('owner@bc-abc.com')).toBeInTheDocument();
     expect(screen.getByText('ModelRefreshFailed_CredentialsNotSpecified')).toBeInTheDocument();
+  });
+
+  it('failed dataset dots carry "Failed · time · errorCode: detail" tooltips (Matt #5)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
+    });
+
+    const failTitles = screen.getAllByTitle(
+      /^Failed · .+ · ModelRefreshFailed_CredentialsNotSpecified: Credentials expired$/,
+    );
+    expect(failTitles.length).toBe(3); // the 3 failed runs in the mocked strip
+    // Healthy dots still explain themselves with time only.
+    expect(screen.getAllByTitle(/^OK · /).length).toBeGreaterThan(0);
+  });
+
+  it('failed dataflow dots state that Power BI provides no detail (Matt #5)', async () => {
+    mockGetInsights({
+      success: true,
+      data: snapshot({
+        refreshables: [
+          {
+            kind: 'dataflow',
+            id: 'df-bad',
+            name: 'Broken Flow',
+            workspaceId: 'ws-2',
+            workspaceName: 'Ops',
+            lastStatus: 'Failed',
+            lastAttemptTime: '2026-06-10T02:00:00.000Z',
+            recentRuns: [{ ok: false, endTime: '2026-06-10T02:00:00.000Z' }],
+          },
+        ],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Ops.*broken/ }));
+    });
+    expect(
+      screen.getByTitle(/^Failed · .+ \(no detail provided by Power BI for dataflows\)$/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders dot strips left-aligned: a partial history pads hollow dots on the RIGHT (Matt #6)', async () => {
+    mockGetInsights({
+      success: true,
+      data: snapshot({
+        refreshables: [
+          {
+            kind: 'dataset',
+            id: 'ds-short',
+            name: 'Short History',
+            workspaceId: 'ws-1',
+            workspaceName: 'Sales',
+            lastStatus: 'Completed',
+            lastAttemptTime: '2026-06-10T03:00:00.000Z',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+            recentRuns: [
+              { ok: true, endTime: '2026-06-09T03:00:00.000Z' },
+              { ok: true, endTime: '2026-06-10T03:00:00.000Z' },
+            ],
+          },
+        ],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sales.*OK/ }));
+    });
+    const strip = screen.getByTestId('run-dot-strip');
+    const dots = Array.from(strip.querySelectorAll('span.rounded-full'));
+    expect(dots).toHaveLength(12);
+    // First two dots are the real (filled) runs; the rest are hollow pads.
+    expect(dots[0]?.getAttribute('title')).toMatch(/^OK · /);
+    expect(dots[1]?.getAttribute('title')).toMatch(/^OK · /);
+    expect(dots[2]?.getAttribute('title')).toBeNull();
+    expect(dots[11]?.getAttribute('title')).toBeNull();
+  });
+
+  it('offers a sticky section nav that smooth-scrolls to each anchor (Matt #7)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+
+    const nav = screen.getByRole('navigation', { name: 'Page sections' });
+    for (const label of ['Health', 'Access', 'Usage', 'Admin']) {
+      expect(within(nav).getByRole('button', { name: label })).toBeInTheDocument();
+    }
+    await act(async () => {
+      fireEvent.click(within(nav).getByRole('button', { name: 'Access' }));
+    });
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(document.getElementById('insights-access')).not.toBeNull();
+    expect(document.getElementById('insights-health')).not.toBeNull();
+    expect(document.getElementById('insights-usage')).not.toBeNull();
+    expect(document.getElementById('insights-admin')).not.toBeNull();
+  });
+
+  it('color-codes DATASET vs DATAFLOW kind chips with distinct identity tints (Matt #3)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Ops.*OK/ }));
+    });
+    const datasetChips = screen.getAllByText('dataset');
+    const dataflowChips = screen.getAllByText('dataflow');
+    expect(datasetChips.length).toBeGreaterThan(0);
+    expect(dataflowChips.length).toBeGreaterThan(0);
+    const dsColor = (datasetChips[0] as HTMLElement).style.color;
+    const dfColor = (dataflowChips[0] as HTMLElement).style.color;
+    expect(dsColor).not.toBe('');
+    expect(dfColor).not.toBe('');
+    expect(dsColor).not.toBe(dfColor);
+    // Same tint for every chip of the same kind.
+    for (const chip of datasetChips) expect((chip as HTMLElement).style.color).toBe(dsColor);
   });
 
   it('expands a workspace access list and labels not-visible lists', async () => {
@@ -217,10 +433,14 @@ describe('InsightsPage — Luce board', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent('Could not reach Power BI.');
 
-    // Retry path: next call succeeds and the page renders.
+    // Retry path: next call succeeds and the page renders (groups collapsed).
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    });
+    expect(screen.getByRole('button', { name: /Sales.*broken/ })).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
     });
     expect(screen.getByText('Healthy Model')).toBeInTheDocument();
     // Retry must force a rebuild (bypass the snapshot cache).
