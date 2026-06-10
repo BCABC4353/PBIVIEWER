@@ -65,14 +65,19 @@ export function useEmbedTokenRefresh(
     const expirationMs = new Date(expiration).getTime();
     if (!Number.isFinite(expirationMs)) return;
     const fireAt = expirationMs - TOKEN_REFRESH_LEAD_MS;
-    const delay = fireAt - Date.now();
-    if (delay <= 0) {
+    const rawDelay = fireAt - Date.now();
+    if (rawDelay <= 0) {
       // Already inside the refresh window — fire immediately on next tick.
       proactiveRefreshRef.current = setTimeout(() => {
         void refreshEmbedTokenRef.current?.();
       }, 0);
       return;
     }
+    // Clamp to 24h: a malformed far-future expiry could otherwise exceed
+    // setTimeout's 2^31-1 ms ceiling, which silently fires IMMEDIATELY. Capping
+    // means we re-evaluate at most a day out and reschedule against the real
+    // expiry then, instead of busy-refreshing.
+    const delay = Math.min(rawDelay, 24 * 60 * 60 * 1000);
     proactiveRefreshRef.current = setTimeout(() => {
       void refreshEmbedTokenRef.current?.();
     }, delay);

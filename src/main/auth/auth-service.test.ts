@@ -771,3 +771,26 @@ describe('getAdminAccessToken (incremental consent, admin tier)', () => {
     if (!result.success) expect(result.error.code).toBe('NO_ACCOUNT');
   });
 });
+
+describe('getAdminAccessToken — account-mismatch guard', () => {
+  it('rejects when the consented account differs from the signed-in account', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
+    // The consent dialog returns a DIFFERENT account ("Use a different account").
+    (h.deps.msalClient.acquireTokenByCode as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      accessToken: 'at',
+      expiresOn: new Date(Date.now() + 3_600_000),
+      account: makeAccount('acct-OTHER', 'other@example.com'),
+    });
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.getAdminAccessToken();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('ADMIN_ACCOUNT_MISMATCH');
+
+    // The original session is intact: a normal token call still resolves acct-1.
+    h.setSilentResult({ accessToken: 'base', expiresOn: new Date(Date.now() + 3_600_000) });
+    const base = await svc.getAccessToken();
+    expect(base.success).toBe(true);
+  });
+});

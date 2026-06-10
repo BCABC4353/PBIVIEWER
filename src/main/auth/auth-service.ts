@@ -783,7 +783,24 @@ class AuthService {
           redirectUri: 'http://localhost',
           codeVerifier: verifier,
         });
-        if (tokenResponse) {
+        if (tokenResponse && tokenResponse.account) {
+          // Guard against the user picking "Use a different account" in the
+          // consent dialog: granting admin consent for some OTHER account would
+          // silently switch the active account and leave the admin view querying
+          // as the wrong identity. Require the consented account to match the
+          // signed-in one; otherwise reject and leave the session untouched.
+          if (tokenResponse.account.homeAccountId !== account.homeAccountId) {
+            return {
+              success: false,
+              error: {
+                code: 'ADMIN_ACCOUNT_MISMATCH',
+                message:
+                  'The account you approved is different from the one you are signed in with. ' +
+                  'Approve admin access with your current account, or switch accounts first.',
+              },
+            };
+          }
+          this.account = tokenResponse.account;
           await this.persistCache();
           return {
             success: true,

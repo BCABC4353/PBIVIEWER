@@ -46,11 +46,15 @@ tenantId = tenantId.trim();
 // sign-in window comes up BLANK with no error — the worst failure for end users.
 // Catch it here, where the operator building the release actually sees it.
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// A GUID that is a single repeated hex digit (00000000-..., 11111111-...) is a
+// format-valid PLACEHOLDER, not a real Entra id. These pass GUID_RE but would
+// still ship a broken sign-in, so reject them explicitly.
+const isPlaceholderGuid = (g) => /^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(g) || /^([0-9a-f])\1*$/i.test(g.replace(/-/g, ''));
 const bad = [];
-if (!GUID_RE.test(clientId)) bad.push(`AZURE_CLIENT_ID (got "${clientId}")`);
-if (!GUID_RE.test(tenantId)) bad.push(`AZURE_TENANT_ID (got "${tenantId}")`);
+if (!GUID_RE.test(clientId) || isPlaceholderGuid(clientId)) bad.push(`AZURE_CLIENT_ID (got "${clientId}")`);
+if (!GUID_RE.test(tenantId) || isPlaceholderGuid(tenantId)) bad.push(`AZURE_TENANT_ID (got "${tenantId}")`);
 if (bad.length > 0) {
-  console.error('ERROR: Azure AD configuration is not a valid GUID:');
+  console.error('ERROR: Azure AD configuration is not a valid (non-placeholder) GUID:');
   for (const b of bad) console.error(`  - ${b}`);
   console.error('\nThese must be the real Application (client) ID and Directory (tenant) ID');
   console.error('from the Entra app registration. A placeholder ships a broken sign-in.');

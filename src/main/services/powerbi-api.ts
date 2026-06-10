@@ -114,6 +114,29 @@ class RetriableHttpError extends Error {
 }
 
 /**
+ * Run an async mapper over items with at most `limit` in flight at once.
+ * Preserves input order in the result. Used to speed up the Insights fan-out
+ * (per-dataset refresh-health lookups) without bursting past API throttling.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i] as T, i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Parse a Retry-After header value. Returns milliseconds, or undefined if unparseable.
  * Supports both numeric seconds and HTTP-date forms per RFC 7231.
  */
@@ -188,6 +211,19 @@ class PowerBIApiService {
 
   constructor(deps: PowerBIApiDeps) {
     this.deps = deps;
+  }
+
+  /**
+   * Drop all cached data tied to the signed-in account. MUST be called on
+   * logout AND account-switch: these caches (and the module-level lineage
+   * cache) are account-scoped data living on a process-wide singleton, so
+   * without this a second account on a shared machine could be served the
+   * first account's cached snapshot/lineage within the TTL window.
+   */
+  clearCaches(): void {
+    this.insightsCache = null;
+    this.adminInsightsCache = null;
+    lineageCache.clear();
   }
 
   private async makeRequest<T>(endpoint: string): Promise<T> {
@@ -857,9 +893,13 @@ class PowerBIApiService {
       let reportCount = 0;
       let dashboardCount = 0;
 
-      // Small batches keep total concurrency well under the per-user API
-      // throttling limits even though each workspace fans out to 4 calls.
-      const BATCH_SIZE = 4;
+      // Bound concurrency on two axes: process workspaces in batches of 3, and
+      // within each workspace resolve per-dataset/dataflow refresh health at most
+      // DATASET_CONCURRENCY at a time. Worst-case in-flight requests stay ~12,
+      // far under the per-user throttling ceiling, while a workspace with many
+      // datasets no longer resolves them one-at-a-time (the slow path).
+      const BATCH_SIZE = 3;
+      const DATASET_CONCURRENCY = 4;
       for (let i = 0; i < workspaces.length; i += BATCH_SIZE) {
         const batch = workspaces.slice(i, i + BATCH_SIZE);
         await Promise.all(
@@ -885,48 +925,65 @@ class PowerBIApiService {
               return;
             }
 
-            // Refresh health per dataset (sequential within the workspace —
-            // the workspace batch already provides the parallelism).
-            for (const ds of datasets ?? []) {
-              if (ds.isRefreshable === false) {
-                refreshables.push({
+            const datasetRows = await mapWithConcurrency(
+              datasets ?? [],
+              DATASET_CONCURRENCY,
+              async (ds): Promise<InsightsRefreshable> => {
+                if (ds.isRefreshable === false) {
+                  return {
+                    kind: 'dataset',
+                    id: ds.id,
+                    name: ds.name,
+                    workspaceId: ws.id,
+                    workspaceName: ws.name,
+                    configuredBy: ds.configuredBy,
+                    lastStatus: 'Disabled',
+                  };
+                }
+                const health = await this.getDatasetRefreshHealth(ws.id, ds.id);
+                const schedule = await this.getDatasetScheduleInfo(ws.id, ds.id, health.lastSuccessTime);
+                return {
                   kind: 'dataset',
                   id: ds.id,
                   name: ds.name,
                   workspaceId: ws.id,
                   workspaceName: ws.name,
                   configuredBy: ds.configuredBy,
-                  lastStatus: 'Disabled',
-                });
-                continue;
-              }
-              const health = await this.getDatasetRefreshHealth(ws.id, ds.id);
-              const schedule = await this.getDatasetScheduleInfo(ws.id, ds.id, health.lastSuccessTime);
-              refreshables.push({
-                kind: 'dataset',
-                id: ds.id,
-                name: ds.name,
-                workspaceId: ws.id,
-                workspaceName: ws.name,
-                configuredBy: ds.configuredBy,
-                ...health,
-                ...schedule,
-              });
-            }
+                  ...health,
+                  ...schedule,
+                };
+              },
+            );
+            refreshables.push(...datasetRows);
 
-            for (const df of dataflows ?? []) {
-              const health = await this.getDataflowRefreshHealth(ws.id, df.objectId);
-              refreshables.push({
-                kind: 'dataflow',
-                id: df.objectId,
-                name: df.name,
-                workspaceId: ws.id,
-                workspaceName: ws.name,
-                ...health,
-              });
-            }
+            const dataflowRows = await mapWithConcurrency(
+              dataflows ?? [],
+              DATASET_CONCURRENCY,
+              async (df): Promise<InsightsRefreshable> => {
+                const health = await this.getDataflowRefreshHealth(ws.id, df.objectId);
+                return {
+                  kind: 'dataflow',
+                  id: df.objectId,
+                  name: df.name,
+                  workspaceId: ws.id,
+                  workspaceName: ws.name,
+                  ...health,
+                };
+              },
+            );
+            refreshables.push(...dataflowRows);
           }),
         );
+      }
+
+      // If EVERY workspace failed to read, this is a hard failure (auth/network),
+      // not an empty catalog — surface it so the page shows a retry instead of a
+      // misleading "0 datasets" board (mirrors getAllItems).
+      if (workspaces.length > 0 && failedWorkspaces.length === workspaces.length) {
+        return {
+          success: false,
+          error: buildErrorEnvelope('INSIGHTS_FETCH_FAILED', 'Every workspace failed to load.'),
+        };
       }
 
       const snapshot: InsightsSnapshot = {
@@ -1256,8 +1313,22 @@ class PowerBIApiService {
           `/admin/activityevents?startDateTime='${y}-${m}-${dd}T00:00:00.000Z'` +
           `&endDateTime='${y}-${m}-${dd}T23:59:59.999Z'` +
           `&$filter=Activity eq 'ViewReport'`;
+        // Bound the per-day continuation walk: a repeated/circular
+        // continuationUri (or a pathologically large day) must not loop
+        // forever or grow memory without limit. 200 pages is far beyond any
+        // real day; treat hitting the cap as a partial day.
+        const seenUris = new Set<string>();
+        const MAX_PAGES_PER_DAY = 200;
         try {
+          let pages = 0;
           while (url) {
+            if (seenUris.has(url) || pages >= MAX_PAGES_PER_DAY) {
+              console.warn('[PowerBI admin] activity pagination capped/looping — treating day as partial');
+              failedDays++;
+              break;
+            }
+            seenUris.add(url);
+            pages++;
             const resp: {
               activityEventEntities?: Array<Record<string, unknown>>;
               continuationUri?: string;
