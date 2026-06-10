@@ -30,7 +30,7 @@ function Step {
 $RepoUrl = "https://github.com/BCABC4353/PBIVIEWER.git"
 $RepoDir = Join-Path "$HOME" "Desktop\PBIVIEWER"
 
-Step "Step 1 of 5: locating the app at `"$RepoDir`""
+Step "Step 1 of 6: locating the app at `"$RepoDir`""
 
 $GitCmd = Get-Command "git" -ErrorAction SilentlyContinue
 if (-not $GitCmd) {
@@ -53,7 +53,7 @@ Set-Location "$RepoDir"
 # ---------------------------------------------------------------------------
 # Step 2: make this copy exactly match the latest published version.
 # ---------------------------------------------------------------------------
-Step "Step 2 of 5: updating to the latest version"
+Step "Step 2 of 6: updating to the latest version"
 
 git fetch origin
 if ($LASTEXITCODE -ne 0) {
@@ -90,7 +90,7 @@ Write-Host "    VERSION PROOF: running commit $Version" -ForegroundColor Green
 # ---------------------------------------------------------------------------
 # Step 3: free up the ports the dev server needs (8081 / 8082).
 # ---------------------------------------------------------------------------
-Step "Step 3 of 5: making sure ports 8081 and 8082 are free"
+Step "Step 3 of 6: making sure ports 8081 and 8082 are free"
 
 try {
     $Conns = Get-NetTCPConnection -LocalPort 8081, 8082 -State Listen -ErrorAction SilentlyContinue
@@ -116,7 +116,7 @@ try {
 # ---------------------------------------------------------------------------
 # Step 4: install the app's dependencies.
 # ---------------------------------------------------------------------------
-Step "Step 4 of 5: installing dependencies (first run can take a few minutes)"
+Step "Step 4 of 6: installing dependencies (first run can take a few minutes)"
 
 $MobileDir = Join-Path "$RepoDir" "mobile"
 if (-not (Test-Path "$MobileDir")) {
@@ -140,9 +140,72 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "    Dependencies installed." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-# Step 5: prove which Expo SDK is installed, then start the dev server.
+# Step 5: enable LIVE data by borrowing the sign-in config from the
+# installed desktop app (no Azure portal visit needed). The mobile app reads
+# clientId/tenantId from src\auth\azure-config.local.json (gitignored). If
+# that file is missing or empty, this step extracts the same two GUIDs the
+# desktop app was shipped with and writes them there. Falls back to
+# sample-data mode (with a clear message) if the desktop app is not
+# installed on this machine.
 # ---------------------------------------------------------------------------
-Step "Step 5 of 5: starting the phone dev server"
+Step "Step 5 of 6: configuring live Power BI sign-in"
+
+$LocalCfg = Join-Path "$MobileDir" "src\auth\azure-config.local.json"
+$GuidRe = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+
+$HaveCfg = $false
+if (Test-Path "$LocalCfg") {
+    try {
+        $Existing = Get-Content "$LocalCfg" -Raw | ConvertFrom-Json
+        if ("$($Existing.clientId)" -match "^$GuidRe$" -and "$($Existing.tenantId)" -match "^$GuidRe$") {
+            $HaveCfg = $true
+        }
+    } catch {
+        # Unreadable/garbled file - treat as missing and rewrite below.
+    }
+}
+
+if ($HaveCfg) {
+    Write-Host "    LIVE MODE READY: sign-in config already present." -ForegroundColor Green
+} else {
+    $AsarPath = Join-Path "$env:LOCALAPPDATA" "Programs\Power BI Viewer\resources\app.asar"
+    $Extracted = $false
+    if (Test-Path "$AsarPath") {
+        Write-Host "    Found the installed desktop app. Borrowing its sign-in config..."
+        try {
+            $Bytes = [System.IO.File]::ReadAllBytes("$AsarPath")
+            $Text = [System.Text.Encoding]::ASCII.GetString($Bytes)
+            $Bytes = $null
+            $CidM = [regex]::Match($Text, 'clientId:\s*"(' + $GuidRe + ')"')
+            $TidM = [regex]::Match($Text, 'tenantId:\s*"(' + $GuidRe + ')"')
+            $Text = $null
+            if ($CidM.Success -and $TidM.Success) {
+                $Json = "{`r`n  `"clientId`": `"$($CidM.Groups[1].Value)`",`r`n  `"tenantId`": `"$($TidM.Groups[1].Value)`"`r`n}`r`n"
+                Set-Content -Path "$LocalCfg" -Value $Json -Encoding Ascii
+                $Extracted = $true
+                Write-Host "    LIVE MODE READY: sign-in config borrowed from the desktop app." -ForegroundColor Green
+                Write-Host "    On the phone: Settings tab -> Live data -> follow the short-code sign-in." -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "    Could not read the desktop app's config: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    if (-not $Extracted) {
+        # Metro requires the file to exist to bundle; write the empty stub so
+        # the app still runs (in sample-data mode) either way.
+        if (-not (Test-Path "$LocalCfg")) {
+            Set-Content -Path "$LocalCfg" -Value "{`r`n  `"clientId`": `"`",`r`n  `"tenantId`": `"`"`r`n}`r`n" -Encoding Ascii
+        }
+        Write-Host "    Desktop app not found at `"$AsarPath`" - the phone app will run with SAMPLE data." -ForegroundColor Yellow
+        Write-Host "    To enable live data: install the desktop app on this machine and rerun, or put your" -ForegroundColor Yellow
+        Write-Host "    app registration's clientId/tenantId into `"$LocalCfg`"." -ForegroundColor Yellow
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Step 6: prove which Expo SDK is installed, then start the dev server.
+# ---------------------------------------------------------------------------
+Step "Step 6 of 6: starting the phone dev server"
 
 $ExpoPkgPath = Join-Path "$MobileDir" "node_modules\expo\package.json"
 if (Test-Path "$ExpoPkgPath") {
