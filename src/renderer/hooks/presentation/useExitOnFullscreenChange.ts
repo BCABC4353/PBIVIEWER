@@ -1,14 +1,14 @@
 /**
- * ARCH-S7: useExitOnFullscreenChange
+ * useExitOnFullscreenChange
  *
- * Owns the fullscreen lifecycle for presentation mode, extracted verbatim:
+ * Owns the fullscreen lifecycle for presentation mode:
  * 1. Attempt to enter fullscreen on mount (non-blocking; tracks success via an
  *    internal ref so a later exit only fires after we actually entered).
  * 2. Listen for fullscreen exit — Escape pulls the document out of fullscreen,
  *    which is the cue to tear down the embed and navigate back to the report.
  *
  * The teardown/navigate path mirrors doExit() but is intentionally inlined here
- * (PERF-S2 / ARCH-S1 teardownNow delegation preserved). The caller supplies the
+ * (still delegating to teardownNow). The caller supplies the
  * shared isExitingRef and slideshowIntervalRef so both exit paths coordinate.
  */
 
@@ -56,7 +56,7 @@ export function useExitOnFullscreenChange({
           slideshowIntervalRef.current = null;
         }
 
-        // PERF-S2 / ARCH-S1: delegate teardown to the hook — no direct
+        // Delegate teardown to the hook — no direct
         // embed.off or powerbiService calls here. Forces iframe to stop
         // rendering before navigate() runs.
         teardownNow();

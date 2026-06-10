@@ -50,7 +50,7 @@ function createElectronAPIMock(): ElectronAPI {
       getAccessToken: vi.fn().mockResolvedValue({ success: true, data: defaultToken }),
       isAuthenticated: vi.fn().mockResolvedValue({ success: true, data: false }),
       validateToken: vi.fn().mockResolvedValue({ success: true, data: false }),
-      // PROD-B1: account switcher — same return shape as login().
+      // Account switcher — same return shape as login().
       switchAccount: vi.fn().mockResolvedValue({ success: true, data: defaultAuthResult }),
     },
 
@@ -135,7 +135,7 @@ function createElectronAPIMock(): ElectronAPI {
       openFolder: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     },
 
-    // PROD-S1: kiosk power-management mock.
+    // Kiosk power-management mock.
     kiosk: {
       preventDisplaySleep: vi.fn().mockResolvedValue({ success: true, data: true }),
       allowDisplaySleep: vi.fn().mockResolvedValue({ success: true, data: false }),

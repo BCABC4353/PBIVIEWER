@@ -2,7 +2,7 @@ import * as pbi from 'powerbi-client';
 import type { ErrorPolicy } from './errorPolicy';
 
 /**
- * ARCH-S2: Shared types and refs for the decomposed Power BI embed hooks.
+ * Shared types and refs for the decomposed Power BI embed hooks.
  *
  * usePowerBIEmbed is split into three cooperating hooks (lifecycle, token
  * refresh, watchdog). They share a single mutable ref-bag (`EmbedContext`) so
@@ -12,7 +12,7 @@ import type { ErrorPolicy } from './errorPolicy';
  */
 
 /**
- * NEW-ARCH-2: Typed wrapper for Power BI SDK custom events.
+ * Typed wrapper for Power BI SDK custom events.
  * Callers can specialise T to narrow the `detail` payload for events they
  * know the shape of (e.g. pageChanged, tileClicked). Falls back to `unknown`
  * for events whose schema is not yet typed at the call site.
@@ -46,7 +46,7 @@ export interface UsePowerBIEmbedOptions {
    * Caller handlers run after the hook's built-in housekeeping.
    */
   events?: EmbedEventHandlers;
-  /** Re-enabled by default. Auto-refresh respects document visibility. */
+  /** Enabled by default. Auto-refresh respects document visibility. */
   autoRefreshEnabled?: boolean;
   autoRefreshIntervalMinutes?: number;
   /** Watchdog timeout in ms. Default 45000. */
@@ -58,13 +58,13 @@ export interface UsePowerBIEmbedOptions {
    * false (ReportViewer-style: post-load errors are silent). PresentationMode
    * and DashboardViewer want true.
    *
-   * ARCH-S2: internally translated into an {@link ErrorPolicy} strategy. The
+   * Internally translated into an {@link ErrorPolicy} strategy. The
    * boolean remains the public knob for backward compatibility with the three
    * viewers; pass `errorPolicy` to override the strategy directly.
    */
   surfacePostLoadErrors?: boolean;
   /**
-   * ARCH-S2: strategy object deciding whether a given 'error' event surfaces
+   * Strategy object deciding whether a given 'error' event surfaces
    * to the error UI. When omitted, derived from `surfacePostLoadErrors`.
    */
   errorPolicy?: ErrorPolicy;
@@ -80,7 +80,7 @@ export interface UsePowerBIEmbedResult {
   /** Manual token refresh — also wired to visibilitychange and the proactive timer. */
   refreshEmbedToken: () => Promise<void>;
   /**
-   * ARCH-S1 / PERF-S2: Synchronous teardown — detaches all registered SDK
+   * Synchronous teardown — detaches all registered SDK
    * event handlers, cancels pending timers, and hard-resets the embed
    * container via powerbiService.reset(). Safe to call before navigation
    * so the iframe stops rendering before the component unmounts.

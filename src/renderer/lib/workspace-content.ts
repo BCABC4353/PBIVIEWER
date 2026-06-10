@@ -1,10 +1,9 @@
 /**
- * BEH-S3: fetchWorkspaceContent — shared helper for loading reports and
+ * fetchWorkspaceContent — shared helper for loading reports and
  * dashboards for a single workspace.
  *
- * Extracted from WorkspacesPage so the Retry action and the initial expand
- * both use a single, tested code path rather than duplicating the
- * Promise.allSettled + loadWarning derivation logic.
+ * WorkspacesPage's Retry action and initial expand both use this single code
+ * path rather than duplicating the Promise.allSettled + loadWarning logic.
  */
 
 import type { Report, Dashboard } from '../../shared/types';

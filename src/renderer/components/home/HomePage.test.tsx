@@ -1,5 +1,5 @@
 /**
- * PROD-B3: CTA-after-nav vitest cases.
+ * CTA-after-nav vitest cases.
  *
  * Verifies that the "Browse Workspaces" primary CTA is always rendered on the
  * HomePage — both on fresh mount and after a simulated navigate-back cycle.

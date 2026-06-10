@@ -3,7 +3,7 @@ import { useContentStore } from './content-store';
 import { useAuthStore } from './auth-store';
 import type { ContentItem } from '../../shared/types';
 
-// FIX-3 (isolation): loadRecentItems/loadFrequentItems read the active accountId
+// loadRecentItems/loadFrequentItems read the active accountId
 // when the IPC STARTS and re-check it after the await. If an account switch
 // lands mid-flight, the prior account's response must be DISCARDED rather than
 // written into the new account's store.

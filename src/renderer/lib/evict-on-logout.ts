@@ -1,5 +1,5 @@
 /**
- * ARCH-B3 / PROD-B1: evict-on-identity-change — inverted dependency wiring.
+ * Evict-on-identity-change — inverted dependency wiring.
  *
  * auth-store must NOT import content-store or search-store (circular /
  * inverted coupling). Instead, this module owns the glue: it subscribes to
@@ -11,8 +11,7 @@
  *   2. account switch — the active user identity changes from one non-null
  *                       value to a DIFFERENT non-null value (id A → id B),
  *                       both while authenticated. The identity is the user's
- *                       homeAccountId, which equals user.id per the Stage-2
- *                       contract.
+ *                       homeAccountId, which equals user.id.
  *
  * It does NOT evict on login (null → id) or on no-op / unrelated updates.
  *

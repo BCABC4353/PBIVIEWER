@@ -1,14 +1,13 @@
 /**
- * ARCH-S7: useFocusTrap
+ * useFocusTrap
  *
- * Keyboard focus management for the presentation overlay. Two responsibilities,
- * extracted verbatim from PresentationMode.tsx:
+ * Keyboard focus management for the presentation overlay. Two responsibilities:
  * 1. Save the previously-focused element on mount and restore it on unmount so
  *    screen-reader / keyboard users aren't stranded after exit.
  * 2. A simple focus trap that cycles Tab / Shift+Tab among the focusable
  *    elements inside the overlay (a capture-phase document keydown listener).
  *
- * Pass the ref of the overlay root element. Behavior is unchanged.
+ * Pass the ref of the overlay root element.
  */
 
 import { useEffect, useRef } from 'react';

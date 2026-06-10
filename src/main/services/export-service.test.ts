@@ -1,5 +1,5 @@
 /**
- * E2 (part 2): export-service listener hygiene.
+ * Export-service listener hygiene.
  *
  * The hidden PDF render window registers `did-finish-load` / `did-fail-load`
  * handlers per export. These are one-shot — they MUST be registered with
@@ -10,7 +10,7 @@
  *   - a successful load produces a written PDF and closes the hidden window
  *   - a failed load surfaces an error and still closes the hidden window
  *   - repeated exports never grow the persistent listener set on a shared
- *     webContents (the regression this fix prevents)
+ *     webContents (no listener-leak regression)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -156,7 +156,7 @@ describe('E2 export-service listener hygiene', () => {
       (r) => r.event === 'did-finish-load' || r.event === 'did-fail-load',
     );
     expect(loadRegs.length).toBe(2);
-    // The whole point of the fix: these are one-shot listeners.
+    // These must be one-shot listeners.
     expect(loadRegs.every((r) => r.kind === 'once')).toBe(true);
     expect(loadRegs.some((r) => r.kind === 'on')).toBe(false);
   });
@@ -186,9 +186,9 @@ describe('E2 export-service listener hygiene', () => {
 
   it('does not accumulate load listeners across repeated exports', async () => {
     // Each export uses a fresh window, but the load handlers must self-detach
-    // (once semantics) so that after settling, no lingering listener remains —
-    // the leak this fix targets. Run several exports and assert the attached
-    // load-listener count returns to zero on each settled window.
+    // (once semantics) so that after settling, no lingering listener remains.
+    // Run several exports and assert the attached load-listener count returns
+    // to zero on each settled window.
     for (let i = 0; i < 3; i++) {
       const { pdfWin } = await runExport('finish');
       // After did-finish-load fired, the once listener detached itself; the

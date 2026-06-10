@@ -1,5 +1,5 @@
 /**
- * ARCH-S2: Error-surfacing strategy.
+ * Error-surfacing strategy.
  *
  * Replaces the bare `surfacePostLoadErrors` boolean with a small strategy
  * object. The built-in 'error' handler asks the policy whether a given event

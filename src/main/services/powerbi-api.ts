@@ -20,13 +20,10 @@ const lineageCache = new Map<
 >();
 const LINEAGE_TTL_MS = 30 * 60 * 1000;
 
-// ---------------------------------------------------------------------------
-// ARCH-B4: dependency-injection seam
-// ---------------------------------------------------------------------------
-// The API client used to import the auth-service singleton directly. That hard
-// dependency on the electron/MSAL module graph made the client impossible to
-// unit-test under jsdom. It now takes its token source as an injectable port,
-// so tests can drive it with a fake token provider and no electron at all.
+// Dependency-injection seam: the token source is an injectable port (not a
+// direct import of the auth-service singleton, whose electron/MSAL module graph
+// cannot load under jsdom), so tests can drive the client with a fake token
+// provider and no electron at all.
 
 /** Minimal slice of the auth service the API client needs. */
 export interface ApiAuthPort {
@@ -40,9 +37,8 @@ export interface PowerBIApiDeps {
 /**
  * Build an IPCResponse error envelope with a friendly `userMessage` derived
  * from the raw error string. The renderer-facing IPCResponse shape lives in
- * shared/types.ts; we attach `userMessage` via a type assertion so this main-
- * side change doesn't touch the shared contract. The renderer can read it as
- * an optional field — a stricter contract is planned for a later sprint.
+ * shared/types.ts; `userMessage` is attached via a type assertion and the
+ * renderer reads it as an optional field.
  */
 function buildErrorEnvelope(code: string, error: unknown): { code: string; message: string } {
   const message = String(error);
@@ -823,10 +819,10 @@ class PowerBIApiService {
     try {
       // Fetch the recent refresh history (not just the latest one). A single
       // Failed/Cancelled or in-flight latest attempt must NOT blank the "Data
-      // refreshed" stamp when an earlier refresh actually published data — that
-      // regressed the common case (a recent failed scheduled refresh hid the
-      // dataset timestamp entirely). Use workspace context if provided, otherwise
-      // try direct access (for My Workspace).
+      // refreshed" stamp when an earlier refresh actually published data (a
+      // recent failed scheduled refresh would hide the dataset timestamp
+      // entirely). Use workspace context if provided, otherwise try direct
+      // access (for My Workspace).
       const endpoint = workspaceId
         ? `/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=10`
         : `/datasets/${datasetId}/refreshes?$top=10`;
@@ -876,7 +872,7 @@ class PowerBIApiService {
   }
 
   /**
-   * PROD-S9: derive a data-freshness signal for a whole DASHBOARD.
+   * Derive a data-freshness signal for a whole DASHBOARD.
    *
    * A dashboard has no single backing dataset — it aggregates TILES, each of
    * which may (or may not) reference a datasetId. We enumerate the tiles via
@@ -1142,7 +1138,7 @@ class PowerBIApiService {
 }
 
 // ---------------------------------------------------------------------------
-// ARCH-B4: factory + production wiring
+// Factory + production wiring
 // ---------------------------------------------------------------------------
 
 export type { PowerBIApiService };

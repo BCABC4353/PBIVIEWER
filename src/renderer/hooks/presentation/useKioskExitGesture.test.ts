@@ -1,5 +1,5 @@
 /**
- * PROD-S1: tests for the kiosk exit-gesture helpers + hook.
+ * Tests for the kiosk exit-gesture helpers + hook.
  *
  * Covers the pure gesture predicates and the hook's two exit paths:
  *   - 3-second Escape-hold
@@ -30,7 +30,7 @@ describe('PROD-S1 gesture predicates', () => {
     expect(isChordExit({ key: 'Q', ctrlKey: true, shiftKey: false })).toBe(false);
     expect(isChordExit({ key: 'Q', ctrlKey: false, shiftKey: true })).toBe(false);
     expect(isChordExit({ key: 'a', ctrlKey: true, shiftKey: true })).toBe(false);
-    // #6: the old Task-Manager chord must no longer trigger exit.
+    // The OS-reserved Task-Manager chord must not trigger exit.
     expect(isChordExit({ key: 'Escape', ctrlKey: true, shiftKey: true })).toBe(false);
   });
 });

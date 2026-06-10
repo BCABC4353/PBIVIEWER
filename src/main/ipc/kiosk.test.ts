@@ -1,5 +1,5 @@
 /**
- * PROD-S1: tests for the kiosk power-management IPC handlers.
+ * Tests for the kiosk power-management IPC handlers.
  *
  * Mocks electron's ipcMain + powerSaveBlocker so the start/stop idempotency and
  * leak-guard logic can be exercised without a real Electron runtime.

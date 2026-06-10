@@ -24,7 +24,7 @@ export function registerUsageIpc(): void {
     const type = (item as { type?: unknown }).type;
     const rawName = (item as { name?: unknown }).name;
     const rawWorkspaceName = (item as { workspaceName?: unknown }).workspaceName;
-    // BEH-B3: accountId is optional; validate it as a UUID when present, or allow
+    // AccountId is optional; validate it as a UUID when present, or allow
     // undefined/null (renderer may not have it yet for legacy code paths).
     const rawAccountId = (item as { accountId?: unknown }).accountId;
     let accountId: string | undefined;
@@ -65,7 +65,7 @@ export function registerUsageIpc(): void {
     }
   });
 
-  // BEH-B3: accept optional accountId to scope results to the logged-in user.
+  // Accept optional accountId to scope results to the logged-in user.
   ipcMain.handle('usage:get-recent', async (_event, accountId?: string) => {
     try {
       const scopedId = typeof accountId === 'string' && accountId.trim().length > 0
@@ -90,7 +90,7 @@ export function registerUsageIpc(): void {
     }
   });
 
-  // BEH-B3: accept optional accountId to scope results to the logged-in user.
+  // Accept optional accountId to scope results to the logged-in user.
   ipcMain.handle('usage:get-frequent', async (_event, accountId?: string) => {
     try {
       const scopedId = typeof accountId === 'string' && accountId.trim().length > 0
@@ -124,7 +124,7 @@ export function registerUsageIpc(): void {
     }
   });
 
-  // NEW-PROD-5: permanently drop a single dead item (a viewer got a 404 for it)
+  // Permanently drop a single dead item (a viewer got a 404 for it)
   // so it doesn't reappear on next launch.
   ipcMain.handle('usage:remove', async (_event, itemId: unknown) => {
     const id = validateUUID(itemId);

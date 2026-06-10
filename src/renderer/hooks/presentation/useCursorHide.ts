@@ -1,5 +1,5 @@
 /**
- * PROD-S1: useCursorHide
+ * useCursorHide
  *
  * Hides the mouse cursor after a few seconds of inactivity while in
  * presentation/fullscreen, and reveals it on mousemove.

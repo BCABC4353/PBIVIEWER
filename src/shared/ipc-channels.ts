@@ -1,14 +1,10 @@
-// ============================================
-// ARCH-S5: typed IPC channel-name map
+// Typed IPC channel-name map — single source of truth for every IPC channel
+// string. The preload bridge and the main-process handlers should reference
+// IPC_CHANNELS.* instead of hard-coding string literals, so a rename is caught
+// at compile time and the two sides can never silently drift.
 //
-// Single source of truth for every IPC channel string. The preload bridge and
-// the main-process handlers should reference IPC_CHANNELS.* instead of
-// hard-coding string literals, so a rename is caught at compile time and the
-// two sides can never silently drift.
-//
-// The dead 'content:get-recent' channel was removed in Sprint 5 — the renderer
-// reads recents via 'usage:get-recent'. Do not re-add it without a consumer.
-// ============================================
+// There is deliberately no 'content:get-recent' channel — the renderer reads
+// recents via 'usage:get-recent'. Do not add it without a consumer.
 
 export const IPC_CHANNELS = {
   auth: {
@@ -18,7 +14,7 @@ export const IPC_CHANNELS = {
     getToken: 'auth:get-token',
     isAuthenticated: 'auth:is-authenticated',
     validateToken: 'auth:validate-token',
-    // PROD-B1: logout-then-login(select_account) account switch.
+    // Logout-then-login(select_account) account switch.
     switchAccount: 'auth:switch-account',
   },
   content: {
@@ -33,7 +29,7 @@ export const IPC_CHANNELS = {
     getEmbedToken: 'content:get-embed-token',
     exportReportPdf: 'content:export-report-pdf',
     getDatasetRefreshInfo: 'content:get-dataset-refresh-info',
-    // PROD-S9: dashboard freshness derived from the stalest tile dataset.
+    // Dashboard freshness derived from the stalest tile dataset.
     getDashboardDataFreshness: 'content:get-dashboard-data-freshness',
     // Data-freshness: dataset refresh time + upstream dataflow last-success time.
     getDataFreshness: 'content:get-data-freshness',
@@ -56,7 +52,7 @@ export const IPC_CHANNELS = {
     getRecent: 'usage:get-recent',
     getFrequent: 'usage:get-frequent',
     clear: 'usage:clear',
-    // NEW-PROD-5: remove a single dead item from the persistent store.
+    // Remove a single dead item from the persistent store.
     remove: 'usage:remove',
   },
   export: {
@@ -72,7 +68,7 @@ export const IPC_CHANNELS = {
   log: {
     openFolder: 'log:open-folder',
   },
-  // PROD-S1: kiosk / wall-display power management.
+  // Kiosk / wall-display power management.
   kiosk: {
     preventDisplaySleep: 'kiosk:prevent-display-sleep',
     allowDisplaySleep: 'kiosk:allow-display-sleep',

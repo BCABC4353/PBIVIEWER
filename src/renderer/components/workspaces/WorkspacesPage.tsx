@@ -22,7 +22,7 @@ interface WorkspaceWithContent extends Workspace {
   // null when both halves loaded (or neither has been attempted yet);
   // 'reports' or 'dashboards' when only that half failed; 'both' when
   // the whole expand failed. Every non-null state renders an inline warning
-  // with a Retry button (a 'both' failure is no longer mistaken for an empty
+  // with a Retry button (a 'both' failure must not be mistaken for an empty
   // workspace — the empty-state branch defers when loadWarning is set).
   loadWarning?: 'reports' | 'dashboards' | 'both' | null;
 }
@@ -58,7 +58,7 @@ export const WorkspacesPage: React.FC = () => {
       const response = await window.electronAPI.content.getWorkspaces();
 
       if (!response.success) {
-        // Prefer the API-02 userMessage (friendly, status-derived) over the raw
+        // Prefer the friendly, status-derived userMessage over the raw
         // upstream body in error.message — that's what reaches the user.
         throw new Error(response.error.userMessage || response.error.message || 'Failed to load workspaces');
       }
@@ -112,12 +112,12 @@ export const WorkspacesPage: React.FC = () => {
 
     if (!needsFetch) return;
 
-    // BEH-S3: Mark as in-flight up front so re-entrant toggles don't fire a
+    // Mark as in-flight up front so re-entrant toggles don't fire a
     // second request. We add to the set BEFORE the await — even on failure we
     // don't want a re-expand to keep retrying automatically.
     contentLoadedRef.current.add(workspaceId);
 
-    // BEH-S3: Delegate to the shared fetchWorkspaceContent helper which owns
+    // Delegate to the shared fetchWorkspaceContent helper which owns
     // the Promise.allSettled + loadWarning derivation logic.
     const { reports, dashboards, loadWarning } =
       await fetchWorkspaceContent(workspaceId);

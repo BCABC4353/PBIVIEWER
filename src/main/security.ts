@@ -2,9 +2,7 @@ import { app, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// ============================================
-// SECURITY HELPERS
-// ============================================
+// Security helpers
 
 export function isValidExportPath(filePath: string): boolean {
   let resolved = path.resolve(filePath);
@@ -21,7 +19,7 @@ export function isValidExportPath(filePath: string): boolean {
   } catch {
     return false;
   }
-  // SEC-S3: homedir() is intentionally excluded — exports must target a specific
+  // Homedir() is intentionally excluded — exports must target a specific
   // well-known directory, not the user profile root (which would be too broad).
   const downloads = app.getPath('downloads');
   const desktop = app.getPath('desktop');
@@ -52,11 +50,9 @@ export function installCsp(sess: Electron.Session): void {
   });
 }
 
-// ============================================
-// WEBVIEW SECURITY - Handle popups
-// ============================================
+// Webview security — popups, preload, and navigation restrictions
 
-// SEC-S1: Power BI host allowlist — enforced on webview src and navigation.
+// Power BI host allowlist — enforced on webview src and navigation.
 const POWERBI_ALLOWED_HOSTS = [
   'app.powerbi.com',
   'login.microsoftonline.com',
@@ -82,7 +78,7 @@ export function isAllowedPowerBIHost(url: string): boolean {
 // Handle all webContents creation (including webviews)
 export function registerWebviewSecurity(): void {
   app.on('web-contents-created', (_, contents) => {
-    // SEC-S1: wire the webview guard onto the embedder's WebContents.
+    // Wire the webview guard onto the embedder's WebContents.
     // 'will-attach-webview' is a WebContents event (not a Session event), so it
     // must be registered here on the contents object, not on session.
     contents.on('will-attach-webview', (event, webPreferences, params) => {

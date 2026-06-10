@@ -1,7 +1,7 @@
-// ARCH-S3: IPCResponse and TokenResult now live in ipc-types.ts (next to the
-// ElectronAPI surface they shape). Re-exported here as type-only so the many
-// existing `from '../shared/types'` import sites keep working. The re-export is
-// erased at compile time, so it introduces no runtime import cycle.
+// IPCResponse and TokenResult live in ipc-types.ts (next to the ElectronAPI
+// surface they shape). Re-exported here as type-only so `from '../shared/types'`
+// import sites keep working; the re-export is erased at compile time, so it
+// introduces no runtime import cycle.
 export type { IPCResponse, TokenResult } from './ipc-types';
 
 // ============================================
@@ -20,7 +20,7 @@ export type AuthResult =
       success: true;
       user: UserInfo;
       /**
-       * BEH-B1: true when this login resolved to the SAME account that was
+       * True when this login resolved to the SAME account that was
        * already signed in (no account switch). Lets the renderer / main decide
        * whether to preserve or clear per-account state (e.g. usage history).
        */
@@ -74,7 +74,7 @@ export interface ContentItem {
   lastOpened?: string; // ISO date string
   openCount?: number;
   /**
-   * BEH-B3: home-account id the record belongs to. Optional for backward
+   * Home-account id the record belongs to. Optional for backward
    * compatibility with records persisted before per-account scoping.
    */
   accountId?: string;
@@ -119,18 +119,18 @@ export interface AppSettings {
   autoRefreshEnabled: boolean;
   autoRefreshInterval: number; // in minutes (1-120)
   /**
-   * PROD-B2: launch-time auto-start behavior.
+   * Launch-time auto-start behavior.
    * - 'off'    — normal startup, show the home screen.
    * - 'report' — open the report identified by autoStartReportId on launch.
    * - 'app'    — open the Power BI app identified by autoStartAppId on launch.
    */
   autoStartMode: 'off' | 'report' | 'app';
-  /** PROD-B2: workspace GUID of the auto-start report (paired with autoStartReportId). */
+  /** Workspace GUID of the auto-start report (paired with autoStartReportId). */
   autoStartWorkspaceId?: string;
   /** Launch-time auto-start of a specific Power BI app (paired with autoStartMode 'app'). */
   autoStartAppId?: string;
   /**
-   * BEH-B3: usage-history retention policy on logout.
+   * Usage-history retention policy on logout.
    * - 'always'           — clear usage data every logout.
    * - 'never'            — keep usage data across logouts (default).
    * - 'on-shared-machine'— clear only when the machine is flagged as shared.

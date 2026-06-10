@@ -1,14 +1,12 @@
 /**
- * ARCH-S7: useSlideList
+ * useSlideList
  *
  * Owns the slide-source data for PresentationMode: report pages, bookmarks,
  * the unified slide list, and the readiness flag. Also produces the Power BI
  * `loaded` event handler that pulls pages/bookmarks off the embedded report.
  *
- * Extracted verbatim from PresentationMode.tsx — behavior is preserved exactly:
  * - The `loaded` handler reads the live embed and is memoized with an empty dep
- *   array, matching the original forward-reference pattern (the original memo
- *   closed over a hoisted `embedRef` declared below it).
+ *   array (a forward-reference pattern).
  * - Because usePowerBIEmbed needs `events` as an input while useSlideList needs
  *   the `embedRef` it returns, this hook owns an internal holder ref. The caller
  *   wires the real embedRef in via `setEmbedRef(embedRef)` after usePowerBIEmbed

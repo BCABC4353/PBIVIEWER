@@ -1,20 +1,20 @@
 /**
- * UX-B4: Single-source viewer toolbar shared by ReportViewer, DashboardViewer,
+ * Single-source viewer toolbar shared by ReportViewer, DashboardViewer,
  * and AppViewer. All three viewers delegate their toolbar geometry here.
  *
  * Slot layout (left → right):
  *   [Back] [divider?] [breadcrumb/title slot] [spacer] [right actions]
  *
  * Right-action visibility is controlled by the props each viewer passes:
- *   - onRefresh        → Refresh button (NEW-UX-3: disabled while isRefreshing)
+ *   - onRefresh        → Refresh button (disabled while isRefreshing)
  *   - onExportPdf      → Export PDF button (disabled while isExporting)
  *   - onFullScreen     → Full Screen button
  *   - onSlideshow      → Slideshow button (report-only)
  *   - exportStatus     → transient status text shown in the right section
- *   - lastDataRefresh  → freshness timestamp (UX-S14 / NEW-PROD-4)
- *   - itemName         → shown as breadcrumb text while loading (UX-S14)
+ *   - lastDataRefresh  → freshness timestamp
+ *   - itemName         → shown as breadcrumb text while loading
  *   - isExporting      → disables Export button and relabels it
- *   - isRefreshing     → disables Refresh button (NEW-UX-3)
+ *   - isRefreshing     → disables Refresh button
  *   - backLabel        → override "Back" text (AppViewer uses "Back to Apps")
  *   - titleIcon        → optional JSX icon in the breadcrumb area
  */
@@ -45,7 +45,7 @@ export interface ViewerToolbarProps {
   /** Override label for the back button. Default: "Back". */
   backLabel?: string;
   /**
-   * UX-S14: name of the item shown while loading and as the breadcrumb leaf.
+   * Name of the item shown while loading and as the breadcrumb leaf.
    * When provided a breadcrumb [Home > name] is rendered.
    * When omitted only the back button and actions are shown.
    */
@@ -56,7 +56,7 @@ export interface ViewerToolbarProps {
    */
   titleIcon?: React.ReactNode;
   /**
-   * NEW-PROD-4: ISO-8601 freshness timestamp. Rendered with timezone label
+   * ISO-8601 freshness timestamp. Rendered with timezone label
    * and 4-digit year.
    */
   lastDataRefresh?: string | null;
@@ -64,7 +64,7 @@ export interface ViewerToolbarProps {
   exportStatus?: string | null;
   /** Shows and wires the Refresh button. */
   onRefresh?: () => void;
-  /** NEW-UX-3: while true the Refresh button is disabled and shows a spinner label. */
+  /** While true the Refresh button is disabled and shows a spinner label. */
   isRefreshing?: boolean;
   /** Shows and wires the Export PDF button. */
   onExportPdf?: () => void;
@@ -84,11 +84,11 @@ export interface ViewerToolbarProps {
    * When true, the backing dataset has refreshed AFTER the on-screen content
    * loaded. Rendered as a small accent notice INSIDE the freshness strip
    * ("Newer data available — Refresh to update"), not as a morphing Refresh
-   * button (the old primary-button treatment read as a random call-to-action).
+   * button (a morphing primary button reads as a random call-to-action).
    */
   newDataAvailable?: boolean;
   /**
-   * NEW-PROD-4: ISO-8601 timestamp of the upstream dataflow's last SUCCESSFUL
+   * ISO-8601 timestamp of the upstream dataflow's last SUCCESSFUL
    * completion, shown as a second line. A dataset can report success on stale
    * data, so this is the independent "data is genuinely current" signal.
    */
@@ -111,7 +111,7 @@ export interface ViewerToolbarProps {
 }
 
 /**
- * NEW-PROD-4: Format an ISO-8601 date as M/D/YYYY HH:mm <TZ>.
+ * Format an ISO-8601 date as M/D/YYYY HH:mm <TZ>.
  * Uses full 4-digit year and appends the browser's short timezone abbreviation.
  */
 function formatRefreshTime(isoString: string): string {
@@ -119,7 +119,7 @@ function formatRefreshTime(isoString: string): string {
   if (Number.isNaN(date.getTime())) return '';
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  const year = String(date.getFullYear()); // 4-digit year (NEW-PROD-4)
+  const year = String(date.getFullYear());
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
 
@@ -226,7 +226,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
         {backLabel}
       </Button>
 
-      {/* Breadcrumb section — only when we have an item name (UX-S14) */}
+      {/* Breadcrumb section — only when we have an item name */}
       {hasBreadcrumb && (
         <>
           <div className="h-6 w-px bg-neutral-stroke-2" aria-hidden="true" />
@@ -263,7 +263,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 
       {/* Right section */}
       <div className="flex items-center gap-2">
-        {/* NEW-PROD-4 / freshness strip: dataset refresh time + upstream
+        {/* Freshness strip: dataset refresh time + upstream
             dataflow last-success time, persistently rendered (with placeholders
             until the first poll resolves) so the stamps never vanish from the
             GUI. A green "✓ Updated" flash confirms a completed repaint; a small
@@ -302,8 +302,8 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
           </Text>
         )}
 
-        {/* NEW-UX-3: Refresh — disabled while in-progress. The new-data nudge
-            lives in the freshness strip now; the button stays visually stable. */}
+        {/* Refresh — disabled while in-progress. The new-data nudge
+            lives in the freshness strip; the button stays visually stable. */}
         {onRefresh && (
           <Button
             appearance="subtle"

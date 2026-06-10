@@ -153,9 +153,8 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         dashboards = allItemsResponse.success ? allItemsResponse.data.dashboards : [];
 
         // Surface partial-failure warning if the bulk fetch couldn't reach
-        // every workspace. DEV-D extended getAllItems' payload with
-        // partialFailure + failedWorkspaces; tolerate older shapes by
-        // reading via an unknown cast.
+        // every workspace. Tolerate payload shapes without partialFailure /
+        // failedWorkspaces by reading via an unknown cast.
         let partialFailure = false;
         if (allItemsResponse.success) {
           const bulk = allItemsResponse.data as unknown as {

@@ -149,8 +149,7 @@ export const AppViewer: React.FC = () => {
       // Clear any prior error the moment a (re)load begins. Without this, a
       // successful reload after a failed load renders the app behind a
       // permanent error overlay (the webview is only visibility:hidden, never
-      // unmounted), so "Try again" appeared to do nothing. This is what made
-      // the Apps experience feel worse than reports, which clear error on reload.
+      // unmounted), so "Try again" appears to do nothing.
       setError(null);
       clearWatchdog();
       watchdog = setTimeout(() => {
@@ -177,8 +176,8 @@ export const AppViewer: React.FC = () => {
       // Only a MAIN-FRAME failure means the app page itself didn't load. The
       // embedded Power BI app pulls dozens of sub-resources / sub-frames; a blip
       // in any of those (common on a cold first open, then cached on retry) fires
-      // did-fail-load with isMainFrame=false. Treating those as fatal is what put
-      // up a spurious "Failed to load app" that then worked on the second try.
+      // did-fail-load with isMainFrame=false. Treating those as fatal puts up a
+      // spurious "Failed to load app" that then works on the second try.
       if (e.detail?.isMainFrame === false) return;
       clearWatchdog();
       console.error('[AppViewer] Webview failed to load:', e.detail);
@@ -223,7 +222,7 @@ export const AppViewer: React.FC = () => {
     };
   }, [partitionLoaded]);
 
-  // NEW-UX-3: refresh with in-progress state.
+  // Refresh with in-progress state.
   // webview.reload() is synchronous, so clearing isRefreshing in a finally
   // block means React batches both state updates in the same tick and the
   // toolbar 'Refreshing…' label never actually renders. Instead we drive
@@ -268,10 +267,10 @@ export const AppViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* A11Y-S7: sr-only heading for screen readers */}
+      {/* Sr-only heading for screen readers */}
       <h1 className="sr-only">App: {appName}</h1>
 
-      {/* UX-B4: shared toolbar */}
+      {/* Shared toolbar */}
       <ViewerToolbar
         onBack={handleBack}
         backLabel="Back to Apps"

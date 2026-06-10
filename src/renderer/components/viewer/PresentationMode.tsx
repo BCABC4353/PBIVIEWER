@@ -22,7 +22,7 @@ import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGestur
 import { ViewerToolbar } from './ViewerToolbar';
 
 /**
- * NEW-A11Y-5: returns true when a keydown target is an interactive control that
+ * Returns true when a keydown target is an interactive control that
  * should own its own keyboard handling, so the global slideshow keydown handler
  * must NOT preventDefault or navigate. Covers native form/button elements, ARIA
  * widget roles (slider/button/menuitem), contenteditable, and anything inside
@@ -76,7 +76,7 @@ export const PresentationMode: React.FC = () => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
-  // NEW-BEH-1: gates the auto-start effect to a single trigger so that
+  // Gates the auto-start effect to a single trigger so that
   // pressing Pause after auto-start doesn't immediately re-start the slideshow
   // on the next render cycle (slidesReady / isLoading / error can re-fire).
   const hasAutoStartedRef = useRef(false);
@@ -97,14 +97,13 @@ export const PresentationMode: React.FC = () => {
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
   const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
 
-  // ARCH-S7: debounced interval-persist (slider onChange) lives in a hook that
+  // Debounced interval-persist (slider onChange) lives in a hook that
   // owns its own pending-timer ref and unmount flush.
   const { onIntervalChange } = useDebouncedSettings();
 
   // Defensive bootstrap: ensure the store has fetched once. Idempotent if
-  // App bootstrap already ran it. We can't edit App.tsx in this sprint
-  // (DEV-D scope), so each viewer self-bootstraps. Real values come from
-  // the store subscriptions above.
+  // App bootstrap already ran it; each viewer self-bootstraps. Real values
+  // come from the store subscriptions above.
   useEffect(() => {
     void useSettingsStore.getState().loadSettings();
   }, []);
@@ -130,7 +129,7 @@ export const PresentationMode: React.FC = () => {
     [workspaceId, reportId]
   );
 
-  // ARCH-S7: slide-source data (pages, bookmarks, unified slide list) and the
+  // Slide-source data (pages, bookmarks, unified slide list) and the
   // Power BI `loaded` handler live in useSlideList. The handler reads the live
   // embed lazily via setEmbedRef (wired below, after usePowerBIEmbed returns).
   const { slides, slidesReady, events, setEmbedRef } = useSlideList(slideshowMode);
@@ -158,12 +157,11 @@ export const PresentationMode: React.FC = () => {
   // useSlideList needs the embedRef from usePowerBIEmbed, but usePowerBIEmbed
   // needs the `events` object from useSlideList — a forward reference. Thread the
   // (stable-identity) embedRef back into the hook so the `loaded` handler reads
-  // the live embed. The original code relied on the same hoisted-ref pattern
-  // (the memo closed over an embedRef declared below it).
+  // the live embed.
   setEmbedRef(embedRef);
 
   // Auto-start slideshow when slides are ready (if setting enabled).
-  // NEW-BEH-1: the hasAutoStartedRef gate ensures we fire exactly once per
+  // The hasAutoStartedRef gate ensures we fire exactly once per
   // mount, so pressing Pause after auto-start stays paused — subsequent
   // re-renders of slidesReady / isLoading / error don't re-trigger play.
   useEffect(() => {
@@ -184,7 +182,7 @@ export const PresentationMode: React.FC = () => {
     if (isExitingRef.current) return;
     isExitingRef.current = true;
 
-    // PROD-S1: release the display-sleep blocker on exit (kiosk). Fire-and-forget;
+    // Release the display-sleep blocker on exit (kiosk). Fire-and-forget;
     // the main handler is idempotent so the unmount cleanup re-calling is safe.
     void window.electronAPI.kiosk.allowDisplaySleep().catch(() => {});
 
@@ -195,7 +193,7 @@ export const PresentationMode: React.FC = () => {
       slideshowIntervalRef.current = null;
     }
 
-    // PERF-S2 / ARCH-S1: use teardownNow() so the hook owns the SDK event
+    // Use teardownNow() so the hook owns the SDK event
     // detachment and container reset — no direct embed.off or powerbiService
     // calls here. Stops the iframe from rendering before navigate() runs.
     teardownNow();
@@ -213,7 +211,7 @@ export const PresentationMode: React.FC = () => {
     }
   }, [workspaceId, reportId, navigate, teardownNow]);
 
-  // ARCH-S7: fullscreen enter-on-mount + exit-on-fullscreenchange teardown.
+  // Fullscreen enter-on-mount + exit-on-fullscreenchange teardown.
   // Shares isExitingRef / slideshowIntervalRef with doExit so both exit paths
   // coordinate.
   useExitOnFullscreenChange({
@@ -225,11 +223,11 @@ export const PresentationMode: React.FC = () => {
     slideshowIntervalRef,
   });
 
-  // ARCH-S7: focus management (save/restore previously-focused element + Tab
+  // Focus management (save/restore previously-focused element + Tab
   // focus trap scoped to the overlay).
   useFocusTrap(overlayRef);
 
-  // PROD-S1: keep the display awake for unattended wall-display use. Start the
+  // Keep the display awake for unattended wall-display use. Start the
   // powerSaveBlocker on enter; release it on unmount. doExit() also releases it
   // explicitly — the main handler is idempotent so the double-call is safe.
   useEffect(() => {
@@ -239,16 +237,16 @@ export const PresentationMode: React.FC = () => {
     };
   }, []);
 
-  // PROD-S1: slideshow auto-recovery with 5s → 30s → 60s backoff (then 60s).
+  // Slideshow auto-recovery with 5s → 30s → 60s backoff (then 60s).
   // Wired to usePowerBIEmbed's `error` signal and `reload` (re-embed). Only
   // attempts while the slideshow is playing; resets backoff once the error
   // clears (successful recovery). Timer is cleaned up on exit/unmount.
   useKioskRecovery({ error, active: isPlaying, recover: reload });
 
-  // PROD-S1: kiosk-safe exit gesture — 3s Escape-hold OR Ctrl+Shift+Q → exit.
+  // Kiosk-safe exit gesture — 3s Escape-hold OR Ctrl+Shift+Q → exit.
   useKioskExitGesture({ onExit: doExit });
 
-  // PROD-S1: hide the cursor after inactivity in presentation/fullscreen; reveal
+  // Hide the cursor after inactivity in presentation/fullscreen; reveal
   // on mousemove. Drives a `cursor-none` class on the overlay.
   const cursorHidden = useCursorHide();
 
@@ -260,8 +258,8 @@ export const PresentationMode: React.FC = () => {
       // Escape is the GLOBAL slideshow exit and must be handled regardless of
       // focus — interactive controls (toolbar buttons, the scrubber) don't own
       // Escape, so it must be processed BEFORE the interactive-target bail
-      // below (antagonist P0: previously Escape over a toolbar button never
-      // exited). Order of precedence:
+      // below (otherwise Escape over a toolbar button never exits).
+      // Order of precedence:
       //   1. If the settings panel is open, Escape closes it (not exit).
       //   2. In a manually-started slideshow, Escape exits.
       //   3. In unattended/kiosk mode (auto-started), a single Escape is inert —
@@ -278,7 +276,7 @@ export const PresentationMode: React.FC = () => {
         return;
       }
 
-      // NEW-A11Y-5: do not hijack NAVIGATION keys (Arrows/Space/p) from
+      // Do not hijack NAVIGATION keys (Arrows/Space/p) from
       // interactive overlay controls — the scrubber (role="slider"), the
       // ViewerToolbar buttons, the settings slider, and the dot-indicator
       // buttons must handle their own keys. Bail (no preventDefault, no nav)
@@ -367,7 +365,7 @@ export const PresentationMode: React.FC = () => {
   }, [currentSlideIndex, slides]);
 
   // Hide controls after inactivity.
-  // PERF-S4: bind to `document` only — `window` re-dispatches the same
+  // Bind to `document` only — `window` re-dispatches the same
   // bubbled mousemove events, so attaching to both fires the handler twice
   // per move. A single `document` listener is sufficient for the entire page.
   useEffect(() => {
@@ -481,7 +479,7 @@ export const PresentationMode: React.FC = () => {
         {slideAnnouncement}
       </div>
 
-      {/* #6: PERSISTENT kiosk exit hint. Rendered OUTSIDE the auto-hide
+      {/* PERSISTENT kiosk exit hint. Rendered OUTSIDE the auto-hide
           `showControls` block so it never fades — an unattended-wall-display
           operator (esp. the autoStartSlideshow/kiosk scenario where a single
           Escape is intentionally inert) always sees how to get out. Kept small,
@@ -508,7 +506,7 @@ export const PresentationMode: React.FC = () => {
       {/* Controls overlay */}
       {showControls && !isLoading && !error && (
         <>
-          {/* UX-B4b: shared ViewerToolbar for visual consistency with the other
+          {/* Shared ViewerToolbar for visual consistency with the other
               viewers. Only the props that make sense in slideshow context are
               wired: Back/Exit (doExit, backLabel "Exit") and the item name.
               Export/Refresh/Full-Screen/Slideshow actions don't apply here and
@@ -609,7 +607,7 @@ export const PresentationMode: React.FC = () => {
                 ))}
               </div>
             )}
-            {/* PROD-S10: scrubber fallback for decks with more than 20
+            {/* Scrubber fallback for decks with more than 20
                 slides where dot indicators become impractical.
                 A11Y: role="slider" correctly describes an interactive control
                 that changes value; keyboard support (Left/Right/Home/End)

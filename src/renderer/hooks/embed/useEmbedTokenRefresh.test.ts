@@ -1,7 +1,7 @@
 /**
- * #7 Embed core behavioral coverage — token refresh.
+ * Embed core behavioral coverage — token refresh.
  *
- * Asserts REAL preemptive-refresh behavior against a fake embed object and the
+ * Asserts preemptive-refresh behavior against a fake embed object and the
  * mocked getEmbedToken IPC:
  *   - scheduleProactiveRefresh fires TOKEN_REFRESH_LEAD_MS before expiry, fetches
  *     a fresh token, and calls the embed's setAccessToken + refresh

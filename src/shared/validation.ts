@@ -1,14 +1,8 @@
 import type { AppSettings } from './types';
 import { SLIDESHOW_INTERVAL, AUTH, USAGE } from './constants';
 
-// ============================================
-// ARCH-B2: consolidated validation
-//
-// Single source of truth for input validation shared by the main IPC handlers
-// and the persistence-layer services. Previously this logic was split between
-// shared/validation.ts (UUID only), main/validation.ts (a duplicate), and
-// inline validators in main/ipc/settings.ts + usage-tracking-service.ts.
-// ============================================
+// Consolidated validation — single source of truth for input validation shared
+// by the main IPC handlers and the persistence-layer services.
 
 /** RFC-4122 UUID, case-insensitive. */
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -105,8 +99,6 @@ export function validateAppSettingsPatch(
   if ('autoRefreshInterval' in src) {
     const v = src.autoRefreshInterval;
     if (typeof v === 'number' && Number.isFinite(v)) {
-      // PERF-B1: upper bound raised to 120 min so operators can pick longer
-      // intervals without being silently clamped.
       sanitized.autoRefreshInterval = Math.min(
         AUTH.AUTO_REFRESH_MAX_MINUTES,
         Math.max(AUTH.AUTO_REFRESH_MIN_MINUTES, v),
@@ -115,7 +107,7 @@ export function validateAppSettingsPatch(
       rejected.push('autoRefreshInterval');
     }
   }
-  // PROD-B2: launch-time auto-start.
+  // Launch-time auto-start.
   if ('autoStartMode' in src) {
     const v = src.autoStartMode;
     if (v === 'off' || v === 'report' || v === 'app') sanitized.autoStartMode = v;
@@ -127,7 +119,7 @@ export function validateAppSettingsPatch(
     else if (typeof v === 'string' && UUID_REGEX.test(v)) sanitized.autoStartWorkspaceId = v;
     else rejected.push('autoStartWorkspaceId');
   }
-  // BEH-B3: usage-history retention on logout.
+  // Usage-history retention on logout.
   if ('usageClearOnLogout' in src) {
     const v = src.usageClearOnLogout;
     if (v === 'always' || v === 'never' || v === 'on-shared-machine') sanitized.usageClearOnLogout = v;

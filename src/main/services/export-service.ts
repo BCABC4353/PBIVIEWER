@@ -92,7 +92,7 @@ export async function exportCurrentViewPdf(
       width: cssWidth,
       height: cssHeight,
       webPreferences: {
-        // NEW-SEC-2: explicit hardening — this window loads a self-contained
+        // Explicit hardening — this window loads a self-contained
         // data: URL and must never reach Node or the network.
         nodeIntegration: false,
         contextIsolation: true,
@@ -100,7 +100,7 @@ export async function exportCurrentViewPdf(
       },
     });
 
-    // NEW-SEC-2: deny any window.open() or navigation attempts from the
+    // Deny any window.open() or navigation attempts from the
     // transient PDF render window — it loads only a data: URL.
     pdfWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     pdfWindow.webContents.on('will-navigate', (event) => {
@@ -125,7 +125,7 @@ export async function exportCurrentViewPdf(
 </body>
 </html>`;
 
-    // NEW-PERF-1: race a 30 s deadline against the data: URL load so a
+    // Race a 30 s deadline against the data: URL load so a
     // stalled/crashed renderer cannot orphan the hidden window and leak memory.
     // The finally block always closes pdfWindow, but it only runs once the
     // promise settles — without this race the await above could hang forever.
@@ -143,7 +143,7 @@ export async function exportCurrentViewPdf(
         settle(() => reject(new Error('Export window load timed out after 30 s')));
       }, LOAD_TIMEOUT_MS);
 
-      // E2: one-shot per export. Use .once() so these handlers self-detach the
+      // One-shot per export. Use .once() so these handlers self-detach the
       // moment they fire — without this the same hidden-window webContents would
       // accumulate did-finish-load / did-fail-load listeners across repeated
       // exports (a listener leak). The race below settles exactly once, so only

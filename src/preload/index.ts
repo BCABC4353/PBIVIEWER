@@ -13,7 +13,7 @@ const electronAPI: ElectronAPI = {
     getAccessToken: () => ipcRenderer.invoke('auth:get-token'),
     isAuthenticated: () => ipcRenderer.invoke('auth:is-authenticated'),
     validateToken: () => ipcRenderer.invoke('auth:validate-token'),
-    // PROD-B1: account switcher bridge — logout-then-login(select_account).
+    // Account switcher bridge — logout-then-login(select_account).
     switchAccount: () => ipcRenderer.invoke('auth:switch-account'),
   },
 
@@ -42,7 +42,7 @@ const electronAPI: ElectronAPI = {
     ) => ipcRenderer.invoke('content:export-report-pdf', reportId, workspaceId, pageName, bookmarkState, filePath),
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
       ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
-    // PROD-S9: dashboard freshness bridge — stalest tile-dataset refresh time.
+    // Dashboard freshness bridge — stalest tile-dataset refresh time.
     getDashboardDataFreshness: (dashboardId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-dashboard-data-freshness', dashboardId, workspaceId),
     // Dataset + upstream-dataflow freshness for the viewer "Data refreshed / Dataflow" stamps.
@@ -56,7 +56,7 @@ const electronAPI: ElectronAPI = {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
-    // UX-B1: fire-and-forget — send (no reply channel) matches ipcMain.on.
+    // Fire-and-forget — send (no reply channel) matches ipcMain.on.
     // Returns a resolved Promise<void> to satisfy the ElectronAPI interface
     // without awaiting a response from the main process.
     setTitleBarOverlay: (options: { color: string; symbolColor: string }) => {
@@ -81,12 +81,12 @@ const electronAPI: ElectronAPI = {
       workspaceName: string;
       accountId?: string;
     }) => ipcRenderer.invoke('usage:record-open', item),
-    // BEH-B3: forward optional accountId so the main-process handler can scope
+    // Forward optional accountId so the main-process handler can scope
     // results to the signed-in user; undefined omits the arg (backward-compat).
     getRecent: (accountId?: string) => ipcRenderer.invoke('usage:get-recent', accountId),
     getFrequent: (accountId?: string) => ipcRenderer.invoke('usage:get-frequent', accountId),
     clear: () => ipcRenderer.invoke('usage:clear'),
-    // NEW-PROD-5: persistently remove a single dead item.
+    // Persistently remove a single dead item.
     remove: (itemId: string) => ipcRenderer.invoke('usage:remove', itemId),
   },
 
@@ -110,7 +110,7 @@ const electronAPI: ElectronAPI = {
     openUserGuide: () => ipcRenderer.invoke('app:open-user-guide'),
   },
 
-  // PROD-S1: kiosk power management — presentation/slideshow keeps the display
+  // Kiosk power management — presentation/slideshow keeps the display
   // awake for unattended wall-display use.
   kiosk: {
     preventDisplaySleep: () => ipcRenderer.invoke('kiosk:prevent-display-sleep'),

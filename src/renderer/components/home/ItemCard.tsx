@@ -1,18 +1,14 @@
 /**
- * UX-S5: flat ContentCard — no bg-gradient. Icon area uses per-type Tailwind
- * token classes (type-report / type-dashboard via UX-S13) instead of
- * status-success for dashboards.
+ * Flat ContentCard (no gradient). Icon area uses per-type Tailwind token
+ * classes (type-report / type-dashboard); hover shadow uses shadow-fluent-4
+ * (Fluent shadow scale).
  *
- * UX-S6: hover shadow uses shadow-fluent-4 (Fluent shadow scale).
- *
- * UX-S13: per-type icon-color map — report uses accent-primary (orange brand),
+ * Per-type icon-color map — report uses accent-primary (orange brand),
  * dashboard uses a dedicated CSS-variable token mapped in tailwind.config.
  * Both resolve via CSS custom properties so they respond to theme changes.
  *
- * PROD-B2: "Set as launch-on-startup" menu item writes through useSettingsStore
+ * "Set as launch-on-startup" menu item writes through useSettingsStore
  * (keeps the in-memory store consistent) and shows a Fluent toast confirmation.
- *
- * A11Y-B5: keyboard activation (Enter / Space) preserved exactly.
  */
 import React, { useId } from 'react';
 import {
@@ -53,7 +49,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onOpen,
   onPresentationMode,
 }) => {
-  // PROD-B2: unique Toaster ID per card instance (useId is stable per mount).
+  // Unique Toaster ID per card instance (useId is stable per mount).
   const toasterId = useId();
   const { dispatchToast } = useToastController(toasterId);
 
@@ -68,7 +64,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     }
   };
 
-  // PROD-B2: write auto-start settings for this report through the store so
+  // Write auto-start settings for this report through the store so
   // the in-memory state stays consistent within the session.
   const handleSetAutoStart = async () => {
     if (item.type !== 'report') return;
@@ -90,16 +86,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     }
   };
 
-  // UX-S13: per-type icon color — report=accent-primary (orange), dashboard=brand-primary
+  // Per-type icon color — report=accent-primary (orange), dashboard=brand-primary
   const iconColorClass =
     item.type === 'report' ? 'text-accent-primary' : 'text-brand-primary';
 
   return (
     <>
-    {/* PROD-B2: toast outlet for this card — mounted adjacent so it is always
+    {/* Toast outlet for this card — mounted adjacent so it is always
         present when dispatchToast fires regardless of scroll position. */}
     <Toaster toasterId={toasterId} position="bottom-end" />
-    {/* UX-S5: flat card — no gradient. UX-S6: shadow-fluent-4 on hover. */}
     <Card
       className="w-48 cursor-pointer hover:shadow-fluent-4 transition-shadow"
       role="button"
@@ -108,7 +103,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       onKeyDown={handleKeyDown}
       aria-label={`Open ${item.name}`}
     >
-      {/* UX-S5: flat neutral icon area — no gradient */}
       <div className="h-28 bg-neutral-background-4 flex items-center justify-center rounded-t-lg">
         {item.type === 'report' ? (
           <DocumentRegular className={`text-4xl ${iconColorClass}`} />
@@ -153,7 +147,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       Presentation mode
                     </MenuItem>
                   )}
-                  {/* PROD-B2: launch-on-startup (reports only) */}
+                  {/* Launch-on-startup (reports only) */}
                   {item.type === 'report' && (
                     <MenuItem
                       icon={<RocketRegular />}

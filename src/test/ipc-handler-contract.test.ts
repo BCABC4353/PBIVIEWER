@@ -1,5 +1,5 @@
 /**
- * NEW-CI-3: Main-process IPC handler contract test.
+ * Main-process IPC handler contract test.
  *
  * Asserts that every channel string declared in IPC_CHANNELS has a corresponding
  * handler registered in the main-process IPC layer (src/main/ipc/*.ts), so a

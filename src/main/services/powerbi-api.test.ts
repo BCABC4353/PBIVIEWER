@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// ARCH-B4: powerbi-api.ts imports auth/singleton.ts, which (lazily) reaches for
+// Powerbi-api.ts imports auth/singleton.ts, which (lazily) reaches for
 // the electron/MSAL-backed auth service. The DI factory means the SERVICE needs
 // none of that, but the module's top-level imports still transitively load
 // electron via the auth module graph. Stub electron so the import is clean.
@@ -90,7 +90,7 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     if (!result.success) expect(result.error.code).toBe('WORKSPACES_FETCH_FAILED');
   });
 
-  // PROD-S9: the data-freshness indicator (ReportViewer + DashboardViewer)
+  // The data-freshness indicator (ReportViewer + DashboardViewer)
   // depends on getDatasetRefreshInfo distinguishing "no refresh history" from a
   // real timestamp. When the dataset has never refreshed, the API returns
   // success with empty data (no lastRefreshTime) so viewers render no indicator
@@ -140,7 +140,7 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 
-  // PROD-S9: getDashboardDataFreshness derives a single freshness signal for a
+  // GetDashboardDataFreshness derives a single freshness signal for a
   // whole dashboard by enumerating tiles, collecting distinct datasetIds,
   // querying each dataset's refresh history, and returning the OLDEST (stalest)
   // lastRefreshTime. The fetch mock below routes by URL: the tiles endpoint
@@ -407,8 +407,8 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
 
-    // Every page points its nextLink back at the same URL — a hang before the
-    // seen-URL guard existed.
+    // Every page points its nextLink back at the same URL — would hang
+    // forever without the seen-URL guard.
     const circular = 'https://api.powerbi.com/v1.0/myorg/groups?$skip=1';
     // A fresh Response per call — a Response body is single-use.
     const fetchMock = vi.fn().mockImplementation(async () =>

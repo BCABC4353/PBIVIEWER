@@ -27,7 +27,7 @@ interface ContentState {
   loadFrequentItems: () => Promise<void>;
   recordItemOpened: (item: ContentItem) => void;
   /**
-   * NEW-PROD-5: targeted eviction of a single dead item (called when a viewer
+   * Targeted eviction of a single dead item (called when a viewer
    * receives a 404 for an item). Updates the in-memory recent/frequent lists
    * immediately AND removes it from the persistent usage store so it does not
    * reappear on the next launch.
@@ -109,11 +109,11 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadRecentItems: async () => {
     try {
-      // BEH-B3: scope the read to the signed-in user so accounts on a shared
+      // Scope the read to the signed-in user so accounts on a shared
       // machine do not see each other's recent history.
       const accountId = useAuthStore.getState().user?.id;
       const response = await window.electronAPI.usage.getRecent(accountId);
-      // FIX-3 (isolation): an account switch can land DURING this in-flight IPC.
+      // An account switch can land DURING this in-flight IPC.
       // Re-check the active account after the await and discard the response if
       // it changed, so the prior account's data is never written into the new
       // account's store.
@@ -128,10 +128,10 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadFrequentItems: async () => {
     try {
-      // BEH-B3: scope the read to the signed-in user (same rationale as above).
+      // Scope the read to the signed-in user (same rationale as above).
       const accountId = useAuthStore.getState().user?.id;
       const response = await window.electronAPI.usage.getFrequent(accountId);
-      // FIX-3 (isolation): discard a response that resolved after an account
+      // Discard a response that resolved after an account
       // switch (same rationale as loadRecentItems above).
       if (useAuthStore.getState().user?.id !== accountId) return;
       if (response.success) {
@@ -143,7 +143,7 @@ export const useContentStore = create<ContentState>((set, get) => ({
   },
 
   recordItemOpened: (item: ContentItem) => {
-    // BEH-S4: guard — do not emit usage IPC after the user has logged out.
+    // Guard — do not emit usage IPC after the user has logged out.
     // useAuthStore.getState() is synchronous so there is no race between the
     // guard and the navigation that immediately follows this call.
     if (!useAuthStore.getState().isAuthenticated) return;
@@ -154,11 +154,9 @@ export const useContentStore = create<ContentState>((set, get) => ({
     // (or shortly after) once these awaits resolve.
     void (async () => {
       try {
-        // CROSS-LANE: pass the signed-in user's homeAccountId so the record
-        // is scoped to this account (BEH-B3 per-user scoping).
-        // UserInfo.id holds the homeAccountId as set by the auth service.
-        // If for any reason it is absent, the main-process usage handler
-        // should stamp it from authService instead (see notes in lane output).
+        // Pass the signed-in user's homeAccountId so the record is scoped to
+        // this account. UserInfo.id holds the homeAccountId as set by the
+        // auth service.
         const accountId = useAuthStore.getState().user?.id;
         await window.electronAPI.usage.recordOpen({
           id: item.id,
@@ -180,7 +178,7 @@ export const useContentStore = create<ContentState>((set, get) => ({
     })();
   },
 
-  // NEW-PROD-5: targeted eviction — removes a single item from in-memory
+  // Targeted eviction — removes a single item from in-memory
   // recent/frequent lists without discarding all usage history.  Callers
   // (viewers) invoke this when the Power BI API returns a 404 for an item.
   evictDeadItem: (itemId: string) => {
@@ -188,7 +186,7 @@ export const useContentStore = create<ContentState>((set, get) => ({
       recentItems: state.recentItems.filter((i) => i.id !== itemId),
       frequentItems: state.frequentItems.filter((i) => i.id !== itemId),
     }));
-    // NEW-PROD-5: also drop it from the PERSISTENT store so the dead tile does
+    // Also drop it from the PERSISTENT store so the dead tile does
     // not come back on next launch (fire-and-forget; UI already updated above).
     void window.electronAPI.usage.remove(itemId).catch(() => {});
   },

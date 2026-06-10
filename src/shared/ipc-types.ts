@@ -12,11 +12,7 @@ import type {
   AppSettings,
 } from './types';
 
-// ============================================
-// IPC ENVELOPE TYPES (ARCH-S3)
-// Moved here from types.ts so the IPC contract lives next to the API surface
-// it shapes. Re-exported from types.ts for backward compatibility.
-// ============================================
+// IPC envelope types — re-exported from types.ts for backward compatibility.
 
 export type IPCResponse<T> =
   | { success: true; data: T }
@@ -47,7 +43,7 @@ export interface TokenResult {
 }
 
 /**
- * ARCH-S6: config the App webview needs to mount with the correct session.
+ * Config the App webview needs to mount with the correct session.
  * `partition` is the Electron <webview> partition the App viewer mounts with
  * (null in dev so the default session is used, PARTITION_NAME in production).
  */
@@ -71,7 +67,7 @@ export interface ElectronAPI {
     getAccessToken: () => Promise<IPCResponse<TokenResult>>;
     isAuthenticated: () => Promise<IPCResponse<boolean>>;
     validateToken: () => Promise<IPCResponse<boolean>>;
-    // PROD-B1: account switch — same return shape as login().
+    // Account switch — same return shape as login().
     switchAccount: () => Promise<IPCResponse<AuthResult>>;
   };
 
@@ -93,7 +89,7 @@ export interface ElectronAPI {
       filePath?: string,
     ) => Promise<IPCResponse<{ path: string }>>;
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
-    // PROD-S9: dashboard freshness — stalest lastRefreshTime across tile datasets.
+    // Dashboard freshness — stalest lastRefreshTime across tile datasets.
     getDashboardDataFreshness: (dashboardId: string, workspaceId: string) => Promise<IPCResponse<DatasetRefreshInfo>>;
     /** Dataset refresh + upstream dataflow last-success times. Pass datasetIds for
      *  a report/app, or a dashboardId to derive them from the dashboard's tiles. */
@@ -132,15 +128,15 @@ export interface ElectronAPI {
       type: 'report' | 'dashboard';
       workspaceId: string;
       workspaceName: string;
-      /** BEH-B3: homeAccountId from MSAL — scopes the record to the signed-in user. */
+      /** HomeAccountId from MSAL — scopes the record to the signed-in user. */
       accountId?: string;
     }) => Promise<IPCResponse<void>>;
-    /** BEH-B3: pass the signed-in homeAccountId to scope results to that user. */
+    /** Pass the signed-in homeAccountId to scope results to that user. */
     getRecent: (accountId?: string) => Promise<IPCResponse<ContentItem[]>>;
-    /** BEH-B3: pass the signed-in homeAccountId to scope results to that user. */
+    /** Pass the signed-in homeAccountId to scope results to that user. */
     getFrequent: (accountId?: string) => Promise<IPCResponse<ContentItem[]>>;
     clear: () => Promise<IPCResponse<void>>;
-    /** NEW-PROD-5: permanently remove a single dead item from the usage store. */
+    /** Permanently remove a single dead item from the usage store. */
     remove: (itemId: string) => Promise<IPCResponse<void>>;
   };
 
@@ -164,7 +160,7 @@ export interface ElectronAPI {
     openFolder: () => Promise<IPCResponse<void>>;
   };
 
-  // PROD-S1: kiosk power management for unattended wall displays.
+  // Kiosk power management for unattended wall displays.
   kiosk: {
     /**
      * Start an Electron powerSaveBlocker('prevent-display-sleep'). Idempotent —

@@ -32,18 +32,17 @@ export interface UseEmbedLifecycleOptions {
 export interface UseEmbedLifecycleResult {
   /** Retry button calls this. Resets generation and runs a fresh load. */
   reload: () => void;
-  /** Synchronous pre-navigation teardown (ARCH-S1 / PERF-S2). */
+  /** Synchronous pre-navigation teardown. */
   teardownNow: () => void;
 }
 
 /**
- * ARCH-S2: Embed load lifecycle.
+ * Embed load lifecycle.
  *
  * Owns the main load effect (token fetch -> embed -> handler registration),
  * the auto-refresh interval, handler detachment, `reload`, and the
  * synchronous `teardownNow`. Watchdog and token-refresh concerns are injected
- * so this hook only orchestrates them. Behaviour is preserved verbatim from
- * the original monolithic hook.
+ * so this hook only orchestrates them.
  */
 export function useEmbedLifecycle(
   opts: UseEmbedLifecycleOptions
@@ -88,7 +87,7 @@ export function useEmbedLifecycle(
   const eventsRef = useRef(events);
   const errorFallbackRef = useRef(errorFallback);
   const errorPolicyRef = useRef(errorPolicy);
-  // PERF-S1: mirror error state into a ref so the auto-refresh interval can
+  // Mirror error state into a ref so the auto-refresh interval can
   // read the current value without the effect depending on `error`.
   const errorRef = useRef<string | null>(null);
 
@@ -104,7 +103,7 @@ export function useEmbedLifecycle(
   useEffect(() => {
     errorPolicyRef.current = errorPolicy;
   }, [errorPolicy]);
-  // PERF-S1: mirror error state into a ref so the auto-refresh interval can
+  // Mirror error state into a ref so the auto-refresh interval can
   // read the current value without the effect depending on `error`.
   useEffect(() => {
     errorRef.current = error;
@@ -120,7 +119,7 @@ export function useEmbedLifecycle(
     for (const eventName of registeredEventsRef.current) {
       try {
         // powerbi-client's off(eventName) with no handler removes ALL
-        // listeners for that event — confirmed via Context7.
+        // listeners for that event.
         embed.off(eventName);
       } catch {
         // ignore detach errors
@@ -164,7 +163,7 @@ export function useEmbedLifecycle(
         if (generation !== generationRef.current || cancelled) return;
 
         if (!tokenResponse.success) {
-          // BEH-S7: prefer the friendly userMessage when the main process supplies one.
+          // Prefer the friendly userMessage when the main process supplies one.
           throw new Error(
             tokenResponse.error.userMessage ||
               tokenResponse.error.message ||
@@ -287,7 +286,7 @@ export function useEmbedLifecycle(
   // Auto-refresh interval — embed.refresh() at the user's configured cadence,
   // but only when the tab is visible, embed has loaded, and there's no error.
   //
-  // PERF-S1 / BEH-S1: read current error and loaded state through refs so that
+  // Read current error and loaded state through refs so that
   // neither `error` nor `isLoading` state changes cause this effect to tear
   // down and recreate the setInterval. The only legitimate reasons to restart
   // the timer are a user-toggled on/off or an interval-length change.
@@ -319,7 +318,7 @@ export function useEmbedLifecycle(
   }, []);
 
   /**
-   * ARCH-S1 / PERF-S2: Synchronous pre-navigation teardown.
+   * Synchronous pre-navigation teardown.
    *
    * Detaches all registered SDK event handlers, cancels both pending timers,
    * and hard-resets the embed container via powerbiService.reset(). Safe to

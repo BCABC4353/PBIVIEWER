@@ -6,8 +6,8 @@ import log from 'electron-log/main';
 import { USAGE } from '../../shared/constants';
 import { capName } from '../../shared/validation';
 
-// BEH-B3: accountId added so records can be scoped per user.
-// Optional for back-compat with records written before v1.7.0.
+// Records are scoped per user via accountId; optional for back-compat with
+// records written before v1.7.0.
 interface UsageRecord {
   id: string;
   name: string;
@@ -16,13 +16,13 @@ interface UsageRecord {
   workspaceName: string;
   lastOpened: string; // ISO date string
   openCount: number;
-  /** BEH-B3: homeAccountId from MSAL. Absent on legacy records. */
+  /** HomeAccountId from MSAL. Absent on legacy records. */
   accountId?: string;
 }
 
 interface UsageStore {
   usageRecords: UsageRecord[];
-  /** BEH-B3: set to true after the one-time account-scoping migration runs. */
+  /** Set to true after the one-time account-scoping migration runs. */
   migrationV170Done?: boolean;
 }
 
@@ -84,7 +84,7 @@ function createUsageStore(): UsageStoreLike {
 const store = createUsageStore();
 
 /**
- * BEH-B3: One-time migration — run once at startup.
+ * One-time migration — run once at startup.
  *
  * If the store contains records that predate per-account scoping (no accountId),
  * write a backup file to userData alongside usage-tracking.json, log the count,
@@ -124,7 +124,7 @@ runMigrationIfNeeded().catch((err) => {
 export const usageTrackingService = {
   /**
    * Record that an item was opened. Pass accountId (homeAccountId from MSAL)
-   * so the record is scoped to the current user (BEH-B3).
+   * so the record is scoped to the current user.
    */
   recordItemOpened(item: {
     id: string;
@@ -181,10 +181,10 @@ export const usageTrackingService = {
    * If accountId is omitted, returns all records (backward compat / admin views).
    *
    * Legacy records (no accountId, written before v1.7.0) are NOT included in
-   * per-account reads: the `|| !r.accountId` clause was deliberately removed to
-   * prevent cross-account visibility on shared machines. They remain visible only
-   * when no accountId is passed (unscoped / admin path). To purge legacy rows,
-   * call clearUsageData() (full wipe).
+   * per-account reads — do not add an `|| !r.accountId` fallback, it would allow
+   * cross-account visibility on shared machines. They remain visible only when
+   * no accountId is passed (unscoped / admin path). To purge legacy rows, call
+   * clearUsageData() (full wipe).
    */
   getRecentItems(accountId?: string): UsageRecord[] {
     const records = store.get('usageRecords', []);
@@ -221,8 +221,8 @@ export const usageTrackingService = {
   },
 
   /**
-   * BEH-B3: Clear usage records belonging to a specific account.
-   * Called by the auth logout path (LANE-AUTH) when usageClearOnLogout
+   * Clear usage records belonging to a specific account.
+   * Called by the auth logout path when usageClearOnLogout
    * dictates a wipe. Legacy records without an accountId are left intact
    * to avoid stranding old history that can't be re-attributed.
    */
@@ -238,7 +238,7 @@ export const usageTrackingService = {
   },
 
   /**
-   * NEW-PROD-5: permanently remove a single item from the usage store. Called
+   * Permanently remove a single item from the usage store. Called
    * when a viewer gets a 404 for an item (the report/dashboard was deleted), so
    * the dead tile does not reappear on the next launch.
    */

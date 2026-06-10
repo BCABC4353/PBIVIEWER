@@ -35,7 +35,7 @@ export function isTokenExpiredError(detail: unknown): boolean {
 }
 
 /**
- * NEW-PROD-5: Check whether a Power BI SDK error detail indicates a not-found
+ * Check whether a Power BI SDK error detail indicates a not-found
  * (404) condition — the item has been deleted or moved. Callers (viewers) use
  * this to decide whether to evict the item from the recent/frequent lists.
  *

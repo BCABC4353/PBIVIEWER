@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type * as pbi from 'powerbi-client';
 
 /**
- * NEW-ARCH-1: shared export hook for ReportViewer + DashboardViewer.
+ * Shared export hook for ReportViewer + DashboardViewer.
  *
  * Encapsulates the ~70-line export flow: path dialog, bounds calculation,
  * HiDPI correction, status message lifecycle, and the isExporting flag.

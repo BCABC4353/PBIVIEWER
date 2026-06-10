@@ -2,7 +2,7 @@ import { ipcMain, shell } from 'electron';
 import * as path from 'path';
 import log from 'electron-log/main';
 
-// PERF-S3: rate-limit constants for the onError handler.
+// Rate-limit constants for the onError handler.
 // At most one raw error is forwarded per ERROR_FLOOR_MS; any suppressed errors
 // within that window are counted and emitted as a summary line.
 const ERROR_FLOOR_MS = 1_000;
@@ -19,7 +19,7 @@ export function setupLogging(): void {
   log.transports.file.level = 'info';
   log.transports.console.level = 'info';
 
-  // PERF-S3: cap file size at 5 MB. electron-log's default archiveLogFn already
+  // Cap file size at 5 MB. electron-log's default archiveLogFn already
   // rotates to a single "<name>.old.log" sibling file, so no custom archiveLog
   // override is needed — just setting maxSize is sufficient for single-archive
   // retention.
@@ -30,7 +30,7 @@ export function setupLogging(): void {
   log.errorHandler.startCatching({
     showDialog: false,
     onError: ({ error }: { error: Error }) => {
-      // PERF-S3: rate-limit — emit the real error at most once per ERROR_FLOOR_MS.
+      // Rate-limit — emit the real error at most once per ERROR_FLOOR_MS.
       // Count suppressed errors and flush the count as a summary on the next
       // error that makes it through the floor.
       const now = Date.now();

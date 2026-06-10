@@ -14,9 +14,8 @@ export interface UseEmbedWatchdogResult {
 }
 
 /**
- * ARCH-S2: Watchdog timer for the embed load. Extracted verbatim from the
- * original monolithic hook — fires a "taking too long" error if the embed
- * never reports loaded or a pre-load error.
+ * Watchdog timer for the embed load — fires a "taking too long" error if the
+ * embed never reports loaded or a pre-load error.
  */
 export function useEmbedWatchdog(
   ctx: EmbedContext,

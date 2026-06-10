@@ -1,11 +1,6 @@
 /**
- * UX-S5: App tiles use flat ContentCard style — no bg-gradient-to-br.
- * Icon container replaced with bg-neutral-background-4.
- *
- * UX-S6: hover uses shadow-fluent-4.
- *
- * UX-S13: icon uses text-accent-primary (orange brand) instead of any
- * hard-coded purple-600 / amber-600 / raw white.
+ * App tiles use the flat ContentCard style: bg-neutral-background-4 icon
+ * container, shadow-fluent-4 on hover, text-accent-primary (orange brand) icon.
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -120,15 +115,12 @@ export const AppsPage: React.FC = () => {
             {apps.map((app) => (
               <Card
                 key={app.id}
-                // UX-S6: shadow-fluent-4 on hover; UX-S5: no gradient
                 className="cursor-pointer hover:shadow-fluent-4 transition-shadow"
                 onClick={() => handleOpenApp(app)}
               >
                 <div className="p-4">
                   <div className="flex items-start gap-4">
-                    {/* UX-S5: flat neutral icon container — no gradient */}
                     <div className="w-14 h-14 bg-neutral-background-4 rounded-xl flex items-center justify-center flex-shrink-0">
-                      {/* UX-S13: accent-primary (orange brand) instead of raw white-on-gradient */}
                       <AppsRegular className="text-2xl text-accent-primary" />
                     </div>
 

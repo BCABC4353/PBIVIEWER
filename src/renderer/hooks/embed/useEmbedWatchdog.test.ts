@@ -1,9 +1,9 @@
 /**
- * #7 Embed core behavioral coverage — watchdog.
+ * Embed core behavioral coverage — watchdog.
  *
  * The watchdog surfaces a "taking too long" error if neither 'loaded' nor a
  * pre-load 'error' arrives within watchdogMs. These tests drive the hook with a
- * real EmbedContext ref-bag and fake timers and assert REAL behavior:
+ * real EmbedContext ref-bag and fake timers and assert:
  *   - a load that never completes fires the timeout error path
  *   - a successful load (clearWatchdog) prevents the timeout
  *   - a stale generation (newer load started) suppresses the timeout

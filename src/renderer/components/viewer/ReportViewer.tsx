@@ -21,9 +21,9 @@ export const ReportViewer: React.FC = () => {
   // Subscribe to the settings store so changes made in SettingsPage while
   // this viewer is open take effect without a remount. Selectors return
   // primitives so we re-render only when the relevant fields change.
-  // "Auto-refresh reports" is now DATA-DRIVEN: a report re-refreshes the moment
+  // "Auto-refresh reports" is DATA-DRIVEN: a report re-refreshes the moment
   // the freshness poll detects a new dataset refresh (no blind interval, no lag,
-  // no redundant pulls). The interval setting no longer applies to reports — only
+  // no redundant pulls). The interval setting does not apply to reports — only
   // the on/off toggle does.
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
 
@@ -35,10 +35,10 @@ export const ReportViewer: React.FC = () => {
   const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
   const datasetIdRef = useRef<string | null>(null);
 
-  // UX-S14: report name visible while loading (breadcrumb)
+  // Report name visible while loading (breadcrumb)
   const [reportName, setReportName] = useState<string>('');
 
-  // ARCH-S8: fullscreen page navigation (pages, current index, fullscreen flag,
+  // Fullscreen page navigation (pages, current index, fullscreen flag,
   // arrow-key nav + slicer-click focus reclamation) lives in useFullscreenPageNav.
   // The embed handle is wired in lazily via setEmbedRef after usePowerBIEmbed.
   const {
@@ -70,7 +70,7 @@ export const ReportViewer: React.FC = () => {
           if (reportData?.datasetId) {
             datasetIdRef.current = reportData.datasetId;
           }
-          // UX-S14: capture name so breadcrumb is visible while loading
+          // Capture name so breadcrumb is visible while loading
           if (reportData?.name) {
             setReportName(reportData.name);
           }
@@ -126,7 +126,7 @@ export const ReportViewer: React.FC = () => {
   // Event handlers passed to the hook.
   const events = useMemo(
     () => ({
-      // NEW-PROD-5: detect not-found/404 errors and evict the dead item from
+      // Detect not-found/404 errors and evict the dead item from
       // in-memory recent/frequent lists so the home page stops showing the tile.
       error: (event: pbi.service.ICustomEvent<unknown>) => {
         if (reportId && isNotFoundError(event?.detail)) {
@@ -206,17 +206,17 @@ export const ReportViewer: React.FC = () => {
     surfacePostLoadErrors: false,
   });
 
-  // ARCH-S8: thread the live embed handle into the fullscreen-nav hook. The
+  // Thread the live embed handle into the fullscreen-nav hook. The
   // `events` object above is built before embedRef exists (forward reference);
   // embedRef has stable identity, so wiring it in here is safe.
   setEmbedRef(embedRef);
 
   // Data-driven auto-refresh: when the freshness poll sees a dataset refresh
   // newer than what's on screen, re-pull the report IN PLACE. report.refresh()
-  // preserves the current page/filters/slicers (a data refresh, not a reload), so
-  // this is invisible-and-current — replacing the old blind interval timer. Gated
-  // on the "Auto-refresh reports" toggle; when off, the toolbar's "New data" nudge
-  // lets the user refresh manually instead.
+  // preserves the current page/filters/slicers (a data refresh, not a reload),
+  // so this is invisible-and-current. Gated on the "Auto-refresh reports"
+  // toggle; when off, the toolbar's "New data" nudge lets the user refresh
+  // manually instead.
   useEffect(() => {
     if (!autoRefreshEnabled || !newDataAvailable) return;
     // Skip while a load/reload is in flight: the embed may be mid-teardown, so
@@ -228,9 +228,9 @@ export const ReportViewer: React.FC = () => {
     void report
       .refresh()
       .then(() => {
-        // Stamp ONLY on success. Stamping before/despite failure marked the
-        // screen as current when the repaint never happened, silently hiding
-        // the "new data" state behind stale visuals.
+        // Stamp ONLY on success. Stamping before/despite failure would mark
+        // the screen as current when the repaint never happened, silently
+        // hiding the "new data" state behind stale visuals.
         const now = Date.now();
         setLastLoadAt(now);
         setJustRefreshedAt(now); // toolbar flashes "✓ Updated"
@@ -240,7 +240,7 @@ export const ReportViewer: React.FC = () => {
       });
   }, [autoRefreshEnabled, newDataAvailable, isLoading, embedRef]);
 
-  // NEW-ARCH-1: export hook
+  // Export hook
   const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
     containerRef: embedContainerRef,
     reportExportIds:
@@ -269,9 +269,8 @@ export const ReportViewer: React.FC = () => {
     },
   });
 
-  // NEW-UX-3: Refresh with in-progress state. On success, re-baseline
-  // lastLoadAt so the "newer data" notice clears (it used to stay lit even
-  // after the user had just refreshed) and flash the "✓ Updated" confirmation.
+  // Refresh with in-progress state. On success, re-baseline lastLoadAt so the
+  // "newer data" notice clears and flash the "✓ Updated" confirmation.
   const handleRefresh = useCallback(async () => {
     const report = embedRef.current as pbi.Report | null;
     setIsRefreshing(true);
@@ -302,7 +301,7 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
-  // PROD-S8: back uses navigate(-1) with a history-length fallback
+  // Back uses navigate(-1) with a history-length fallback
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -319,12 +318,12 @@ export const ReportViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* A11Y-S7: sr-only heading for screen readers */}
+      {/* Sr-only heading for screen readers */}
       <h1 className="sr-only">
         {reportName ? `Report: ${reportName}` : 'Report Viewer'}
       </h1>
 
-      {/* UX-B4: shared toolbar */}
+      {/* Shared toolbar */}
       <ViewerToolbar
         onBack={handleBack}
         itemName={reportName || undefined}

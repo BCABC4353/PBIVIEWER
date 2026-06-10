@@ -3,7 +3,7 @@ import Store from 'electron-store';
 interface TokenCacheSchema {
   msalCache?: string;
   userInfo?: string;
-  // NEW-AUTH-1: the active account's homeAccountId, persisted so the chosen
+  // The active account's homeAccountId, persisted so the chosen
   // account survives restart.
   activeHomeAccountId?: string;
 }
@@ -101,7 +101,7 @@ const corruptionListeners = new Set<CorruptionListener>();
 
 export const tokenCache = {
   /**
-   * BEH-B2: register a corruption hook. Retained for API compatibility; with the
+   * Register a corruption hook. Retained for API compatibility; with the
    * encryptionKey-backed store a bad file is reset (not surfaced per-entry), so
    * this is effectively a no-op now. Returns an unsubscribe function.
    */
@@ -121,13 +121,13 @@ export const tokenCache = {
   async clearCache(): Promise<void> {
     store.delete('msalCache');
     store.delete('userInfo');
-    // NEW-AUTH-1: the chosen active account is meaningless without a cache to
+    // The chosen active account is meaningless without a cache to
     // back it; clear it in lockstep so a restart after logout starts clean.
     store.delete('activeHomeAccountId');
   },
 
   /**
-   * NEW-AUTH-1: persist the active account's homeAccountId. Passing null clears it.
+   * Persist the active account's homeAccountId. Passing null clears it.
    */
   async saveActiveAccountId(homeAccountId: string | null): Promise<void> {
     if (homeAccountId === null) {
@@ -138,7 +138,7 @@ export const tokenCache = {
   },
 
   /**
-   * NEW-AUTH-1: load the persisted active account id, or null if unset.
+   * Load the persisted active account id, or null if unset.
    */
   async loadActiveAccountId(): Promise<string | null> {
     return store.get('activeHomeAccountId') ?? null;
