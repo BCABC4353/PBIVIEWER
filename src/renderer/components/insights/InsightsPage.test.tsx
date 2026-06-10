@@ -374,7 +374,7 @@ describe('InsightsPage — Luce board', () => {
     expect(document.getElementById('insights-admin')).not.toBeNull();
   });
 
-  it('color-codes DATASET vs DATAFLOW kind chips with distinct identity tints (Matt #3)', async () => {
+  it('keeps DATASET and DATAFLOW kind chips on the same quiet grayscale tier (D12)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -392,9 +392,10 @@ describe('InsightsPage — Luce board', () => {
     const dsColor = (datasetChips[0] as HTMLElement).style.color;
     const dfColor = (dataflowChips[0] as HTMLElement).style.color;
     expect(dsColor).not.toBe('');
-    expect(dfColor).not.toBe('');
-    expect(dsColor).not.toBe(dfColor);
-    // Same tint for every chip of the same kind.
+    // D12: identity is the WORD on the chip; hue restating it is decoration.
+    // Both kinds share one quiet tier — and it is never the amber accent.
+    expect(dsColor).toBe(dfColor);
+    expect(dsColor).not.toBe('rgb(232, 163, 61)');
     for (const chip of datasetChips) expect((chip as HTMLElement).style.color).toBe(dsColor);
   });
 

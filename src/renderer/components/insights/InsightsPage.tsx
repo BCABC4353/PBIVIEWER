@@ -27,7 +27,7 @@ import {
   type TileFilter,
   type WorkspaceGroup,
 } from './insights-luce';
-import { useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
+import { prefersReducedMotion, useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
 import './insights-luce.css';
 
 /**
@@ -587,7 +587,11 @@ export const InsightsPage: React.FC = () => {
   };
 
   const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // Layout moves obey Reduce Motion like everything else (Pierre, std 7).
+    document.getElementById(id)?.scrollIntoView?.({
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      block: 'start',
+    });
   };
 
   if (isLoading && !snapshot) {

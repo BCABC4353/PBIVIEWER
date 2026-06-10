@@ -453,16 +453,16 @@
   }
 
   @keyframes luce-flow-travel {
+    /* D6: the flow is LIGHT passing along the path — an opacity ramp.
+       Nothing physically travels (Pierre: "light, not freight"). */
     0% {
       opacity: 0;
-      transform: translateX(-180px);
     }
     35% {
       opacity: 0.9;
     }
     100% {
       opacity: 0;
-      transform: none;
     }
   }
 
@@ -473,7 +473,7 @@
 
   /* the flow: amber travels from the identity mark into the hero gauge */
   .luce-ignite .luce-flow {
-    animation: luce-flow-travel 650ms ease-out both;
+    animation: luce-flow-travel 400ms var(--spring-settle) both;
     animation-delay: 150ms;
   }
 
