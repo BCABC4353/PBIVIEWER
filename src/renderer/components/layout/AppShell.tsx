@@ -13,14 +13,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const getActiveItem = (): 'home' | 'workspaces' | 'apps' | 'settings' => {
+  const getActiveItem = (): 'home' | 'workspaces' | 'apps' | 'insights' | 'settings' => {
     if (location.pathname === '/settings') return 'settings';
     if (location.pathname.startsWith('/workspaces')) return 'workspaces';
     if (location.pathname.startsWith('/apps')) return 'apps';
+    if (location.pathname.startsWith('/insights')) return 'insights';
     return 'home';
   };
 
-  const handleNavigate = (item: 'home' | 'workspaces' | 'apps' | 'settings') => {
+  const handleNavigate = (item: 'home' | 'workspaces' | 'apps' | 'insights' | 'settings') => {
     switch (item) {
       case 'home':
         navigate('/');
@@ -30,6 +31,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         break;
       case 'apps':
         navigate('/apps');
+        break;
+      case 'insights':
+        navigate('/insights');
         break;
       case 'settings':
         navigate('/settings');

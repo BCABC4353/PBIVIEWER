@@ -480,3 +480,129 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 });
+
+describe('getInsightsSnapshot', () => {
+  // Route fetch by URL (ordered regex routes, first match wins) so one mock
+  // serves the whole insights fan-out.
+  function insightsFetchMock(routes: Array<[RegExp, unknown]>) {
+    return vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      for (const [pattern, body] of routes) {
+        if (pattern.test(url)) {
+          return new Response(JSON.stringify(body), { status: 200 });
+        }
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    });
+  }
+
+  const WS = '11111111-1111-1111-1111-111111111111';
+
+  function makeInsightsSvc(routes: Array<[RegExp, unknown]>) {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = insightsFetchMock(routes) as unknown as typeof fetch;
+    return createPowerBIApiService(makeDeps({ getAccessToken }));
+  }
+
+  // The workspaces list is the bare /groups URL (no trailing path segment).
+  const workspacesRoute: [RegExp, unknown] = [
+    /\/groups(\?|$)/,
+    { value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] },
+  ];
+
+  it('derives Failed-with-prior-success from refresh history and parses the error code', async () => {
+    const svc = makeInsightsSvc([
+      [
+        /\/datasets\/ds-1\/refreshes/,
+        {
+          value: [
+            {
+              status: 'Failed',
+              startTime: '2026-06-10T01:00:00Z',
+              endTime: '2026-06-10T01:05:00Z',
+              serviceExceptionJson: '{"errorCode":"ModelRefreshFailed_CredentialsNotSpecified"}',
+            },
+            { status: 'Completed', startTime: '2026-06-09T01:00:00Z', endTime: '2026-06-09T01:05:00Z' },
+          ],
+        },
+      ],
+      [
+        /\/datasets(\?|$)/,
+        { value: [{ id: 'ds-1', name: 'Sales Model', configuredBy: 'b@bc-abc.com', isRefreshable: true }] },
+      ],
+      [
+        /\/users(\?|$)/,
+        { value: [{ displayName: 'Brendan', emailAddress: 'b@bc-abc.com', groupUserAccessRight: 'Admin', principalType: 'User' }] },
+      ],
+      workspacesRoute,
+    ]);
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const ds = result.data.refreshables.find((r) => r.kind === 'dataset');
+    expect(ds).toBeDefined();
+    expect(ds!.lastStatus).toBe('Failed');
+    expect(ds!.errorCode).toBe('ModelRefreshFailed_CredentialsNotSpecified');
+    expect(ds!.lastSuccessTime).toBe('2026-06-09T01:05:00Z');
+    expect(ds!.configuredBy).toBe('b@bc-abc.com');
+
+    const access = result.data.access.find((a) => a.workspaceId === WS);
+    expect(access?.users).toEqual([
+      { name: 'Brendan', email: 'b@bc-abc.com', role: 'Admin', type: 'User' },
+    ]);
+  });
+
+  it('marks non-refreshable datasets Disabled without fetching their history', async () => {
+    const svc = makeInsightsSvc([
+      [/\/datasets(\?|$)/, { value: [{ id: 'ds-live', name: 'Live Model', isRefreshable: false }] }],
+      workspacesRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const ds = result.data.refreshables[0];
+    expect(ds?.lastStatus).toBe('Disabled');
+    // No /refreshes call was made for the disabled dataset.
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('/refreshes'))).toBe(false);
+  });
+
+  it('returns access users:null when the user list is not visible to the caller', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/users')) return new Response('Unauthorized', { status: 401 });
+      if (url.includes('/groups/')) return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.access[0]?.users).toBeNull();
+  });
+
+  it('serves the second call from cache and rebuilds with force=true', async () => {
+    const svc = makeInsightsSvc([workspacesRoute]);
+    const first = await svc.getInsightsSnapshot();
+    expect(first.success).toBe(true);
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    const callsAfterFirst = fetchMock.mock.calls.length;
+
+    const second = await svc.getInsightsSnapshot();
+    expect(second.success).toBe(true);
+    if (second.success) expect(second.data.fromCache).toBe(true);
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+
+    const third = await svc.getInsightsSnapshot(true);
+    expect(third.success).toBe(true);
+    if (third.success) expect(third.data.fromCache).toBe(false);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+  });
+});

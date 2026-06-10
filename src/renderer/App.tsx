@@ -12,6 +12,7 @@ import { PresentationMode } from './components/viewer/PresentationMode';
 import { AppViewer } from './components/viewer/AppViewer';
 import { WorkspacesPage } from './components/workspaces/WorkspacesPage';
 import { AppsPage } from './components/apps/AppsPage';
+import { InsightsPage } from './components/insights/InsightsPage';
 import { SearchDialog } from './components/search/SearchDialog';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -31,6 +32,7 @@ function getRouteTitle(pathname: string): string {
   if (pathname === '/') return 'Home';
   if (pathname === '/workspaces') return 'Workspaces';
   if (pathname === '/apps') return 'Apps';
+  if (pathname === '/insights') return 'Insights';
   if (pathname === '/settings') return 'Settings';
   if (pathname === '/login') return 'Sign in';
   if (pathname.startsWith('/report/')) return 'Report';
@@ -261,6 +263,14 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <AppViewer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/insights"
+            element={
+              <ProtectedRoute>
+                <InsightsPage />
               </ProtectedRoute>
             }
           />

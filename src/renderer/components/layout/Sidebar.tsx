@@ -10,6 +10,8 @@ import {
   FolderFilled,
   AppsRegular,
   AppsFilled,
+  DataTrendingRegular,
+  DataTrendingFilled,
   SettingsRegular,
   SettingsFilled,
   PanelLeftContractRegular,
@@ -19,8 +21,8 @@ import {
 interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
-  activeItem: 'home' | 'workspaces' | 'apps' | 'settings';
-  onNavigate: (item: 'home' | 'workspaces' | 'apps' | 'settings') => void;
+  activeItem: 'home' | 'workspaces' | 'apps' | 'insights' | 'settings';
+  onNavigate: (item: 'home' | 'workspaces' | 'apps' | 'insights' | 'settings') => void;
 }
 
 interface NavItemProps {
@@ -139,6 +141,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           active={activeItem === 'apps'}
           collapsed={collapsed}
           onClick={() => onNavigate('apps')}
+        />
+        <NavItem
+          icon={<DataTrendingRegular />}
+          activeIcon={<DataTrendingFilled />}
+          label="Insights"
+          active={activeItem === 'insights'}
+          collapsed={collapsed}
+          onClick={() => onNavigate('insights')}
         />
       </div>
 
