@@ -28,6 +28,15 @@ The Luce interior read comes from the dark cabin + warm ambient glow, not from
 painting the dashboard red. Where APP-DESIGN-LANGUAGE.md says "Rosso accent",
 read "amber accent"; its interaction guidance is unaffected.
 
+## Visuals doctrine: no Microsoft canvas (owner directive)
+
+Report content is pulled as **data** (Execute Queries / DAX — covered by the
+already-consented `Dataset.Read.All` scope) and re-rendered as the app's
+**own native visuals** in this design language — not embedded Microsoft
+rendering. Embedding is a last-resort fallback for untranslated visuals only.
+The native visual library starts with the duration sparkline
+(`mobile/src/ui/Sparkline.tsx`) and grows per the craft spec's chart section.
+
 ## Status
 
 Research complete; no app code exists yet. Phase 1 (read-only fleet health,
