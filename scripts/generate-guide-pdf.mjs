@@ -1,124 +1,122 @@
 /**
- * Generates PowerBI-Viewer-User-Guide.pdf from the HTML source.
- * Uses the puppeteer devDependency already installed in this project.
+ * Generates docs/manual/PowerBI-Viewer-User-Guide.pdf from the HTML source.
  *
  * Usage:  node scripts/generate-guide-pdf.mjs
  *
- * The script:
- *  1. Loads the HTML file directly via file:// URL (no server needed).
- *  2. Forces light theme (better contrast on paper) by removing the .dark
- *     class that the JS applies from localStorage -- the PDF print path
- *     reveals all accordions and drops the nav chrome anyway.
- *  3. Waits for fonts + images to settle, then calls page.pdf() with:
- *       - A4 format
- *       - printBackground: true  (preserves callout shading, accent colours)
- *       - @page margins from the existing CSS (@page { size: A4; margin: 14mm })
- *  4. Writes the result alongside the HTML source.
+ * Implementation: uses the project's existing `electron` devDependency
+ * (no puppeteer / extra Chrome download needed). When invoked with plain
+ * node, the script re-executes itself under the Electron binary; inside
+ * Electron it loads the HTML in a hidden BrowserWindow, waits for images
+ * to decode, and calls webContents.printToPDF with:
+ *   - A4 + preferCSSPageSize (the HTML's @page rule carries margin: 14mm)
+ *   - printBackground: true (preserves callout shading / accent colours)
+ *
+ * On a headless Linux box Electron still needs a display server — run it as
+ * `xvfb-run node scripts/generate-guide-pdf.mjs` there. On Windows/macOS
+ * desktops it runs as-is.
  */
 
-import puppeteer from 'puppeteer';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, writeFileSync } from 'fs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const HTML_PATH = path.join(PROJECT_ROOT, 'docs', 'manual', 'PowerBI-Viewer-User-Guide.html');
-const PDF_PATH  = path.join(PROJECT_ROOT, 'docs', 'manual', 'PowerBI-Viewer-User-Guide.pdf');
+const PDF_PATH = path.join(PROJECT_ROOT, 'docs', 'manual', 'PowerBI-Viewer-User-Guide.pdf');
 
 if (!existsSync(HTML_PATH)) {
   console.error(`HTML source not found: ${HTML_PATH}`);
   process.exit(1);
 }
 
-const FILE_URL = `file:///${HTML_PATH.replace(/\\/g, '/')}`;
+// `import('electron')` resolves differently by runtime:
+//   - plain Node:  the package's default export is the PATH to the binary
+//   - Electron:    it is the Electron API object
+const electron = (await import('electron')).default;
 
-console.log(`Source : ${HTML_PATH}`);
-console.log(`Output : ${PDF_PATH}`);
-console.log('Launching Chrome (headless)...');
+if (typeof electron === 'string') {
+  // ---- Plain node: re-exec this same script under the Electron binary ----
+  const { spawnSync } = await import('child_process');
+  console.log('Relaunching under Electron...');
+  const result = spawnSync(electron, ['--no-sandbox', __filename], {
+    stdio: 'inherit',
+    env: { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: 'true' },
+  });
+  process.exit(result.status ?? 1);
+}
 
-const browser = await puppeteer.launch({
-  headless: true,
-  args: ['--no-sandbox', '--disable-setuid-sandbox'],
-});
+// ---- Electron main process from here on ----
+const { app, BrowserWindow } = electron;
 
-try {
-  const page = await browser.newPage();
+app.disableHardwareAcceleration();
 
-  // Override localStorage so the page starts in light mode (better for PDF).
-  // The print stylesheet already handles layout; light theme gives cleaner ink.
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(window, 'localStorage', {
-      value: {
-        getItem: (key) => (key === 'pbiGuideTheme' ? 'light' : null),
-        setItem: () => {},
-        removeItem: () => {},
-        clear: () => {},
-      },
-      writable: false,
-    });
+// NOTE: with an ESM entry point Electron does not emit 'ready' until the
+// module finishes evaluating, so a top-level `await app.whenReady()` would
+// deadlock. Run the async work without awaiting it at top level.
+async function main() {
+  await app.whenReady();
+
+  const win = new BrowserWindow({
+    show: false,
+    width: 1280,
+    height: 900,
+    webPreferences: {
+      offscreen: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
   });
 
+  console.log(`Source : ${HTML_PATH}`);
+  console.log(`Output : ${PDF_PATH}`);
   console.log('Loading HTML...');
-  await page.goto(FILE_URL, { waitUntil: 'networkidle0', timeout: 60000 });
+  await win.loadFile(HTML_PATH);
 
-  // Ensure the page is in light mode and all accordions are open for print.
-  // The HTML's beforeprint listener already does this, but we trigger it early
-  // so that puppeteer's headless print path sees the expanded content.
-  await page.evaluate(() => {
-    // Force light theme
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
-
-    // Open all <details> elements (accordions)
-    document.querySelectorAll('details').forEach(d => { d.open = true; });
-
-    // Show all sections (undo any search-hidden state)
-    document.querySelectorAll('section[data-hidden]').forEach(s => {
-      s.removeAttribute('data-hidden');
-      s.style.display = '';
-    });
-
-    // Remove the result-count banner if present
-    const banner = document.getElementById('searchBanner');
-    if (banner) banner.style.display = 'none';
-  });
-
-  // Belt-and-suspenders: the headless print path never scrolls, so any image
-  // still marked loading="lazy" would render blank. Force every image eager and
-  // wait for it to finish decoding before we snapshot the PDF.
-  const imageReport = await page.evaluate(async () => {
-    const imgs = Array.from(document.images);
-    imgs.forEach((img) => { img.loading = 'eager'; });
-    await Promise.all(
-      imgs.map((img) =>
-        img.complete && img.naturalWidth > 0
-          ? Promise.resolve()
-          : new Promise((res) => {
-              img.addEventListener('load', res, { once: true });
-              img.addEventListener('error', res, { once: true });
-            }),
-      ),
-    );
-    return { total: imgs.length, loaded: imgs.filter((i) => i.naturalWidth > 0).length };
-  });
+  // Wait for every image (the screenshots) to finish decoding, then let
+  // layout settle briefly before printing.
+  const imageReport = await win.webContents.executeJavaScript(`
+    (async () => {
+      const imgs = Array.from(document.images);
+      imgs.forEach((img) => { img.loading = 'eager'; });
+      await Promise.all(
+        imgs.map((img) =>
+          img.complete && img.naturalWidth > 0
+            ? Promise.resolve()
+            : new Promise((res) => {
+                img.addEventListener('load', res, { once: true });
+                img.addEventListener('error', res, { once: true });
+              }),
+        ),
+      );
+      await new Promise((r) => setTimeout(r, 500));
+      return { total: imgs.length, loaded: imgs.filter((i) => i.naturalWidth > 0).length };
+    })()
+  `);
   console.log(`Images: ${imageReport.loaded}/${imageReport.total} loaded`);
-
-  // Let any transitions settle
-  await new Promise(r => setTimeout(r, 800));
+  if (imageReport.loaded < imageReport.total) {
+    console.warn('Warning: some images failed to load and will be blank in the PDF.');
+  }
 
   console.log('Printing to PDF...');
-  await page.pdf({
-    path: PDF_PATH,
-    format: 'A4',
+  const pdfBuffer = await win.webContents.printToPDF({
+    pageSize: 'A4',
     printBackground: true,
-    // The HTML @page rule carries margin: 14mm; puppeteer respects CSS @page,
-    // but we set margin: 0 here so the CSS @page declaration fully controls it.
-    margin: { top: '0', right: '0', bottom: '0', left: '0' },
+    // The HTML @page rule carries margin: 14mm; preferCSSPageSize lets the
+    // CSS declaration fully control the page box.
     preferCSSPageSize: true,
+    margins: { top: 0, bottom: 0, left: 0, right: 0 },
   });
 
-  console.log(`PDF written: ${PDF_PATH}`);
-} finally {
-  await browser.close();
+  writeFileSync(PDF_PATH, pdfBuffer);
+  console.log(`PDF written: ${PDF_PATH} (${(pdfBuffer.length / 1024).toFixed(0)} KB)`);
 }
+
+main().then(
+  () => app.exit(0),
+  (err) => {
+    console.error('PDF generation failed:', err);
+    app.exit(1);
+  },
+);
