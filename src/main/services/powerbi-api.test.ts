@@ -1198,3 +1198,166 @@ describe('getAdminInsights — unlock-hang fixes (Part B)', () => {
     expect(activityCalls).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// App freshness (AppViewer "Data refreshed: — / Dataflow: —" forever bug).
+// Two failure modes, both fixed:
+//   1. App content can bind to SHARED datasets living in a different workspace
+//      than the app's source workspace, and app-audience-only users have no
+//      workspace membership at all — either way the grouped
+//      /groups/{ws}/datasets/{id}/refreshes call 401/403/404s, every result was
+//      skipped, and the strip stayed "—" forever. getDatasetRefreshInfo now
+//      falls back to the groupless /datasets/{id}/refreshes form (works for any
+//      dataset the user can read).
+//   2. getDataFreshness queried ALL datasets under the FIRST dataset's
+//      workspace. It now accepts {datasetId, workspaceId} pairs and queries
+//      each dataset in its OWN home workspace.
+// ---------------------------------------------------------------------------
+describe('App freshness — per-dataset workspaces and groupless fallback', () => {
+  function authOk(): ApiAuthPort {
+    return { getAccessToken: vi.fn().mockResolvedValue(tokenOk()) };
+  }
+
+  function refreshBody(time: string, status = 'Completed') {
+    return {
+      value: [
+        { requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: time, endTime: time, status },
+      ],
+    };
+  }
+
+  it('getDatasetRefreshInfo falls back to the groupless endpoint when the grouped call 404s', async () => {
+    const urls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      // Wrong-group / no-workspace-access: the grouped form 404s…
+      if (url.includes('/groups/')) return new Response('not found', { status: 404 });
+      // …but the groupless form works for any readable dataset.
+      return new Response(JSON.stringify(refreshBody('2026-06-09T10:00:00.000Z')), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps(authOk()));
+    const result = await svc.getDatasetRefreshInfo('ds-fb404', 'ws-fb404');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBe('2026-06-09T10:00:00.000Z');
+      expect(result.data.lastRefreshStatus).toBe('Completed');
+    }
+    // Grouped attempt first, then the groupless fallback.
+    expect(urls.some((u) => u.includes('/groups/ws-fb404/datasets/ds-fb404/refreshes'))).toBe(true);
+    expect(urls.some((u) => u.includes('/myorg/datasets/ds-fb404/refreshes'))).toBe(true);
+  });
+
+  it('getDatasetRefreshInfo falls back to the groupless endpoint on 401 (app-audience-only access)', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/groups/')) return new Response('unauthorized', { status: 401 });
+      return new Response(JSON.stringify(refreshBody('2026-06-08T07:00:00.000Z')), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps(authOk()));
+    const result = await svc.getDatasetRefreshInfo('ds-fb401', 'ws-fb401');
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.lastRefreshTime).toBe('2026-06-08T07:00:00.000Z');
+  });
+
+  it('getDatasetRefreshInfo does NOT fall back on a non-access failure (e.g. 400)', async () => {
+    const urls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response('bad request', { status: 400 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps(authOk()));
+    const result = await svc.getDatasetRefreshInfo('ds-fb400', 'ws-fb400');
+    expect(result.success).toBe(false);
+    // Only the grouped attempt — no speculative groupless retry on a real error.
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toContain('/groups/ws-fb400/');
+  });
+
+  it('getDataFreshness queries each {datasetId, workspaceId} pair in its OWN group (multi-workspace app)', async () => {
+    const groupedCalls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const m = url.match(/groups\/([^/]+)\/datasets\/([^/]+)\/refreshes/);
+      if (m) {
+        groupedCalls.push(`${m[1]}|${m[2]}`);
+        const time = m[2] === 'ds-pair-a' ? '2026-06-05T00:00:00.000Z' : '2026-06-02T00:00:00.000Z';
+        return new Response(JSON.stringify(refreshBody(time)), { status: 200 });
+      }
+      // upstreamDataflows / dataflows-list lookups → empty (no dataflow stamp).
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps(authOk()));
+    const result = await svc.getDataFreshness('ws-pair-a', [
+      { datasetId: 'ds-pair-a', workspaceId: 'ws-pair-a' },
+      { datasetId: 'ds-pair-b', workspaceId: 'ws-pair-b' },
+    ]);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Stalest across BOTH workspaces' datasets, both resolved successfully.
+      expect(result.data.datasetRefreshTime).toBe('2026-06-02T00:00:00.000Z');
+      expect(result.data.datasetCount).toBe(2);
+    }
+    // Each dataset was queried under ITS OWN workspace…
+    expect(groupedCalls).toContain('ws-pair-a|ds-pair-a');
+    expect(groupedCalls).toContain('ws-pair-b|ds-pair-b');
+    // …and never under the other dataset's workspace (the old bug).
+    expect(groupedCalls).not.toContain('ws-pair-a|ds-pair-b');
+  });
+
+  it('getDataFreshness populates the dataset time via the groupless fallback when ALL grouped calls fail (bug repro)', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      // App-audience access: EVERY /groups/... call is denied (refreshes,
+      // upstreamDataflows lineage, dataflows list).
+      if (url.includes('/groups/')) return new Response('forbidden', { status: 403 });
+      if (/myorg\/datasets\/[^/]+\/refreshes/.test(url)) {
+        return new Response(JSON.stringify(refreshBody('2026-06-09T06:00:00.000Z')), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps(authOk()));
+    const result = await svc.getDataFreshness('ws-app-only', [
+      { datasetId: 'ds-app-only', workspaceId: 'ws-app-only' },
+    ]);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Previously: grouped 403 → skipped → null forever ("Data refreshed: —").
+      expect(result.data.datasetRefreshTime).toBe('2026-06-09T06:00:00.000Z');
+      // Dataflow lineage genuinely needs workspace access → honestly absent.
+      expect(result.data.dataflowRefreshTime).toBeNull();
+      expect(result.data.datasetCount).toBe(1);
+    }
+  });
+
+  it('getDataFreshness keeps legacy plain-string ids queried under the given workspace', async () => {
+    const groupedCalls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const m = url.match(/groups\/([^/]+)\/datasets\/([^/]+)\/refreshes/);
+      if (m) {
+        groupedCalls.push(`${m[1]}|${m[2]}`);
+        return new Response(JSON.stringify(refreshBody('2026-06-07T00:00:00.000Z')), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps(authOk()));
+    const result = await svc.getDataFreshness('ws-legacy', ['ds-legacy-1', 'ds-legacy-1', 'ds-legacy-2']);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.datasetRefreshTime).toBe('2026-06-07T00:00:00.000Z');
+      // Duplicate ids deduped, exactly as before.
+      expect(result.data.datasetCount).toBe(2);
+    }
+    expect(groupedCalls).toContain('ws-legacy|ds-legacy-1');
+    expect(groupedCalls).toContain('ws-legacy|ds-legacy-2');
+  });
+});

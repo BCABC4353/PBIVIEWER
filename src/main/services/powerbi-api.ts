@@ -7,6 +7,7 @@ import type {
   App,
   EmbedToken,
   DatasetRefreshInfo,
+  DatasetWorkspaceRef,
   DataFreshness,
   IPCResponse,
   TokenResult,
@@ -114,6 +115,18 @@ class RetriableHttpError extends Error {
 }
 
 /**
+ * Non-retriable HTTP failure (plain 4xx). Carries the status code so callers
+ * can branch on it — e.g. getDatasetRefreshInfo falls back to the groupless
+ * refreshes endpoint when the grouped call comes back 401/403/404.
+ */
+class HttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
+/**
  * Run an async mapper over items with at most `limit` in flight at once.
  * Preserves input order in the result. Used to speed up the Insights fan-out
  * (per-dataset refresh-health lookups) without bursting past API throttling.
@@ -197,7 +210,7 @@ async function throwForStatus(response: Response, contextLabel: string): Promise
   if (response.status === 500 || response.status === 503 || response.status === 504) {
     throw new RetriableHttpError(response.status, message);
   }
-  throw new Error(message);
+  throw new HttpError(response.status, message);
 }
 
 class PowerBIApiService {
@@ -1492,14 +1505,35 @@ class PowerBIApiService {
         ? `/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=10`
         : `/datasets/${datasetId}/refreshes?$top=10`;
 
-      const response = await this.makeRequest<PowerBIApiResponse<{
+      type RefreshesResponse = PowerBIApiResponse<{
         requestId: string;
         id: string;
         refreshType: string;
         startTime: string;
         endTime: string;
         status: string;
-      }>>(endpoint);
+      }>;
+
+      let response: RefreshesResponse;
+      try {
+        response = await this.makeRequest<RefreshesResponse>(endpoint);
+      } catch (error) {
+        // The grouped form requires WORKSPACE access. A user who reaches a
+        // dataset only through an app audience (no workspace membership), or a
+        // caller holding the wrong workspace GUID for a SHARED dataset that
+        // lives in another workspace, gets 401/403/404 here — yet the groupless
+        // `/datasets/{id}/refreshes` form works for any dataset the user can
+        // read. Fall back so the freshness stamp still populates.
+        const status = error instanceof HttpError ? error.status : undefined;
+        const isGroupAccessFailure = status === 401 || status === 403 || status === 404;
+        if (!workspaceId || !isGroupAccessFailure) throw error;
+        console.warn(
+          `[PowerBI] Grouped refreshes call failed (${status}); retrying without workspace context`,
+        );
+        response = await this.makeRequest<RefreshesResponse>(
+          `/datasets/${datasetId}/refreshes?$top=10`,
+        );
+      }
 
       const refreshes = response.value ?? [];
       // 'Completed' (or 'Unknown', which the v1 /refreshes endpoint reports for a
@@ -1749,25 +1783,51 @@ class PowerBIApiService {
   /**
    * Aggregate data-freshness for a piece of content: the STALEST dataset
    * last-refresh time and the STALEST upstream-dataflow last-success time across
-   * the content's datasets. Pass datasetIds for a report/app, or dashboardId to
-   * derive them from the dashboard's tiles.
+   * the content's datasets. Pass datasetIds for a report (plain strings, all in
+   * `workspaceId`), {datasetId, workspaceId} pairs for an app (a shared dataset
+   * can live in a DIFFERENT workspace than the app's source workspace, so each
+   * dataset must be queried in its own group), or a dashboardId to derive the
+   * datasets from the dashboard's tiles.
    */
   async getDataFreshness(
     workspaceId: string,
-    datasetIds: string[],
+    datasetIds: Array<string | DatasetWorkspaceRef>,
     dashboardId?: string,
   ): Promise<IPCResponse<DataFreshness>> {
     try {
-      let ids = datasetIds;
+      // Normalize every input form to {datasetId, workspaceId} pairs. Plain
+      // string ids (report/dashboard callers) inherit the content's workspace;
+      // pair entries (App caller) keep each dataset's OWN home workspace.
+      let refs: DatasetWorkspaceRef[];
       if (dashboardId) {
-        ids = await this.getDashboardTileDatasetIds(dashboardId, workspaceId);
+        refs = (await this.getDashboardTileDatasetIds(dashboardId, workspaceId)).map(
+          (id) => ({ datasetId: id, workspaceId }),
+        );
+      } else {
+        refs = datasetIds
+          .map((entry) =>
+            typeof entry === 'string' ? { datasetId: entry, workspaceId } : entry,
+          )
+          .filter(
+            (r): r is DatasetWorkspaceRef =>
+              !!r &&
+              typeof r.datasetId === 'string' && r.datasetId.length > 0 &&
+              typeof r.workspaceId === 'string' && r.workspaceId.length > 0,
+          );
       }
-      ids = Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.length > 0)));
+      const seenDatasets = new Set<string>();
+      refs = refs.filter((r) => {
+        if (seenDatasets.has(r.datasetId)) return false;
+        seenDatasets.add(r.datasetId);
+        return true;
+      });
 
-      // Dataset: stalest last-refresh across the datasets.
+      // Dataset: stalest last-refresh across the datasets, each queried in its
+      // own workspace (getDatasetRefreshInfo additionally falls back to the
+      // groupless endpoint when workspace access is denied — app audiences).
       let datasetRefreshTime: string | null = null;
       const datasetResults = await Promise.all(
-        ids.map((id) => this.getDatasetRefreshInfo(id, workspaceId)),
+        refs.map((r) => this.getDatasetRefreshInfo(r.datasetId, r.workspaceId)),
       );
       for (const r of datasetResults) {
         if (r.success && r.data.lastRefreshTime) {
@@ -1777,10 +1837,26 @@ class PowerBIApiService {
         }
       }
 
-      // Dataflow: stalest last-SUCCESS across all upstream dataflows.
+      // Dataflow: stalest last-SUCCESS across all upstream dataflows. Lineage
+      // is resolved per distinct workspace so multi-workspace datasets each
+      // look up dataflows in their own group; results are deduped by dataflow.
       let dataflowRefreshTime: string | null = null;
-      if (ids.length > 0) {
-        const dataflows = await this.resolveUpstreamDataflows(workspaceId, ids);
+      if (refs.length > 0) {
+        const idsByWorkspace = new Map<string, string[]>();
+        for (const r of refs) {
+          const list = idsByWorkspace.get(r.workspaceId) ?? [];
+          list.push(r.datasetId);
+          idsByWorkspace.set(r.workspaceId, list);
+        }
+        const dataflowLists = await Promise.all(
+          [...idsByWorkspace.entries()].map(([ws, ids]) => this.resolveUpstreamDataflows(ws, ids)),
+        );
+        const seenDataflows = new Set<string>();
+        const dataflows = dataflowLists.flat().filter((df) => {
+          if (seenDataflows.has(df.dataflowId)) return false;
+          seenDataflows.add(df.dataflowId);
+          return true;
+        });
         const dfTimes = await Promise.all(
           dataflows.map((df) => this.getDataflowLastSuccess(df.workspaceId, df.dataflowId)),
         );
@@ -1793,7 +1869,7 @@ class PowerBIApiService {
 
       return {
         success: true,
-        data: { datasetRefreshTime, dataflowRefreshTime, datasetCount: ids.length },
+        data: { datasetRefreshTime, dataflowRefreshTime, datasetCount: refs.length },
       };
     } catch (error) {
       console.warn('[PowerBI] Data freshness unavailable:', error);
