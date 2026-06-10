@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Power BI Viewer — Analyst Test Charter (v2.1.10)</title>
+<style>
+  /* ---------- Print geometry ---------- */
+  @page { size: A4; margin: 14mm; }
+
+  :root {
+    --accent: #E8A33D;
+    --accent-deep: #B97A1E;
+    --accent-tint: #FBF3E4;
+    --ink: #1C1C21;
+    --ink-2: #44444C;
+    --ink-3: #6E6E78;
+    --hairline: #E4E1DA;
+    --ok: #2E8B6B;
+    --ok-tint: #EAF5F0;
+    --bad: #C2393E;
+    --bad-tint: #FAEDEE;
+    --card: #FAF9F6;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.5;
+  }
+
+  /* ---------- Title page ---------- */
+  .title-page {
+    page-break-after: always;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    min-height: 250mm;
+  }
+  .title-page img.logo { width: 38mm; height: auto; margin-bottom: 10mm; }
+  .title-kicker {
+    font-size: 9pt; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--accent-deep); font-weight: 600; margin-bottom: 5mm;
+  }
+  h1.doc-title {
+    font-size: 26pt; line-height: 1.2; font-weight: 650;
+    margin: 0 0 3mm 0; color: var(--ink);
+  }
+  .title-sub { font-size: 12pt; color: var(--ink-2); margin-bottom: 12mm; }
+  .prepared-card {
+    border: 1px solid var(--hairline); border-top: 3px solid var(--accent);
+    border-radius: 8px; padding: 7mm 14mm; background: var(--card);
+    max-width: 130mm;
+  }
+  .prepared-card .for { font-size: 13pt; font-weight: 600; }
+  .prepared-card .meta { font-size: 9.5pt; color: var(--ink-3); margin-top: 2mm; }
+  .title-roast {
+    margin-top: 14mm; max-width: 135mm; font-style: italic;
+    color: var(--ink-2); font-size: 10.5pt;
+  }
+
+  /* ---------- Running header (small logo) ---------- */
+  .doc-header {
+    display: flex; align-items: center; gap: 3mm;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 2.5mm; margin-bottom: 7mm;
+  }
+  .doc-header img { width: 8mm; height: auto; }
+  .doc-header .ht { font-size: 9pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+  .doc-header .hv { margin-left: auto; font-size: 9pt; color: var(--ink-3); }
+
+  /* ---------- Headings ---------- */
+  h2.part {
+    font-size: 15pt; font-weight: 650; color: var(--ink);
+    margin: 9mm 0 3mm 0; page-break-after: avoid;
+    border-bottom: 1px solid var(--hairline); padding-bottom: 1.5mm;
+  }
+  h2.part .partnum { color: var(--accent-deep); margin-right: 2mm; }
+
+  /* ---------- Test section ---------- */
+  section.test { margin: 0 0 8mm 0; }
+  .test-head {
+    page-break-after: avoid; break-after: avoid;
+    border-left: 4px solid var(--accent);
+    padding: 2mm 0 2mm 4mm; margin-bottom: 3mm;
+  }
+  .test-head h3 { margin: 0; font-size: 12.5pt; font-weight: 650; }
+  .test-head .tnum { color: var(--accent-deep); }
+  .badges { margin-top: 1.5mm; }
+  .badge {
+    display: inline-block; font-size: 7.5pt; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 0.8mm 2.5mm; border-radius: 99px; margin-right: 2mm;
+  }
+  .badge.hot { background: var(--accent); color: #fff; }
+  .badge.cool { background: #EDEBE6; color: var(--ink-2); }
+  .badge.time { background: transparent; border: 1px solid var(--hairline); color: var(--ink-3); }
+
+  .purpose { margin: 0 0 3mm 0; color: var(--ink-2); }
+  .purpose strong { color: var(--ink); }
+
+  ol.steps { margin: 0 0 3mm 0; padding-left: 6mm; }
+  ol.steps li { margin-bottom: 1.6mm; }
+  ol.steps li::marker { color: var(--accent-deep); font-weight: 700; }
+  kbd {
+    font-family: "Segoe UI", sans-serif; font-size: 8.5pt; font-weight: 600;
+    border: 1px solid #CFCCC4; border-bottom-width: 2px; border-radius: 3px;
+    padding: 0 1.6mm; background: #F4F2EE; white-space: nowrap;
+  }
+  .ui { font-weight: 600; color: var(--ink); }
+  .msg { font-style: italic; color: var(--ink-2); }
+
+  .verdicts { display: flex; gap: 4mm; margin: 3mm 0; page-break-inside: avoid; }
+  .pass, .fail {
+    flex: 1; border-radius: 6px; padding: 3mm 4mm; font-size: 9.5pt;
+  }
+  .pass { background: var(--ok-tint); border: 1px solid #BBDCCE; }
+  .fail { background: var(--bad-tint); border: 1px solid #ECC5C7; }
+  .pass .vh, .fail .vh {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    display: block; margin-bottom: 1.5mm;
+  }
+  .pass .vh { color: var(--ok); }
+  .fail .vh { color: var(--bad); }
+
+  .checkline {
+    border: 1px dashed #C9C5BC; border-radius: 6px; background: #FFFEFB;
+    padding: 2.5mm 4mm; font-size: 10pt; page-break-inside: avoid;
+  }
+  .checkline .glyph { font-size: 12pt; }
+
+  .roast {
+    border-left: 3px solid var(--accent); background: var(--accent-tint);
+    border-radius: 0 6px 6px 0;
+    padding: 2.5mm 4mm; margin: 3mm 0; font-style: italic; color: var(--ink-2);
+    page-break-inside: avoid;
+  }
+  .roast::before { content: "Matt — "; font-weight: 700; font-style: normal; color: var(--accent-deep); }
+
+  .note {
+    background: var(--card); border: 1px solid var(--hairline); border-radius: 6px;
+    padding: 2.5mm 4mm; margin: 3mm 0; font-size: 9.5pt; color: var(--ink-2);
+    page-break-inside: avoid;
+  }
+  .note b { color: var(--ink); }
+
+  p { margin: 0 0 3mm 0; }
+  ul { margin: 0 0 3mm 0; padding-left: 6mm; }
+  ul li { margin-bottom: 1.2mm; }
+
+  /* ---------- Sign-off ---------- */
+  .signoff {
+    margin-top: 8mm; border: 1px solid var(--hairline); border-top: 3px solid var(--accent);
+    border-radius: 8px; padding: 6mm; background: var(--card); page-break-inside: avoid;
+  }
+  .sigline { margin-top: 12mm; display: flex; gap: 10mm; }
+  .sigline .slot { flex: 1; border-top: 1px solid var(--ink-3); padding-top: 1.5mm; font-size: 9pt; color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<!-- ============================ TITLE PAGE ============================ -->
+<div class="title-page">
+  <img class="logo" src="data:image/png;base64,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" alt="Power BI Viewer logo">
+  <div class="title-kicker">BC-ABC · Internal Quality Program · Confidential-ish</div>
+  <h1 class="doc-title">Power BI Viewer<br>Analyst Test Charter <span style="color:var(--accent-deep)">(v2.1.10)</span></h1>
+  <div class="title-sub">Desktop App · First Human Pass · June 2026</div>
+  <div class="prepared-card">
+    <div class="for">Prepared for Matt</div>
+    <div class="meta">Analyst, best friend, and — as of today — Quality Assurance Department (population: 1)</div>
+    <div class="meta">Issued by Brendan · Test target: Power BI Viewer for Windows, version 2.1.10</div>
+  </div>
+  <p class="title-roast">"I gave this charter to Matt because he has exactly the qualities a tester needs:
+  he clicks things he shouldn't, he ignores instructions, and his Wi-Fi drops constantly.
+  For once in his life, all of that is useful." — the management</p>
+</div>
+
+<!-- ============================ INTRO ============================ -->
+<div class="doc-header">
+  <img src="data:image/png;base64,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" alt="">
+  <span class="ht">Power BI Viewer — Analyst Test Charter</span>
+  <span class="hv">v2.1.10 · Prepared for Matt</span>
+</div>
+
+<h2 class="part"><span class="partnum">Part 0.</span> Read this first, Matt (yes, the whole page)</h2>
+
+<p><strong>Hi Matt.</strong> This is Power BI Viewer — a small desktop app I built so our clients
+(and you) can open Power BI reports in a clean window without wandering off into the rest of the
+Microsoft universe and getting lost, which I know is a journey you've made many times.</p>
+
+<p>You have never seen this app before. That is exactly why you're perfect for this: every
+confusing thing you trip over is a real bug or a real design problem, and you trip over things
+with a consistency that borders on professional. Version 2.1.10 contains several features that
+<strong>no human being has ever tested</strong> — they've only ever been poked at by automated
+scripts, which, unlike you, follow instructions. Your job is to be the first human.</p>
+
+<p>How to use this charter:</p>
+<ul>
+  <li>Work through the tests <strong>in order</strong>. The first seven are the never-human-tested tier — they matter most.</li>
+  <li>Each test tells you the <strong>purpose</strong>, the <strong>numbered steps</strong>, what <strong>PASS</strong> looks like, and what <strong>FAIL</strong> looks like (plus what to write down).</li>
+  <li>Tick the checkbox at the end of each test. Physically. With a pen. The dopamine is free.</li>
+  <li>When something looks wrong: screenshot it (<kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>), write one line, keep moving. Part 3 explains how to report.</li>
+</ul>
+
+<div class="note"><b>Before you start:</b> install Power BI Viewer, launch it, and sign in with your
+normal work Microsoft account when the sign-in window appears. After sign-in you'll see a sidebar on the left
+with five entries: <span class="ui">Home</span>, <span class="ui">Workspaces</span>, <span class="ui">Apps</span>,
+<span class="ui">Insights</span>, and <span class="ui">Settings</span>. That sidebar is the whole map.
+Five buttons, Matt. The Excel ribbon you claim to have mastered has roughly four hundred.</div>
+
+<div class="roast">a quick word about the design philosophy. Every button in this app is large,
+clearly labelled, and does exactly one thing. I want you to know that this wasn't a Microsoft
+guideline. It was a risk assessment, and the risk was you.</div>
+
+<h2 class="part"><span class="partnum">Part 1.</span> The never-human-tested tier (do these first)</h2>
+
+<!-- ============================ TEST 1 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 1.</span> The Insights board — real data, real clients</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~20 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> Insights is a data-health board: every client workspace,
+  every dataset and dataflow, whether the refreshes are working, who has access, and what gets used.
+  It has only ever rendered fake test data. You are the first person to see it on the real tenant,
+  so the big question is simple: <strong>does it tell the truth?</strong></p>
+  <ol class="steps">
+    <li>Click <span class="ui">Insights</span> in the sidebar. The page goes <strong>dark</strong> — near-black with one orange accent. Only this page does that; it's intentional, not a glitch. (Finally a screen that matches your monitor-at-40%-brightness lifestyle, Matt.)</li>
+    <li>Wait through the spinner (<span class="msg">"Checking every dataset and dataflow you can see…"</span>). Note roughly how long it takes.</li>
+    <li>Check the five <strong>summary tiles</strong> across the top: <span class="ui">Broken</span>, <span class="ui">Overdue</span>, <span class="ui">Running</span>, <span class="ui">Healthy</span>, <span class="ui">Workspaces</span>. Tiles with problems are highlighted; quiet tiles stay dim.</li>
+    <li>Look at the <strong>Client health board</strong>. Each client workspace is one collapsible group. Broken workspaces should be sorted <strong>first</strong> and arrive <strong>already expanded</strong>; healthy ones start folded. Expand a quiet one yourself.</li>
+    <li>Inside a group, inspect a few rows. Each row shows: a status chip (<span class="ui">● OK</span> green, <span class="ui">⬣ Failed</span> red, <span class="ui">▲ Cancelled</span>, <span class="ui">◌ Never run</span>, <span class="ui">◐ Running</span>, <span class="ui">◇ Live</span>), the item name, and a KIND tag (dataset / dataflow).</li>
+    <li>Find a broken or overdue item (if the tenant is having a good day, congratulations — note that and move on). It should show a red <span class="msg">"down 26h"</span>-style duration, or <span class="msg">"down — never succeeded"</span>.</li>
+    <li>Study the <strong>12-dot strip</strong> on a few rows: the last 12 refresh runs, <strong>oldest on the left, newest on the right</strong>. Green dot = OK, red = failed, hollow = no history. Hover a dot — it shows the run's time. If any run failed you'll see a red caption like <span class="msg">"3 of last 12 runs failed"</span>.</li>
+    <li><strong>Truth check (the important bit):</strong> pick 2–3 items and compare against the Power BI web portal (app.powerbi.com → workspace → refresh history). Do status, last-success time, and recent failures actually match?</li>
+    <li>Check the <span class="ui">Who has access</span> section: expand a workspace, confirm the member list and roles look right.</li>
+    <li>Check <span class="ui">Your usage</span>: "You open most" will be thin until you've used the app a while — fine. "Never opened by you" should list real items you can see but haven't opened. For you that list should be magnificent.</li>
+    <li>Click <span class="ui">Refresh</span> (top right). The button reads <span class="msg">"Refreshing…"</span>, then the snapshot timestamp under the title updates.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      Tile counts agree with the board; broken groups first and pre-expanded; dot strips read oldest→newest and match the portal's refresh history; the 2–3 truth-checked items agree with reality; Refresh updates the snapshot time.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      Anything shown green here but failed in the portal (or vice versa) — write the item name, workspace, and both statuses. Also report: dot strip in the wrong order, tile counts that don't add up, a spinner that never ends, or the amber banner <span class="msg">"Some workspaces could not be fully read…"</span> (note which workspaces it lists).</div>
+  </div>
+  <div class="roast">this board condenses every client into traffic-light dots so that status can be
+  absorbed in one glance, with zero reading. I designed it long before I knew you'd be the tester,
+  and yet somehow it's the most you-proof thing I've ever made. Fate.</div>
+  <div class="checkline"><span class="glyph">☐</span> Test 1 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 2 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 2.</span> Admin unlock — end to end</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~10 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> at the bottom of Insights there's a locked
+  <span class="ui">Admin view</span> — tenant-wide usage ("who opened what, across ALL users") and App
+  audiences. Unlocking it the first time triggers a one-time Microsoft permission window. Nobody has ever
+  clicked this button on a real account. You're the chosen one. Try not to read too much into that.</p>
+  <ol class="steps">
+    <li>Scroll to the bottom of <span class="ui">Insights</span> → the card titled <span class="ui">Admin view — everyone's usage and App audiences</span>.</li>
+    <li>Read the explanatory text in the card. Plain enough for a first-timer? You're our calibration instrument for "plain", Matt — if you understand it, everyone will.</li>
+    <li>Click <span class="ui">Unlock admin view</span>.</li>
+    <li>Watch the status text next to the spinner. It changes in honest stages: first <span class="msg">"Opening Microsoft consent…"</span>, after ~10 s <span class="msg">"Reading App audiences…"</span>, after ~30 s <span class="msg">"Crunching activity log — large tenants can take a couple minutes…"</span>. Confirm the text actually progresses.</li>
+    <li><strong>Known quirk to verify:</strong> the Microsoft consent window may open <strong>BEHIND</strong> the app — much like you at parties. If nothing appears, check the taskbar for a flashing window and bring it forward. Write down whether it appeared in front or hid behind.</li>
+    <li>While it's loading, test <span class="ui">Cancel</span>: click it once. The spinner must stop immediately and the <span class="ui">Unlock admin view</span> button must come back. Then click Unlock again.</li>
+    <li>Approve the Microsoft window when it appears (ticking "consent on behalf of your organization" is fine). It should never ask again afterwards.</li>
+    <li>When it finishes, verify the three blocks: <span class="ui">What's being used</span> (reports, views, people, last viewed), <span class="ui">Who's using it</span> (users + views), and <span class="ui">App audiences</span> (expand one app, see its member list). Plus a caption line like <span class="msg">"Last 2 days · snapshot …"</span> and a working <span class="ui">Refresh</span>.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      Staged text progresses; Cancel instantly returns the Unlock button; consent appears once and never again; the three data blocks fill with plausible real activity. <b>Also a pass:</b> if your account is not a Fabric admin, the exact friendly message <span class="msg">"Power BI says this account is not a Fabric administrator, so the tenant-wide view is unavailable."</span></div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      A spinner with no consent window anywhere (even in the taskbar — wait 60 s first); Cancel that doesn't cancel; consent asked twice; empty tables right after real people used reports; or any raw error code instead of a sentence. Write down the stage text at the moment it went wrong, and how long you'd been waiting.</div>
+  </div>
+  <div class="roast">the loading text was deliberately written to entertain the impatient during a
+  two-minute wait. We A/B tested the required patience level against a goldfish and then, with you
+  in mind, rounded down. There's also a Cancel button — the dream is alive that you'll finish something anyway.</div>
+  <div class="checkline"><span class="glyph">☐</span> Test 2 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 3 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 3.</span> Export PDF</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~10 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> every viewer (report, dashboard, app) has an
+  <span class="ui">Export PDF</span> button in the toolbar. Reports use Power BI's proper export when the
+  license allows it, and silently fall back to a clean screenshot-PDF of the current view when it doesn't.
+  You should not be able to tell which path ran — only that a good PDF lands on disk.</p>
+  <ol class="steps">
+    <li>Open any report (Home or Workspaces → click a report).</li>
+    <li>Click <span class="ui">Export PDF</span> in the top-right toolbar. It's clearly labelled, with a little download icon. This button was designed with you specifically in mind, Matt — it's very large, and it does the entire job with one click.</li>
+    <li>A save dialog opens. Pick a folder and save. Anywhere but your desktop, Matt — we've all seen your desktop; archaeologists will too, someday.</li>
+    <li>The button reads <span class="msg">"Exporting…"</span> and is disabled. When done, the toolbar briefly shows <span class="msg">"Exported to PDF"</span> (~4 s).</li>
+    <li>Open the saved file. Is it the report you were looking at, readable, not blank, not cropped into abstract art?</li>
+    <li>Cancel path: click <span class="ui">Export PDF</span> again, but press Cancel in the save dialog → toolbar must show <span class="msg">"Export cancelled"</span> and nothing is written.</li>
+    <li>Double-click guard: hammer the Export button twice fast — only ONE save dialog should appear.</li>
+    <li>Repeat steps 2–5 once on a <strong>dashboard</strong> and once inside an <strong>app</strong> (those always export a snapshot of the current view — that's by design).</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      PDF saved where you chose, opens, matches the screen; <span class="msg">"Exported to PDF"</span> / <span class="msg">"Export cancelled"</span> messages appear; no double-dialog on a double-click.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      <span class="msg">"Export failed"</span> (write the exact message and which report/dashboard), a blank or truncated PDF (keep the file and send it), filter panes visible in the export, or a frozen "Exporting…" that never resolves.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 3 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 4 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 4.</span> Slideshow &amp; kiosk mode — including the escape room</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~15 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> reports can run as a full-screen slideshow (each report page
+  = a slide) for wall displays. In kiosk mode a single <kbd>Esc</kbd> is deliberately ignored so a stray
+  elbow can't kill the lobby screen — exit requires a deliberate gesture. We need to know a first-time
+  human can get in, and crucially, back out.</p>
+  <ol class="steps">
+    <li>Open a report with several pages and click <span class="ui">Slideshow</span> in the toolbar. It goes full screen.</li>
+    <li>Test the controls at the bottom: <span class="ui">Play</span>/<span class="ui">Pause</span>, the ◀ ▶ arrows, and the dot indicators. Keyboard: <kbd>→</kbd>/<kbd>←</kbd>, <kbd>Space</kbd> (next), <kbd>P</kbd> (play/pause).</li>
+    <li>Press <span class="ui">Play</span> and don't touch anything: slides should auto-advance, the controls fade out after ~3 s, and the mouse cursor disappears. Wiggle the mouse — everything comes back. A feature, not a haunting.</li>
+    <li>Click the gear icon (top right) → drag the <span class="ui">Interval</span> slider, confirm the pace changes.</li>
+    <li>Press <kbd>Esc</kbd> once → you should drop straight back to the normal report view. (This is manual mode; one Esc works here.)</li>
+    <li>Now kiosk mode: go to <span class="ui">Settings → Slideshow / Presentation Mode</span>, switch <span class="ui">Auto-start slideshow</span> ON. Reopen the report and start <span class="ui">Slideshow</span> — it should start playing by itself.</li>
+    <li>Tap <kbd>Esc</kbd> once. <strong>Nothing should happen.</strong> That's correct behaviour, not a bug — resist your instincts, Matt, the urge to file this one is going to be enormous.</li>
+    <li>Find the small persistent hint in the bottom-right corner: <span class="msg">"Hold Esc 3s to exit / or Ctrl+Shift+Q"</span>. It must stay visible even after the main controls fade.</li>
+    <li><strong>Exit gesture 1:</strong> hold <kbd>Esc</kbd> down for 3 full seconds. Three, Matt. One-Mississippi, two-Mississippi, three — roughly the upper bound of your documented attention span, so dig deep. The slideshow should exit.</li>
+    <li><strong>Exit gesture 2:</strong> start the slideshow again, then press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>. Instant exit.</li>
+    <li>Turn <span class="ui">Auto-start slideshow</span> back OFF in Settings. (Write that on your hand if needed.)</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      Auto-advance works at the set interval; controls and cursor fade and return; manual mode exits on one Esc; kiosk mode ignores single Esc but exits on both the 3-second hold and Ctrl+Shift+Q; the corner hint never disappears.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      Trapped in kiosk mode (neither gesture works — note exactly what you pressed and for how long, then Alt+F4 and breathe); single Esc killing kiosk mode; controls that never fade or never come back; slideshow stuck on one slide (note slide name and how long).</div>
+  </div>
+  <div class="roast">if you do get stuck in full screen, do not unplug the computer. I know it's
+  your signature move. There are two documented exits and they are written on the screen at all times,
+  in the corner, in your favourite font: large.</div>
+  <div class="checkline"><span class="glyph">☐</span> Test 4 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 5 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 5.</span> Workspaces — the Retry button under real failure</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~10 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> when a workspace's contents fail to load, the app must say
+  so and offer <span class="ui">Retry</span> — instead of lying that the workspace is empty. This failure
+  path has never been triggered by a human. We'll simulate the outage with the one testing tool you've
+  been unknowingly mastering for years: a dropped connection.</p>
+  <ol class="steps">
+    <li>Click <span class="ui">Workspaces</span> in the sidebar. The list of client workspaces loads. Don't expand anything yet.</li>
+    <li><strong>Disconnect the Wi-Fi</strong> (or pull the network cable). Yes, on purpose this time. I know this is usually something that just happens to you, Matt — savour the control.</li>
+    <li>Click a workspace you have NOT yet expanded. It should briefly show <span class="msg">"Loading content…"</span> and then an amber inline warning: <span class="msg">"Could not load this workspace. Check your connection or your permissions."</span> with a <span class="ui">Retry</span> button.</li>
+    <li><strong>Key check:</strong> it must NOT show <span class="msg">"No reports or dashboards in this workspace."</span> — that message is reserved for genuinely empty workspaces. A failure dressed up as emptiness is the exact bug we're hunting.</li>
+    <li>Reconnect the Wi-Fi. Wait for it to actually come back (the little icon, Matt — the one you never check).</li>
+    <li>Click <span class="ui">Retry</span>. The contents should now load in place — reports and dashboards with an item-count badge — with no app restart needed.</li>
+    <li>Bonus: collapse and re-expand that same workspace — it should NOT refetch (no spinner), because it remembers.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      Offline expand → clear amber warning + Retry (never the "empty workspace" message); after reconnecting, one click of Retry fully recovers in place.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      The workspace pretends to be empty while offline (screenshot it — top priority bug); Retry does nothing or errors even with network back; the whole app needs a restart to recover. Note workspace name and timing.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 5 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 6 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 6.</span> Search</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~5 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> one search box covers reports, dashboards, apps, and
+  workspaces. It opens with <kbd>Ctrl</kbd>+<kbd>K</kbd>. That's two keys, Matt, pressed at the same
+  time. I believe in you — statistically, eventually.</p>
+  <ol class="steps">
+    <li>From anywhere in the app, press <kbd>Ctrl</kbd>+<kbd>K</kbd>. The search dialog should pop open with the cursor already in the box. Also verify the mouse route: click the <span class="ui">"Search reports and dashboards…"</span> bar in the title bar at the top.</li>
+    <li>Type the first few letters of a report you know. Results appear after a breath (it waits ~0.2 s for you to stop typing — for you it budgeted generously).</li>
+    <li>Use <kbd>↑</kbd>/<kbd>↓</kbd> to move the highlight and <kbd>Enter</kbd> to open the selected item. It should land directly in that report.</li>
+    <li>Reopen search, type a <strong>workspace</strong> name, click it: you should land on the Workspaces page with that workspace automatically expanded.</li>
+    <li>Search gibberish ("qzxv"): expect a polite <span class="msg">"No results found for 'qzxv'"</span>, not a spinner of despair.</li>
+    <li>Test the little ✕ button to clear the text, and <kbd>Esc</kbd> to close the dialog.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      Ctrl+K opens with focus in the box; arrow keys + Enter navigate; results open the right item; workspace results auto-expand on the Workspaces page; Esc closes.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      Ctrl+K does nothing (note what screen you were on); an item you can definitely open elsewhere never appears in results (note its name and type); clicking a result opens the wrong thing; an amber partial-failure warning above the results (note its wording).</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 6 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 7 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 7.</span> Freshness strip — "✓ Updated" on a real refresh</h3>
+    <div class="badges"><span class="badge hot">Never human-tested</span><span class="badge time">~15 min + a real dataset refresh</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> the right side of every viewer toolbar shows when the data
+  was last refreshed (<span class="msg">"Data refreshed: 06/10/2026 14:32 CST"</span>, plus a
+  <span class="msg">"Dataflow:"</span> line). When newer data is published while you're looking, an orange
+  <span class="msg">"● Newer data available"</span> note appears; after a refresh, a green
+  <span class="msg">"✓ Updated"</span> confirmation flashes for ~5 seconds. None of this has ever been
+  watched by human eyes against a real refresh.</p>
+  <ol class="steps">
+    <li>Open a report. Find the freshness strip at the right of the toolbar. Immediately after opening it may briefly show <span class="msg">"Data refreshed: —"</span> placeholders — they should fill in within seconds.</li>
+    <li>Sanity-check the timestamp against the dataset's last refresh in the Power BI portal. Note: data older than 24 h shows with an amber ⚠ — correct behaviour, not a bug.</li>
+    <li>Now trigger a real dataset refresh in the Power BI portal (workspace → dataset → Refresh now) for the dataset behind your open report. Leave the report open in the Viewer.</li>
+    <li>Wait and watch the strip (a minute or so after the refresh completes). The orange <span class="msg">"● Newer data available"</span> note should appear next to the timestamps. This is a waiting game, Matt — the app will blink before you do, but it's going to be close.</li>
+    <li>Click <span class="ui">Refresh</span> in the toolbar. When it completes: a green <span class="msg">"✓ Updated"</span> flashes for about 5 seconds, and the timestamps advance to the new refresh time.</li>
+    <li>Open an <strong>app</strong> (Apps page) and confirm its strip also shows a live <span class="msg">"(N min ago)"</span> age that ticks upward. If the app spans several datasets the label honestly reads <span class="ui">"Oldest data"</span> — same for dashboards.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span>
+      Timestamps match the portal; "● Newer data available" appears within ~a minute of the real refresh finishing; clicking Refresh produces the green "✓ Updated" flash and advanced timestamps; the strip never vanishes outright.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span>
+      Timestamp disagrees with the portal (write both); the "newer data" note never shows after a confirmed refresh (note how long you waited); "✓ Updated" never flashes after a successful refresh; placeholders ("—") that never resolve.</div>
+  </div>
+  <div class="roast">this whole feature exists so nobody ever again presents last Tuesday's numbers
+  while calling them "live" — a hypothetical scenario I definitely did not personally witness you star in
+  at the Q3 review.</div>
+  <div class="checkline"><span class="glyph">☐</span> Test 7 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<h2 class="part"><span class="partnum">Part 2.</span> The trust-but-verify tier</h2>
+
+<!-- ============================ TEST 8 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 8.</span> Sign-in persistence — restart the app twice</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~5 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> once signed in, you should stay signed in across restarts.
+  No daily password ceremony.</p>
+  <ol class="steps">
+    <li>Make sure you're signed in (Settings → Account shows your name and email).</li>
+    <li>Close the app completely — the ✕ button, Matt, not your usual ritual of unplugging the machine. Technically that also works, but it makes the logs scream.</li>
+    <li>Reopen it. You should land inside the app, signed in, with no credential prompt.</li>
+    <li>Do the close-and-reopen cycle a <strong>second</strong> time. Same expectation. Twice in a row — yes, the test demands sustained follow-through; I've alerted your next of kin.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Both restarts go straight to the app with your account intact; no Microsoft sign-in window.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> Any password/sign-in prompt on restart (note whether it was the 1st or 2nd restart, and whether you'd used standby in between), or landing signed in as the wrong account.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 8 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 9 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 9.</span> Auto-update — the silent upgrade</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~5 min, spread out</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> the app updates itself: it downloads new versions in the
+  background and installs them silently the next time it restarts. No pop-ups, no nagging. It improves
+  quietly, without being asked. Try to learn from it, Matt.</p>
+  <ol class="steps">
+    <li>Open <span class="ui">Settings</span> → scroll to <span class="ui">About</span>. Write down the version shown ("Power BI Viewer v…").</li>
+    <li>Use the app normally for 15+ minutes (the other tests count — multitasking, but the kind you can handle: zero extra effort).</li>
+    <li>Close the app fully, reopen it, and check <span class="ui">About</span> again. If an update had been published, the version should now read <strong>2.1.10 or higher</strong> — and you should NOT have seen any installer windows or progress bars.</li>
+    <li>If it still shows the old version, restart once more later in the day and re-check (the download may still have been in flight).</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Version reaches 2.1.10+ within a restart or two, with zero visible installer fuss. (A dialog saying <span class="msg">"A required update is ready"</span> followed by an auto-restart is also a PASS — that's the rare mandatory-update path.)</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> Version stuck below 2.1.10 after several restarts across a day (write the version and each restart time), an installer wizard appearing, or the app failing to launch after an update.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 9 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 10 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 10.</span> The user guide opens</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~2 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> the app ships with a bundled, illustrated, offline user
+  guide. One button must open it.</p>
+  <ol class="steps">
+    <li><span class="ui">Settings</span> → <span class="ui">About</span> → click <span class="ui">Open user guide</span>.</li>
+    <li>The illustrated guide should open in your web browser. It has pictures, Matt. I fought for the pictures. I told the team, "trust me — for our audience, the pictures are not optional."</li>
+    <li>Scroll through a few sections; confirm images actually render (no broken-image icons).</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Guide opens in the browser within a few seconds; images render; content matches the app you've been testing.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> Button does nothing or shows "Opening…" forever; a 404/blank page; broken images (note which section).</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 10 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 11 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 11.</span> Settings sweep — every real knob</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~10 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> the Settings page has exactly seven cards: Account,
+  Appearance, Slideshow, Launch on Startup, Data Refresh, Usage History, Reset (plus About). Touch each
+  one. If you find a setting not listed here, that's a finding; if you can't find one that is, that's
+  also a finding.</p>
+  <ol class="steps">
+    <li><span class="ui">Appearance:</span> click <span class="ui">Light</span> / <span class="ui">Dark</span> / <span class="ui">System</span>. Each must apply <strong>immediately</strong>. And no, Matt, dark mode does not make the numbers more correct, whatever you tell the juniors.</li>
+    <li><span class="ui">Slideshow:</span> drag the <span class="ui">Auto-advance interval</span> slider (5 s – 5 min); change <span class="ui">Slideshow mode</span> (Pages / Bookmarks / Both); flip <span class="ui">Auto-start slideshow</span> on and off.</li>
+    <li><span class="ui">Launch on Startup:</span> switch to <span class="ui">Open a specific report</span> — a report picker appears (it lists your recent/frequent reports; if it says to go open some reports first, that's correct). Pick one, quit, relaunch: the app should boot straight into that report. Then try <span class="ui">Open a specific app</span> the same way. Finally set it back to <span class="ui">Show home screen</span>.</li>
+    <li><span class="ui">Data Refresh:</span> toggle <span class="ui">Auto-refresh reports</span> ON — an interval slider (1–120 min) appears. Toggle it back to your preference.</li>
+    <li><span class="ui">Usage History:</span> click <span class="ui">Clear usage history now</span>, then check the Home page — Recent/Frequent should be empty until you open things again.</li>
+    <li><span class="ui">Reset:</span> click <span class="ui">Reset all settings to defaults</span> and confirm the knobs above snap back (theme, sliders, toggles).</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Every change applies instantly and survives an app restart (except the ones you reset, obviously); the startup-report launch actually opens the chosen report.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> A setting that doesn't stick after restart (name it + value), a picker with no options even though you've opened reports, or Reset leaving something un-reset.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 11 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 12 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 12.</span> Apps page &amp; app viewer</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~5 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> the <span class="ui">Apps</span> page lists the published
+  Power BI apps you can open; each opens in its own viewer.</p>
+  <ol class="steps">
+    <li>Click <span class="ui">Apps</span> in the sidebar. You should see tile cards — name, publisher, date.</li>
+    <li>Open one. The app's content loads in the viewer with a <span class="ui">Back to Apps</span> button (not just "Back") at top left.</li>
+    <li>Check the toolbar: freshness strip on the right (label may say <span class="ui">"Oldest data"</span> if the app has several datasets — honest, not broken), <span class="ui">Refresh</span>, <span class="ui">Export PDF</span>, full-screen button.</li>
+    <li>Click around inside the app's own navigation, then <span class="ui">Back to Apps</span> — you should land back on the tiles, not in limbo.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Tiles render, the app opens and is interactive, toolbar items present, Back returns to the Apps list.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> Empty Apps page even though you have apps in the portal; an app that loads forever (name it); Back landing somewhere weird.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 12 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 13 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 13.</span> Home page — recents &amp; frequents</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~5 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> Home shows Featured Workspaces plus your Recent and
+  Frequent items, so day two starts faster than day one.</p>
+  <ol class="steps">
+    <li>Click <span class="ui">Home</span>. Confirm the <span class="ui">Featured Workspaces</span> strip shows up to three workspace cards.</li>
+    <li>Open three or four different reports/dashboards (anywhere), then come back to Home. They should now appear under Recent, most recent first.</li>
+    <li>Open one of them a few more times — it should start surfacing in the Frequent strip. The app literally counts how often you open things. It's the only entity in the building tracking your productivity with optimism, Matt.</li>
+    <li>Click an item on Home — it must open directly. Then try the <span class="ui">Refresh</span> button on the page.</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Recents update in real order; frequently opened items bubble into the Frequent strip; every Home tile opens the right thing.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> Recents not updating, duplicates, an item that opens the wrong report, or a Home page that errors after sign-in (screenshot).</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 13 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ TEST 14 ============================ -->
+<section class="test">
+  <div class="test-head">
+    <h3><span class="tnum">Test 14.</span> Error-path spot checks — break it on purpose</h3>
+    <div class="badges"><span class="badge cool">Verify</span><span class="badge time">~10 min</span></div>
+  </div>
+  <p class="purpose"><strong>Purpose:</strong> a quick tour of failure states. The rule everywhere: a
+  human sentence and a retry — never a white screen, never raw error gibberish. You break software
+  without trying, Matt; today we're just removing the "without trying".</p>
+  <ol class="steps">
+    <li>Wi-Fi off → open a report you haven't opened this session. Expect a readable error and a way to retry — not a blank void.</li>
+    <li>Wi-Fi off → open <span class="ui">Insights</span> fresh. Expect an error message with a <span class="ui">Try again</span> button; reconnect and confirm Try again recovers.</li>
+    <li>Wi-Fi off → press <kbd>Ctrl</kbd>+<kbd>K</kbd> and search. Note whether it shows the amber partial-results warning or a clean failure (either is acceptable — gibberish is not).</li>
+    <li>Wi-Fi back on. <span class="ui">Settings → Sign out</span>, then sign back in. You should land back on Home, signed in, with content loading normally.</li>
+    <li>While any report is open, leave the machine alone past your screen-lock time, unlock, and confirm the report still responds (refresh it once).</li>
+  </ol>
+  <div class="verdicts">
+    <div class="pass"><span class="vh">PASS looks like</span> Every failure shows a plain-English message and a retry path; sign-out/sign-in round-trip is clean; nothing requires killing the app.</div>
+    <div class="fail"><span class="vh">FAIL looks like / write down</span> Any white/blank screen (screenshot + what you did last), raw error codes shown to the user, retry buttons that don't retry, or a sign-in loop.</div>
+  </div>
+  <div class="checkline"><span class="glyph">☐</span> Test 14 complete &nbsp;·&nbsp; ☐ PASS &nbsp; ☐ FAIL &nbsp;·&nbsp; initials: ______</div>
+</section>
+
+<!-- ============================ REPORTING ============================ -->
+<h2 class="part"><span class="partnum">Part 3.</span> Reporting your findings (the Matt-proof method)</h2>
+
+<p>For every issue, I need exactly two artifacts:</p>
+<ul>
+  <li><strong>A screenshot.</strong> <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>, drag a box, done. Of the app, Matt — not a photo of the monitor taken with your phone. We've discussed this. There was a slideshow about it. You were in it.</li>
+  <li><strong>One line of text</strong>, in this shape: <span class="msg">where I was → what I did → what I saw → what I expected.</span> Example: <span class="msg">"Insights → clicked Unlock admin view → spinner for 5 min, no consent window anywhere → expected consent or an error."</span> One line. I know brevity hunts you like a personal enemy, but the format will protect you.</li>
+</ul>
+<p>Send everything to <strong>Brendan</strong> (email or chat — you know where I live, digitally and
+otherwise). Batch them at the end of each test if you like; do not save them all for a single dramatic
+reveal on Friday. Also send the PASS list — knowing what works is half the point, and it'll be nice for
+you to deliver good news for a change.</p>
+
+<div class="note"><b>Severity cheat-sheet:</b> "app lies about data" (wrong freshness, fake-green
+Insights, empty-looking failed workspace) = drop everything and tell me immediately. "Button mislabelled
+or ugly" = one line, end of day. "I personally find orange suspicious" = that's not a bug, Matt, that's
+the brand.</div>
+
+<!-- ============================ SIGN-OFF ============================ -->
+<div class="signoff">
+  <h3 style="margin:0 0 3mm 0; font-size:12.5pt;">Sign-off</h3>
+  <p>I, Matt, certify that I personally executed all fourteen tests above on Power BI Viewer
+  v2.1.10; that I tested the failure paths by losing the network <em>deliberately</em> (a career
+  first); and that every checkbox ticked above represents a thing I actually did, not a thing I
+  confidently assume would have gone fine.</p>
+  <div class="sigline">
+    <div class="slot">Signature (Matt)</div>
+    <div class="slot">Date</div>
+    <div class="slot">Build version tested</div>
+  </div>
+  <p class="title-roast" style="margin-top:8mm; text-align:left;">And Matt — genuinely, thank you. There is no one
+  whose sign-off I would trust more, mostly because by signing here you become legally findable. You're the best
+  analyst I know who still double-clicks links in a web browser. Welcome to QA. — Brendan</p>
+</div>
+
+</body>
+</html>
