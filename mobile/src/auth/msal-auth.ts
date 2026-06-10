@@ -24,7 +24,7 @@
  *    makeRedirectUri() produces it. See docs/PHONE-OPS-CONSOLE-PLAN.md §5.
  */
 import * as AuthSession from 'expo-auth-session';
-import * as SecureStore from 'expo-secure-store';
+import * as safeStore from '../core/safe-store';
 import * as WebBrowser from 'expo-web-browser';
 import { AZURE_CONFIG, azureConfigValid } from './azure-config';
 import {
@@ -84,9 +84,9 @@ export const authSessionRedirectConfigured: boolean = !redirectUri.startsWith('e
 const STORE_KEY = 'pbiviewer.auth.tokens';
 
 const secureStorage: TokenStorage = {
-  get: () => SecureStore.getItemAsync(STORE_KEY),
-  set: (value) => SecureStore.setItemAsync(STORE_KEY, value),
-  remove: () => SecureStore.deleteItemAsync(STORE_KEY),
+  get: () => safeStore.getItem(STORE_KEY),
+  set: (value) => safeStore.setItem(STORE_KEY, value),
+  remove: () => safeStore.removeItem(STORE_KEY),
 };
 
 /** expo-auth-session TokenResponse → our pure TokenSet. */

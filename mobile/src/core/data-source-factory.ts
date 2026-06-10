@@ -9,7 +9,7 @@
  * The saved mode lives in SecureStore alongside the tokens — tiny value,
  * and it keeps all persistence behind one well-understood API.
  */
-import * as SecureStore from 'expo-secure-store';
+import * as safeStore from './safe-store';
 import type { DataSource } from './types';
 import { MockDataSource } from './mock-data';
 import { LiveFleetClient } from './fleet-client';
@@ -73,7 +73,7 @@ export function createReportsModel(mode: DataMode): ReportsModel | null {
  *  unreadable store must never strand the app on a sign-in wall). */
 export async function getSavedMode(): Promise<DataMode> {
   try {
-    const v = await SecureStore.getItemAsync(MODE_KEY);
+    const v = await safeStore.getItem(MODE_KEY);
     return v === 'live' ? 'live' : 'mock';
   } catch {
     return 'mock';
@@ -81,5 +81,5 @@ export async function getSavedMode(): Promise<DataMode> {
 }
 
 export async function setSavedMode(mode: DataMode): Promise<void> {
-  await SecureStore.setItemAsync(MODE_KEY, mode);
+  await safeStore.setItem(MODE_KEY, mode);
 }

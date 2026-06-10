@@ -225,9 +225,10 @@ if (Test-Path "$ExpoPkgPath") {
 # routes the connection through the internet instead - works from anywhere,
 # even cellular, but needs a free Expo account (expo.dev) on first use.
 Write-Host ""
-Write-Host "    How should your phone connect?" -ForegroundColor Cyan
-Write-Host "      [Enter] = same network (phone and this computer share Wi-Fi/LAN)" -ForegroundColor Cyan
-Write-Host "      T       = tunnel (phone on a DIFFERENT network or cellular)" -ForegroundColor Cyan
+Write-Host "    How do you want to view the app?" -ForegroundColor Cyan
+Write-Host "      [Enter] = on your phone, same network (scan the QR code)" -ForegroundColor Cyan
+Write-Host "      T       = on your phone via tunnel (different network or cellular)" -ForegroundColor Cyan
+Write-Host "      W       = in a BROWSER on this computer (no phone needed)" -ForegroundColor Cyan
 $Mode = Read-Host "    Choice"
 
 Write-Host ""
@@ -235,7 +236,10 @@ Write-Host "    A QR code will appear below. Scan it with the Expo Go app on you
 Write-Host "    Leave this window open while you use the app. Press Ctrl+C here to stop." -ForegroundColor Cyan
 Write-Host ""
 
-if ($Mode -match '^[Tt]') {
+if ($Mode -match '^[Ww]') {
+    Write-Host "    Opening the app in your default browser (phone-sized window recommended)..." -ForegroundColor Cyan
+    npx expo start --web
+} elseif ($Mode -match '^[Tt]') {
     Write-Host "    Tunnel mode: installing the tunnel helper (one-time)..." -ForegroundColor Yellow
     npm install --no-save "@expo/ngrok@^4.1.0"
     if ($LASTEXITCODE -ne 0) {
