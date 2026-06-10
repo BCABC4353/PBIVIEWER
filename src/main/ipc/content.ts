@@ -141,6 +141,10 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getAllItems();
   });
 
+  ipcMain.handle('content:get-insights', async (_event, force?: boolean) => {
+    return await powerbiApiService.getInsightsSnapshot(force === true);
+  });
+
   // There is deliberately no 'content:get-recent' handler — the renderer reads
   // recents via 'usage:get-recent' (usageTrackingService).
 }

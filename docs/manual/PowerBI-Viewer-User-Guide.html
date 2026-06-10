@@ -305,16 +305,17 @@
       <li><a href="#s4"><span class="n">4</span><span>Home</span></a></li>
       <li><a href="#s5"><span class="n">5</span><span>Workspaces</span></a></li>
       <li><a href="#s6"><span class="n">6</span><span>Power BI Apps</span></a></li>
-      <li><a href="#s7"><span class="n">7</span><span>Reports &amp; dashboards</span></a></li>
-      <li><a href="#s8"><span class="n">8</span><span>Is my data up to date?</span></a></li>
-      <li><a href="#s9"><span class="n">9</span><span>Search</span></a></li>
-      <li><a href="#s10"><span class="n">10</span><span>Slideshow &amp; wall displays</span></a></li>
-      <li><a href="#s11"><span class="n">11</span><span>Export to PDF</span></a></li>
-      <li><a href="#s12"><span class="n">12</span><span>Your account</span></a></li>
-      <li><a href="#s13"><span class="n">13</span><span>Settings</span></a></li>
-      <li><a href="#s14"><span class="n">14</span><span>App updates</span></a></li>
-      <li><a href="#s15"><span class="n">15</span><span>Keyboard shortcuts</span></a></li>
-      <li><a href="#s16"><span class="n">16</span><span>Troubleshooting</span></a></li>
+      <li><a href="#s7"><span class="n">7</span><span>Insights</span></a></li>
+      <li><a href="#s8"><span class="n">8</span><span>Reports &amp; dashboards</span></a></li>
+      <li><a href="#s9"><span class="n">9</span><span>Is my data up to date?</span></a></li>
+      <li><a href="#s10"><span class="n">10</span><span>Search</span></a></li>
+      <li><a href="#s11"><span class="n">11</span><span>Slideshow &amp; wall displays</span></a></li>
+      <li><a href="#s12"><span class="n">12</span><span>Export to PDF</span></a></li>
+      <li><a href="#s13"><span class="n">13</span><span>Your account</span></a></li>
+      <li><a href="#s14"><span class="n">14</span><span>Settings</span></a></li>
+      <li><a href="#s15"><span class="n">15</span><span>App updates</span></a></li>
+      <li><a href="#s16"><span class="n">16</span><span>Keyboard shortcuts</span></a></li>
+      <li><a href="#s17"><span class="n">17</span><span>Troubleshooting</span></a></li>
     </ol>
   </nav>
 
@@ -350,7 +351,7 @@
 
       <div class="box note">
         <span class="t">New here? Start with these</span>
-        <p>Read <a href="#s2">Install &amp; sign in</a>, then <a href="#s6">Power BI Apps</a> — that is where most of your content lives. If you run a wall display, also read <a href="#s10">Slideshow &amp; wall displays</a>.</p>
+        <p>Read <a href="#s2">Install &amp; sign in</a>, then <a href="#s6">Power BI Apps</a> — that is where most of your content lives. If you run a wall display, also read <a href="#s11">Slideshow &amp; wall displays</a>.</p>
       </div>
     </section>
 
@@ -411,7 +412,7 @@
 
       <div class="box warn">
         <span class="t">If sign-in fails</span>
-        <p>A red <strong>"Sign in failed"</strong> bar appears with the reason. Just click <strong>Sign in with Microsoft</strong> again. If it keeps failing, see <a href="#s16">Troubleshooting</a>.</p>
+        <p>A red <strong>"Sign in failed"</strong> bar appears with the reason. Just click <strong>Sign in with Microsoft</strong> again. If it keeps failing, see <a href="#s17">Troubleshooting</a>.</p>
       </div>
       <figure>
         <img src="screenshots/02-login-error.png" alt="Sign-in screen showing a red Sign in failed bar" />
@@ -520,7 +521,7 @@
       <h3>Inside an app</h3>
       <ul>
         <li>The app opens as the <strong>full Power BI app experience</strong>, right inside the window — the same menus and navigation you would see on the Power BI website.</li>
-        <li>The toolbar above it keeps things simple: <strong>Back to Apps</strong>, the app's name, the <a href="#s8">data freshness strip</a>, and <strong>Refresh</strong>.</li>
+        <li>The toolbar above it keeps things simple: <strong>Back to Apps</strong>, the app's name, the <a href="#s9">data freshness strip</a>, and <strong>Refresh</strong>.</li>
         <li>Because of the shared sign-in, the app <strong>never asks you to log in again</strong>.</li>
       </ul>
 
@@ -531,22 +532,96 @@
 
       <div class="box warn">
         <span class="t">Don't see an app you were given?</span>
-        <p>The list only shows apps that are installed for your account. Ask your administrator to push it to you, or open it once on <strong>app.powerbi.com</strong> in your browser, then come back and click <strong>Refresh</strong> on the Apps page. See <a href="#s16">Troubleshooting</a>.</p>
+        <p>The list only shows apps that are installed for your account. Ask your administrator to push it to you, or open it once on <strong>app.powerbi.com</strong> in your browser, then come back and click <strong>Refresh</strong> on the Apps page. See <a href="#s17">Troubleshooting</a>.</p>
       </div>
     </section>
 
-    <!-- ===================== 7. REPORTS & DASHBOARDS ===================== -->
+    <!-- ===================== 7. INSIGHTS ===================== -->
     <section class="card" id="s7">
-      <h2 class="sec"><span class="n">7</span>Reports &amp; dashboards</h2>
+      <h2 class="sec"><span class="n">7</span>Insights</h2>
+      <p class="lead">Insights is one page that shows the health of all your data — what's refreshing, what's broken, who has access, and what you actually use. Open it from the <strong>Insights</strong> item in the left sidebar (the trending-chart icon).</p>
+
+      <h3>The summary tiles</h3>
+      <p>Six tiles across the top give you the headline before you read anything else:</p>
+      <table>
+        <thead><tr><th>Tile</th><th>What it counts</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Healthy</strong></td><td>Data whose last refresh worked. The more here, the better.</td></tr>
+          <tr><td><strong>Broken</strong></td><td>Data whose last refresh failed or was cancelled. If this isn't zero, look at the table below — the broken items are already at the top.</td></tr>
+          <tr><td><strong>Never refreshed</strong></td><td>Data on which a refresh has never run at all.</td></tr>
+          <tr><td><strong>Live</strong></td><td>Data that connects directly to its source and doesn't use scheduled refreshes. <strong>Not a problem</strong> — there is simply nothing to refresh.</td></tr>
+          <tr><td><strong>Workspaces</strong></td><td>How many workspaces you can see.</td></tr>
+          <tr><td><strong>Reports</strong></td><td>How many reports you can see.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="dg" role="img" aria-label="Diagram of the six summary tiles: Healthy 24, Broken 2, Never refreshed 1, Live 5, Workspaces 8, Reports 31">
+        <div class="dg-bar">
+          <span class="dg-btn"><span class="dg-ok">24</span> Healthy</span>
+          <span class="dg-btn"><span class="dg-new">2</span> Broken</span>
+          <span class="dg-btn">1 Never refreshed</span>
+          <span class="dg-btn">5 Live</span>
+          <span class="dg-spacer"></span>
+          <span class="dg-btn">8 Workspaces</span>
+          <span class="dg-btn">31 Reports</span>
+        </div>
+        <div class="dg-caption">The summary tiles. Broken and Never refreshed light up in color when they need attention.</div>
+      </div>
+
+      <h3>What's refreshing — and what's broken</h3>
+      <p>Below the tiles, a table lists every dataset and dataflow you can see, with the <strong>worst problems sorted to the top</strong> — failures first, healthy items last — so you never have to hunt for trouble. Each row shows the status, the item's name, its workspace, when it last refreshed successfully, and who set the refresh up.</p>
+      <table>
+        <thead><tr><th>Status</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td><strong>OK</strong></td><td>The last refresh worked.</td></tr>
+          <tr><td><strong>Failed</strong></td><td>The last refresh did not work. <strong>Hover over the badge</strong> to see the Power BI error code — useful to pass on to your data team.</td></tr>
+          <tr><td><strong>Running</strong></td><td>A refresh is happening right now.</td></tr>
+          <tr><td><strong>Cancelled</strong></td><td>The last refresh was stopped before it finished.</td></tr>
+          <tr><td><strong>Never</strong></td><td>A refresh has never run on this item.</td></tr>
+          <tr><td><strong>Live</strong></td><td>This data connects directly to its source and doesn't use scheduled refreshes — <strong>not a problem</strong>.</td></tr>
+        </tbody>
+      </table>
+      <div class="box note">
+        <span class="t">If part of the picture is missing</span>
+        <p>When some workspaces can't be fully read, a small notice at the top of the page names them — their items may be missing from the lists until you click <strong>Refresh</strong>.</p>
+      </div>
+
+      <h3>Who has access</h3>
+      <p>This section lists each of your workspaces. <strong>Click a workspace to expand its member list</strong> — each person's name, email, and role.</p>
+      <div class="box note">
+        <span class="t">"Access list not visible to you"</span>
+        <p>Some workspaces show this instead of a member count. It means your account isn't allowed to see that workspace's member list — completely normal for viewers, and nothing is wrong.</p>
+      </div>
+
+      <h3>Your usage</h3>
+      <ul>
+        <li><strong>You open most</strong> — the items you open most often. Click one to jump straight to it.</li>
+        <li><strong>Never opened by you</strong> — items you have access to but have never opened. A handy reminder of what you might be missing.</li>
+      </ul>
+
+      <div class="box note">
+        <span class="t">Everyone sees their own view</span>
+        <p>Insights only shows what <strong>your own account</strong> has access to — workspaces, datasets, access lists, and your usage. Your page and a colleague's page can legitimately look different.</p>
+      </div>
+
+      <div class="box">
+        <span class="t">How fresh is the page itself?</span>
+        <p>The line under the title shows when the current snapshot was taken. The page refreshes its snapshot <strong>at most every 5 minutes</strong> — click the <strong>Refresh</strong> button at the top-right to force a new one right away.</p>
+      </div>
+    </section>
+
+    <!-- ===================== 8. REPORTS & DASHBOARDS ===================== -->
+    <section class="card" id="s8">
+      <h2 class="sec"><span class="n">8</span>Reports &amp; dashboards</h2>
       <p class="lead">Open a report or dashboard from Home, Workspaces, or Search. A slim toolbar sits above it.</p>
 
       <h3>The toolbar, left to right</h3>
       <ul>
         <li><strong>Back</strong> — returns to where you came from. Next to it, a breadcrumb shows "Home &rsaquo; &lt;name&gt;".</li>
-        <li><strong>Data freshness strip</strong> — two small timestamps that tell you how current the data is. This is important enough to get <a href="#s8">its own section</a>.</li>
+        <li><strong>Data freshness strip</strong> — two small timestamps that tell you how current the data is. This is important enough to get <a href="#s9">its own section</a>.</li>
         <li><strong>Refresh</strong> — pulls the latest data. While working it reads "Refreshing…" and is briefly disabled. When it finishes, a green <span class="chip ok">&#10003; Updated</span> appears for a few seconds.</li>
-        <li><strong>Export PDF</strong> — saves the current view as a PDF. See <a href="#s11">Export to PDF</a>.</li>
-        <li><strong>Slideshow</strong> — reports only. Starts presentation mode. See <a href="#s10">Slideshow</a>.</li>
+        <li><strong>Export PDF</strong> — saves the current view as a PDF. See <a href="#s12">Export to PDF</a>.</li>
+        <li><strong>Slideshow</strong> — reports only. Starts presentation mode. See <a href="#s11">Slideshow</a>.</li>
         <li><strong>Full screen</strong> — the corner-arrows icon. Press <kbd>Esc</kbd> to leave full screen.</li>
       </ul>
 
@@ -583,13 +658,13 @@
 
       <div class="box warn">
         <span class="t">If something won't load</span>
-        <p>You'll see a short message and a <strong>Try again</strong> button — click it to reload. If an item was truly deleted, it disappears from your Recent and Frequent lists automatically. More help in <a href="#s16">Troubleshooting</a>.</p>
+        <p>You'll see a short message and a <strong>Try again</strong> button — click it to reload. If an item was truly deleted, it disappears from your Recent and Frequent lists automatically. More help in <a href="#s17">Troubleshooting</a>.</p>
       </div>
     </section>
 
-    <!-- ===================== 8. FRESHNESS ===================== -->
-    <section class="card" id="s8">
-      <h2 class="sec"><span class="n">8</span>Is my data up to date?</h2>
+    <!-- ===================== 9. FRESHNESS ===================== -->
+    <section class="card" id="s9">
+      <h2 class="sec"><span class="n">9</span>Is my data up to date?</h2>
       <p class="lead">Every viewer — report, dashboard, or app — shows a small <strong>freshness strip</strong> on the right side of the toolbar. It answers one question at a glance: <em>how current is what I'm looking at?</em></p>
 
       <h3>The two timestamps</h3>
@@ -683,9 +758,9 @@
       </div>
     </section>
 
-    <!-- ===================== 9. SEARCH ===================== -->
-    <section class="card" id="s9">
-      <h2 class="sec"><span class="n">9</span>Search</h2>
+    <!-- ===================== 10. SEARCH ===================== -->
+    <section class="card" id="s10">
+      <h2 class="sec"><span class="n">10</span>Search</h2>
       <p class="lead">Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>Cmd</kbd>+<kbd>K</kbd> on Mac) from anywhere, or click the search box in the title bar.</p>
       <p>Results appear <strong>as you type</strong>. Each result shows what it is — Report, Dashboard, App, or Workspace — plus the workspace it lives in.</p>
       <figure>
@@ -704,9 +779,9 @@
       </div>
     </section>
 
-    <!-- ===================== 10. SLIDESHOW ===================== -->
-    <section class="card" id="s10">
-      <h2 class="sec"><span class="n">10</span>Slideshow &amp; wall displays</h2>
+    <!-- ===================== 11. SLIDESHOW ===================== -->
+    <section class="card" id="s11">
+      <h2 class="sec"><span class="n">11</span>Slideshow &amp; wall displays</h2>
       <p class="lead">Slideshow turns a report into a full-screen presentation that advances on its own — ideal for a TV or lobby screen.</p>
 
       <h3>Start a slideshow</h3>
@@ -715,7 +790,7 @@
         <li>Click <strong>Slideshow</strong> in the toolbar. The report goes full screen.</li>
         <li>Press <strong>Play</strong> to start auto-advancing; <strong>Pause</strong> to stop on a slide.</li>
       </ol>
-      <p>Slides can be the report's <strong>pages</strong>, its <strong>bookmarks</strong>, or both — choose in <a href="#s13">Settings &rarr; Slideshow</a>.</p>
+      <p>Slides can be the report's <strong>pages</strong>, its <strong>bookmarks</strong>, or both — choose in <a href="#s14">Settings &rarr; Slideshow</a>.</p>
 
       <h3>On-screen controls</h3>
       <p>The controls fade away after a few seconds while playing; move the mouse to bring them back.</p>
@@ -765,9 +840,9 @@
       </ul>
     </section>
 
-    <!-- ===================== 11. EXPORT ===================== -->
-    <section class="card" id="s11">
-      <h2 class="sec"><span class="n">11</span>Export to PDF</h2>
+    <!-- ===================== 12. EXPORT ===================== -->
+    <section class="card" id="s12">
+      <h2 class="sec"><span class="n">12</span>Export to PDF</h2>
       <p class="lead">On a report or dashboard, click <strong>Export PDF</strong> in the toolbar to save what you're looking at.</p>
       <ol class="steps">
         <li>Set up the view first — the export captures the <strong>current view</strong>: the active page, plus any filters or selections you have applied.</li>
@@ -780,25 +855,25 @@
       </div>
     </section>
 
-    <!-- ===================== 12. ACCOUNT ===================== -->
-    <section class="card" id="s12">
-      <h2 class="sec"><span class="n">12</span>Your account</h2>
+    <!-- ===================== 13. ACCOUNT ===================== -->
+    <section class="card" id="s13">
+      <h2 class="sec"><span class="n">13</span>Your account</h2>
       <p class="lead">Click your <strong>avatar</strong> in the top-right to see your name and email, with two actions.</p>
 
       <h3>Switch account</h3>
       <p><strong>Switch account</strong> signs the current account fully out — clearing everything it left behind, so nothing carries over — and then opens Microsoft's account picker so you can sign in as someone else.</p>
 
       <h3>Sign out</h3>
-      <p><strong>Sign out</strong> shows a confirmation: <em>"You will be returned to the sign-in screen. Any open reports will be closed."</em> Choose <strong>Cancel</strong> or <strong>Sign out</strong>. There is also a Sign out button in <a href="#s13">Settings &rarr; Account</a>.</p>
+      <p><strong>Sign out</strong> shows a confirmation: <em>"You will be returned to the sign-in screen. Any open reports will be closed."</em> Choose <strong>Cancel</strong> or <strong>Sign out</strong>. There is also a Sign out button in <a href="#s14">Settings &rarr; Account</a>.</p>
       <figure>
         <img src="screenshots/15-signout-dialog.png" alt="The Sign out confirmation dialog with Cancel and Sign out buttons" />
         <figcaption>The sign-out confirmation.</figcaption>
       </figure>
     </section>
 
-    <!-- ===================== 13. SETTINGS ===================== -->
-    <section class="card" id="s13">
-      <h2 class="sec"><span class="n">13</span>Settings</h2>
+    <!-- ===================== 14. SETTINGS ===================== -->
+    <section class="card" id="s14">
+      <h2 class="sec"><span class="n">14</span>Settings</h2>
       <p class="lead">Open Settings from the bottom of the sidebar. Changes save and apply immediately.</p>
       <div class="grid2">
         <figure>
@@ -816,9 +891,9 @@
         <tbody>
           <tr><td><strong>Account</strong></td><td>Your name and email, plus a <strong>Sign out</strong> button.</td></tr>
           <tr><td><strong>Appearance</strong></td><td><strong>Theme:</strong> Light / Dark / System. Applies instantly. The app starts out Dark.</td></tr>
-          <tr><td><strong>Slideshow / Presentation Mode</strong></td><td><strong>Auto-advance interval</strong> (5 seconds to 5 minutes); <strong>Slideshow mode</strong> (Pages only / Bookmarks only / Pages and bookmarks); <strong>Auto-start slideshow</strong> (On turns on the kiosk behavior described in <a href="#s10">Slideshow</a>).</td></tr>
+          <tr><td><strong>Slideshow / Presentation Mode</strong></td><td><strong>Auto-advance interval</strong> (5 seconds to 5 minutes); <strong>Slideshow mode</strong> (Pages only / Bookmarks only / Pages and bookmarks); <strong>Auto-start slideshow</strong> (On turns on the kiosk behavior described in <a href="#s11">Slideshow</a>).</td></tr>
           <tr><td><strong>Launch on Startup</strong></td><td>What the app opens when it launches: <strong>Show home screen</strong>, <strong>Open a specific report</strong>, or <strong>Open a specific app</strong>. A picker appears for the report (from your recent/frequent reports) or the app.</td></tr>
-          <tr><td><strong>Data Refresh</strong></td><td><strong>Auto-refresh reports</strong> (On by default) — open reports update themselves the moment newer data is published; see <a href="#s8">Is my data up to date?</a>. The <strong>Refresh interval</strong> slider (1 minute to 2 hours) sets the refresh pace for slideshows and kiosk displays.</td></tr>
+          <tr><td><strong>Data Refresh</strong></td><td><strong>Auto-refresh reports</strong> (On by default) — open reports update themselves the moment newer data is published; see <a href="#s9">Is my data up to date?</a>. The <strong>Refresh interval</strong> slider (1 minute to 2 hours) sets the refresh pace for slideshows and kiosk displays.</td></tr>
           <tr><td><strong>Usage History</strong></td><td><strong>Clear usage history on sign-out:</strong> Never / Always / On shared machine. Plus <strong>Clear usage history now</strong>, which empties Recent and Frequent.</td></tr>
           <tr><td><strong>Reset</strong></td><td><strong>Reset all settings to defaults.</strong> This does <em>not</em> sign you out.</td></tr>
           <tr><td><strong>About</strong></td><td>Your app version and an <strong>Open user guide</strong> button that opens this guide.</td></tr>
@@ -838,9 +913,9 @@
       </div>
     </section>
 
-    <!-- ===================== 14. UPDATES ===================== -->
-    <section class="card" id="s14">
-      <h2 class="sec"><span class="n">14</span>App updates</h2>
+    <!-- ===================== 15. UPDATES ===================== -->
+    <section class="card" id="s15">
+      <h2 class="sec"><span class="n">15</span>App updates</h2>
       <p class="lead">You don't need to manage updates. Here is what to expect on each platform.</p>
 
       <h3>On Windows: it updates itself</h3>
@@ -863,9 +938,9 @@
       </div>
     </section>
 
-    <!-- ===================== 15. SHORTCUTS ===================== -->
-    <section class="card" id="s15">
-      <h2 class="sec"><span class="n">15</span>Keyboard shortcuts</h2>
+    <!-- ===================== 16. SHORTCUTS ===================== -->
+    <section class="card" id="s16">
+      <h2 class="sec"><span class="n">16</span>Keyboard shortcuts</h2>
       <table>
         <thead><tr><th>Where</th><th>Keys</th><th>What it does</th></tr></thead>
         <tbody>
@@ -881,9 +956,9 @@
       </table>
     </section>
 
-    <!-- ===================== 16. TROUBLESHOOTING ===================== -->
-    <section class="card" id="s16">
-      <h2 class="sec"><span class="n">16</span>Troubleshooting</h2>
+    <!-- ===================== 17. TROUBLESHOOTING ===================== -->
+    <section class="card" id="s17">
+      <h2 class="sec"><span class="n">17</span>Troubleshooting</h2>
       <p class="lead">Most problems fix themselves with one click — the app always offers a <strong>Try again</strong> or <strong>Retry</strong> button when something fails.</p>
 
       <div class="qa">
@@ -935,7 +1010,7 @@
       <div class="qa">
         <div class="q">The numbers look old</div>
         <div class="a">
-          <p>Check the <a href="#s8">freshness strip</a> in the toolbar. If you see the orange <strong>"&#9679; Newer data available"</strong> notice, click <strong>Refresh</strong>. If "Data refreshed" is recent but "Dataflow" is old, the data pipeline hasn't delivered new numbers yet — that's a question for your data team, not a problem with the app. An amber &#9888; means the data is more than a day old.</p>
+          <p>Check the <a href="#s9">freshness strip</a> in the toolbar. If you see the orange <strong>"&#9679; Newer data available"</strong> notice, click <strong>Refresh</strong>. If "Data refreshed" is recent but "Dataflow" is old, the data pipeline hasn't delivered new numbers yet — that's a question for your data team, not a problem with the app. An amber &#9888; means the data is more than a day old.</p>
         </div>
       </div>
 

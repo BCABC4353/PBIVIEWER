@@ -34,6 +34,8 @@ export const IPC_CHANNELS = {
     // Data-freshness: dataset refresh time + upstream dataflow last-success time.
     getDataFreshness: 'content:get-data-freshness',
     getAllItems: 'content:get-all-items',
+    // Insights one-pager: refresh health + access, scoped to the user's token.
+    getInsights: 'content:get-insights',
   },
   window: {
     minimize: 'window:minimize',

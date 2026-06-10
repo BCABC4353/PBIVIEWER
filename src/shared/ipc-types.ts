@@ -10,6 +10,7 @@ import type {
   DatasetRefreshInfo,
   DataFreshness,
   AppSettings,
+  InsightsSnapshot,
 } from './types';
 
 // IPC envelope types — re-exported from types.ts for backward compatibility.
@@ -105,6 +106,8 @@ export interface ElectronAPI {
       partialFailure: boolean;
       failedWorkspaces: Array<{ id: string; name: string; error: string }>;
     }>>;
+    /** Insights one-pager snapshot; force=true bypasses the 5-minute cache. */
+    getInsights: (force?: boolean) => Promise<IPCResponse<InsightsSnapshot>>;
   };
 
   window: {

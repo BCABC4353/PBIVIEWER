@@ -96,6 +96,20 @@ function createElectronAPIMock(): ElectronAPI {
           failedWorkspaces: [],
         },
       }),
+      getInsights: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          generatedAt: new Date().toISOString(),
+          fromCache: false,
+          workspaceCount: 0,
+          reportCount: 0,
+          dashboardCount: 0,
+          refreshables: [],
+          access: [],
+          partialFailure: false,
+          failedWorkspaces: [],
+        },
+      }),
     },
 
     window: {

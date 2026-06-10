@@ -49,6 +49,8 @@ const electronAPI: ElectronAPI = {
     getDataFreshness: (workspaceId: string, datasetIds: string[], dashboardId?: string) =>
       ipcRenderer.invoke('content:get-data-freshness', workspaceId, datasetIds, dashboardId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
+    // Insights one-pager snapshot; force=true bypasses the 5-minute cache.
+    getInsights: (force?: boolean) => ipcRenderer.invoke('content:get-insights', force),
   },
 
   window: {

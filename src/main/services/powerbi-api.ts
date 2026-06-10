@@ -10,6 +10,9 @@ import type {
   DataFreshness,
   IPCResponse,
   TokenResult,
+  InsightsSnapshot,
+  InsightsRefreshable,
+  InsightsWorkspaceAccess,
 } from '../../shared/types';
 
 // Dataset -> dataflow lineage is static, so cache resolved links: the 5-min
@@ -171,6 +174,12 @@ async function throwForStatus(response: Response, contextLabel: string): Promise
 
 class PowerBIApiService {
   private readonly deps: PowerBIApiDeps;
+
+  // Insights snapshot cache. Building a snapshot fans out to every workspace,
+  // dataset, and dataflow the user can see; serving repeat page visits from a
+  // short-lived cache keeps us far away from the API throttling limits.
+  private insightsCache: { value: InsightsSnapshot; expires: number } | null = null;
+  private static readonly INSIGHTS_TTL_MS = 5 * 60 * 1000;
 
   constructor(deps: PowerBIApiDeps) {
     this.deps = deps;
@@ -812,6 +821,274 @@ class PowerBIApiService {
         success: false,
         error: buildErrorEnvelope('ALL_ITEMS_FETCH_FAILED', error),
       };
+    }
+  }
+
+  /**
+   * Insights one-pager: refresh health of every dataset + dataflow the
+   * signed-in user can see, plus per-workspace access lists and catalog
+   * counts. Access scoping is inherent — the API only returns what this
+   * user's token can reach, so a client sees exactly their slice.
+   *
+   * Built entirely from the scopes the app already requests (Workspace/
+   * Dataset/Dataflow/Report/Dashboard Read.All) — no new consent required.
+   * Results are cached for 5 minutes; pass force=true to rebuild.
+   */
+  async getInsightsSnapshot(force = false): Promise<IPCResponse<InsightsSnapshot>> {
+    try {
+      if (!force && this.insightsCache && this.insightsCache.expires > Date.now()) {
+        return { success: true, data: { ...this.insightsCache.value, fromCache: true } };
+      }
+
+      const workspacesResponse = await this.getWorkspaces();
+      if (!workspacesResponse.success) {
+        return { success: false, error: workspacesResponse.error };
+      }
+      const workspaces = workspacesResponse.data;
+
+      const refreshables: InsightsRefreshable[] = [];
+      const access: InsightsWorkspaceAccess[] = [];
+      const failedWorkspaces: Array<{ id: string; name: string; error: string }> = [];
+      let reportCount = 0;
+      let dashboardCount = 0;
+
+      // Small batches keep total concurrency well under the per-user API
+      // throttling limits even though each workspace fans out to 4 calls.
+      const BATCH_SIZE = 4;
+      for (let i = 0; i < workspaces.length; i += BATCH_SIZE) {
+        const batch = workspaces.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (ws) => {
+            const [datasets, dataflows, users, reports, dashboards] = await Promise.all([
+              this.getWorkspaceDatasets(ws.id),
+              this.getWorkspaceDataflows(ws.id),
+              this.getWorkspaceUsers(ws.id),
+              this.getReports(ws.id),
+              this.getDashboards(ws.id),
+            ]);
+
+            if (reports.success) reportCount += reports.data.length;
+            if (dashboards.success) dashboardCount += dashboards.data.length;
+            access.push({ workspaceId: ws.id, workspaceName: ws.name, users });
+
+            if (datasets === null && dataflows === null) {
+              failedWorkspaces.push({
+                id: ws.id,
+                name: ws.name,
+                error: 'Could not list datasets or dataflows',
+              });
+              return;
+            }
+
+            // Refresh health per dataset (sequential within the workspace —
+            // the workspace batch already provides the parallelism).
+            for (const ds of datasets ?? []) {
+              if (ds.isRefreshable === false) {
+                refreshables.push({
+                  kind: 'dataset',
+                  id: ds.id,
+                  name: ds.name,
+                  workspaceId: ws.id,
+                  workspaceName: ws.name,
+                  configuredBy: ds.configuredBy,
+                  lastStatus: 'Disabled',
+                });
+                continue;
+              }
+              const health = await this.getDatasetRefreshHealth(ws.id, ds.id);
+              refreshables.push({
+                kind: 'dataset',
+                id: ds.id,
+                name: ds.name,
+                workspaceId: ws.id,
+                workspaceName: ws.name,
+                configuredBy: ds.configuredBy,
+                ...health,
+              });
+            }
+
+            for (const df of dataflows ?? []) {
+              const health = await this.getDataflowRefreshHealth(ws.id, df.objectId);
+              refreshables.push({
+                kind: 'dataflow',
+                id: df.objectId,
+                name: df.name,
+                workspaceId: ws.id,
+                workspaceName: ws.name,
+                ...health,
+              });
+            }
+          }),
+        );
+      }
+
+      const snapshot: InsightsSnapshot = {
+        generatedAt: new Date().toISOString(),
+        fromCache: false,
+        workspaceCount: workspaces.length,
+        reportCount,
+        dashboardCount,
+        refreshables,
+        access,
+        partialFailure: failedWorkspaces.length > 0,
+        failedWorkspaces,
+      };
+      this.insightsCache = {
+        value: snapshot,
+        expires: Date.now() + PowerBIApiService.INSIGHTS_TTL_MS,
+      };
+      return { success: true, data: snapshot };
+    } catch (error) {
+      return {
+        success: false,
+        error: buildErrorEnvelope('INSIGHTS_FETCH_FAILED', error),
+      };
+    }
+  }
+
+  /** Datasets in a workspace, or null when the list call fails. */
+  private async getWorkspaceDatasets(
+    workspaceId: string,
+  ): Promise<Array<{ id: string; name: string; configuredBy?: string; isRefreshable?: boolean }> | null> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        id: string;
+        name: string;
+        configuredBy?: string;
+        isRefreshable?: boolean;
+      }>>(`/groups/${workspaceId}/datasets`);
+      return resp.value ?? [];
+    } catch (error) {
+      console.warn('[PowerBI] datasets list failed for insights:', error);
+      return null;
+    }
+  }
+
+  /** Dataflows in a workspace, or null when the list call fails. */
+  private async getWorkspaceDataflows(
+    workspaceId: string,
+  ): Promise<Array<{ objectId: string; name: string }> | null> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        objectId: string;
+        name: string;
+      }>>(`/groups/${workspaceId}/dataflows`);
+      return (resp.value ?? []).filter((d) => d.objectId);
+    } catch (error) {
+      console.warn('[PowerBI] dataflows list failed for insights:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Users with access to a workspace, or null when the caller is not allowed
+   * to list them (e.g. viewer-only role). Null means "not visible to you",
+   * which the UI must distinguish from an empty workspace.
+   */
+  private async getWorkspaceUsers(
+    workspaceId: string,
+  ): Promise<InsightsWorkspaceAccess['users']> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        displayName?: string;
+        emailAddress?: string;
+        identifier?: string;
+        groupUserAccessRight?: string;
+        principalType?: string;
+      }>>(`/groups/${workspaceId}/users`);
+      return (resp.value ?? []).map((u) => ({
+        name: u.displayName || u.emailAddress || u.identifier || 'Unknown',
+        email: u.emailAddress,
+        role: u.groupUserAccessRight || 'Unknown',
+        type: u.principalType || 'User',
+      }));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Derive refresh health from a dataset's recent refresh history. */
+  private async getDatasetRefreshHealth(
+    workspaceId: string,
+    datasetId: string,
+  ): Promise<Pick<InsightsRefreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime' | 'errorCode'>> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        status?: string;
+        startTime?: string;
+        endTime?: string;
+        serviceExceptionJson?: string;
+      }>>(`/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=5`);
+      const entries = resp.value ?? [];
+      if (entries.length === 0) return { lastStatus: 'Never' };
+
+      // Newest first. 'Unknown' with no endTime is an in-flight refresh;
+      // 'Unknown' WITH an endTime is how the v1 endpoint reports a completed
+      // on-demand refresh (same convention as getDatasetRefreshInfo).
+      const newest = entries[0]!;
+      const successLike = (s?: string) => s === 'Completed' || s === 'Unknown';
+      const lastSuccess = entries.find((e) => successLike(e.status) && e.endTime);
+
+      let lastStatus: InsightsRefreshable['lastStatus'];
+      if (newest.status === 'Unknown' && !newest.endTime) lastStatus = 'InProgress';
+      else if (successLike(newest.status)) lastStatus = 'Completed';
+      else if (newest.status === 'Cancelled') lastStatus = 'Cancelled';
+      else if (newest.status === 'Disabled') lastStatus = 'Disabled';
+      else lastStatus = 'Failed';
+
+      let errorCode: string | undefined;
+      if (lastStatus === 'Failed' && newest.serviceExceptionJson) {
+        try {
+          const parsed = JSON.parse(newest.serviceExceptionJson) as { errorCode?: string };
+          errorCode = parsed.errorCode;
+        } catch {
+          /* malformed exception payload — omit the code */
+        }
+      }
+
+      return {
+        lastStatus,
+        lastAttemptTime: newest.endTime || newest.startTime,
+        lastSuccessTime: lastSuccess?.endTime,
+        errorCode,
+      };
+    } catch (error) {
+      console.warn('[PowerBI] dataset refresh history failed for insights:', error);
+      return { lastStatus: 'Never' };
+    }
+  }
+
+  /** Derive refresh health from a dataflow's recent transactions. */
+  private async getDataflowRefreshHealth(
+    workspaceId: string,
+    dataflowId: string,
+  ): Promise<Pick<InsightsRefreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime'>> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        status?: string;
+        startTime?: string;
+        endTime?: string;
+      }>>(`/groups/${workspaceId}/dataflows/${dataflowId}/transactions?$top=5`);
+      const entries = resp.value ?? [];
+      if (entries.length === 0) return { lastStatus: 'Never' };
+
+      const newest = entries[0]!;
+      const lastSuccess = entries.find((e) => e.status === 'Success' && e.endTime);
+
+      let lastStatus: InsightsRefreshable['lastStatus'];
+      if (newest.status === 'Success') lastStatus = 'Completed';
+      else if (newest.status === 'InProgress' || (!newest.endTime && !newest.status)) lastStatus = 'InProgress';
+      else if (newest.status === 'Cancelled') lastStatus = 'Cancelled';
+      else lastStatus = 'Failed';
+
+      return {
+        lastStatus,
+        lastAttemptTime: newest.endTime || newest.startTime,
+        lastSuccessTime: lastSuccess?.endTime,
+      };
+    } catch (error) {
+      console.warn('[PowerBI] dataflow transactions failed for insights:', error);
+      return { lastStatus: 'Never' };
     }
   }
 

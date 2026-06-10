@@ -137,3 +137,63 @@ export interface AppSettings {
    */
   usageClearOnLogout: 'always' | 'never' | 'on-shared-machine';
 }
+
+// ============================================
+// Insights ("one-pager" data health & access view)
+// ============================================
+
+/** Refresh health of a single dataset or dataflow, scoped to what the
+ *  signed-in user's token can see. */
+export interface InsightsRefreshable {
+  kind: 'dataset' | 'dataflow';
+  id: string;
+  name: string;
+  workspaceId: string;
+  workspaceName: string;
+  /** Dataset owner (configuredBy), when the API exposes it. */
+  configuredBy?: string;
+  /**
+   * - 'Completed'  — last attempt published data.
+   * - 'Failed'     — last attempt failed (lastSuccessTime may still be set
+   *                  from an earlier attempt).
+   * - 'InProgress' — a refresh is running now.
+   * - 'Cancelled'  — last attempt was cancelled.
+   * - 'Disabled'   — the dataset is not refreshable (e.g. DirectQuery/Live).
+   * - 'Never'      — refreshable but no refresh history exists.
+   */
+  lastStatus: 'Completed' | 'Failed' | 'InProgress' | 'Cancelled' | 'Disabled' | 'Never';
+  /** Most recent attempt end (or start, while in progress). ISO-8601. */
+  lastAttemptTime?: string;
+  /** Most recent SUCCESSFUL completion. ISO-8601. */
+  lastSuccessTime?: string;
+  /** Power BI error code from the last failed attempt, when present. */
+  errorCode?: string;
+}
+
+/** Who can see a workspace. users is null when the caller may not list them
+ *  (e.g. viewer-only access) — render as "not visible", not as empty. */
+export interface InsightsWorkspaceAccess {
+  workspaceId: string;
+  workspaceName: string;
+  users: Array<{
+    name: string;
+    email?: string;
+    role: string;
+    /** 'User' | 'Group' | 'App' principal. */
+    type: string;
+  }> | null;
+}
+
+export interface InsightsSnapshot {
+  /** When this snapshot was assembled (ISO-8601). */
+  generatedAt: string;
+  /** True when served from the in-memory cache rather than fetched fresh. */
+  fromCache: boolean;
+  workspaceCount: number;
+  reportCount: number;
+  dashboardCount: number;
+  refreshables: InsightsRefreshable[];
+  access: InsightsWorkspaceAccess[];
+  partialFailure: boolean;
+  failedWorkspaces: Array<{ id: string; name: string; error: string }>;
+}
