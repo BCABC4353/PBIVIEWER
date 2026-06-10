@@ -14,26 +14,32 @@ import type { InsightsRefreshable } from '../../../shared/types';
 // Tokens (mirrors mobile/src/design/tokens.ts)
 // ---------------------------------------------------------------------------
 
+// The white ladder — single source for every text/identity tier (D12).
+const TEXT_PRIMARY = 'rgba(255,255,255,0.92)';
+const TEXT_SECONDARY = 'rgba(255,255,255,0.64)';
+const TEXT_TERTIARY = 'rgba(255,255,255,0.40)';
+
 export const luce = {
   canvas: '#0B0B0D',
   surface1: '#141417',
   surface2: '#1C1C21',
-  hairline: 'rgba(255,255,255,0.08)',
 
-  textPrimary: 'rgba(255,255,255,0.92)',
-  textSecondary: 'rgba(255,255,255,0.64)',
-  textTertiary: 'rgba(255,255,255,0.40)',
+  textPrimary: TEXT_PRIMARY,
+  textSecondary: TEXT_SECONDARY,
+  textTertiary: TEXT_TERTIARY,
 
   accent: '#E8A33D', // the ONLY chrome accent
-  ok: '#3FB68B',
+  // D12: healthy is the resting state — it reads by glyph + label in the
+  // grayscale ladder. A green hue restating "fine" was decoration (Pierre).
+  ok: TEXT_SECONDARY,
   warn: '#E8A33D',
   broken: '#E5484D', // sacred: failures only, never decoration
 
-  // Non-semantic identity tints (Matt #3/#4): muted, deliberately far from the
-  // ok/warn/broken set so they read as "what is it", never "how is it doing".
-  kindDataset: '#7E9CC9', // slate blue
-  kindDataflow: '#A78BDB', // violet
-  dormant: '#8B86A8', // gray-violet — "abandoned, not on fire"
+  // D12: identity is carried by the chip's own WORD (DATASET / DATAFLOW) and
+  // glyph — a hue restating a label is decoration. Grayscale ladder only.
+  kindDataset: TEXT_TERTIARY,
+  kindDataflow: TEXT_TERTIARY,
+  dormant: TEXT_TERTIARY, // "abandoned, not on fire"
 } as const;
 
 /** Kind → identity tint, used for every DATASET/DATAFLOW chip on the page. */
@@ -55,7 +61,7 @@ export const statusGlyph: Record<InsightsRefreshable['lastStatus'], string> = {
 export const statusColor: Record<InsightsRefreshable['lastStatus'], string> = {
   Completed: luce.ok,
   Failed: luce.broken,
-  Cancelled: luce.warn,
+  Cancelled: luce.broken, // counted in Broken — the color must agree with the count
   Never: luce.warn,
   InProgress: luce.accent,
   Disabled: luce.textTertiary,

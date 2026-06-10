@@ -171,13 +171,16 @@ describe('matchesTileFilter (Matt #2)', () => {
   });
 });
 
-describe('kind chip tints (Matt #3)', () => {
-  it('gives dataset and dataflow distinct non-semantic colors', () => {
-    expect(kindColor.dataset).not.toBe(kindColor.dataflow);
-    const semantic = [luce.ok, luce.warn, luce.broken, luce.accent];
-    expect(semantic).not.toContain(kindColor.dataset);
-    expect(semantic).not.toContain(kindColor.dataflow);
-    expect(semantic).not.toContain(luce.dormant);
+describe('kind chip tints (D12: identity by word, not hue)', () => {
+  it('keeps kind chips on the grayscale ladder — never amber, never red', () => {
+    // Identity is carried by the chip's own label (DATASET / DATAFLOW);
+    // a hue restating a label is decoration. Both share the quiet tier.
+    expect(kindColor.dataset).toBe(luce.textTertiary);
+    expect(kindColor.dataflow).toBe(luce.textTertiary);
+    const punctuation = [luce.warn, luce.broken, luce.accent];
+    expect(punctuation).not.toContain(kindColor.dataset);
+    expect(punctuation).not.toContain(kindColor.dataflow);
+    expect(punctuation).not.toContain(luce.dormant);
   });
 });
 

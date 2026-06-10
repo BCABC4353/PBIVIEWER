@@ -1,0 +1,516 @@
+/**
+ * Luce material + motion layer for the Insights board ONLY.
+ * Implements D1–D12 of docs/design/FERRARI-DASHBOARD-RND.md.
+ * Everything is scoped under .luce-board so the rest of the app keeps Fluent.
+ *
+ * Doctrine in one line: depth from light (seams, lips, one key light, lenses),
+ * motion with mass (two linear() springs, four durations), amber as the only
+ * voice, red sacred for failure, three sub-perceptual idle movers, one
+ * once-per-session ignition ceremony.
+ */
+
+.luce-board {
+  /* material tokens */
+  --luce-canvas: #0b0b0d;
+  --luce-s1: #141417;
+  --luce-s2: #1c1c21;
+  --luce-s3: #26262c;
+  --luce-seam: rgba(0, 0, 0, 0.65); /* the shadow gap around a machined part */
+  --luce-lip: rgba(255, 255, 255, 0.05); /* light catching the top edge */
+  --luce-amber: #e8a33d;
+  --luce-red: #e5484d;
+
+  /* D4 — one key light, high and slightly forward: three shadow stacks */
+  --luce-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --luce-shadow-2: 0 2px 4px rgba(0, 0, 0, 0.55), 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+  --luce-shadow-3: 0 4px 8px rgba(0, 0, 0, 0.6), 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+
+  /* D5 — the two springs (damping ≈ 0.9). Keep in sync with luce-motion.ts. */
+  --spring-needle: linear(
+    0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%,
+    1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%,
+    1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%,
+    1.003 76.9%, 1.001 100%
+  );
+  --spring-settle: linear(
+    0, 0.013, 0.318 6.6%, 0.751 13.6%, 0.918 18.1%, 1.016 23%,
+    1.052 27.2%, 1.057 30.5%, 1.026 38.2%, 0.999 45.4%, 0.995 53%, 1 100%
+  );
+
+  background: var(--luce-canvas);
+}
+
+/* -------------------------------------------------------------------------
+   D1 + D2 — stacked panels separated by seams, never outlines.
+   The 1px ring is a SHADOW gap (the canvas reading through), the inset lip is
+   the machined top edge catching the key light. No drawn borders anywhere.
+   ------------------------------------------------------------------------- */
+
+.luce-panel {
+  position: relative;
+  isolation: isolate;
+  background: var(--luce-s1);
+  border-radius: 12px; /* D3: panels 12 */
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 var(--luce-lip),
+    var(--luce-shadow-1);
+}
+
+.luce-panel--raised {
+  background: var(--luce-s2);
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 var(--luce-lip),
+    var(--luce-shadow-2);
+}
+
+/* D3 — radii scale: chips 8 / panels 12 / cards & gauges 16 / hero 20 */
+.luce-card {
+  border-radius: 16px;
+}
+.luce-hero-panel {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+/* 2px of canvas IS the trim gap between machined parts (D2). */
+.luce-cluster {
+  display: grid;
+  gap: 2px;
+  background: var(--luce-canvas);
+}
+
+/* Recessed well — inverted light: it falls into the well and catches the far
+   lip on the BOTTOM inner edge (D4). */
+.luce-well {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 var(--luce-lip);
+}
+
+/* Row dividers inside a panel: a dark groove (a recess), never a gray line. */
+.luce-groove > * + * {
+  border-top: 1px solid rgba(0, 0, 0, 0.45);
+}
+
+/* Table header strip: lifted deck with a seam below it. */
+.luce-tablehead {
+  background: var(--luce-s2);
+  box-shadow: 0 1px 0 var(--luce-seam), inset 0 1px 0 var(--luce-lip);
+}
+
+/* -------------------------------------------------------------------------
+   D1 — the gauge sandwich: backlight deck → data → convex lens
+   ------------------------------------------------------------------------- */
+
+.luce-backlight {
+  position: absolute;
+  inset: 12%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(60% 50% at 50% 65%, rgba(232, 163, 61, 0.16), transparent 70%);
+  filter: blur(24px); /* static geometry; only opacity/scale animate */
+}
+
+.luce-lens {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.055), transparent 55%),
+    radial-gradient(140% 140% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.38) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -10px 24px -12px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+/* -------------------------------------------------------------------------
+   D11 — hero numerals + engraved legends
+   ------------------------------------------------------------------------- */
+
+.luce-hero-num {
+  font-family: 'SF Mono', 'Roboto Mono', ui-monospace, 'Cascadia Mono', monospace;
+  font-variant-numeric: tabular-nums; /* digits never reflow */
+  font-size: 60px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: #ffffff; /* the ONLY 100%-white element on the board */
+}
+
+.luce-hero-unit {
+  font-size: 26px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.64);
+  margin-left: 2px;
+}
+
+.luce-legend {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(235, 235, 245, 0.6);
+  text-shadow: 0 0 8px rgba(232, 163, 61, 0.12); /* faint phosphor */
+}
+
+/* -------------------------------------------------------------------------
+   D8 — backlit glow: emission at exactly two intensities
+   ------------------------------------------------------------------------- */
+
+.luce-lit {
+  --lit: var(--luce-amber);
+  color: var(--lit);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--lit) 35%, transparent));
+}
+
+/* THE one current issue on screen — never more than one of these. */
+.luce-lit--hot {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--lit) 35%, transparent))
+    drop-shadow(0 0 16px color-mix(in srgb, var(--lit) 18%, transparent));
+}
+
+/* Broken swaps hue at the SAME intensity — red is sacred, not loud. */
+.luce-lit--red {
+  --lit: var(--luce-red);
+}
+
+/* -------------------------------------------------------------------------
+   D9 + D10 — switchgear: honest material, real travel
+   ------------------------------------------------------------------------- */
+
+.luce-btn {
+  background: var(--luce-s1);
+  border: 0;
+  border-radius: 8px; /* D3: control-size → 8 */
+  color: rgba(255, 255, 255, 0.64);
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 var(--luce-lip),
+    var(--luce-shadow-1);
+  transition:
+    transform 250ms var(--spring-settle),
+    box-shadow 80ms ease-out,
+    background-color 250ms ease-out;
+}
+
+.luce-btn:hover:not(:disabled) {
+  background: var(--luce-s2);
+}
+
+.luce-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Amber legend variant — lit text, ordinary switch body. */
+.luce-btn--accent {
+  color: var(--luce-amber);
+}
+
+/* The gear selector: the primary action. Capsule with the ONE anodised
+   bezel (D9 conic ring) and the only resting glow on a control (D10). */
+.luce-btn--primary {
+  color: var(--luce-amber);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--luce-s2), var(--luce-s2)) padding-box,
+    conic-gradient(from 200deg, #3a3a40, #6b6b72 12%, #2a2a2f 40%, #55555c 70%, #3a3a40)
+      border-box;
+  box-shadow: 0 0 0 1px var(--luce-seam), var(--luce-shadow-1);
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+.luce-btn--primary:hover:not(:disabled) {
+  background:
+    linear-gradient(var(--luce-s3), var(--luce-s3)) padding-box,
+    conic-gradient(from 200deg, #3a3a40, #6b6b72 12%, #2a2a2f 40%, #55555c 70%, #3a3a40)
+      border-box;
+}
+
+/* D10 — the rifle-bolt: 80ms mechanical descent INTO the panel, sprung
+   release on the 250ms settle spring. Shared by every pressable. */
+.luce-press {
+  transition:
+    transform 250ms var(--spring-settle),
+    box-shadow 80ms ease-out,
+    background-color 250ms ease-out;
+}
+
+.luce-btn:active:not(:disabled),
+.luce-press:active {
+  transform: translateY(1px) scale(0.985);
+  transition-duration: 80ms;
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Designed focus, not default (Pierre #7). */
+.luce-board button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    0 0 0 2px var(--luce-amber);
+}
+
+/* -------------------------------------------------------------------------
+   Chips — status as glyph + label on a neutral well (color punctuates text,
+   it never tints a surface — D12). Radius 8 (D3).
+   ------------------------------------------------------------------------- */
+
+.luce-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 var(--luce-lip);
+}
+
+/* Active filter tile: the amber ring is selection punctuation, not lift. */
+.luce-tile--active {
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    0 0 0 2px var(--luce-amber),
+    inset 0 1px 0 var(--luce-lip),
+    var(--luce-shadow-1);
+}
+
+/* Sticky section nav — canvas glass with a seam below, no drawn border. */
+.luce-nav {
+  background: color-mix(in srgb, var(--luce-canvas) 88%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 0 var(--luce-seam);
+}
+
+/* -------------------------------------------------------------------------
+   Hero meter — recessed rail + amber needle tick
+   ------------------------------------------------------------------------- */
+
+.luce-meter {
+  position: relative;
+  height: 6px;
+}
+
+/* Position carrier: inline translateX(<health>%) of its own (rail) width is
+   set from the spring ticker — transform-only motion, retargetable. */
+.luce-meter-pos {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.luce-needle {
+  position: absolute;
+  left: -1px;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--luce-amber);
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+.luce-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%; /* D3: dots are circles */
+  background: var(--luce-amber);
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+/* -------------------------------------------------------------------------
+   D7 — alive at idle: EXACTLY three movers on mutually-prime periods
+   (4.8s / 7s / 9s), each at the threshold of perception.
+   ------------------------------------------------------------------------- */
+
+@keyframes luce-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes luce-tremor {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  33% {
+    transform: rotate(0.4deg);
+  }
+  66% {
+    transform: rotate(-0.3deg);
+  }
+}
+
+@keyframes luce-deck-drift {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .luce-board .luce-live-dot {
+    animation: luce-breathe 4.8s ease-in-out infinite;
+  }
+  .luce-board .luce-needle {
+    animation: luce-tremor 7s steps(24) infinite;
+  }
+  .luce-board .luce-backlight--live {
+    animation: luce-deck-drift 9s ease-in-out infinite;
+  }
+}
+
+/* A parked car doesn't idle its tach: pause all three when hidden. */
+.luce-board.luce-asleep .luce-live-dot,
+.luce-board.luce-asleep .luce-needle,
+.luce-board.luce-asleep .luce-backlight--live {
+  animation-play-state: paused;
+}
+
+/* -------------------------------------------------------------------------
+   D6 — ignition ceremony (≤1400ms, once per session, skippable, additive:
+   the content is already in the DOM; these classes only stage its arrival)
+     0–150ms   key-set: light arrives (seams/backlight fade in)
+     150–800ms flow: amber travels into the hero; panels rise 60ms apart
+     800–1200ms wings: secondary sections settle in from ±24px
+   ------------------------------------------------------------------------- */
+
+.luce-flow {
+  position: absolute;
+  top: 0;
+  left: 18%;
+  width: 200px;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(232, 163, 61, 0.18), transparent 70%);
+  filter: blur(12px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes luce-keyset {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes luce-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes luce-wing-l {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes luce-wing-r {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes luce-flow-travel {
+    /* D6: the flow is LIGHT passing along the path — an opacity ramp.
+       Nothing physically travels (Pierre: "light, not freight"). */
+    0% {
+      opacity: 0;
+    }
+    35% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* key-set: the light arrives before anything moves */
+  .luce-ignite .luce-backlight {
+    animation: luce-keyset 150ms ease-out both;
+  }
+
+  /* the flow: amber light passes from the identity mark to the hero gauge */
+  .luce-ignite .luce-flow {
+    animation: luce-flow-travel 400ms var(--spring-settle) both;
+    animation-delay: 150ms;
+  }
+
+  /* panels rise left→right, 60ms apart, on the settle spring */
+  .luce-ignite .luce-rise {
+    animation: luce-rise 400ms var(--spring-settle) both;
+    animation-delay: calc(150ms + var(--luce-i, 0) * 60ms);
+  }
+
+  /* wings: secondary sections settle in last */
+  .luce-ignite .luce-wing-l {
+    animation: luce-wing-l 400ms var(--spring-settle) both;
+    animation-delay: calc(800ms + var(--luce-i, 0) * 60ms);
+  }
+
+  .luce-ignite .luce-wing-r {
+    animation: luce-wing-r 400ms var(--spring-settle) both;
+    animation-delay: calc(800ms + var(--luce-i, 0) * 60ms);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Reduced motion — a considered equivalent, not an absence: everything
+   collapses to instant; nothing trembles, breathes, or sweeps.
+   (The ceremony itself is also skipped in JS — useIgnition never fires.)
+   ------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .luce-board *,
+  .luce-board *::before,
+  .luce-board *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+  .luce-btn:active:not(:disabled),
+  .luce-press:active {
+    transform: none; /* no travel — feedback stays via the inset shadow */
+  }
+}

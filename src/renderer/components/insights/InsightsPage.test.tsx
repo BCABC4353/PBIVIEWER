@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { InsightsPage } from './InsightsPage';
+import { IGNITION_FLAG } from './luce-motion';
 import { useAuthStore } from '../../stores/auth-store';
 import type { InsightsSnapshot } from '../../../shared/types';
 
@@ -111,6 +112,10 @@ function mockGetInsights(resp: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Behavioral tests run with the ignition ceremony already consumed (it is
+  // once-per-session by design — see the dedicated D6 tests below, which
+  // clear this flag to exercise the ceremony itself).
+  window.sessionStorage.setItem(IGNITION_FLAG, '1');
   useAuthStore.setState({
     user: { id: 'account-1', displayName: 'Test User', email: 'test@example.com' },
     isAuthenticated: true,
@@ -228,7 +233,7 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.queryByText('Dusty Model')).not.toBeInTheDocument();
   });
 
-  it('marks dormant items with the gray-violet DORMANT chip and down-for label (Matt #4)', async () => {
+  it('marks dormant items with the gray DORMANT chip and down-for label (Matt #4)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -369,7 +374,7 @@ describe('InsightsPage — Luce board', () => {
     expect(document.getElementById('insights-admin')).not.toBeNull();
   });
 
-  it('color-codes DATASET vs DATAFLOW kind chips with distinct identity tints (Matt #3)', async () => {
+  it('keeps DATASET and DATAFLOW kind chips on the same quiet grayscale tier (D12)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -387,9 +392,10 @@ describe('InsightsPage — Luce board', () => {
     const dsColor = (datasetChips[0] as HTMLElement).style.color;
     const dfColor = (dataflowChips[0] as HTMLElement).style.color;
     expect(dsColor).not.toBe('');
-    expect(dfColor).not.toBe('');
-    expect(dsColor).not.toBe(dfColor);
-    // Same tint for every chip of the same kind.
+    // D12: identity is the WORD on the chip; hue restating it is decoration.
+    // Both kinds share one quiet tier — and it is never the amber accent.
+    expect(dsColor).toBe(dfColor);
+    expect(dsColor).not.toBe('rgb(232, 163, 61)');
     for (const chip of datasetChips) expect((chip as HTMLElement).style.color).toBe(dsColor);
   });
 
@@ -564,5 +570,129 @@ describe('InsightsPage — admin tier', () => {
     });
     expect(screen.getByText('Client A')).toBeInTheDocument();
     expect(within(audience.parentElement as HTMLElement).getByText('Viewer')).toBeInTheDocument();
+  });
+});
+
+describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
+  /** jsdom has no rAF-driven paint loop worth running; park the ticker. */
+  function stubRaf() {
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  }
+
+  function stubReducedMotion(matches: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion') ? matches : false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  }
+
+  it('renders ONE hero number — overall data health, dominant and white (D11)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero');
+    expect(within(hero).getByText('Data health')).toBeInTheDocument();
+    // 4 of the 5 mocked refreshables are neither broken nor overdue → 80%.
+    expect(within(hero).getByLabelText('Data health 80 percent')).toBeInTheDocument();
+    expect(within(hero).getByText('80')).toBeInTheDocument();
+    // The full gauge sandwich (D1): backlight deck below, lens above.
+    expect(hero.querySelector('.luce-backlight')).not.toBeNull();
+    expect(hero.querySelector('.luce-lens')).not.toBeNull();
+  });
+
+  it('keeps exactly three idle movers: live-dot, needle, backlight deck (D7)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const movers = document.querySelectorAll('.luce-live-dot, .luce-needle, .luce-backlight--live');
+    expect(movers).toHaveLength(3);
+  });
+
+  it('plays the ignition ceremony once per session, never gating the content (D6)', async () => {
+    stubRaf();
+    window.sessionStorage.removeItem(IGNITION_FLAG);
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+
+    // Ceremony is on — and the content is fully present beneath it.
+    expect(document.querySelector('.luce-board.luce-ignite')).not.toBeNull();
+    expect(screen.getByText('Broken')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sales.*broken/ })).toBeInTheDocument();
+    // The session is marked immediately so it can never replay.
+    expect(window.sessionStorage.getItem(IGNITION_FLAG)).toBe('1');
+
+    // Any input skips the ceremony at once.
+    await act(async () => {
+      fireEvent.pointerDown(window);
+    });
+    expect(document.querySelector('.luce-ignite')).toBeNull();
+  });
+
+  it('does not replay the ceremony later in the same session (D6)', async () => {
+    stubRaf();
+    window.sessionStorage.setItem(IGNITION_FLAG, '1');
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(document.querySelector('.luce-board')).not.toBeNull();
+    expect(document.querySelector('.luce-ignite')).toBeNull();
+  });
+
+  it('skips the ceremony entirely under prefers-reduced-motion; the hero is instant (D6/§reduced)', async () => {
+    stubReducedMotion(true);
+    window.sessionStorage.removeItem(IGNITION_FLAG);
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(document.querySelector('.luce-ignite')).toBeNull();
+    // No count-up: the hero shows its real value on the first frame.
+    expect(within(screen.getByTestId('luce-hero')).getByText('80')).toBeInTheDocument();
+  });
+
+  it('pauses the idle movers while the window is hidden (D7)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(document.querySelector('.luce-asleep')).toBeNull();
+
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    expect(document.querySelector('.luce-board.luce-asleep')).not.toBeNull();
+
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    expect(document.querySelector('.luce-asleep')).toBeNull();
+  });
+
+  it('shows the em-dash hero (no false 100%) when there is nothing to measure', async () => {
+    mockGetInsights({ success: true, data: snapshot({ refreshables: [] }) });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero');
+    expect(within(hero).getByText('—')).toBeInTheDocument();
+    expect(within(hero).getByLabelText('Data health unknown')).toBeInTheDocument();
   });
 });
