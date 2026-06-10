@@ -16,6 +16,7 @@ export const color = {
   textTertiary: 'rgba(255,255,255,0.40)',
 
   accent: '#E8A33D', // the cabin glow — the app's ONLY chrome accent
+  accentDeep: '#B97D2A', // the same light, less of it — shadowed accent metal
 
   // Semantic status (hue + shape + label, never hue alone)
   ok: '#3FB68B',
