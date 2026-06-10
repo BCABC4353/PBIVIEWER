@@ -1302,6 +1302,13 @@ class PowerBIApiService {
       const byUser = new Map<string, { views: number; lastActive: string }>();
       const byItem = new Map<string, { views: number; users: Set<string>; lastViewed: string }>();
       let failedDays = 0;
+      // Hard memory bound: a large tenant could return millions of events. We
+      // only need aggregates, but the distinct-key Maps still grow with unique
+      // users/items. Cap total processed events; hitting it marks the run
+      // partial rather than risking an out-of-memory on a client machine.
+      const MAX_TOTAL_EVENTS = 250_000;
+      let totalEvents = 0;
+      let truncatedForVolume = false;
 
       for (let d = 0; d < boundedDays; d++) {
         const day = new Date(Date.now() - d * 24 * 60 * 60 * 1000);
@@ -1330,25 +1337,40 @@ class PowerBIApiService {
             seenUris.add(url);
             pages++;
             const resp: {
-              activityEventEntities?: Array<Record<string, unknown>>;
+              activityEventEntities?: unknown;
               continuationUri?: string;
               lastResultSet?: boolean;
             } = await this.makeAdminRequest(url);
-            for (const e of resp.activityEventEntities ?? []) {
-              const user = String(e.UserId ?? e.UserKey ?? '') || 'Unknown';
+            // Defend against a shape we don't expect: the field may be absent,
+            // null, or (in some tenants/regions) not an array. Anything other
+            // than an array contributes no events instead of throwing.
+            const entities = Array.isArray(resp.activityEventEntities)
+              ? (resp.activityEventEntities as Array<Record<string, unknown>>)
+              : [];
+            for (const e of entities) {
+              if (totalEvents >= MAX_TOTAL_EVENTS) {
+                truncatedForVolume = true;
+                break;
+              }
+              totalEvents++;
+              const user = String(e.UserId ?? e.UserKey ?? e.UserAgent ?? '').trim() || 'Unknown';
               const item =
-                String(e.ReportName ?? e.ItemName ?? e.ArtifactName ?? '') || 'Unknown item';
-              const time = String(e.CreationTime ?? '');
+                String(e.ReportName ?? e.ItemName ?? e.ArtifactName ?? '').trim() || 'Unknown item';
+              const rawTime = String(e.CreationTime ?? '').trim();
+              // Only treat a value as "more recent" when it is a parseable time;
+              // a blank/garbage CreationTime must never win the max() comparison.
+              const time = Number.isNaN(Date.parse(rawTime)) ? '' : rawTime;
               const u = byUser.get(user) ?? { views: 0, lastActive: '' };
               u.views++;
-              if (time > u.lastActive) u.lastActive = time;
+              if (time && time > u.lastActive) u.lastActive = time;
               byUser.set(user, u);
               const it = byItem.get(item) ?? { views: 0, users: new Set<string>(), lastViewed: '' };
               it.views++;
               it.users.add(user);
-              if (time > it.lastViewed) it.lastViewed = time;
+              if (time && time > it.lastViewed) it.lastViewed = time;
               byItem.set(item, it);
             }
+            if (truncatedForVolume) break;
             url = resp.lastResultSet === false && resp.continuationUri ? resp.continuationUri : undefined;
           }
         } catch (err) {
@@ -1358,6 +1380,7 @@ class PowerBIApiService {
           }
           failedDays++;
         }
+        if (truncatedForVolume) break;
       }
 
       const result: AdminInsights = {
@@ -1377,6 +1400,7 @@ class PowerBIApiService {
           .sort((a, b) => b.views - a.views),
         appAudiences,
         failedDays,
+        truncated: truncatedForVolume,
       };
       this.adminInsightsCache = {
         value: result,

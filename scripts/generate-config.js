@@ -75,3 +75,33 @@ const outputPath = path.join(__dirname, '..', 'src', 'main', 'auth', 'azure-conf
 
 fs.writeFileSync(outputPath, configContent);
 console.log('Generated Azure config at:', outputPath);
+
+// ---------------------------------------------------------------------------
+// Issue beacon config (OPTIONAL). Baked from BEACON_* env vars; when unset the
+// beacon is disabled and the app transmits nothing. Never committed.
+// ---------------------------------------------------------------------------
+const beaconToken = (process.env.BEACON_GH_TOKEN || '').trim();
+const beaconRepo = (process.env.BEACON_GH_REPO || '').trim();
+const beaconIncludeNames = (process.env.BEACON_INCLUDE_NAMES || '').trim().toLowerCase() !== 'false';
+
+if (beaconRepo && !/^[\w.-]+\/[\w.-]+$/.test(beaconRepo)) {
+  console.error(`ERROR: BEACON_GH_REPO must be "owner/repo" (got "${beaconRepo}")`);
+  process.exit(1);
+}
+
+const beaconContent = `// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated at build time. Gitignored; never commit. Empty token/repo = disabled.
+
+export const BEACON_CONFIG = {
+  token: ${JSON.stringify(beaconToken)},
+  repo: ${JSON.stringify(beaconRepo)},
+  includeNames: ${beaconIncludeNames ? 'true' : 'false'},
+} as const;
+`;
+const beaconOutputPath = path.join(__dirname, '..', 'src', 'main', 'services', 'beacon-config.generated.ts');
+fs.writeFileSync(beaconOutputPath, beaconContent);
+console.log(
+  beaconToken && beaconRepo
+    ? `Generated issue-beacon config (enabled → ${beaconRepo}) at: ${beaconOutputPath}`
+    : `Generated issue-beacon config (disabled — no BEACON_GH_TOKEN/REPO) at: ${beaconOutputPath}`,
+);

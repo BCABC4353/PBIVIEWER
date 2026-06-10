@@ -152,6 +152,9 @@ function createElectronAPIMock(): ElectronAPI {
     log: {
       openFolder: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     },
+    beacon: {
+      report: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+    },
 
     // Kiosk power-management mock.
     kiosk: {

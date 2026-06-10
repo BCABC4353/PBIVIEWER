@@ -166,6 +166,10 @@ export interface ElectronAPI {
     openFolder: () => Promise<IPCResponse<void>>;
   };
 
+  beacon: {
+    report: (event: { code: string; httpStatus?: number; itemName?: string; context?: string }) => Promise<IPCResponse<void>>;
+  };
+
   // Kiosk power management for unattended wall displays.
   kiosk: {
     /**

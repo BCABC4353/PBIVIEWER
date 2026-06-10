@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode, useState, useCallback } from 'react';
 import { Button, Text, Card } from '@fluentui/react-components';
 import { ArrowSyncRegular, HomeRegular } from '@fluentui/react-icons';
+import { reportIssue } from '../lib/report-issue';
 
 // Internal class boundary
 
@@ -38,6 +39,9 @@ class ErrorBoundaryClass extends Component<ClassProps, ClassState> {
     // Single structured log line — error object + component stack render
     // cleanly in DevTools and serialize into electron-log's file transport.
     console.error('[ErrorBoundary]', error.message, error, errorInfo.componentStack);
+    // Surface a React crash to the issue beacon for remote triage (the message
+    // is sanitized + length-capped in the main process before any transmission).
+    reportIssue({ code: 'RENDERER_CRASH', context: error.message });
     this.setState({ error, errorInfo });
   }
 

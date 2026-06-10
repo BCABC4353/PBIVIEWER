@@ -108,6 +108,11 @@ const electronAPI: ElectronAPI = {
     openFolder: () => ipcRenderer.invoke('log:open-folder'),
   },
 
+  beacon: {
+    report: (event: { code: string; httpStatus?: number; itemName?: string; context?: string }) =>
+      ipcRenderer.invoke('beacon:report', event),
+  },
+
   app: {
     getAppWebviewConfig: () => ipcRenderer.invoke('app:get-app-webview-config'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),

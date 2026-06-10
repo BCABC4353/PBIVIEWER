@@ -5,6 +5,7 @@ import { AppsRegular } from '@fluentui/react-icons';
 import { ViewerToolbar } from './ViewerToolbar';
 import { EMBED } from '../../../shared/constants';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
+import { reportIssue } from '../../lib/report-issue';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -126,6 +127,10 @@ export const AppViewer: React.FC = () => {
   );
 
   const freshnessLabel = datasetCount > 1 ? 'Oldest data' : 'Data refreshed';
+
+  useEffect(() => {
+    if (error) reportIssue({ code: 'APP_WEBVIEW_ERROR', itemName: appName, context: error });
+  }, [error, appName]);
 
   // Set up webview event listeners
   useEffect(() => {

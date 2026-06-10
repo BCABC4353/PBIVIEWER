@@ -8,6 +8,7 @@ import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
 import { useViewerExport } from './useViewerExport';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
+import { reportIssue } from '../../lib/report-issue';
 
 export const DashboardViewer: React.FC = () => {
   const { workspaceId, dashboardId } = useParams<{ workspaceId: string; dashboardId: string }>();
@@ -179,6 +180,10 @@ export const DashboardViewer: React.FC = () => {
   // Silence unused-var noise from embedRef while still exposing it for future
   // dashboard-specific calls (e.g. dashboard.fullscreen()).
   void embedRef;
+
+  useEffect(() => {
+    if (error) reportIssue({ code: 'DASHBOARD_EMBED_ERROR', itemName: dashboardName, context: error });
+  }, [error, dashboardName]);
 
   return (
     <div className="h-full flex flex-col">

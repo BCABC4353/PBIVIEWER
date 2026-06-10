@@ -565,6 +565,7 @@ export const InsightsPage: React.FC = () => {
                   Last {admin.days} days · snapshot {formatTime(admin.generatedAt)}
                   {admin.fromCache ? ' (cached)' : ''}
                   {admin.failedDays > 0 ? ` · ${admin.failedDays} day(s) could not be read — counts are partial` : ''}
+                  {admin.truncated ? ' · very high activity — showing a partial count' : ''}
                 </Text>
                 <Button
                   appearance="subtle"
