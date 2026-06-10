@@ -28,7 +28,19 @@ export const luce = {
   ok: '#3FB68B',
   warn: '#E8A33D',
   broken: '#E5484D', // sacred: failures only, never decoration
+
+  // Non-semantic identity tints (Matt #3/#4): muted, deliberately far from the
+  // ok/warn/broken set so they read as "what is it", never "how is it doing".
+  kindDataset: '#7E9CC9', // slate blue
+  kindDataflow: '#A78BDB', // violet
+  dormant: '#8B86A8', // gray-violet — "abandoned, not on fire"
 } as const;
+
+/** Kind → identity tint, used for every DATASET/DATAFLOW chip on the page. */
+export const kindColor: Record<InsightsRefreshable['kind'], string> = {
+  dataset: luce.kindDataset,
+  dataflow: luce.kindDataflow,
+};
 
 /** Status → shape glyph (color-blind safe; never color alone). */
 export const statusGlyph: Record<InsightsRefreshable['lastStatus'], string> = {
@@ -95,6 +107,70 @@ export function downForLabel(
   return `down ${formatElapsed(ms)}`;
 }
 
+// ---------------------------------------------------------------------------
+// Dormant (Matt #4) — abandoned items, independent of lastStatus
+// ---------------------------------------------------------------------------
+
+/** An item is dormant when nothing has happened to it for over a year. */
+export const DORMANT_AFTER_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * True when the item's last refresh attempt (or last success, if no attempt
+ * time is known) is more than 365 days old. Deliberately lastStatus-independent:
+ * a dataset that "Completed" 700 days ago is abandoned, not healthy.
+ */
+export function isDormant(
+  item: Pick<InsightsRefreshable, 'lastAttemptTime' | 'lastSuccessTime'>,
+  now: number = Date.now(),
+): boolean {
+  const anchor = item.lastAttemptTime || item.lastSuccessTime;
+  if (!anchor) return false;
+  const ms = now - Date.parse(anchor);
+  return Number.isFinite(ms) && ms > DORMANT_AFTER_MS;
+}
+
+/**
+ * Down-for label for a dormant item, in the existing "down 657d" voice —
+ * measured from the last success (the owner reads dormancy as downtime).
+ * Null when the item is not dormant.
+ */
+export function dormantDownLabel(
+  item: Pick<InsightsRefreshable, 'lastAttemptTime' | 'lastSuccessTime'>,
+  now: number = Date.now(),
+): string | null {
+  if (!isDormant(item, now)) return null;
+  if (!item.lastSuccessTime) return 'down — never succeeded';
+  const ms = now - Date.parse(item.lastSuccessTime);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return `down ${formatElapsed(ms)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Summary-tile filters (Matt #2)
+// ---------------------------------------------------------------------------
+
+export type TileFilter = 'broken' | 'overdue' | 'running' | 'healthy' | 'dormant';
+
+/** Predicate behind each clickable summary tile. */
+export function matchesTileFilter(
+  item: InsightsRefreshable,
+  filter: TileFilter,
+  now: number = Date.now(),
+): boolean {
+  switch (filter) {
+    case 'broken':
+      return item.lastStatus === 'Failed' || item.lastStatus === 'Cancelled';
+    case 'overdue':
+      return item.scheduleOverdue === true;
+    case 'running':
+      return item.lastStatus === 'InProgress';
+    case 'healthy':
+      return item.lastStatus === 'Completed';
+    case 'dormant':
+      return isDormant(item, now);
+  }
+}
+
 /** "3 of last 12 runs failed" when any run failed; null when quiet. */
 export function failureRateCaption(recentRuns?: InsightsRefreshable['recentRuns']): string | null {
   if (!recentRuns || recentRuns.length === 0) return null;
@@ -103,20 +179,33 @@ export function failureRateCaption(recentRuns?: InsightsRefreshable['recentRuns'
   return `${fails} of last ${recentRuns.length} runs failed`;
 }
 
+export interface DotStripCell {
+  state: 'ok' | 'fail' | 'none';
+  endTime?: string;
+  errorCode?: string;
+  errorDetail?: string;
+}
+
 /**
- * Normalize a recentRuns history to exactly `size` cells for the dot strip,
- * oldest → newest, padding missing history on the OLD side with 'none'
- * (hollow) so the newest run is always the rightmost dot.
+ * Normalize a recentRuns history to exactly `size` cells for the dot strip.
+ * Chronology is ALWAYS oldest → newest, left → right, and filled dots ALWAYS
+ * start at the far LEFT: a partial history pads hollow placeholders on the
+ * RIGHT (Matt #6 — left-padding made short strips read right→left).
  */
 export function dotStripCells(
   recentRuns: InsightsRefreshable['recentRuns'],
   size = 12,
-): Array<{ state: 'ok' | 'fail' | 'none'; endTime?: string }> {
+): DotStripCell[] {
   const runs = (recentRuns ?? []).slice(-size);
   const pad = Array.from({ length: size - runs.length }, () => ({ state: 'none' as const }));
   return [
+    ...runs.map((r) => ({
+      state: r.ok ? ('ok' as const) : ('fail' as const),
+      endTime: r.endTime,
+      errorCode: r.errorCode,
+      errorDetail: r.errorDetail,
+    })),
     ...pad,
-    ...runs.map((r) => ({ state: r.ok ? ('ok' as const) : ('fail' as const), endTime: r.endTime })),
   ];
 }
 
@@ -129,11 +218,9 @@ export interface WorkspaceGroup {
   workspaceName: string;
   items: InsightsRefreshable[];
   /** Counts feeding the mini health summary in the section header. */
-  counts: { broken: number; overdue: number; never: number; running: number; ok: number; live: number };
+  counts: { broken: number; overdue: number; dormant: number; never: number; running: number; ok: number; live: number };
   /** Worst status across the group (drives the header glyph). */
   worst: InsightsRefreshable['lastStatus'];
-  /** Broken/overdue groups start expanded; all-quiet groups start collapsed. */
-  defaultExpanded: boolean;
 }
 
 const severity: Record<InsightsRefreshable['lastStatus'], number> = {
@@ -145,28 +232,40 @@ const severity: Record<InsightsRefreshable['lastStatus'], number> = {
   Disabled: 5,
 };
 
-/** Item sort rank inside a group: broken first, overdue boosts urgency. */
-function itemRank(item: InsightsRefreshable): number {
-  const base = severity[item.lastStatus];
-  // An overdue-but-"Completed" item is a problem; rank it just behind broken.
-  if (item.scheduleOverdue && base > 1) return 1.5;
-  return base;
+/**
+ * Item sort rank inside a group (Matt #4 order):
+ * Failed, Cancelled, Overdue, Dormant, Never, Running, OK, Live.
+ */
+function itemRank(item: InsightsRefreshable, now: number): number {
+  if (item.lastStatus === 'Failed') return 0;
+  if (item.lastStatus === 'Cancelled') return 1;
+  if (item.scheduleOverdue) return 2;
+  if (isDormant(item, now)) return 3;
+  if (item.lastStatus === 'Never') return 4;
+  if (item.lastStatus === 'InProgress') return 5;
+  if (item.lastStatus === 'Completed') return 6;
+  return 7; // Disabled ("Live")
 }
 
-/** Group rank: broken workspaces first, then overdue/never, then quiet. */
+/** Group rank: broken first, then overdue, dormant, never, running, quiet. */
 function groupRank(g: WorkspaceGroup): number {
   if (g.counts.broken > 0) return 0;
   if (g.counts.overdue > 0) return 1;
-  if (g.counts.never > 0) return 2;
-  if (g.counts.running > 0) return 3;
-  return 4;
+  if (g.counts.dormant > 0) return 2;
+  if (g.counts.never > 0) return 3;
+  if (g.counts.running > 0) return 4;
+  return 5;
 }
 
 /**
  * Group refreshables by workspace (client), worst-first inside each group,
- * troubled groups first overall.
+ * troubled groups first overall. All groups start COLLAPSED (Matt #7) — the
+ * worst-first sort and red header summaries surface trouble instead.
  */
-export function groupByWorkspace(refreshables: InsightsRefreshable[]): WorkspaceGroup[] {
+export function groupByWorkspace(
+  refreshables: InsightsRefreshable[],
+  now: number = Date.now(),
+): WorkspaceGroup[] {
   const byId = new Map<string, WorkspaceGroup>();
   for (const item of refreshables) {
     let g = byId.get(item.workspaceId);
@@ -175,9 +274,8 @@ export function groupByWorkspace(refreshables: InsightsRefreshable[]): Workspace
         workspaceId: item.workspaceId,
         workspaceName: item.workspaceName,
         items: [],
-        counts: { broken: 0, overdue: 0, never: 0, running: 0, ok: 0, live: 0 },
+        counts: { broken: 0, overdue: 0, dormant: 0, never: 0, running: 0, ok: 0, live: 0 },
         worst: 'Disabled',
-        defaultExpanded: false,
       };
       byId.set(item.workspaceId, g);
     }
@@ -188,18 +286,18 @@ export function groupByWorkspace(refreshables: InsightsRefreshable[]): Workspace
     else if (item.lastStatus === 'Disabled') g.counts.live++;
     else g.counts.ok++;
     if (item.scheduleOverdue) g.counts.overdue++;
+    if (isDormant(item, now)) g.counts.dormant++;
   }
 
   const groups = Array.from(byId.values());
   for (const g of groups) {
     g.items.sort(
-      (a, b) => itemRank(a) - itemRank(b) || a.name.localeCompare(b.name),
+      (a, b) => itemRank(a, now) - itemRank(b, now) || a.name.localeCompare(b.name),
     );
     g.worst = g.items.reduce<InsightsRefreshable['lastStatus']>(
       (worst, item) => (severity[item.lastStatus] < severity[worst] ? item.lastStatus : worst),
       'Disabled',
     );
-    g.defaultExpanded = g.counts.broken > 0 || g.counts.overdue > 0;
   }
   groups.sort(
     (a, b) => groupRank(a) - groupRank(b) || a.workspaceName.localeCompare(b.workspaceName),
@@ -212,6 +310,7 @@ export function groupSummaryLabel(g: WorkspaceGroup): string {
   const parts: string[] = [];
   if (g.counts.broken > 0) parts.push(`${g.counts.broken} broken`);
   if (g.counts.overdue > 0) parts.push(`${g.counts.overdue} overdue`);
+  if (g.counts.dormant > 0) parts.push(`${g.counts.dormant} dormant`);
   if (g.counts.never > 0) parts.push(`${g.counts.never} never run`);
   if (g.counts.running > 0) parts.push(`${g.counts.running} running`);
   const quiet = g.counts.ok + g.counts.live;

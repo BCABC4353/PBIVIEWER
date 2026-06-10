@@ -10,15 +10,20 @@ import type {
 } from '../../../shared/types';
 import {
   luce,
+  kindColor,
   statusGlyph,
   statusColor,
   statusLabel,
   downForLabel,
+  dormantDownLabel,
+  isDormant,
+  matchesTileFilter,
   failureRateCaption,
   dotStripCells,
   groupByWorkspace,
   groupSummaryLabel,
   unlockStageText,
+  type TileFilter,
   type WorkspaceGroup,
 } from './insights-luce';
 
@@ -34,9 +39,11 @@ import {
  * allowed to see, so the page is safe to expose to every client.
  *
  * Sections:
- *   1. Summary tiles — Broken / Overdue / Running / Healthy / Workspaces.
+ *   1. Summary tiles — Broken / Overdue / Running / Healthy / Dormant /
+ *      Workspaces. The status tiles are clickable filters (Matt #2).
  *   2. Health board — items grouped by workspace (client), worst first,
- *      with down-for durations and 12-run history dot strips.
+ *      with down-for durations and 12-run history dot strips. Every group
+ *      starts collapsed (Matt #7); a sticky section nav aids wayfinding.
  *   3. Workspace access — who can see what.
  *   4. Your usage + the admin tier (App audiences, tenant activity).
  */
@@ -121,8 +128,54 @@ const OverdueChip: React.FC<{ scheduleSummary?: string }> = ({ scheduleSummary }
   </span>
 );
 
-/** 12 dots, oldest → newest: green ok / red fail / hollow none. */
-const RunDotStrip: React.FC<{ runs?: InsightsRefreshable['recentRuns'] }> = ({ runs }) => {
+/** Gray-violet "abandoned" chip (Matt #4): "DORMANT · down 657d". */
+const DormantChip: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
+  const down = dormantDownLabel(item);
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
+      style={{ color: luce.dormant, background: `${luce.dormant}24`, border: `1px solid ${luce.dormant}33`, ...tabular }}
+      title="No refresh attempt in over a year — likely abandoned"
+    >
+      <span aria-hidden="true">◷</span>
+      <span>Dormant{down ? ` · ${down}` : ''}</span>
+    </span>
+  );
+};
+
+/** DATASET / DATAFLOW identity chip — same muted tints everywhere (Matt #3). */
+const KindChip: React.FC<{ kind: InsightsRefreshable['kind'] }> = ({ kind }) => {
+  const color = kindColor[kind];
+  return (
+    <span
+      className="px-1.5 py-px rounded text-[10px] uppercase tracking-wider whitespace-nowrap"
+      style={{ color, background: `${color}1F`, border: `1px solid ${color}40` }}
+    >
+      {kind}
+    </span>
+  );
+};
+
+/** Tooltip for one dot: failed dataset dots explain themselves (Matt #5). */
+function dotTitle(
+  cell: ReturnType<typeof dotStripCells>[number],
+  kind: InsightsRefreshable['kind'],
+): string | undefined {
+  if (cell.state === 'none') return undefined;
+  const time = formatTime(cell.endTime);
+  if (cell.state === 'ok') return `OK · ${time}`;
+  if (kind === 'dataflow') {
+    return `Failed · ${time} (no detail provided by Power BI for dataflows)`;
+  }
+  if (cell.errorCode) return `Failed · ${time} · ${cell.errorCode}: ${cell.errorDetail ?? ''}`;
+  return `Failed · ${time}`;
+}
+
+/** 12 dots, oldest → newest, filled from the LEFT: green ok / red fail / hollow none. */
+const RunDotStrip: React.FC<{
+  runs?: InsightsRefreshable['recentRuns'];
+  kind: InsightsRefreshable['kind'];
+}> = ({ runs, kind }) => {
   const cells = dotStripCells(runs);
   const label = failureRateCaption(runs);
   return (
@@ -131,7 +184,7 @@ const RunDotStrip: React.FC<{ runs?: InsightsRefreshable['recentRuns'] }> = ({ r
         {cells.map((c, i) => (
           <span
             key={i}
-            title={c.endTime ? `${c.state === 'ok' ? 'OK' : 'Failed'} · ${formatTime(c.endTime)}` : undefined}
+            title={dotTitle(c, kind)}
             className="inline-block w-[7px] h-[7px] rounded-full"
             style={
               c.state === 'ok'
@@ -158,10 +211,11 @@ const RunDotStrip: React.FC<{ runs?: InsightsRefreshable['recentRuns'] }> = ({ r
 
 const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
   const down = downForLabel(item);
+  const dormant = isDormant(item);
   return (
     <div
       role="row"
-      className="grid items-center gap-3 px-4 py-3"
+      className="grid items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
       style={{ gridTemplateColumns: 'minmax(220px, 2fr) minmax(120px, 1fr) minmax(150px, 1fr) minmax(160px, 1fr)' }}
     >
       {/* Name + status */}
@@ -169,15 +223,11 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
         <div className="flex items-center gap-2 flex-wrap">
           <StatusChip status={item.lastStatus} />
           {item.scheduleOverdue && <OverdueChip scheduleSummary={item.scheduleSummary} />}
+          {dormant && <DormantChip item={item} />}
           <span className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
             {item.name}
           </span>
-          <span
-            className="px-1.5 py-px rounded text-[10px] uppercase tracking-wider"
-            style={{ color: luce.textTertiary, border: hairlineBorder }}
-          >
-            {item.kind}
-          </span>
+          <KindChip kind={item.kind} />
         </div>
         <div className="mt-1 flex items-center gap-3 text-[12px]" style={{ color: luce.textTertiary }}>
           {down && (
@@ -194,7 +244,7 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
       </div>
 
       {/* Run history */}
-      <RunDotStrip runs={item.recentRuns} />
+      <RunDotStrip runs={item.recentRuns} kind={item.kind} />
 
       {/* Last success */}
       <div className="text-xs whitespace-nowrap" style={{ color: luce.textSecondary, ...tabular }}>
@@ -216,6 +266,12 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
   );
 };
 
+/**
+ * Workspace group header (Matt #1): the chevron leads on the LEFT and rotates
+ * on expand, the WHOLE header is a hover-lifted button, and an explicit
+ * "N items" count says "there is something to open here" — the status glyph
+ * is information, never the control.
+ */
 const WorkspaceSection: React.FC<{
   group: WorkspaceGroup;
   expanded: boolean;
@@ -223,25 +279,35 @@ const WorkspaceSection: React.FC<{
 }> = ({ group, expanded, onToggle }) => (
   <div className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
     <button
-      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer transition-colors hover:bg-white/[0.06]"
       onClick={onToggle}
       aria-expanded={expanded}
-      style={{ background: expanded ? luce.surface2 : 'transparent' }}
+      style={{ background: expanded ? luce.surface2 : undefined }}
     >
       <span className="flex items-center gap-2.5 min-w-0">
+        <span
+          aria-hidden="true"
+          className="inline-block text-xs transition-transform duration-150"
+          style={{ color: luce.textSecondary, transform: expanded ? 'rotate(90deg)' : 'none' }}
+        >
+          ▸
+        </span>
         <span aria-hidden="true" className="text-sm" style={{ color: statusColor[group.worst] }}>
           {statusGlyph[group.worst]}
         </span>
         <span className="truncate text-sm font-semibold" style={{ color: luce.textPrimary }}>
           {group.workspaceName}
         </span>
+        <span
+          className="px-1.5 py-px rounded-full text-[10px] whitespace-nowrap"
+          style={{ color: luce.textTertiary, border: hairlineBorder, ...tabular }}
+        >
+          {group.items.length} item{group.items.length === 1 ? '' : 's'}
+        </span>
       </span>
       <span className="flex items-center gap-3 shrink-0">
         <span className="text-xs" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
           {groupSummaryLabel(group)}
-        </span>
-        <span aria-hidden="true" className="text-xs" style={{ color: luce.textTertiary }}>
-          {expanded ? '▾' : '▸'}
         </span>
       </span>
     </button>
@@ -252,6 +318,18 @@ const WorkspaceSection: React.FC<{
         ))}
       </div>
     )}
+  </div>
+);
+
+/** Micro-caps eyebrow + title — one heading treatment for every section (Matt #8). */
+const SectionHeading: React.FC<{ id: string; eyebrow: string; title: string }> = ({ id, eyebrow, title }) => (
+  <div className="mb-1">
+    <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: luce.textTertiary }}>
+      {eyebrow}
+    </div>
+    <h2 id={id} className="text-lg font-semibold" style={{ color: luce.textPrimary }}>
+      {title}
+    </h2>
   </div>
 );
 
@@ -267,9 +345,12 @@ export const InsightsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedWs, setExpandedWs] = useState<Set<string>>(new Set());
-  // Group expansion: null until the user touches a section, so the
-  // broken-first defaults apply when a fresh snapshot lands.
-  const [groupOverrides, setGroupOverrides] = useState<Map<string, boolean>>(new Map());
+  // Group expansion (Matt #7): EVERY group starts collapsed; this set holds
+  // only the groups the user has opened. An active tile filter (Matt #2)
+  // overrides it and force-expands the matching groups.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  // Active summary-tile filter (Matt #2), null = show everything.
+  const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
 
   // Admin tier — loaded only on explicit request so the incremental-consent
   // window can never appear unprompted.
@@ -382,18 +463,22 @@ export const InsightsPage: React.FC = () => {
     };
   }, [user?.id]);
 
-  const groups = useMemo(
-    () => groupByWorkspace(snapshot?.refreshables ?? []),
-    [snapshot],
-  );
+  // The board shows everything, or — with an active tile filter — only the
+  // matching items, regrouped so empty workspaces drop out entirely.
+  const groups = useMemo(() => {
+    const all = snapshot?.refreshables ?? [];
+    const visible = activeFilter ? all.filter((r) => matchesTileFilter(r, activeFilter)) : all;
+    return groupByWorkspace(visible);
+  }, [snapshot, activeFilter]);
 
   const counts = useMemo(() => {
-    const c = { ok: 0, broken: 0, overdue: 0, running: 0 };
+    const c = { ok: 0, broken: 0, overdue: 0, running: 0, dormant: 0 };
     for (const r of snapshot?.refreshables ?? []) {
       if (r.lastStatus === 'Failed' || r.lastStatus === 'Cancelled') c.broken++;
       else if (r.lastStatus === 'InProgress') c.running++;
       else if (r.lastStatus === 'Completed') c.ok++;
       if (r.scheduleOverdue) c.overdue++;
+      if (isDormant(r)) c.dormant++;
     }
     return c;
   }, [snapshot]);
@@ -413,13 +498,26 @@ export const InsightsPage: React.FC = () => {
     });
   };
 
-  const isGroupExpanded = (g: WorkspaceGroup) => groupOverrides.get(g.workspaceId) ?? g.defaultExpanded;
+  // Filter active → matching groups are force-expanded so the hits are visible.
+  const isGroupExpanded = (g: WorkspaceGroup) =>
+    activeFilter !== null || openGroups.has(g.workspaceId);
   const toggleGroup = (g: WorkspaceGroup) => {
-    setGroupOverrides((prev) => {
-      const next = new Map(prev);
-      next.set(g.workspaceId, !isGroupExpanded(g));
+    if (activeFilter !== null) return; // expansion is pinned while filtering
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(g.workspaceId)) next.delete(g.workspaceId);
+      else next.add(g.workspaceId);
       return next;
     });
+  };
+
+  /** Tile click: activate the filter, or clear it when already active. */
+  const toggleFilter = (f: TileFilter) => {
+    setActiveFilter((prev) => (prev === f ? null : f));
+  };
+
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
 
   if (isLoading && !snapshot) {
@@ -452,13 +550,15 @@ export const InsightsPage: React.FC = () => {
 
   if (!snapshot) return null;
 
-  const tiles: Array<{ label: string; value: number; color: string; loud: boolean }> = [
-    { label: 'Broken', value: counts.broken, color: counts.broken > 0 ? luce.broken : luce.textTertiary, loud: counts.broken > 0 },
-    { label: 'Overdue', value: counts.overdue, color: counts.overdue > 0 ? luce.warn : luce.textTertiary, loud: counts.overdue > 0 && counts.broken === 0 },
-    { label: 'Running', value: counts.running, color: counts.running > 0 ? luce.accent : luce.textTertiary, loud: false },
-    { label: 'Healthy', value: counts.ok, color: luce.ok, loud: counts.broken === 0 && counts.overdue === 0 },
+  const tiles: Array<{ label: string; value: number; color: string; loud: boolean; filter?: TileFilter }> = [
+    { label: 'Broken', value: counts.broken, color: counts.broken > 0 ? luce.broken : luce.textTertiary, loud: counts.broken > 0, filter: 'broken' },
+    { label: 'Overdue', value: counts.overdue, color: counts.overdue > 0 ? luce.warn : luce.textTertiary, loud: counts.overdue > 0 && counts.broken === 0, filter: 'overdue' },
+    { label: 'Running', value: counts.running, color: counts.running > 0 ? luce.accent : luce.textTertiary, loud: false, filter: 'running' },
+    { label: 'Healthy', value: counts.ok, color: luce.ok, loud: counts.broken === 0 && counts.overdue === 0, filter: 'healthy' },
+    { label: 'Dormant', value: counts.dormant, color: counts.dormant > 0 ? luce.dormant : luce.textTertiary, loud: false, filter: 'dormant' },
     { label: 'Workspaces', value: snapshot.workspaceCount, color: luce.textPrimary, loud: false },
   ];
+  const activeTileLabel = tiles.find((t) => t.filter === activeFilter)?.label;
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: luce.canvas, color: luce.textSecondary }}>
@@ -492,42 +592,102 @@ export const InsightsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Summary tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {tiles.map((tile) => (
-            <div
-              key={tile.label}
-              className="rounded-xl p-4"
-              style={{
-                background: tile.loud ? luce.surface2 : luce.surface1,
-                border: tile.loud ? `1px solid ${tile.color}40` : hairlineBorder,
-              }}
-            >
-              <div
-                className={tile.loud ? 'text-4xl font-semibold' : 'text-3xl font-semibold'}
-                style={{ color: tile.color, ...tabular }}
+        {/* Summary tiles — the status tiles are click-to-filter (Matt #2) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {tiles.map((tile) => {
+            const active = tile.filter !== undefined && tile.filter === activeFilter;
+            const inner = (
+              <>
+                <div
+                  className={tile.loud ? 'text-4xl font-semibold' : 'text-3xl font-semibold'}
+                  style={{ color: tile.color, ...tabular }}
+                >
+                  {tile.value}
+                </div>
+                <div className="mt-1 text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>
+                  {tile.label}
+                </div>
+              </>
+            );
+            const surface = {
+              background: tile.loud ? luce.surface2 : luce.surface1,
+              border: active ? `1px solid ${luce.accent}` : tile.loud ? `1px solid ${tile.color}40` : hairlineBorder,
+              boxShadow: active ? `0 0 0 1px ${luce.accent}66` : undefined,
+            };
+            return tile.filter ? (
+              <button
+                key={tile.label}
+                className="rounded-xl p-4 text-left cursor-pointer transition-colors hover:bg-white/[0.04]"
+                style={surface}
+                onClick={() => toggleFilter(tile.filter!)}
+                aria-pressed={active}
+                title={active ? `Clear the ${tile.label} filter` : `Show only ${tile.label.toLowerCase()} items`}
               >
-                {tile.value}
+                {inner}
+              </button>
+            ) : (
+              <div key={tile.label} className="rounded-xl p-4" style={surface}>
+                {inner}
               </div>
-              <div className="mt-1 text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>
-                {tile.label}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
+        {activeFilter && (
+          <button
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
+            style={{ color: luce.accent, background: `${luce.accent}1F`, border: `1px solid ${luce.accent}55` }}
+            onClick={() => setActiveFilter(null)}
+            title="Clear filter"
+          >
+            <span>Showing: {activeTileLabel}</span>
+            <span aria-hidden="true">✕</span>
+          </button>
+        )}
+
+        {/* Sticky section nav (Matt #7) — wayfinding without scrolling blind */}
+        <nav
+          aria-label="Page sections"
+          className="sticky top-0 z-10 -mx-2 px-2 py-1.5 flex items-center gap-1 rounded-lg"
+          style={{ background: luce.canvas, borderBottom: hairlineBorder }}
+        >
+          {(
+            [
+              ['Health', 'insights-health'],
+              ['Access', 'insights-access'],
+              ['Usage', 'insights-usage'],
+              ['Admin', 'insights-admin'],
+            ] as const
+          ).map(([label, id], i) => (
+            <React.Fragment key={id}>
+              {i > 0 && (
+                <span aria-hidden="true" className="text-[10px]" style={{ color: luce.textTertiary }}>
+                  ·
+                </span>
+              )}
+              <button
+                className="px-2.5 py-1 rounded-md text-xs uppercase tracking-wider cursor-pointer transition-colors hover:bg-white/5"
+                style={{ color: luce.textSecondary }}
+                onClick={() => scrollToSection(id)}
+              >
+                {label}
+              </button>
+            </React.Fragment>
+          ))}
+        </nav>
+
         {/* Health board, grouped by workspace (client) */}
-        <section aria-labelledby="insights-refresh-heading">
-          <h2 id="insights-refresh-heading" className="text-lg font-semibold mb-1" style={{ color: luce.textPrimary }}>
-            Client health board
-          </h2>
+        <section id="insights-health" aria-labelledby="insights-refresh-heading" style={{ scrollMarginTop: 48 }}>
+          <SectionHeading id="insights-refresh-heading" eyebrow="Health" title="Client health board" />
           <p className="text-xs mb-3" style={{ color: luce.textTertiary }}>
-            Broken workspaces first and opened for you; quiet ones stay folded. Dots are the last
-            12 runs, oldest to newest.
+            Broken workspaces sort first; every section starts folded — the headers carry the
+            damage summary. Dots are the last 12 runs, oldest to newest, left to right.
           </p>
           {groups.length === 0 ? (
             <p className="text-sm" style={{ color: luce.textTertiary }}>
-              No datasets or dataflows are visible to your account.
+              {activeFilter
+                ? `Nothing matches the ${activeTileLabel} filter.`
+                : 'No datasets or dataflows are visible to your account.'}
             </p>
           ) : (
             <div className="space-y-2.5">
@@ -544,10 +704,8 @@ export const InsightsPage: React.FC = () => {
         </section>
 
         {/* Workspace access */}
-        <section aria-labelledby="insights-access-heading">
-          <h2 id="insights-access-heading" className="text-lg font-semibold mb-1" style={{ color: luce.textPrimary }}>
-            Who has access
-          </h2>
+        <section id="insights-access" aria-labelledby="insights-access-heading" style={{ scrollMarginTop: 48 }}>
+          <SectionHeading id="insights-access-heading" eyebrow="Access" title="Who has access" />
           <p className="text-xs mb-3" style={{ color: luce.textTertiary }}>
             Workspace members only. People who reach your content through a published Power BI
             App (App audiences) are not listed — Microsoft restricts that list to tenant admins.
@@ -556,13 +714,18 @@ export const InsightsPage: React.FC = () => {
             {snapshot.access.map((ws) => (
               <div key={ws.workspaceId} className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
                 <button
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer transition-colors hover:bg-white/[0.06]"
                   onClick={() => toggleWs(ws.workspaceId)}
                   aria-expanded={expandedWs.has(ws.workspaceId)}
+                  style={{ background: expandedWs.has(ws.workspaceId) ? luce.surface2 : undefined }}
                 >
-                  <span className="flex items-center gap-2 text-sm" style={{ color: luce.textPrimary }}>
-                    <span aria-hidden="true" className="text-xs" style={{ color: luce.textTertiary }}>
-                      {expandedWs.has(ws.workspaceId) ? '▾' : '▸'}
+                  <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: luce.textPrimary }}>
+                    <span
+                      aria-hidden="true"
+                      className="inline-block text-xs transition-transform duration-150"
+                      style={{ color: luce.textSecondary, transform: expandedWs.has(ws.workspaceId) ? 'rotate(90deg)' : 'none' }}
+                    >
+                      ▸
                     </span>
                     {ws.workspaceName}
                   </span>
@@ -571,9 +734,12 @@ export const InsightsPage: React.FC = () => {
                   </span>
                 </button>
                 {expandedWs.has(ws.workspaceId) && ws.users !== null && (
-                  <div className="px-4 pb-3 divide-y divide-[rgba(255,255,255,0.08)]">
+                  <div className="px-4 pb-3 divide-y divide-[rgba(255,255,255,0.08)]" style={{ borderTop: hairlineBorder }}>
                     {ws.users.map((u, i) => (
-                      <div key={`${u.email || u.name}-${i}`} className="flex items-center justify-between py-1.5">
+                      <div
+                        key={`${u.email || u.name}-${i}`}
+                        className="flex items-center justify-between py-1.5 transition-colors hover:bg-white/[0.03]"
+                      >
                         <div>
                           <div className="text-sm" style={{ color: luce.textPrimary }}>{u.name}</div>
                           {u.email && (
@@ -583,7 +749,7 @@ export const InsightsPage: React.FC = () => {
                           )}
                         </div>
                         <span
-                          className="px-2 py-0.5 rounded-full text-[11px]"
+                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide"
                           style={{ color: luce.textSecondary, border: hairlineBorder }}
                         >
                           {u.role}
@@ -598,13 +764,13 @@ export const InsightsPage: React.FC = () => {
         </section>
 
         {/* Your usage */}
-        <section aria-labelledby="insights-usage-heading">
-          <h2 id="insights-usage-heading" className="text-lg font-semibold mb-3" style={{ color: luce.textPrimary }}>
-            Your usage
-          </h2>
+        <section id="insights-usage" aria-labelledby="insights-usage-heading" style={{ scrollMarginTop: 48 }}>
+          <div className="mb-3">
+            <SectionHeading id="insights-usage-heading" eyebrow="Usage" title="Your usage" />
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl p-3" style={{ background: luce.surface1, border: hairlineBorder }}>
-              <div className="text-sm font-semibold mb-2" style={{ color: luce.textPrimary }}>
+              <div className="text-[11px] uppercase tracking-[0.14em] mb-2 px-2 pt-1" style={{ color: luce.textTertiary }}>
                 You open most
               </div>
               {frequent.length === 0 ? (
@@ -635,7 +801,7 @@ export const InsightsPage: React.FC = () => {
               )}
             </div>
             <div className="rounded-xl p-3" style={{ background: luce.surface1, border: hairlineBorder }}>
-              <div className="text-sm font-semibold mb-2" style={{ color: luce.textPrimary }}>
+              <div className="text-[11px] uppercase tracking-[0.14em] mb-2 px-2 pt-1" style={{ color: luce.textTertiary }}>
                 Never opened by you
               </div>
               {neverOpened.length === 0 ? (
@@ -645,7 +811,7 @@ export const InsightsPage: React.FC = () => {
               ) : (
                 <div className="space-y-1">
                   {neverOpened.map((c) => (
-                    <div key={c.id} className="px-2 py-1">
+                    <div key={c.id} className="px-2 py-1 rounded-lg transition-colors hover:bg-white/[0.03]">
                       <div className="text-sm" style={{ color: luce.textPrimary }}>{c.name}</div>
                       <div className="text-xs" style={{ color: luce.textTertiary }}>
                         {c.type} · {c.workspaceName}
@@ -663,10 +829,14 @@ export const InsightsPage: React.FC = () => {
         </section>
 
         {/* Admin tier — App audiences + tenant activity (Fabric admin only) */}
-        <section aria-labelledby="insights-admin-heading">
-          <h2 id="insights-admin-heading" className="text-lg font-semibold mb-3" style={{ color: luce.textPrimary }}>
-            Admin view — everyone's usage and App audiences
-          </h2>
+        <section id="insights-admin" aria-labelledby="insights-admin-heading" style={{ scrollMarginTop: 48 }}>
+          <div className="mb-3">
+            <SectionHeading
+              id="insights-admin-heading"
+              eyebrow="Admin"
+              title="Admin view — everyone's usage and App audiences"
+            />
+          </div>
 
           {!admin && (
             <div className="rounded-xl p-4" style={{ background: luce.surface1, border: hairlineBorder }}>
@@ -714,7 +884,10 @@ export const InsightsPage: React.FC = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
-                  <div className="px-3 py-2 text-sm font-semibold" style={{ background: luce.surface2, color: luce.textPrimary }}>
+                  <div
+                    className="px-3 py-2 text-[11px] uppercase tracking-[0.14em]"
+                    style={{ background: luce.surface2, color: luce.textSecondary, borderBottom: hairlineBorder }}
+                  >
                     What's being used
                   </div>
                   {admin.activityByItem.length === 0 ? (
@@ -725,15 +898,15 @@ export const InsightsPage: React.FC = () => {
                     <table className="w-full text-sm" style={tabular}>
                       <thead>
                         <tr className="text-left">
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>Report</th>
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>Views</th>
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>People</th>
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>Last viewed</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Report</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Views</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>People</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Last viewed</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[rgba(255,255,255,0.08)]">
                         {admin.activityByItem.slice(0, 15).map((it) => (
-                          <tr key={it.name}>
+                          <tr key={it.name} className="transition-colors hover:bg-white/[0.03]">
                             <td className="px-3 py-1.5" style={{ color: luce.textPrimary }}>{it.name}</td>
                             <td className="px-3 py-1.5" style={{ color: luce.textSecondary }}>{it.views}</td>
                             <td className="px-3 py-1.5" style={{ color: luce.textSecondary }}>{it.uniqueUsers}</td>
@@ -748,7 +921,10 @@ export const InsightsPage: React.FC = () => {
                 </div>
 
                 <div className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
-                  <div className="px-3 py-2 text-sm font-semibold" style={{ background: luce.surface2, color: luce.textPrimary }}>
+                  <div
+                    className="px-3 py-2 text-[11px] uppercase tracking-[0.14em]"
+                    style={{ background: luce.surface2, color: luce.textSecondary, borderBottom: hairlineBorder }}
+                  >
                     Who's using it
                   </div>
                   {admin.activityByUser.length === 0 ? (
@@ -759,14 +935,14 @@ export const InsightsPage: React.FC = () => {
                     <table className="w-full text-sm" style={tabular}>
                       <thead>
                         <tr className="text-left">
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>User</th>
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>Views</th>
-                          <th className="px-3 py-1.5 font-medium text-xs" style={{ color: luce.textTertiary }}>Last active</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>User</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Views</th>
+                          <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Last active</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[rgba(255,255,255,0.08)]">
                         {admin.activityByUser.slice(0, 15).map((u) => (
-                          <tr key={u.user}>
+                          <tr key={u.user} className="transition-colors hover:bg-white/[0.03]">
                             <td className="px-3 py-1.5" style={{ color: luce.textPrimary }}>{u.user}</td>
                             <td className="px-3 py-1.5" style={{ color: luce.textSecondary }}>{u.views}</td>
                             <td className="px-3 py-1.5 whitespace-nowrap" style={{ color: luce.textTertiary }}>

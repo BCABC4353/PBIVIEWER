@@ -1121,6 +1121,82 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
     ]);
   });
 
+  it('failed dataset runs carry errorCode AND richer detail parsed from serviceExceptionJson', async () => {
+    const svc = svcWith([
+      [/\/datasets\/ds-1\/refreshes/, {
+        value: [
+          // Newest: code + errorDescription + nested pbi.error details.
+          {
+            status: 'Failed',
+            endTime: '2026-06-10T02:05:00Z',
+            serviceExceptionJson: JSON.stringify({
+              errorCode: 'ModelRefreshFailed_CredentialsNotSpecified',
+              errorDescription: 'The credentials provided for the SQL source are invalid.',
+              'pbi.error': {
+                code: 'ModelRefreshFailed_CredentialsNotSpecified',
+                details: [{ code: 'Server', detail: { value: 'sql.contoso.com' } }],
+              },
+            }),
+          },
+          // Older failure: only the nested pbi.error code, string detail form.
+          {
+            status: 'Failed',
+            endTime: '2026-06-09T02:05:00Z',
+            serviceExceptionJson: JSON.stringify({
+              'pbi.error': { code: 'Gateway_Offline', details: [{ detail: 'GW-EU-1 unreachable' }] },
+            }),
+          },
+          // Malformed payload → run kept, error fields omitted.
+          { status: 'Failed', endTime: '2026-06-08T02:05:00Z', serviceExceptionJson: 'not-json{' },
+          // Success runs never carry error fields even if the API echoes junk.
+          { status: 'Completed', endTime: '2026-06-07T02:05:00Z' },
+        ],
+      }],
+      [/\/datasets(\?|$)/, { value: [{ id: 'ds-1', name: 'Model', isRefreshable: true }] }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const ds = result.data.refreshables.find((r) => r.id === 'ds-1');
+    expect(ds?.recentRuns).toEqual([
+      { ok: true, endTime: '2026-06-07T02:05:00Z' },
+      { ok: false, endTime: '2026-06-08T02:05:00Z' },
+      {
+        ok: false,
+        endTime: '2026-06-09T02:05:00Z',
+        errorCode: 'Gateway_Offline',
+        errorDetail: 'GW-EU-1 unreachable',
+      },
+      {
+        ok: false,
+        endTime: '2026-06-10T02:05:00Z',
+        errorCode: 'ModelRefreshFailed_CredentialsNotSpecified',
+        errorDetail: 'The credentials provided for the SQL source are invalid. · Server: sql.contoso.com',
+      },
+    ]);
+    // The newest failure's code still surfaces as the item-level errorCode.
+    expect(ds?.errorCode).toBe('ModelRefreshFailed_CredentialsNotSpecified');
+  });
+
+  it('dataflow recentRuns never carry error detail — the transactions API exposes none', async () => {
+    const svc = svcWith([
+      [/\/transactions/, {
+        value: [{ status: 'Failed', endTime: '2026-06-10T02:05:00Z' }],
+      }],
+      [/\/dataflows(\?|$)/, { value: [{ objectId: 'df-1', name: 'Flow' }] }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const df = result.data.refreshables.find((r) => r.kind === 'dataflow');
+    expect(df?.recentRuns?.[0]?.ok).toBe(false);
+    expect(df?.recentRuns?.[0]?.errorCode).toBeUndefined();
+    expect(df?.recentRuns?.[0]?.errorDetail).toBeUndefined();
+  });
+
   it('requests 12 dataflow transactions and derives recentRuns with Success=ok', async () => {
     const svc = svcWith([
       [/\/transactions/, {
