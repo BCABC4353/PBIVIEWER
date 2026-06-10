@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataSource, Refreshable } from '../core/types';
 import { FleetHealthScreen, RefreshDetailScreen } from './screens';
@@ -49,14 +49,20 @@ export const Root: React.FC<{ source: DataSource; settings: React.ReactNode }> =
         canvas && runQuery ? (
           <ReportCanvasScreen spec={canvas.spec} runQuery={runQuery} onBack={() => setCanvas(null)} />
         ) : (
-          <ReportsScreen onOpen={setCanvas} />
+          // SafeAreaView is iOS-only — pad unowned tab content past the
+          // Android status bar here (owned screens pad themselves).
+          <View style={styles.edge}>
+            <ReportsScreen onOpen={setCanvas} />
+          </View>
         );
       break;
     case 'alerts':
       body = alertDetail ? (
         <RefreshDetailScreen item={alertDetail} onBack={() => setAlertDetail(null)} />
       ) : (
-        <AlertsScreen source={source} onOpen={setAlertDetail} />
+        <View style={styles.edge}>
+          <AlertsScreen source={source} onOpen={setAlertDetail} />
+        </View>
       );
       break;
     case 'settings':
@@ -90,10 +96,15 @@ export const Root: React.FC<{ source: DataSource; settings: React.ReactNode }> =
   );
 };
 
+// SafeAreaView is iOS-only; on Android the status bar overlaps the first
+// render unless containers pad past it explicitly.
+const androidStatusPad = Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 });
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.void },
   body: { flex: 1 },
-  settingsHost: { flex: 1, backgroundColor: color.canvas },
+  edge: { flex: 1, backgroundColor: color.canvas, paddingTop: androidStatusPad },
+  settingsHost: { flex: 1, backgroundColor: color.canvas, paddingTop: androidStatusPad },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: color.canvas,
