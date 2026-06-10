@@ -361,6 +361,10 @@ export const InsightsPage: React.FC = () => {
               Who has access
             </h2>
           </div>
+          <Text size={200} className="text-neutral-foreground-3 block mb-3">
+            Workspace members only. People who reach your content through a published Power BI
+            App (App audiences) are not listed — Microsoft restricts that list to tenant admins.
+          </Text>
           <div className="space-y-2">
             {snapshot.access.map((ws) => (
               <div key={ws.workspaceId} className="rounded-lg border border-neutral-stroke-2">
