@@ -96,25 +96,132 @@ describe('get() retry on 429', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('gives up after bounded retries — no infinite loop under sustained throttling', async () => {
+  it('gives up after bounded retries — and a dead /groups root is a LOUD error, not an empty fleet', async () => {
     const fetchMock = vi.fn().mockResolvedValue(throttled('1'));
     vi.stubGlobal('fetch', fetchMock);
 
-    const p = new LiveFleetClient(tokens).getFleetSnapshot();
+    const settled = new LiveFleetClient(tokens).getFleetSnapshot().then(
+      () => null,
+      (e: unknown) => e,
+    );
     await vi.advanceTimersByTimeAsync(120_000);
-    const snap = await p;
+    const err = await settled;
 
     expect(fetchMock).toHaveBeenCalledTimes(3); // initial + MAX_429_RETRIES
-    expect(snap.workspaceCount).toBe(0); // tryList degrades, never throws
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/Could not list your workspaces/);
   });
 
-  it('does NOT retry non-429 errors', async () => {
+  it('does NOT retry non-429 errors, and surfaces the root failure instead of a blank snapshot', async () => {
     const fetchMock = vi.fn().mockResolvedValue(error(500));
     vi.stubGlobal('fetch', fetchMock);
 
+    await expect(new LiveFleetClient(tokens).getFleetSnapshot()).rejects.toThrow(
+      /Could not list your workspaces — Power BI API 500/,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Never-blank guarantees: partial failure surfacing, progress, concurrency.
+// ---------------------------------------------------------------------------
+
+/** URL-routed fetch stub: path → body (or an HTTP status number). */
+function routedFetch(routes: Record<string, unknown>, perCall?: () => Promise<void>) {
+  return vi.fn(async (url: string) => {
+    if (perCall) await perCall();
+    const path = url.replace('https://api.powerbi.com/v1.0/myorg', '');
+    const hit = routes[path];
+    if (hit === undefined) return error(404);
+    if (typeof hit === 'number') return error(hit);
+    return ok(hit);
+  });
+}
+
+describe('getFleetSnapshot — partial failure and progress', () => {
+  beforeEach(() => vi.useRealTimers()); // no throttling here — real microtasks
+
+  it('loads readable workspaces and counts the unreadable ones (partial honesty)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch({
+        '/groups': {
+          value: [
+            { id: 'g1', name: 'Good WS' },
+            { id: 'g2', name: 'Locked WS' },
+          ],
+        },
+        '/groups/g1/datasets': { value: [{ id: 'd1', name: 'DS One', isRefreshable: false }] },
+        '/groups/g1/dataflows': { value: [] },
+        '/groups/g2/datasets': 403,
+        '/groups/g2/dataflows': 403,
+      }),
+    );
+
     const snap = await new LiveFleetClient(tokens).getFleetSnapshot();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(snap.workspaceCount).toBe(0);
+    expect(snap.partialFailure).toBe(true);
+    expect(snap.failedWorkspaces).toEqual([{ id: 'g2', name: 'Locked WS', error: 'unreadable' }]);
+    expect(snap.refreshables.map((r) => r.id)).toEqual(['d1']); // loaded data still shows
+    expect(snap.workspaceCount).toBe(2);
+  });
+
+  it('reports real per-workspace progress while the snapshot is in flight', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch({
+        '/groups': {
+          value: [
+            { id: 'g1', name: 'A' },
+            { id: 'g2', name: 'B' },
+          ],
+        },
+        '/groups/g1/datasets': { value: [{ id: 'd1', name: 'DS', isRefreshable: false }] },
+        '/groups/g1/dataflows': { value: [] },
+        '/groups/g2/datasets': { value: [] },
+        '/groups/g2/dataflows': { value: [] },
+      }),
+    );
+
+    const seen: Array<{ pct: number; items: number }> = [];
+    await new LiveFleetClient(tokens).getFleetSnapshot(false, (pct, items) =>
+      seen.push({ pct, items }),
+    );
+
+    expect(seen).toHaveLength(2); // one tick per workspace
+    expect(seen.at(-1)).toEqual({ pct: 1, items: 1 });
+    expect(seen.every((s, i) => i === 0 || s.pct >= seen[i - 1]!.pct)).toBe(true);
+  });
+
+  it('caps simultaneous requests so big tenants are not stampeded', async () => {
+    const routes: Record<string, unknown> = {
+      '/groups': {
+        value: Array.from({ length: 9 }, (_, i) => ({ id: `g${i}`, name: `WS ${i}` })),
+      },
+    };
+    for (let i = 0; i < 9; i++) {
+      routes[`/groups/g${i}/datasets`] = {
+        value: [{ id: `d${i}`, name: `DS ${i}`, isRefreshable: false }],
+      };
+      routes[`/groups/g${i}/dataflows`] = { value: [] };
+    }
+    let active = 0;
+    let peak = 0;
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(routes, async () => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await new Promise((r) => setTimeout(r, 1)); // let calls overlap
+        active -= 1;
+      }),
+    );
+
+    const snap = await new LiveFleetClient(tokens).getFleetSnapshot();
+
+    expect(snap.refreshables).toHaveLength(9);
+    expect(peak).toBeGreaterThan(1); // there WAS parallelism…
+    expect(peak).toBeLessThanOrEqual(5); // …but never a stampede
   });
 });

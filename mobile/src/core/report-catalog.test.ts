@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LiveReportCatalog, fetchLatestRefresh, listAllPages } from './report-catalog';
+import {
+  LiveReportCatalog,
+  defaultExpandedKeys,
+  fetchLatestRefresh,
+  filterCatalogGroups,
+  groupKey,
+  listAllPages,
+  sortCatalogGroups,
+  type ReportGroup,
+  type ReportRef,
+} from './report-catalog';
 
 const tokens = { getAccessToken: async () => 'tok-1' };
 
@@ -135,6 +145,108 @@ describe('LiveReportCatalog', () => {
     });
     const { groups } = await new LiveReportCatalog(tokens).listReports();
     expect(groups).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Catalog organization — the pure logic the Reports screen renders from.
+// ---------------------------------------------------------------------------
+
+const ref = (name: string, group: Pick<ReportGroup, 'kind' | 'id' | 'name'>): ReportRef => ({
+  id: `id-${name}`,
+  name,
+  sourceKind: group.kind,
+  sourceId: group.id,
+  sourceName: group.name,
+});
+
+const group = (kind: 'app' | 'workspace', id: string, name: string, reports: string[]): ReportGroup => {
+  const g = { kind, id, name };
+  return { ...g, reports: reports.map((r) => ref(r, g)) };
+};
+
+describe('sortCatalogGroups', () => {
+  it('orders apps first (alphabetical), then workspaces (alphabetical)', () => {
+    const sorted = sortCatalogGroups([
+      group('workspace', 'w2', 'zeta Ops', ['R']),
+      group('app', 'a2', 'finance App', ['R']),
+      group('workspace', 'w1', 'Alpha Ops', ['R']),
+      group('app', 'a1', 'Exec App', ['R']),
+    ]);
+    expect(sorted.map((g) => `${g.kind}:${g.name}`)).toEqual([
+      'app:Exec App',
+      'app:finance App', // case-insensitive: 'finance' after 'Exec'
+      'workspace:Alpha Ops',
+      'workspace:zeta Ops',
+    ]);
+  });
+
+  it('sorts reports alphabetically within a section, case-insensitively', () => {
+    const sorted = sortCatalogGroups([
+      group('app', 'a', 'App', ['zebra Margin', 'Alpha Sales', 'beta Costs', 'Beta Budget']),
+    ]);
+    expect(sorted[0]!.reports.map((r) => r.name)).toEqual([
+      'Alpha Sales',
+      'Beta Budget',
+      'beta Costs',
+      'zebra Margin',
+    ]);
+  });
+
+  it('does not mutate the input', () => {
+    const input = [group('workspace', 'w', 'W', ['b', 'a'])];
+    const before = JSON.stringify(input);
+    sortCatalogGroups(input);
+    expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+describe('filterCatalogGroups', () => {
+  const groups = [
+    group('app', 'a', 'Finance App', ['Revenue', 'Margin']),
+    group('workspace', 'w1', 'Operations', ['Throughput', 'Revenue by Site']),
+    group('workspace', 'w2', 'HR', ['Headcount']),
+  ];
+
+  it('matches report names across all sections (case-insensitive)', () => {
+    const hit = filterCatalogGroups(groups, 'revenue');
+    expect(hit.map((g) => g.name)).toEqual(['Finance App', 'Operations']);
+    expect(hit[0]!.reports.map((r) => r.name)).toEqual(['Revenue']);
+    expect(hit[1]!.reports.map((r) => r.name)).toEqual(['Revenue by Site']);
+  });
+
+  it('a section-name match keeps the whole section', () => {
+    const hit = filterCatalogGroups(groups, 'operations');
+    expect(hit).toHaveLength(1);
+    expect(hit[0]!.reports).toHaveLength(2);
+  });
+
+  it('empty or whitespace query filters nothing', () => {
+    expect(filterCatalogGroups(groups, '')).toHaveLength(3);
+    expect(filterCatalogGroups(groups, '   ')).toHaveLength(3);
+  });
+
+  it('no match → empty list (the screen shows its honest empty state)', () => {
+    expect(filterCatalogGroups(groups, 'xyzzy')).toEqual([]);
+  });
+});
+
+describe('defaultExpandedKeys', () => {
+  it('expands everything when there are ≤3 sections', () => {
+    const groups = [
+      group('app', 'a', 'A', ['r']),
+      group('workspace', 'w', 'W', ['r']),
+    ];
+    expect(defaultExpandedKeys(groups)).toEqual(new Set(['app-a', 'workspace-w']));
+  });
+
+  it('collapses everything when there are more than 3 sections', () => {
+    const groups = ['a', 'b', 'c', 'd'].map((id) => group('workspace', id, id, ['r']));
+    expect(defaultExpandedKeys(groups).size).toBe(0);
+  });
+
+  it('keys are kind-qualified so app/workspace id collisions cannot cross-toggle', () => {
+    expect(groupKey({ kind: 'app', id: 'x' })).not.toBe(groupKey({ kind: 'workspace', id: 'x' }));
   });
 });
 

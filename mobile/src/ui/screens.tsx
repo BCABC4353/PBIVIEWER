@@ -18,15 +18,24 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [progress, setProgress] = useState<{ pct: number; items: number } | null>(null);
   const now = Date.now();
 
   const load = useCallback(
     async (force: boolean) => {
       setError(null);
+      setProgress(null);
       try {
-        setSnapshot(await source.getFleetSnapshot(force));
+        // Live mode walks workspaces×datasets×refreshes — a long fetch on a
+        // real tenant. The source reports each workspace as it lands so the
+        // skeleton can say how far along it is instead of sitting mute.
+        setSnapshot(
+          await source.getFleetSnapshot(force, (pct, items) => setProgress({ pct, items })),
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load fleet status');
+      } finally {
+        setProgress(null);
       }
     },
     [source],
@@ -51,21 +60,44 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
       <StatusBar barStyle="light-content" />
       {error ? (
         <View style={styles.center}>
+          <Text style={styles.errorTitle}>Couldn't read your fleet</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={() => void load(true)} style={styles.retry}>
+          <Pressable
+            onPress={() => void load(true)}
+            style={styles.retry}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading fleet status"
+          >
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
       ) : !snapshot ? (
         // Loading never blocks: quiet dim blocks mirroring the hero + rows,
         // shimmering as one cheap opacity loop. Never a dial, never a wall.
-        <FleetSkeleton />
+        // The caption beneath reports REAL progress on long live fetches.
+        <FleetSkeleton progress={progress} />
       ) : (
         <FlatList
           data={sorted}
           keyExtractor={(r) => `${r.kind}-${r.workspaceId}-${r.id}`}
           ListHeaderComponent={
-            <FleetHero broken={broken} total={sorted.length} generatedAt={snapshot.generatedAt} now={now} />
+            <>
+              <FleetHero broken={broken} total={sorted.length} generatedAt={snapshot.generatedAt} now={now} />
+              {snapshot.partialFailure ? (
+                <Text style={styles.partial}>
+                  {snapshot.failedWorkspaces.length}{' '}
+                  {snapshot.failedWorkspaces.length === 1 ? 'workspace' : 'workspaces'} couldn't be
+                  read
+                </Text>
+              ) : null}
+            </>
+          }
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <Text style={styles.errorText}>
+                No refreshable datasets or dataflows in your workspaces yet.
+              </Text>
+            </View>
           }
           renderItem={({ item }) => <FleetRow item={item} now={now} onPress={() => onOpen(item)} />}
           refreshControl={
@@ -91,14 +123,25 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
  * content (hero number, hero label, rows), pulsed by ONE animated node.
  * Reduce Motion → the same blocks, perfectly still.
  */
-const FleetSkeleton: React.FC = () => (
-  <SkeletonPulse style={styles.skeleton}>
-    <View style={styles.skeletonHero} />
-    <View style={styles.skeletonHeroLabel} />
-    {[0, 1, 2, 3, 4, 5].map((i) => (
-      <View key={i} style={styles.skeletonRow} />
-    ))}
-  </SkeletonPulse>
+const FleetSkeleton: React.FC<{ progress: { pct: number; items: number } | null }> = ({
+  progress,
+}) => (
+  <View style={styles.skeleton}>
+    <SkeletonPulse>
+      <View style={styles.skeletonHero} />
+      <View style={styles.skeletonHeroLabel} />
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <View key={i} style={styles.skeletonRow} />
+      ))}
+    </SkeletonPulse>
+    <Text style={styles.skeletonCaption} accessibilityLiveRegion="polite">
+      {progress
+        ? `Reading workspaces — ${Math.round(progress.pct * 100)}% · ${progress.items} item${
+            progress.items === 1 ? '' : 's'
+          } found`
+        : 'Reading your tenant…'}
+    </Text>
+  </View>
 );
 
 export const RefreshDetailScreen: React.FC<{ item: Refreshable; onBack: () => void }> = ({ item, onBack }) => {
@@ -142,7 +185,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.m, padding: space.l },
+  errorTitle: { ...type.body, color: color.textPrimary, fontWeight: '600', textAlign: 'center' },
   errorText: { ...type.body, color: color.textSecondary, textAlign: 'center' },
+  partial: { ...type.caption, color: color.textTertiary, textAlign: 'center', paddingBottom: space.m },
+  skeletonCaption: { ...type.caption, color: color.textTertiary, textAlign: 'center', paddingVertical: space.m },
   retry: { borderWidth: 1, borderColor: color.accent, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s },
   retryText: { ...type.body, color: color.accent },
 

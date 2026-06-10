@@ -20,8 +20,10 @@
 import { executeDax, type CanvasSpec, type QueryResult, type ValueFormat, type VisualSpec } from './dax';
 import type { TokenProvider } from './types';
 
-/** Runs one DAX query against the dataset being derived. */
-export type DaxRunner = (dax: string) => Promise<QueryResult>;
+/** Runs one DAX query against the dataset being derived. The optional signal
+ *  is the ladder's abort handle — live runners MUST pass it to fetch so a
+ *  timed-out rung actually cancels its requests (fakes may ignore it). */
+export type DaxRunner = (dax: string, signal?: AbortSignal) => Promise<QueryResult>;
 
 const MAX_VISUALS = 8;
 const MAX_KPIS = 4;
@@ -494,16 +496,80 @@ export class CanvasDerivationError extends Error {
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+/** Ladder stage, surfaced so the UI's loading face can visibly advance. */
+export type DeriveStep = 'model' | 'visuals' | 'stats';
+
+export interface DeriveOptions {
+  /** Hard ceiling per ladder rung (default 25 s). */
+  rungTimeoutMs?: number;
+  /** Hard ceiling for the whole derivation (default 60 s). */
+  totalTimeoutMs?: number;
+  /** Fires as the ladder advances — drives the live step line in the UI. */
+  onStep?: (step: DeriveStep) => void;
+}
+
+export const RUNG_TIMEOUT_MS = 25_000;
+export const TOTAL_TIMEOUT_MS = 60_000;
+
+/**
+ * Run one rung under a hard deadline. The AbortController cancels the rung's
+ * in-flight HTTP when time is up; the race guarantees we settle even if the
+ * runner ignores the signal (fakes, stubborn fetch implementations).
+ */
+async function runRung<T>(
+  label: string,
+  ms: number,
+  fn: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const ctrl = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      ctrl.abort();
+      reject(new Error(`${label} timed out after ${Math.ceil(ms / 1000)}s`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([fn(ctrl.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Walk the ladder: INFO functions → COLUMNSTATISTICS → CanvasDerivationError.
  * Every rung is honest: a derived spec only ever queries the real dataset,
- * and the terminal error carries the exact API failure for display.
+ * and the terminal error carries the exact API failure for display. Each rung
+ * is capped (25 s) and the whole walk is capped (60 s) — a hung query can
+ * never strand the UI on its loading face: it ALWAYS settles, success or a
+ * loud CanvasDerivationError.
  */
-export async function deriveCanvasSpec(run: DaxRunner, reportName: string): Promise<CanvasSpec> {
+export async function deriveCanvasSpec(
+  run: DaxRunner,
+  reportName: string,
+  opts: DeriveOptions = {},
+): Promise<CanvasSpec> {
+  const rungMs = opts.rungTimeoutMs ?? RUNG_TIMEOUT_MS;
+  const totalMs = opts.totalTimeoutMs ?? TOTAL_TIMEOUT_MS;
+  const startedAt = Date.now();
+  /** Per-rung budget: the rung cap, shrunk by whatever the walk already spent. */
+  const budget = (): number => Math.max(1, Math.min(rungMs, totalMs - (Date.now() - startedAt)));
+
   let infoError: unknown = null;
   try {
-    const model = await discoverModel(run);
-    const spec = await deriveFromModel(model, run, reportName);
+    opts.onStep?.('model');
+    const model = await runRung('Reading the dataset model (INFO functions)', budget(), (signal) =>
+      discoverModel((dax) => run(dax, signal)),
+    );
+    // Zero-row / unexpected-shape INFO responses are NOT a usable model —
+    // fall to the next rung instead of deriving an empty (blank) canvas.
+    if (model.measures.length === 0 && model.columns.length === 0 && model.tables.length === 0) {
+      throw new Error('INFO functions answered but exposed no visible tables, columns, or measures.');
+    }
+    opts.onStep?.('visuals');
+    const spec = await runRung('Building visuals from the model', budget(), (signal) =>
+      deriveFromModel(model, (dax) => run(dax, signal), reportName),
+    );
     if (spec.visuals.length > 0) return spec;
     infoError = new Error('The dataset model exposed nothing chartable.');
   } catch (e) {
@@ -511,7 +577,10 @@ export async function deriveCanvasSpec(run: DaxRunner, reportName: string): Prom
   }
 
   try {
-    const stats = await run('EVALUATE COLUMNSTATISTICS()');
+    opts.onStep?.('stats');
+    const stats = await runRung('Reading column statistics', budget(), (signal) =>
+      run('EVALUATE COLUMNSTATISTICS()', signal),
+    );
     const spec = deriveFromStatistics(stats, reportName);
     if (spec.visuals.length > 0) return spec;
   } catch (statsError) {
@@ -539,11 +608,12 @@ export async function deriveCanvasForDataset(
   tokens: TokenProvider,
   datasetId: string,
   reportName: string,
+  opts: DeriveOptions = {},
 ): Promise<CanvasSpec> {
   const cached = specCache.get(datasetId);
   if (cached) return { ...cached, title: reportName };
-  const run: DaxRunner = (dax) => executeDax(tokens, datasetId, dax);
-  const spec = await deriveCanvasSpec(run, reportName);
+  const run: DaxRunner = (dax, signal) => executeDax(tokens, datasetId, dax, signal);
+  const spec = await deriveCanvasSpec(run, reportName, opts);
   specCache.set(datasetId, spec);
   return spec;
 }

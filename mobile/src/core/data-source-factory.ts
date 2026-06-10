@@ -21,7 +21,11 @@ import {
   type ReportCatalog,
   type ReportRef,
 } from './report-catalog';
-import { clearCanvasSpecCache, deriveCanvasForDataset } from './canvas-crosswalk';
+import {
+  clearCanvasSpecCache,
+  deriveCanvasForDataset,
+  type DeriveOptions,
+} from './canvas-crosswalk';
 import { executeDax, type CanvasSpec, type QueryResult } from './dax';
 
 export type DataMode = 'mock' | 'live';
@@ -43,7 +47,7 @@ export function createDataSource(mode: DataMode): DataSource {
  */
 export interface ReportsModel {
   catalog: ReportCatalog;
-  deriveCanvas(report: ReportRef): Promise<CanvasSpec>;
+  deriveCanvas(report: ReportRef, opts?: DeriveOptions): Promise<CanvasSpec>;
   makeRunner(datasetId: string): (dax: string) => Promise<QueryResult>;
   fetchRefresh(report: ReportRef): Promise<LatestRefresh | null>;
 }
@@ -57,9 +61,9 @@ export function createReportsModel(mode: DataMode): ReportsModel | null {
   const tokens = authTokenProvider;
   return {
     catalog: new LiveReportCatalog(tokens),
-    deriveCanvas: (report) =>
+    deriveCanvas: (report, opts) =>
       report.datasetId
-        ? deriveCanvasForDataset(tokens, report.datasetId, report.name)
+        ? deriveCanvasForDataset(tokens, report.datasetId, report.name, opts)
         : Promise.reject(new Error('Report has no dataset')),
     makeRunner: (datasetId) => (dax) => executeDax(tokens, datasetId, dax),
     fetchRefresh: (report) =>

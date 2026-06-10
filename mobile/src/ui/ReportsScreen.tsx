@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -7,11 +7,20 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { ReportsModel } from '../core/data-source-factory';
-import type { ReportCatalogResult, ReportRef } from '../core/report-catalog';
+import {
+  defaultExpandedKeys,
+  filterCatalogGroups,
+  groupKey,
+  sortCatalogGroups,
+  type ReportCatalogResult,
+  type ReportGroup,
+  type ReportRef,
+} from '../core/report-catalog';
 
 /**
  * Reports — the signed-in user's REAL Power BI reports, apps first, then
@@ -67,15 +76,37 @@ export const SignedOutCard: React.FC<{
 );
 
 type Row =
-  | { kind: 'header'; key: string; name: string; sourceKind: 'app' | 'workspace' }
+  | {
+      kind: 'header';
+      key: string;
+      /** Section identity passed back on toggle (groupKey of the section). */
+      sectionKey: string;
+      name: string;
+      sourceKind: 'app' | 'workspace';
+      count: number;
+      expanded: boolean;
+    }
   | { kind: 'report'; key: string; report: ReportRef };
 
-function flatten(result: ReportCatalogResult): Row[] {
+/** Sections → rows: headers always, reports only when their section is open
+ *  (every matching section is auto-open while a search filter is active). */
+function flatten(groups: ReportGroup[], expanded: ReadonlySet<string>, filtering: boolean): Row[] {
   const rows: Row[] = [];
-  for (const g of result.groups) {
-    rows.push({ kind: 'header', key: `h-${g.kind}-${g.id}`, name: g.name, sourceKind: g.kind });
+  for (const g of groups) {
+    const key = groupKey(g);
+    const open = filtering || expanded.has(key);
+    rows.push({
+      kind: 'header',
+      key: `h-${key}`,
+      sectionKey: key,
+      name: g.name,
+      sourceKind: g.kind,
+      count: g.reports.length,
+      expanded: open,
+    });
+    if (!open) continue;
     for (const r of g.reports) {
-      rows.push({ kind: 'report', key: `r-${g.id}-${r.id}`, report: r });
+      rows.push({ kind: 'report', key: `r-${key}-${r.id}`, report: r });
     }
   }
   return rows;
@@ -88,6 +119,9 @@ const LiveReportList: React.FC<{
   const [result, setResult] = useState<ReportCatalogResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const expandedSeededRef = useRef(false);
 
   const load = useCallback(
     async (force: boolean) => {
@@ -95,6 +129,12 @@ const LiveReportList: React.FC<{
       try {
         const r = await model.catalog.listReports(force);
         setResult(r);
+        // Collapsed by default; a small catalog (≤3 sections) opens fully.
+        // Seeded once per catalog — pull-to-refresh keeps the user's folds.
+        if (!expandedSeededRef.current) {
+          expandedSeededRef.current = true;
+          setExpanded(defaultExpandedKeys(r.groups));
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load reports');
       }
@@ -104,6 +144,8 @@ const LiveReportList: React.FC<{
 
   useEffect(() => {
     setResult(null);
+    setQuery('');
+    expandedSeededRef.current = false;
     void load(false);
   }, [load]);
 
@@ -113,7 +155,19 @@ const LiveReportList: React.FC<{
     setRefreshing(false);
   }, [load]);
 
-  const rows = result ? flatten(result) : [];
+  const toggle = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const sorted = useMemo(() => (result ? sortCatalogGroups(result.groups) : []), [result]);
+  const filtering = query.trim() !== '';
+  const visible = useMemo(() => filterCatalogGroups(sorted, query), [sorted, query]);
+  const rows = result ? flatten(visible, expanded, filtering) : [];
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -127,6 +181,33 @@ const LiveReportList: React.FC<{
         ListHeaderComponent={
           <>
             <Header />
+            {result ? (
+              <View style={styles.searchWrap}>
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search reports and workspaces"
+                  placeholderTextColor={color.textTertiary}
+                  style={styles.search}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  selectionColor={color.accent}
+                  accessibilityLabel="Search reports and workspaces"
+                />
+                {query !== '' ? (
+                  <Pressable
+                    onPress={() => setQuery('')}
+                    style={styles.searchClear}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                  >
+                    <Text style={styles.searchClearText}>✕</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
             {result && result.failedSources.length > 0 ? (
               <Text style={styles.partial}>
                 Couldn't read: {result.failedSources.join(', ')}
@@ -147,6 +228,10 @@ const LiveReportList: React.FC<{
                 <Text style={styles.retryText}>Retry</Text>
               </Pressable>
             </View>
+          ) : result && filtering ? (
+            <View style={styles.stateWrap}>
+              <Text style={styles.muted}>Nothing matches “{query.trim()}”.</Text>
+            </View>
           ) : result ? (
             <View style={styles.stateWrap}>
               <Text style={styles.muted}>
@@ -161,23 +246,41 @@ const LiveReportList: React.FC<{
         }
         renderItem={({ item }) =>
           item.kind === 'header' ? (
-            <View style={styles.groupHeader}>
-              <Text style={styles.groupName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={styles.groupKind}>
-                {item.sourceKind === 'app' ? 'APP' : 'WORKSPACE'}
-              </Text>
-            </View>
+            <SectionHeader row={item} onToggle={toggle} filtering={filtering} />
           ) : (
             <ReportRow report={item.report} onOpen={onOpen} />
           )
         }
         contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
       />
     </SafeAreaView>
   );
 };
+
+const SectionHeader: React.FC<{
+  row: Extract<Row, { kind: 'header' }>;
+  onToggle: (key: string) => void;
+  filtering: boolean;
+}> = ({ row, onToggle, filtering }) => (
+  <Pressable
+    onPress={() => onToggle(row.sectionKey)}
+    disabled={filtering}
+    style={({ pressed }) => [styles.groupHeader, pressed && !filtering && styles.rowPressed]}
+    accessibilityRole="button"
+    accessibilityState={{ expanded: row.expanded }}
+    accessibilityLabel={`${row.sourceKind === 'app' ? 'App' : 'Workspace'} ${row.name}, ${row.count} ${
+      row.count === 1 ? 'report' : 'reports'
+    }, ${row.expanded ? 'expanded' : 'collapsed'}`}
+  >
+    <Text style={styles.groupChevron}>{row.expanded ? '▾' : '▸'}</Text>
+    <Text style={styles.groupName} numberOfLines={1}>
+      {row.name}
+    </Text>
+    <Text style={styles.groupKind}>{row.sourceKind === 'app' ? 'APP' : 'WORKSPACE'}</Text>
+    <Text style={styles.groupCount}>{row.count}</Text>
+  </Pressable>
+);
 
 const ReportRow: React.FC<{ report: ReportRef; onOpen: (r: ReportRef) => void }> = ({
   report,
@@ -242,6 +345,29 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 
   // Live list
+  searchWrap: {
+    marginHorizontal: space.l,
+    marginBottom: space.s,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: color.surface1,
+    borderRadius: 12,
+  },
+  search: {
+    ...type.body,
+    color: color.textPrimary,
+    flex: 1,
+    minHeight: 44, // §thorough: hit targets ≥ 44pt
+    paddingHorizontal: space.m,
+    paddingVertical: 0,
+  },
+  searchClear: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchClearText: { ...type.caption, color: color.textTertiary },
   partial: { ...type.caption, color: color.textTertiary, paddingHorizontal: space.l, paddingBottom: space.s },
   stateWrap: { paddingHorizontal: space.l, paddingVertical: space.xl, gap: space.m, alignItems: 'flex-start' },
   muted: { ...type.caption, color: color.textTertiary },
@@ -257,14 +383,16 @@ const styles = StyleSheet.create({
 
   groupHeader: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: space.s,
     paddingHorizontal: space.l,
-    paddingTop: space.l,
-    paddingBottom: space.s,
+    minHeight: 44, // tap target — the whole header row toggles
+    marginTop: space.s,
   },
-  groupName: { ...type.micro, color: color.textTertiary, flexShrink: 1 },
+  groupChevron: { ...type.caption, color: color.textTertiary, width: 14, textAlign: 'center' },
+  groupName: { ...type.body, color: color.textSecondary, flex: 1 },
   groupKind: { ...type.micro, color: color.textTertiary },
+  groupCount: { ...type.micro, color: color.textTertiary, minWidth: 18, textAlign: 'right' },
 
   row: {
     flexDirection: 'row',

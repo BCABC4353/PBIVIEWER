@@ -3,7 +3,13 @@
  * by an injected TokenProvider (auth is swappable: mock today, MSAL next).
  * Pure fetch; runs on React Native's fetch unchanged.
  */
-import type { DataSource, FleetSnapshot, Refreshable, TokenProvider } from './types';
+import type {
+  DataSource,
+  FleetProgressFn,
+  FleetSnapshot,
+  Refreshable,
+  TokenProvider,
+} from './types';
 import {
   deriveDatasetHealth,
   deriveDataflowHealth,
@@ -16,12 +22,36 @@ import {
 const BASE = 'https://api.powerbi.com/v1.0/myorg';
 const WORKSPACE_BATCH = 3;
 const ITEM_CONCURRENCY = 4;
+/** Global ceiling on simultaneous HTTP requests — a big tenant's
+ *  workspaces×datasets×refreshes fan-out must never stampede the API. */
+const MAX_CONCURRENT_REQUESTS = 5;
 /** Bounded retries on HTTP 429 (Power BI throttles big tenants). */
 const MAX_429_RETRIES = 2;
 /** Cap honored Retry-After at 60 s so a hostile/huge header can't hang us. */
 const MAX_RETRY_AFTER_S = 60;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Tiny FIFO semaphore — the slot is held only while the request is in
+ *  flight (429 backoff sleeps OUTSIDE the slot, so waiting never starves
+ *  other requests). */
+class Semaphore {
+  private active = 0;
+  private readonly waiters: Array<() => void> = [];
+  constructor(private readonly limit: number) {}
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.limit) {
+      await new Promise<void>((release) => this.waiters.push(release));
+    }
+    this.active += 1;
+    try {
+      return await fn();
+    } finally {
+      this.active -= 1;
+      this.waiters.shift()?.();
+    }
+  }
+}
 
 async function mapWithConcurrency<T, R>(
   items: readonly T[],
@@ -45,15 +75,19 @@ async function mapWithConcurrency<T, R>(
 export class LiveFleetClient implements DataSource {
   private cache: { value: FleetSnapshot; expires: number } | null = null;
   private static readonly TTL_MS = 5 * 60 * 1000;
+  /** Shared across the whole snapshot walk — global request ceiling. */
+  private readonly gate = new Semaphore(MAX_CONCURRENT_REQUESTS);
 
   constructor(private readonly tokens: TokenProvider) {}
 
   private async get<T>(path: string): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       const token = await this.tokens.getAccessToken();
-      const res = await fetch(`${BASE}${path}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await this.gate.run(() =>
+        fetch(`${BASE}${path}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      );
       // Power BI throttles fan-out on big tenants with 429 + Retry-After.
       // Without this, tryList() swallows the 429 and the item silently shows
       // as unreadable/empty. Bounded retry honoring Retry-After (seconds).
@@ -80,13 +114,23 @@ export class LiveFleetClient implements DataSource {
     }
   }
 
-  async getFleetSnapshot(force = false): Promise<FleetSnapshot> {
+  async getFleetSnapshot(force = false, onProgress?: FleetProgressFn): Promise<FleetSnapshot> {
     if (!force && this.cache && this.cache.expires > Date.now()) return this.cache.value;
 
-    const groups =
-      (await this.tryList<{ id: string; name: string }>('/groups')) ?? [];
+    // The workspace ROOT failing is total failure, not an empty tenant —
+    // swallowing it here used to render a perfectly blank "all 0 healthy"
+    // fleet. It must throw so the screen can show the error and a Retry.
+    let groups: Array<{ id: string; name: string }>;
+    try {
+      groups = (await this.get<{ value?: Array<{ id: string; name: string }> }>('/groups')).value ?? [];
+    } catch (e) {
+      throw new Error(
+        `Could not list your workspaces — ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
     const refreshables: Refreshable[] = [];
     const failedWorkspaces: FleetSnapshot['failedWorkspaces'] = [];
+    let workspacesDone = 0;
 
     for (let i = 0; i < groups.length; i += WORKSPACE_BATCH) {
       const batch = groups.slice(i, i + WORKSPACE_BATCH);
@@ -100,6 +144,8 @@ export class LiveFleetClient implements DataSource {
           ]);
           if (datasets === null && dataflows === null) {
             failedWorkspaces.push({ id: ws.id, name: ws.name, error: 'unreadable' });
+            workspacesDone += 1;
+            onProgress?.(workspacesDone / groups.length, refreshables.length);
             return;
           }
           const dsRows = await mapWithConcurrency(datasets ?? [], ITEM_CONCURRENCY, async (ds): Promise<Refreshable> => {
@@ -138,6 +184,8 @@ export class LiveFleetClient implements DataSource {
             };
           });
           refreshables.push(...dfRows);
+          workspacesDone += 1;
+          onProgress?.(workspacesDone / groups.length, refreshables.length);
         }),
       );
     }

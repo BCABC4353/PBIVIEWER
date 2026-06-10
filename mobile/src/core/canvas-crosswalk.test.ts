@@ -259,6 +259,91 @@ describe('deriveCanvasSpec — fallback ladder', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Hard timeouts + step reporting — the ladder must ALWAYS settle, loudly.
+// ---------------------------------------------------------------------------
+
+describe('deriveCanvasSpec — hard timeouts', () => {
+  const hangForever: DaxRunner = () => new Promise<never>(() => {});
+
+  it('times out a hung rung and lands on a loud CanvasDerivationError', async () => {
+    const err = await deriveCanvasSpec(hangForever, 'R', {
+      rungTimeoutMs: 20,
+      totalTimeoutMs: 100,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CanvasDerivationError);
+    const e = err as CanvasDerivationError;
+    expect(e.apiError).toMatch(/Reading the dataset model .* timed out/);
+    expect(e.apiError).toMatch(/COLUMNSTATISTICS: Reading column statistics timed out/);
+  });
+
+  it('aborts the in-flight queries of a timed-out rung', async () => {
+    const signals: AbortSignal[] = [];
+    const run: DaxRunner = (_dax, signal) => {
+      if (signal) signals.push(signal);
+      return new Promise<never>(() => {});
+    };
+    await deriveCanvasSpec(run, 'R', { rungTimeoutMs: 15, totalTimeoutMs: 80 }).catch(() => {});
+    expect(signals.length).toBeGreaterThan(0); // live runners receive the handle
+    expect(signals.every((s) => s.aborted)).toBe(true); // …and it fired
+  });
+
+  it('caps the WHOLE walk at totalTimeoutMs even with a generous per-rung cap', async () => {
+    const t0 = Date.now();
+    await deriveCanvasSpec(hangForever, 'R', {
+      rungTimeoutMs: 10_000,
+      totalTimeoutMs: 60,
+    }).catch(() => {});
+    expect(Date.now() - t0).toBeLessThan(2_000); // nowhere near 2×10 s
+  });
+
+  it('a hung dataset still resolves the stats rung if it answers in time', async () => {
+    const run: DaxRunner = async (dax) => {
+      if (dax.includes('COLUMNSTATISTICS')) return STATS;
+      return new Promise<never>(() => {}); // INFO hangs
+    };
+    const spec = await deriveCanvasSpec(run, 'Slow', { rungTimeoutMs: 20, totalTimeoutMs: 500 });
+    expect(spec.visuals.length).toBeGreaterThan(0);
+  });
+});
+
+describe('deriveCanvasSpec — step reporting + defensive INFO parsing', () => {
+  it('reports model → visuals on the happy path', async () => {
+    const steps: string[] = [];
+    await deriveCanvasSpec(infoRunner(4), 'R', { onStep: (s) => steps.push(s) });
+    expect(steps).toEqual(['model', 'visuals']);
+  });
+
+  it('reports model → stats when INFO is unavailable', async () => {
+    const steps: string[] = [];
+    const run: DaxRunner = async (dax) => {
+      if (dax.includes('COLUMNSTATISTICS')) return STATS;
+      throw new Error('INFO not supported');
+    };
+    await deriveCanvasSpec(run, 'R', { onStep: (s) => steps.push(s) });
+    expect(steps).toEqual(['model', 'stats']);
+  });
+
+  it('an INFO response with zero rows falls to the stats rung, never a blank canvas', async () => {
+    const run: DaxRunner = async (dax) => {
+      if (dax.includes('COLUMNSTATISTICS')) return STATS;
+      return r([], []); // 200 OK but empty — must NOT count as a usable model
+    };
+    const spec = await deriveCanvasSpec(run, 'Empty INFO');
+    expect(spec.visuals.length).toBeGreaterThan(0);
+    expect(spec.visuals[0]!.dax).toContain("'Orders'");
+  });
+
+  it('unexpected INFO shapes (rows without the known columns) also fall through', async () => {
+    const run: DaxRunner = async (dax) => {
+      if (dax.includes('COLUMNSTATISTICS')) return STATS;
+      return r(['Bogus'], [{ Bogus: 1 }]); // shape the crosswalk cannot read
+    };
+    const spec = await deriveCanvasSpec(run, 'Weird INFO');
+    expect(spec.visuals.length).toBeGreaterThan(0);
+  });
+});
+
 describe('deriveFromStatistics', () => {
   it('keys off stats columns tolerantly and skips RowNumber columns', () => {
     const spec = deriveFromStatistics(STATS, 'Legacy');

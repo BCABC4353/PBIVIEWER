@@ -109,11 +109,14 @@ export function parseExecuteQueriesResponse(payload: unknown): QueryResult {
   return { columns, rows };
 }
 
-/** Run one DAX query against a dataset via the Execute Queries REST endpoint. */
+/** Run one DAX query against a dataset via the Execute Queries REST endpoint.
+ *  `signal` lets callers (the derivation ladder) abort a hung query — without
+ *  it a stalled request would leave the UI on its loading face forever. */
 export async function executeDax(
   tokens: TokenProvider,
   datasetId: string,
   dax: string,
+  signal?: AbortSignal,
 ): Promise<QueryResult> {
   const token = await tokens.getAccessToken();
   const res = await fetch(`${BASE}/datasets/${datasetId}/executeQueries`, {
@@ -126,6 +129,7 @@ export async function executeDax(
       queries: [{ query: dax }],
       serializerSettings: { includeNulls: true },
     }),
+    signal,
   });
   if (!res.ok) {
     // Surface the EXACT API error — the fallback ladder shows it to the user

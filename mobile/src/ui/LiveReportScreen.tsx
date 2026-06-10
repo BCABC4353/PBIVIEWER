@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
-  Easing,
   Platform,
   Pressable,
   SafeAreaView,
@@ -14,8 +12,9 @@ import {
 import { color, space, type } from '../design/tokens';
 import type { ReportsModel } from '../core/data-source-factory';
 import type { LatestRefresh, ReportRef } from '../core/report-catalog';
-import { CanvasDerivationError } from '../core/canvas-crosswalk';
+import { CanvasDerivationError, type DeriveStep } from '../core/canvas-crosswalk';
 import type { CanvasSpec } from '../core/dax';
+import { SkeletonPulse } from '../feel/primitives';
 import { ReportCanvasScreen } from './ReportCanvasScreen';
 
 /**
@@ -32,18 +31,27 @@ export const LiveReportScreen: React.FC<{
 }> = ({ report, model, onBack }) => {
   const [spec, setSpec] = useState<CanvasSpec | null>(null);
   const [error, setError] = useState<{ message: string; apiError: string | null } | null>(null);
+  const [step, setStep] = useState<DeriveStep>('model');
   const [refresh, setRefresh] = useState<LatestRefresh | null | 'pending'>('pending');
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  const runIdRef = useRef(0);
+  useEffect(() => {
+    // SET in the effect body, not just at ref creation: a cleanup+re-run
+    // (StrictMode dev, Fast Refresh) used to latch this false forever, after
+    // which BOTH setSpec and setError were silently dropped and the screen
+    // sat on "Reading the dataset model…" for good.
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const derive = useCallback(async () => {
+    const runId = ++runIdRef.current; // stale derivations may not touch state
+    const live = () => mountedRef.current && runIdRef.current === runId;
     setSpec(null);
     setError(null);
+    setStep('model');
     if (!report.datasetId) {
       setError({
         message:
@@ -53,10 +61,14 @@ export const LiveReportScreen: React.FC<{
       return;
     }
     try {
-      const s = await model.deriveCanvas(report);
-      if (mountedRef.current) setSpec(s);
+      const s = await model.deriveCanvas(report, {
+        onStep: (st) => {
+          if (live()) setStep(st);
+        },
+      });
+      if (live()) setSpec(s);
     } catch (e) {
-      if (!mountedRef.current) return;
+      if (!live()) return;
       if (e instanceof CanvasDerivationError) {
         setError({
           message:
@@ -105,29 +117,67 @@ export const LiveReportScreen: React.FC<{
   if (error) {
     return (
       <Shell onBack={onBack} title={report.name}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>CAN'T SHOW THIS REPORT'S DATA</Text>
-          <Text style={styles.cardBody}>{error.message}</Text>
-          <Text style={styles.cardMeta}>{refreshLine(refresh)}</Text>
-          {error.apiError ? <Text style={styles.cardApi}>API error: {error.apiError}</Text> : null}
-          {report.datasetId ? (
-            <Pressable
-              onPress={() => void derive()}
-              accessibilityRole="button"
-              accessibilityLabel="Retry reading the dataset"
-              style={({ pressed }) => [styles.retry, pressed && styles.pressed]}
-            >
-              <Text style={styles.retryText}>Retry</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <ErrorCard
+          error={error}
+          refresh={refresh}
+          onRetry={report.datasetId ? () => void derive() : undefined}
+        />
       </Shell>
     );
   }
   return (
     <Shell onBack={onBack} title={report.name}>
-      <Deriving />
+      <Deriving step={step} />
     </Shell>
+  );
+};
+
+/** The honest failure face: plain-language reason, the exact error, Retry,
+ *  and an expandable technical block built for support copy-paste. */
+const ErrorCard: React.FC<{
+  error: { message: string; apiError: string | null };
+  refresh: LatestRefresh | null | 'pending';
+  onRetry?: () => void;
+}> = ({ error, refresh, onRetry }) => {
+  const [showDetails, setShowDetails] = useState(false);
+  const httpStatus = error.apiError ? /HTTP (\d{3})/.exec(error.apiError)?.[1] ?? null : null;
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>CAN'T SHOW THIS REPORT'S DATA</Text>
+      <Text style={styles.cardBody}>{error.message}</Text>
+      <Text style={styles.cardMeta}>{refreshLine(refresh)}</Text>
+      {error.apiError ? <Text style={styles.cardApi}>Error: {error.apiError}</Text> : null}
+      {onRetry ? (
+        <Pressable
+          onPress={onRetry}
+          accessibilityRole="button"
+          accessibilityLabel="Retry reading the dataset"
+          style={({ pressed }) => [styles.retry, pressed && styles.pressed]}
+        >
+          <Text style={styles.retryText}>Retry</Text>
+        </Pressable>
+      ) : null}
+      {error.apiError ? (
+        <>
+          <Pressable
+            onPress={() => setShowDetails((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showDetails }}
+            accessibilityLabel={showDetails ? 'Hide technical details' : 'Show technical details'}
+            style={({ pressed }) => [styles.detailsToggle, pressed && styles.pressed]}
+          >
+            <Text style={styles.detailsToggleText}>
+              {showDetails ? '▾ Technical details' : '▸ Technical details'}
+            </Text>
+          </Pressable>
+          {showDetails ? (
+            <Text selectable style={styles.detailsBody}>
+              {`HTTP status: ${httpStatus ?? 'n/a'}\n${error.apiError}`}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
+    </View>
   );
 };
 
@@ -155,26 +205,38 @@ const Shell: React.FC<{ onBack: () => void; title: string; children: React.React
   </SafeAreaView>
 );
 
-/** Quiet breathing skeleton while the model is being read — never a spinner. */
-const Deriving: React.FC = () => {
-  const breathe = useRef(new Animated.Value(0.35)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breathe, { toValue: 0.7, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 0.35, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [breathe]);
-  return (
-    <View style={styles.card} accessibilityLabel="Reading the dataset model">
-      <Text style={styles.cardMeta}>Reading the dataset model…</Text>
-      <Animated.View style={[styles.skeleton, { opacity: breathe }]} />
-    </View>
-  );
+const STEP_LINE: Record<DeriveStep, string> = {
+  model: 'Reading model…',
+  visuals: 'Building visuals…',
+  stats: 'Reading column statistics…',
 };
+
+/**
+ * The loading face is ALIVE: a step line that advances with the derivation
+ * ladder, over a SkeletonPulse mirroring the canvas that will appear (KPI
+ * tiles up top, card-sized visuals below). SkeletonPulse honors Reduce
+ * Motion — static blocks, the step text still changes. Once the spec lands,
+ * each visual shows its own per-visual loading state on the canvas.
+ */
+const Deriving: React.FC<{ step: DeriveStep }> = ({ step }) => (
+  <View accessibilityLabel={`Loading report: ${STEP_LINE[step]}`}>
+    <Text style={styles.stepLine} accessibilityLiveRegion="polite">
+      {STEP_LINE[step]}
+    </Text>
+    <SkeletonPulse style={styles.skeletonWrap}>
+      <View style={styles.skeletonKpiRow}>
+        <View style={styles.skeletonKpi} />
+        <View style={styles.skeletonKpi} />
+      </View>
+      <View style={styles.skeletonKpiRow}>
+        <View style={styles.skeletonKpi} />
+        <View style={styles.skeletonKpi} />
+      </View>
+      <View style={styles.skeletonCard} />
+      <View style={styles.skeletonCard} />
+    </SkeletonPulse>
+  </View>
+);
 
 const styles = StyleSheet.create({
   screen: {
@@ -198,7 +260,26 @@ const styles = StyleSheet.create({
   cardBody: { ...type.body, color: color.textPrimary, lineHeight: 24 },
   cardMeta: { ...type.caption, color: color.textSecondary },
   cardApi: { ...type.caption, color: color.textTertiary },
-  skeleton: { height: 96, alignSelf: 'stretch', borderRadius: 8, backgroundColor: color.surface2 },
+
+  // Loading face — skeleton mirrors the canvas (KPI grid + visual cards).
+  stepLine: { ...type.caption, color: color.textSecondary, marginBottom: space.m },
+  skeletonWrap: { gap: space.m },
+  skeletonKpiRow: { flexDirection: 'row', gap: space.m },
+  skeletonKpi: { flex: 1, height: 72, borderRadius: 16, backgroundColor: color.surface1 },
+  skeletonCard: { height: 180, borderRadius: 16, backgroundColor: color.surface1 },
+
+  // Technical details — selectable so support can copy-paste the exact error.
+  detailsToggle: { minHeight: 44, justifyContent: 'center' },
+  detailsToggleText: { ...type.caption, color: color.accent },
+  detailsBody: {
+    ...type.caption,
+    color: color.textTertiary,
+    backgroundColor: color.surface2,
+    borderRadius: 8,
+    padding: space.s,
+    alignSelf: 'stretch',
+    fontVariant: ['tabular-nums'],
+  },
   retry: {
     marginTop: space.s,
     borderWidth: StyleSheet.hairlineWidth,

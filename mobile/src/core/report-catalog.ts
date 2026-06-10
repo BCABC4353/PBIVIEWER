@@ -48,6 +48,66 @@ export interface ReportCatalog {
   listReports(force?: boolean): Promise<ReportCatalogResult>;
 }
 
+// ---------------------------------------------------------------------------
+// Catalog organization — pure helpers the Reports screen renders from.
+// All sorting is locale-aware and case-insensitive so "zebra" files next to
+// "Alpha" the way a human expects, regardless of the tenant's casing habits.
+// ---------------------------------------------------------------------------
+
+/** Locale-aware, case-insensitive name comparison. */
+export function compareNames(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+}
+
+/** Stable identity for a section (group ids can collide across kinds). */
+export function groupKey(g: Pick<ReportGroup, 'kind' | 'id'>): string {
+  return `${g.kind}-${g.id}`;
+}
+
+/**
+ * Order the catalog for display: Power BI Apps first (alphabetical), then
+ * workspaces (alphabetical), reports alphabetical within each section.
+ * Pure — returns new arrays, never mutates the input.
+ */
+export function sortCatalogGroups(groups: readonly ReportGroup[]): ReportGroup[] {
+  const rank = (g: ReportGroup): number => (g.kind === 'app' ? 0 : 1);
+  return [...groups]
+    .sort((a, b) => rank(a) - rank(b) || compareNames(a.name, b.name))
+    .map((g) => ({ ...g, reports: [...g.reports].sort((a, b) => compareNames(a.name, b.name)) }));
+}
+
+/**
+ * Filter sections by a search query matching report names OR section names
+ * (case-insensitive substring). A section-name hit keeps the whole section;
+ * otherwise only the matching reports survive. Empty/whitespace query
+ * returns the input unchanged.
+ */
+export function filterCatalogGroups(
+  groups: readonly ReportGroup[],
+  query: string,
+): ReportGroup[] {
+  const q = query.trim().toLocaleLowerCase();
+  if (q === '') return [...groups];
+  const out: ReportGroup[] = [];
+  for (const g of groups) {
+    if (g.name.toLocaleLowerCase().includes(q)) {
+      out.push(g);
+      continue;
+    }
+    const reports = g.reports.filter((r) => r.name.toLocaleLowerCase().includes(q));
+    if (reports.length > 0) out.push({ ...g, reports });
+  }
+  return out;
+}
+
+/**
+ * Sections start collapsed EXCEPT when the whole catalog is small (≤3
+ * sections) — then everything is open and the list reads at a glance.
+ */
+export function defaultExpandedKeys(groups: readonly ReportGroup[]): Set<string> {
+  return groups.length <= 3 ? new Set(groups.map(groupKey)) : new Set<string>();
+}
+
 interface ODataPage<T> {
   value?: T[];
   '@odata.nextLink'?: string;
