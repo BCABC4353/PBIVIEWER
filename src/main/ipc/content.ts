@@ -157,7 +157,9 @@ export function registerContentIpc(): void {
   });
 
   ipcMain.handle('content:get-admin-insights', async (_event, days?: number, force?: boolean) => {
-    const d = typeof days === 'number' && Number.isFinite(days) ? days : 7;
+    // Default window = 2 days (matches the service default): the first unlock
+    // must come back quickly on a large tenant; the UI can ask for more later.
+    const d = typeof days === 'number' && Number.isFinite(days) ? days : 2;
     return await powerbiApiService.getAdminInsights(d, force === true);
   });
 

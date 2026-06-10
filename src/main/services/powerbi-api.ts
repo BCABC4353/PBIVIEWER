@@ -1071,12 +1071,32 @@ class PowerBIApiService {
     }
   }
 
+  /**
+   * Map a refresh/transaction history (newest first, as the API returns it)
+   * to the `recentRuns` strip: OLDEST → NEWEST, terminal attempts only
+   * (in-flight entries with no terminal status are skipped). `successLike`
+   * decides which statuses count as ok for the given endpoint.
+   */
+  private static deriveRecentRuns(
+    entries: Array<{ status?: string; endTime?: string }>,
+    successLike: (s?: string) => boolean,
+    inFlight: (e: { status?: string; endTime?: string }) => boolean,
+  ): InsightsRefreshable['recentRuns'] {
+    return entries
+      .filter((e) => !inFlight(e))
+      .map((e) => ({ ok: successLike(e.status), endTime: e.endTime }))
+      .reverse();
+  }
+
   /** Derive refresh health from a dataset's recent refresh history. */
   private async getDatasetRefreshHealth(
     workspaceId: string,
     datasetId: string,
   ): Promise<
-    Pick<InsightsRefreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime' | 'errorCode' | 'lastRefreshType'>
+    Pick<
+      InsightsRefreshable,
+      'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime' | 'errorCode' | 'lastRefreshType' | 'recentRuns'
+    >
   > {
     try {
       const resp = await this.makeRequest<PowerBIApiResponse<{
@@ -1085,7 +1105,7 @@ class PowerBIApiService {
         endTime?: string;
         refreshType?: string;
         serviceExceptionJson?: string;
-      }>>(`/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=5`);
+      }>>(`/groups/${workspaceId}/datasets/${datasetId}/refreshes?$top=12`);
       const entries = resp.value ?? [];
       if (entries.length === 0) return { lastStatus: 'Never' };
 
@@ -1119,6 +1139,11 @@ class PowerBIApiService {
         lastSuccessTime: lastSuccess?.endTime,
         errorCode,
         lastRefreshType: newest.refreshType,
+        recentRuns: PowerBIApiService.deriveRecentRuns(
+          entries,
+          successLike,
+          (e) => e.status === 'Unknown' && !e.endTime,
+        ),
       };
     } catch (error) {
       console.warn('[PowerBI] dataset refresh history failed for insights:', error);
@@ -1174,13 +1199,13 @@ class PowerBIApiService {
   private async getDataflowRefreshHealth(
     workspaceId: string,
     dataflowId: string,
-  ): Promise<Pick<InsightsRefreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime'>> {
+  ): Promise<Pick<InsightsRefreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime' | 'recentRuns'>> {
     try {
       const resp = await this.makeRequest<PowerBIApiResponse<{
         status?: string;
         startTime?: string;
         endTime?: string;
-      }>>(`/groups/${workspaceId}/dataflows/${dataflowId}/transactions?$top=5`);
+      }>>(`/groups/${workspaceId}/dataflows/${dataflowId}/transactions?$top=12`);
       const entries = resp.value ?? [];
       if (entries.length === 0) return { lastStatus: 'Never' };
 
@@ -1197,6 +1222,11 @@ class PowerBIApiService {
         lastStatus,
         lastAttemptTime: newest.endTime || newest.startTime,
         lastSuccessTime: lastSuccess?.endTime,
+        recentRuns: PowerBIApiService.deriveRecentRuns(
+          entries,
+          (s) => s === 'Success',
+          (e) => e.status === 'InProgress' || (!e.endTime && !e.status),
+        ),
       };
     } catch (error) {
       console.warn('[PowerBI] dataflow transactions failed for insights:', error);
@@ -1217,6 +1247,11 @@ class PowerBIApiService {
     if (!getAdminToken) {
       throw new Error('ADMIN_NOT_WIRED: admin token source not configured');
     }
+    // maxAttempts 2 (not the default 3): the admin tier fires MANY requests
+    // per unlock (per-app audiences + per-day activity pages). On a throttled
+    // tenant, 3 attempts × up-to-60s Retry-After per call stacks into the
+    // multi-minute "Checking with Microsoft…" hang the owner hit. One retry
+    // still absorbs a transient 429/5xx without compounding the wait.
     return withRetry(async () => {
       const tokenResponse = await getAdminToken();
       if (!tokenResponse.success) {
@@ -1240,7 +1275,7 @@ class PowerBIApiService {
         await throwForStatus(response, 'Power BI admin API error');
       }
       return response.json() as Promise<T>;
-    });
+    }, { maxAttempts: 2 });
   }
 
   /**
@@ -1250,7 +1285,10 @@ class PowerBIApiService {
    * Requires the signed-in user to be a Fabric admin; the admin token is
    * acquired via incremental consent and never touches regular sign-ins.
    */
-  async getAdminInsights(days = 7, force = false): Promise<IPCResponse<AdminInsights>> {
+  // Default days = 2 (was 7): the first unlock must come back fast on a real
+  // tenant — each extra day is another full activity-log walk. The UI can
+  // explicitly request a wider window later.
+  async getAdminInsights(days = 2, force = false): Promise<IPCResponse<AdminInsights>> {
     try {
       const boundedDays = Math.max(1, Math.min(14, Math.floor(days)));
       if (
@@ -1264,38 +1302,44 @@ class PowerBIApiService {
 
       // App audiences — list the user's apps, then the admin users endpoint
       // per app. A single app failing degrades to users:null, not a page error.
+      // Capped at 2 in flight: parallel enough that dozens of apps don't load
+      // one-at-a-time, serial enough not to trip tenant throttling (which would
+      // stack Retry-After waits and recreate the unlock hang).
       const appsResponse = await this.getApps();
-      const appAudiences: AdminAppAudience[] = [];
-      for (const app of appsResponse.success ? appsResponse.data : []) {
-        try {
-          const resp = await this.makeAdminRequest<PowerBIApiResponse<{
-            displayName?: string;
-            emailAddress?: string;
-            identifier?: string;
-            appUserAccessRight?: string;
-            principalType?: string;
-          }>>(`/admin/apps/${app.id}/users`);
-          appAudiences.push({
-            appId: app.id,
-            appName: app.name,
-            users: (resp.value ?? []).map((u) => ({
-              name: u.displayName || u.emailAddress || u.identifier || 'Unknown',
-              email: u.emailAddress,
-              accessRight: u.appUserAccessRight || 'Unknown',
-              type: u.principalType || 'User',
-            })),
-          });
-        } catch (err) {
-          // ADMIN_REQUIRED / consent errors must fail the whole call (the
-          // entire admin tier is unavailable) — re-throw those; anything else
-          // degrades just this app's audience list.
-          const msg = String(err);
-          if (msg.includes('ADMIN_REQUIRED') || msg.includes('ADMIN_TOKEN:') || msg.includes('ADMIN_NOT_WIRED')) {
-            throw err;
+      const appAudiences: AdminAppAudience[] = await mapWithConcurrency(
+        appsResponse.success ? appsResponse.data : [],
+        2,
+        async (app): Promise<AdminAppAudience> => {
+          try {
+            const resp = await this.makeAdminRequest<PowerBIApiResponse<{
+              displayName?: string;
+              emailAddress?: string;
+              identifier?: string;
+              appUserAccessRight?: string;
+              principalType?: string;
+            }>>(`/admin/apps/${app.id}/users`);
+            return {
+              appId: app.id,
+              appName: app.name,
+              users: (resp.value ?? []).map((u) => ({
+                name: u.displayName || u.emailAddress || u.identifier || 'Unknown',
+                email: u.emailAddress,
+                accessRight: u.appUserAccessRight || 'Unknown',
+                type: u.principalType || 'User',
+              })),
+            };
+          } catch (err) {
+            // ADMIN_REQUIRED / consent errors must fail the whole call (the
+            // entire admin tier is unavailable) — re-throw those; anything else
+            // degrades just this app's audience list.
+            const msg = String(err);
+            if (msg.includes('ADMIN_REQUIRED') || msg.includes('ADMIN_TOKEN:') || msg.includes('ADMIN_NOT_WIRED')) {
+              throw err;
+            }
+            return { appId: app.id, appName: app.name, users: null };
           }
-          appAudiences.push({ appId: app.id, appName: app.name, users: null });
-        }
-      }
+        },
+      );
 
       // Activity log — one UTC day per request, newest day first, following
       // continuationUri until lastResultSet. Aggregate report views.

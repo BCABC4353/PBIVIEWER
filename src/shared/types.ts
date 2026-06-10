@@ -176,6 +176,13 @@ export interface InsightsRefreshable {
   /** True when a schedule is enabled but the last success is far older than
    *  the schedule's cadence — "supposed to refresh, but hasn't". */
   scheduleOverdue?: boolean;
+  /**
+   * Recent refresh attempts, OLDEST → NEWEST (up to 12), derived from the
+   * same history the health fields come from. Powers the run-history dot
+   * strip ("fails once or twice a day" patterns) and the failure-rate caption.
+   * In-flight attempts (no terminal status yet) are excluded.
+   */
+  recentRuns?: Array<{ ok: boolean; endTime?: string }>;
 }
 
 /** Who can see a workspace. users is null when the caller may not list them
