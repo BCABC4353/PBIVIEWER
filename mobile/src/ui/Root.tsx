@@ -1,21 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataSource, Refreshable } from '../core/types';
+import type { ReportsModel } from '../core/data-source-factory';
+import type { ReportRef } from '../core/report-catalog';
 import { FleetHealthScreen, RefreshDetailScreen } from './screens';
 import { ReportsScreen } from './ReportsScreen';
-import { ReportCanvasScreen } from './ReportCanvasScreen';
+import { LiveReportScreen } from './LiveReportScreen';
 import { AlertsScreen } from './AlertsScreen';
-import { makeDemoRunner, type DemoCanvas } from '../visuals/demo-canvases';
 import { tap } from '../feel/haptics';
 import { IgnitionOverlay } from '../feel/IgnitionSweep';
 
 /**
  * App shell — own bottom tab bar (Pressable + tokens, no navigation dep).
  * Fleet hosts the existing FleetHealth → RefreshDetail flow; Reports hosts
- * the native-canvas flow; Alerts derives its feed from the same DataSource;
- * Settings renders whatever node the composition root hands us, so this
- * shell has zero dependency on the settings implementation.
+ * the REAL-report flow (live catalog + dataset-derived canvases; signed out
+ * it offers only the sign-in card); Alerts derives its feed from the same
+ * DataSource; Settings renders whatever node the composition root hands us,
+ * so this shell has zero dependency on the settings implementation.
  */
 
 type TabKey = 'fleet' | 'reports' | 'alerts' | 'settings';
@@ -27,15 +29,21 @@ const TABS: ReadonlyArray<{ key: TabKey; glyph: string; label: string }> = [
   { key: 'settings', glyph: '⚙', label: 'Settings' },
 ];
 
-export const Root: React.FC<{ source: DataSource; settings: React.ReactNode }> = ({
-  source,
-  settings,
-}) => {
+export const Root: React.FC<{
+  source: DataSource;
+  /** Live reports seam — null while signed out (Reports shows sign-in). */
+  reports: ReportsModel | null;
+  settings: React.ReactNode;
+}> = ({ source, reports, settings }) => {
   const [tab, setTab] = useState<TabKey>('fleet');
   const [fleetDetail, setFleetDetail] = useState<Refreshable | null>(null);
   const [alertDetail, setAlertDetail] = useState<Refreshable | null>(null);
-  const [canvas, setCanvas] = useState<DemoCanvas | null>(null);
-  const runQuery = useMemo(() => (canvas ? makeDemoRunner(canvas) : null), [canvas]);
+  const [openReport, setOpenReport] = useState<ReportRef | null>(null);
+
+  // Sign-out (or any model rebuild) invalidates the open report.
+  useEffect(() => {
+    setOpenReport(null);
+  }, [reports]);
 
   let body: React.ReactNode;
   switch (tab) {
@@ -48,13 +56,17 @@ export const Root: React.FC<{ source: DataSource; settings: React.ReactNode }> =
       break;
     case 'reports':
       body =
-        canvas && runQuery ? (
-          <ReportCanvasScreen spec={canvas.spec} runQuery={runQuery} onBack={() => setCanvas(null)} />
+        openReport && reports ? (
+          <LiveReportScreen report={openReport} model={reports} onBack={() => setOpenReport(null)} />
         ) : (
           // SafeAreaView is iOS-only — pad unowned tab content past the
           // Android status bar here (owned screens pad themselves).
           <View style={styles.edge}>
-            <ReportsScreen onOpen={setCanvas} />
+            <ReportsScreen
+              model={reports}
+              onOpen={setOpenReport}
+              onSignIn={() => setTab('settings')}
+            />
           </View>
         );
       break;

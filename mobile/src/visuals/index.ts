@@ -9,4 +9,3 @@ export { LineChart } from './LineChart';
 export { DonutChart } from './DonutChart';
 export { DataTable } from './DataTable';
 export { highlight, seriesRest, seriesLine, areaFill, seriesShade, legendGlyph, legendGlyphs } from './palette';
-export { DEMO_CANVASES, makeDemoRunner, type DemoCanvas } from './demo-canvases';

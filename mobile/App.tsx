@@ -2,7 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Root } from './src/ui/Root';
 import { SettingsScreen } from './src/ui/SettingsScreen';
-import { createDataSource, getSavedMode, setSavedMode, type DataMode } from './src/core/data-source-factory';
+import {
+  createDataSource,
+  createReportsModel,
+  getSavedMode,
+  setSavedMode,
+  type DataMode,
+  type ReportsModel,
+} from './src/core/data-source-factory';
 import type { DataSource } from './src/core/types';
 import { color } from './src/design/tokens';
 
@@ -14,6 +21,7 @@ import { color } from './src/design/tokens';
 export default function App() {
   const [mode, setMode] = useState<DataMode>('mock');
   const [source, setSource] = useState<DataSource>(() => createDataSource('mock'));
+  const [reports, setReports] = useState<ReportsModel | null>(null);
   // Settings fires onModeChange then onDataSourceChange in the same tick, so
   // the rebuild must read the mode through a ref — `mode` from this render
   // would still be the OLD value and rebuild the wrong source.
@@ -25,6 +33,7 @@ export default function App() {
         modeRef.current = saved;
         setMode(saved);
         setSource(createDataSource(saved));
+        setReports(createReportsModel(saved));
       }
     });
   }, []);
@@ -34,17 +43,22 @@ export default function App() {
     setMode(next);
     void setSavedMode(next);
     setSource(createDataSource(next));
+    setReports(createReportsModel(next));
   }, []);
 
   return (
     <View style={styles.root}>
       <Root
         source={source}
+        reports={reports}
         settings={
           <SettingsScreen
             mode={mode}
             onModeChange={handleModeChange}
-            onDataSourceChange={() => setSource(createDataSource(modeRef.current))}
+            onDataSourceChange={() => {
+              setSource(createDataSource(modeRef.current));
+              setReports(createReportsModel(modeRef.current));
+            }}
           />
         }
       />
