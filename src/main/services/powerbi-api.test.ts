@@ -1069,3 +1069,132 @@ describe('getAdminInsights — continuation safety', () => {
     expect(result.data.failedDays).toBe(1);
   });
 });
+
+describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () => {
+  const WS = '11111111-1111-1111-1111-111111111111';
+  const wsRoute: [RegExp, unknown] = [
+    /\/groups(\?|$)/,
+    { value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] },
+  ];
+
+  function svcWith(routes: Array<[RegExp, unknown]>) {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      for (const [pattern, body] of routes) {
+        if (pattern.test(url)) return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    return createPowerBIApiService(makeDeps({ getAccessToken }));
+  }
+
+  it('requests 12 dataset refreshes and returns recentRuns oldest→newest, skipping in-flight', async () => {
+    const svc = svcWith([
+      [/\/datasets\/ds-1\/refreshes/, {
+        value: [
+          // Newest first, as the API returns them. The in-flight Unknown (no
+          // endTime) must be excluded from the strip.
+          { status: 'Unknown', startTime: '2026-06-10T03:00:00Z' },
+          { status: 'Failed', startTime: '2026-06-10T02:00:00Z', endTime: '2026-06-10T02:05:00Z' },
+          { status: 'Completed', startTime: '2026-06-09T02:00:00Z', endTime: '2026-06-09T02:05:00Z' },
+          // 'Unknown' WITH endTime = completed on-demand refresh → ok.
+          { status: 'Unknown', startTime: '2026-06-08T02:00:00Z', endTime: '2026-06-08T02:05:00Z' },
+        ],
+      }],
+      [/\/datasets(\?|$)/, { value: [{ id: 'ds-1', name: 'Model', isRefreshable: true }] }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // $top bumped 5 → 12 so the strip has real history.
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('/refreshes?$top=12'))).toBe(true);
+
+    const ds = result.data.refreshables.find((r) => r.id === 'ds-1');
+    expect(ds?.recentRuns).toEqual([
+      { ok: true, endTime: '2026-06-08T02:05:00Z' },
+      { ok: true, endTime: '2026-06-09T02:05:00Z' },
+      { ok: false, endTime: '2026-06-10T02:05:00Z' },
+    ]);
+  });
+
+  it('requests 12 dataflow transactions and derives recentRuns with Success=ok', async () => {
+    const svc = svcWith([
+      [/\/transactions/, {
+        value: [
+          { status: 'InProgress', startTime: '2026-06-10T03:00:00Z' },
+          { status: 'Failed', startTime: '2026-06-10T02:00:00Z', endTime: '2026-06-10T02:05:00Z' },
+          { status: 'Success', startTime: '2026-06-09T02:00:00Z', endTime: '2026-06-09T02:05:00Z' },
+        ],
+      }],
+      [/\/dataflows(\?|$)/, { value: [{ objectId: 'df-1', name: 'Flow' }] }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('/transactions?$top=12'))).toBe(true);
+
+    const df = result.data.refreshables.find((r) => r.kind === 'dataflow');
+    expect(df?.recentRuns).toEqual([
+      { ok: true, endTime: '2026-06-09T02:05:00Z' },
+      { ok: false, endTime: '2026-06-10T02:05:00Z' },
+    ]);
+  });
+});
+
+describe('getAdminInsights — unlock-hang fixes (Part B)', () => {
+  function adminAuthOk(): ApiAuthPort {
+    return {
+      getAccessToken: vi.fn().mockResolvedValue(tokenOk()),
+      getAdminAccessToken: vi.fn().mockResolvedValue({
+        success: true,
+        data: { accessToken: 'admin-token', expiresOn: null },
+      }),
+    };
+  }
+
+  it('defaults to a 2-day activity window so the first unlock returns fast', async () => {
+    const activityUrls: string[] = [];
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        activityUrls.push(url);
+        return new Response(JSON.stringify({ activityEventEntities: [], lastResultSet: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuthOk() });
+    const result = await svc.getAdminInsights(); // no explicit days
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.days).toBe(2);
+    expect(activityUrls.length).toBe(2);
+  });
+
+  it('retries a throttled admin call at most once (maxAttempts 2)', async () => {
+    let activityCalls = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        activityCalls++;
+        // Always throttled with an immediate Retry-After so the test is fast.
+        return new Response('throttled', { status: 429, headers: { 'Retry-After': '0' } });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuthOk() });
+    const result = await svc.getAdminInsights(1, true);
+    // The throttled day degrades to a failed day, not a page error…
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.failedDays).toBe(1);
+    // …and the 429 was retried exactly once (2 attempts), not twice.
+    expect(activityCalls).toBe(2);
+  });
+});

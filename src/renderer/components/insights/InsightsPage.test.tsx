@@ -1,13 +1,14 @@
 /**
- * InsightsPage rendering cases.
+ * InsightsPage (Luce board) rendering cases.
  *
  * Drives the page through its main states with a mocked getInsights bridge:
- * worst-first refresh table with status badges, the partial-failure banner,
- * access lists (including the "not visible to you" null case), and the
- * error + retry path.
+ * summary tiles, workspace grouping (broken expanded + first, healthy
+ * collapsed), down-for labels, run-history dot strips, the partial-failure
+ * banner, access lists, the error + retry path, and the admin unlock UX
+ * (staged loading text + client-side cancel).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { InsightsPage } from './InsightsPage';
 import { useAuthStore } from '../../stores/auth-store';
@@ -35,6 +36,7 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
         lastStatus: 'Completed',
         lastAttemptTime: '2026-06-10T03:00:00.000Z',
         lastSuccessTime: '2026-06-10T03:00:00.000Z',
+        recentRuns: Array.from({ length: 12 }, () => ({ ok: true, endTime: '2026-06-10T03:00:00.000Z' })),
       },
       {
         kind: 'dataset',
@@ -49,6 +51,10 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
         lastRefreshType: 'ViaApi',
         scheduleSummary: 'Daily at 06:00',
         scheduleOverdue: true,
+        recentRuns: Array.from({ length: 12 }, (_, i) => ({
+          ok: i % 4 !== 3,
+          endTime: '2026-06-09T02:00:00.000Z',
+        })),
       },
       {
         kind: 'dataflow',
@@ -98,29 +104,77 @@ beforeEach(() => {
   });
 });
 
-describe('InsightsPage', () => {
-  it('renders the refresh health table worst-first with status badges', async () => {
+describe('InsightsPage — Luce board', () => {
+  it('renders the summary tiles row', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
 
+    expect(screen.getByText('Broken')).toBeInTheDocument();
+    expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0);
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+    expect(screen.getByText('Workspaces')).toBeInTheDocument();
+  });
+
+  it('groups by workspace: broken section first and auto-expanded, quiet sections collapsed', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+
+    // Sales (broken) is expanded by default → its rows are visible.
     expect(screen.getByText('Broken Model')).toBeInTheDocument();
+    expect(screen.getByText('Healthy Model')).toBeInTheDocument();
     expect(screen.getByText('Failed')).toBeInTheDocument();
-    expect(screen.getByText('Never')).toBeInTheDocument();
-    expect(screen.getByText('Live')).toBeInTheDocument();
     expect(screen.getByText('OK')).toBeInTheDocument();
 
-    // Worst first: the Failed row must appear before the Completed row.
+    // Ops (no broken/overdue) is collapsed → its items are hidden until toggled.
+    expect(screen.queryByText('Staging Flow')).not.toBeInTheDocument();
+    const opsHeader = screen.getByRole('button', { name: /Ops.*OK/ });
+    expect(opsHeader).toHaveAttribute('aria-expanded', 'false');
+    await act(async () => {
+      fireEvent.click(opsHeader);
+    });
+    expect(screen.getByText('Staging Flow')).toBeInTheDocument();
+    expect(screen.getByText('Never run')).toBeInTheDocument();
+    expect(screen.getByText('Live')).toBeInTheDocument();
+
+    // Section order: the troubled Sales section renders before Ops.
+    const sections = screen.getAllByRole('button', { name: /broken|OK/ });
+    const salesIdx = sections.findIndex((b) => /Sales/.test(b.textContent ?? ''));
+    const opsIdx = sections.findIndex((b) => /Ops/.test(b.textContent ?? ''));
+    expect(salesIdx).toBeGreaterThanOrEqual(0);
+    expect(salesIdx).toBeLessThan(opsIdx);
+
+    // Section header carries the mini health summary.
+    expect(screen.getByText(/1 broken/)).toBeInTheDocument();
+
+    // Inside Sales, the broken row sorts before the healthy one.
     const rows = screen.getAllByRole('row').map((r) => r.textContent ?? '');
     const failedIdx = rows.findIndex((t) => t.includes('Broken Model'));
     const okIdx = rows.findIndex((t) => t.includes('Healthy Model'));
-    expect(failedIdx).toBeGreaterThan(0);
+    expect(failedIdx).toBeGreaterThanOrEqual(0);
     expect(failedIdx).toBeLessThan(okIdx);
+  });
 
-    // Summary chips reflect the derived counts.
-    expect(screen.getByText('Healthy')).toBeInTheDocument();
-    expect(screen.getByText('Broken')).toBeInTheDocument();
+  it('shows the down-for label, failure-rate caption, dot strip, trigger, owner, and error code', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+
+    // Down since the last success (clock-relative — assert shape, not value).
+    expect(screen.getByText(/^down \d+[mhd]$/)).toBeInTheDocument();
+    // 3 of the 12 mocked runs failed.
+    expect(screen.getByText('3 of last 12 runs failed')).toBeInTheDocument();
+    // Dot strips render for both expanded rows.
+    expect(screen.getAllByTestId('run-dot-strip').length).toBeGreaterThanOrEqual(2);
+    // Trigger, owner, and error code survive the redesign.
+    expect(screen.getByText('Power Automate / API')).toBeInTheDocument();
+    expect(screen.getByText('owner@bc-abc.com')).toBeInTheDocument();
+    expect(screen.getByText('ModelRefreshFailed_CredentialsNotSpecified')).toBeInTheDocument();
   });
 
   it('expands a workspace access list and labels not-visible lists', async () => {
@@ -132,7 +186,7 @@ describe('InsightsPage', () => {
     expect(screen.getByText('access list not visible to you')).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Sales.*member/ }));
     });
     expect(screen.getByText('brendan@bc-abc.com')).toBeInTheDocument();
     expect(screen.getByText('Viewer')).toBeInTheDocument();
@@ -183,17 +237,8 @@ describe('InsightsPage', () => {
   });
 });
 
-describe('InsightsPage — trigger column, overdue flag, admin tier', () => {
-  it('shows the Power Automate trigger label and the Overdue badge', async () => {
-    mockGetInsights({ success: true, data: snapshot() });
-    await act(async () => {
-      render(<InsightsPage />, { wrapper: Wrapper });
-    });
-    expect(screen.getByText('Power Automate / API')).toBeInTheDocument();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
-  });
-
-  it('surfaces ADMIN_REQUIRED as a friendly message after Unlock', async () => {
+describe('InsightsPage — admin tier', () => {
+  it('requests a 2-day window and surfaces ADMIN_REQUIRED as a friendly message', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     // setup.ts default getAdminInsights mock returns ADMIN_REQUIRED.
     await act(async () => {
@@ -203,6 +248,61 @@ describe('InsightsPage — trigger column, overdue flag, admin tier', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Unlock admin view' }));
     });
     expect(screen.getByRole('alert')).toHaveTextContent(/not a Fabric administrator/);
+    const adminMock = window.electronAPI.content.getAdminInsights as ReturnType<typeof vi.fn>;
+    expect(adminMock).toHaveBeenCalledWith(2, false);
+  });
+
+  it('shows staged honest loading text with a Cancel that discards the in-flight call', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    let resolveAdmin: (v: unknown) => void = () => {};
+    (window.electronAPI.content.getAdminInsights as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise((resolve) => {
+        resolveAdmin = resolve;
+      }),
+    );
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unlock admin view' }));
+    });
+
+    // Stage 1 copy + a Cancel control while loading.
+    expect(screen.getByText('Opening Microsoft consent…')).toBeInTheDocument();
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    await act(async () => {
+      fireEvent.click(cancel);
+    });
+
+    // Loading cleared client-side; the unlock button is back.
+    expect(screen.queryByText('Opening Microsoft consent…')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unlock admin view' })).toBeInTheDocument();
+
+    // The stale in-flight result resolving later must be DISCARDED (no admin
+    // tables appear, no crash).
+    await act(async () => {
+      resolveAdmin({
+        success: true,
+        data: {
+          generatedAt: '2026-06-10T04:00:00.000Z',
+          fromCache: false,
+          days: 2,
+          activityByUser: [],
+          activityByItem: [{ name: 'Stale Report', views: 1, uniqueUsers: 1, lastViewed: '' }],
+          appAudiences: [],
+          failedDays: 0,
+        },
+      });
+    });
+    expect(screen.queryByText('Stale Report')).not.toBeInTheDocument();
+  });
+
+  it('warns that the consent window may open behind the app', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(screen.getByText(/can open BEHIND this window/)).toBeInTheDocument();
   });
 
   it('renders activity and App audiences after a successful unlock', async () => {
@@ -212,7 +312,7 @@ describe('InsightsPage — trigger column, overdue flag, admin tier', () => {
       data: {
         generatedAt: '2026-06-10T04:00:00.000Z',
         fromCache: false,
-        days: 7,
+        days: 2,
         activityByUser: [{ user: 'a@client.com', views: 12, lastActive: '2026-06-10T03:00:00.000Z' }],
         activityByItem: [
           { name: 'Sales Daily', views: 12, uniqueUsers: 3, lastViewed: '2026-06-10T03:00:00.000Z' },
@@ -238,10 +338,11 @@ describe('InsightsPage — trigger column, overdue flag, admin tier', () => {
     expect(screen.getByText(/1 day\(s\) could not be read/)).toBeInTheDocument();
 
     // Expand the App audience accordion.
+    const audience = screen.getByRole('button', { name: /BC Suite/ });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /BC Suite/ }));
+      fireEvent.click(audience);
     });
     expect(screen.getByText('Client A')).toBeInTheDocument();
-    expect(screen.getByText('Viewer')).toBeInTheDocument();
+    expect(within(audience.parentElement as HTMLElement).getByText('Viewer')).toBeInTheDocument();
   });
 });
