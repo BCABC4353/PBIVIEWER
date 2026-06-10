@@ -606,3 +606,109 @@ describe('getInsightsSnapshot', () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
   });
 });
+
+describe('getInsightsSnapshot — health derivation branches', () => {
+  const WS = '11111111-1111-1111-1111-111111111111';
+  const wsRoute: [RegExp, unknown] = [
+    /\/groups(\?|$)/,
+    { value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] },
+  ];
+
+  function svcWith(routes: Array<[RegExp, unknown]>) {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      for (const [pattern, body] of routes) {
+        if (pattern.test(url)) return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    return createPowerBIApiService(makeDeps({ getAccessToken }));
+  }
+
+  it('derives dataflow health: Success → Completed with last-success time', async () => {
+    const svc = svcWith([
+      [/\/transactions/, {
+        value: [
+          { status: 'Success', startTime: '2026-06-10T01:00:00Z', endTime: '2026-06-10T01:10:00Z' },
+          { status: 'Failed', startTime: '2026-06-09T01:00:00Z', endTime: '2026-06-09T01:10:00Z' },
+        ],
+      }],
+      [/\/dataflows(\?|$)/, { value: [{ objectId: 'df-1', name: 'Flow' }] }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const df = result.data.refreshables.find((r) => r.kind === 'dataflow');
+    expect(df?.lastStatus).toBe('Completed');
+    expect(df?.lastSuccessTime).toBe('2026-06-10T01:10:00Z');
+  });
+
+  it('derives dataflow health: newest Failed → Failed, keeping the earlier success', async () => {
+    const svc = svcWith([
+      [/\/transactions/, {
+        value: [
+          { status: 'Failed', startTime: '2026-06-10T01:00:00Z', endTime: '2026-06-10T01:10:00Z' },
+          { status: 'Success', startTime: '2026-06-09T01:00:00Z', endTime: '2026-06-09T01:10:00Z' },
+        ],
+      }],
+      [/\/dataflows(\?|$)/, { value: [{ objectId: 'df-1', name: 'Flow' }] }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const df = result.data.refreshables.find((r) => r.kind === 'dataflow');
+    expect(df?.lastStatus).toBe('Failed');
+    expect(df?.lastSuccessTime).toBe('2026-06-09T01:10:00Z');
+  });
+
+  it('treats an Unknown refresh with no endTime as InProgress and tolerates bad exception JSON', async () => {
+    const svc = svcWith([
+      [/\/datasets\/ds-run\/refreshes/, {
+        value: [{ status: 'Unknown', startTime: '2026-06-10T01:00:00Z' }],
+      }],
+      [/\/datasets\/ds-badjson\/refreshes/, {
+        value: [{ status: 'Failed', endTime: '2026-06-10T01:00:00Z', serviceExceptionJson: 'not-json{' }],
+      }],
+      [/\/datasets(\?|$)/, {
+        value: [
+          { id: 'ds-run', name: 'Running', isRefreshable: true },
+          { id: 'ds-badjson', name: 'BadJson', isRefreshable: true },
+        ],
+      }],
+      wsRoute,
+    ]);
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const running = result.data.refreshables.find((r) => r.id === 'ds-run');
+    expect(running?.lastStatus).toBe('InProgress');
+    const bad = result.data.refreshables.find((r) => r.id === 'ds-badjson');
+    expect(bad?.lastStatus).toBe('Failed');
+    expect(bad?.errorCode).toBeUndefined();
+  });
+
+  it('flags a workspace as failed when both dataset and dataflow lists are unreadable', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (/\/datasets(\?|$)/.test(url) || /\/dataflows(\?|$)/.test(url)) {
+        return new Response('forbidden', { status: 403 });
+      }
+      if (/\/groups\//.test(url)) return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.partialFailure).toBe(true);
+    expect(result.data.failedWorkspaces[0]?.name).toBe('Sales');
+  });
+});
