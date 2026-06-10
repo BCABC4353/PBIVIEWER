@@ -16,6 +16,7 @@ import {
   statusLabel,
   downForLabel,
   dormantDownLabel,
+  isDown,
   isDormant,
   matchesTileFilter,
   failureRateCaption,
@@ -26,21 +27,26 @@ import {
   type TileFilter,
   type WorkspaceGroup,
 } from './insights-luce';
+import { useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
+import './insights-luce.css';
 
 /**
- * Insights — the data-health board, in the Luce design language.
+ * Insights — the data-health board, in the Luce design language
+ * (docs/design/FERRARI-DASHBOARD-RND.md, D1–D12).
  *
- * THIS PAGE ONLY goes dark (owner request): near-black canvas, surfaces
- * lifted by light, one amber accent, red reserved strictly for broken.
- * Status is always shape + color + label; numbers are tabular.
+ * THIS PAGE ONLY goes dark (owner request): near-black canvas, stacked panels
+ * separated by seams (never outlines), one virtual light source, one amber
+ * accent, red reserved strictly for broken. Motion runs on two linear()
+ * springs; the board plays a ≤1400ms ignition ceremony once per session and
+ * keeps exactly three sub-perceptual idle movers between refreshes.
  *
  * Everything here is scoped to the signed-in user's token: each user sees
  * exactly the workspaces, datasets, dataflows, and access lists they are
  * allowed to see, so the page is safe to expose to every client.
  *
  * Sections:
- *   1. Summary tiles — Broken / Overdue / Running / Healthy / Dormant /
- *      Workspaces. The status tiles are clickable filters (Matt #2).
+ *   1. Hero gauge (D11) + summary tiles — ONE dominant data-health figure;
+ *      the status tiles are clickable filters (Matt #2).
  *   2. Health board — items grouped by workspace (client), worst first,
  *      with down-for durations and 12-run history dot strips. Every group
  *      starts collapsed (Matt #7); a sticky section nav aids wayfinding.
@@ -80,47 +86,45 @@ function triggerLabel(refreshType?: string): string {
 }
 
 const tabular: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };
-const hairlineBorder = `1px solid ${luce.hairline}`;
 
 // ---------------------------------------------------------------------------
 // Small Luce primitives (scoped to this page)
 // ---------------------------------------------------------------------------
 
+/**
+ * Switchgear (D10): every button presses 80ms INTO the panel and releases on
+ * the 250ms settle spring (see .luce-btn). `primary` is the gear selector —
+ * the one capsule with the anodised bezel and a resting glow (D9/D10).
+ */
 const LuceButton: React.FC<
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'accent' | 'quiet' }
-> = ({ tone = 'quiet', style, children, ...rest }) => (
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'accent' | 'quiet' }
+> = ({ tone = 'quiet', className, style, children, ...rest }) => (
   <button
     {...rest}
-    className="px-3 py-1.5 rounded-lg text-sm transition-colors disabled:opacity-40"
-    style={{
-      border: tone === 'accent' ? `1px solid ${luce.accent}55` : hairlineBorder,
-      background: tone === 'accent' ? `${luce.accent}1F` : luce.surface1,
-      color: tone === 'accent' ? luce.accent : luce.textSecondary,
-      ...style,
-    }}
+    className={`luce-btn px-3 py-1.5 text-sm ${
+      tone === 'primary' ? 'luce-btn--primary px-4' : tone === 'accent' ? 'luce-btn--accent' : ''
+    } ${className ?? ''}`}
+    style={style}
   >
     {children}
   </button>
 );
 
-const StatusChip: React.FC<{ status: InsightsRefreshable['lastStatus'] }> = ({ status }) => {
-  const color = statusColor[status];
-  const tint = status === 'Disabled' ? 'rgba(255,255,255,0.06)' : `${color}24`;
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
-      style={{ color, background: tint, border: `1px solid ${status === 'Disabled' ? luce.hairline : `${color}33`}` }}
-    >
-      <span aria-hidden="true">{statusGlyph[status]}</span>
-      <span>{statusLabel[status]}</span>
-    </span>
-  );
-};
+/** Status = glyph + label, colored text on a neutral recessed well (D12). */
+const StatusChip: React.FC<{ status: InsightsRefreshable['lastStatus'] }> = ({ status }) => (
+  <span
+    className="luce-chip inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
+    style={{ color: statusColor[status] }}
+  >
+    <span aria-hidden="true">{statusGlyph[status]}</span>
+    <span>{statusLabel[status]}</span>
+  </span>
+);
 
 const OverdueChip: React.FC<{ scheduleSummary?: string }> = ({ scheduleSummary }) => (
   <span
-    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
-    style={{ color: luce.warn, background: `${luce.warn}24`, border: `1px solid ${luce.warn}33` }}
+    className="luce-chip inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
+    style={{ color: luce.warn }}
     title={`Schedule: ${scheduleSummary || 'enabled'} — but no recent successful refresh`}
   >
     <span aria-hidden="true">▲</span>
@@ -133,8 +137,8 @@ const DormantChip: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
   const down = dormantDownLabel(item);
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
-      style={{ color: luce.dormant, background: `${luce.dormant}24`, border: `1px solid ${luce.dormant}33`, ...tabular }}
+      className="luce-chip inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
+      style={{ color: luce.dormant, ...tabular }}
       title="No refresh attempt in over a year — likely abandoned"
     >
       <span aria-hidden="true">◷</span>
@@ -144,17 +148,14 @@ const DormantChip: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
 };
 
 /** DATASET / DATAFLOW identity chip — same muted tints everywhere (Matt #3). */
-const KindChip: React.FC<{ kind: InsightsRefreshable['kind'] }> = ({ kind }) => {
-  const color = kindColor[kind];
-  return (
-    <span
-      className="px-1.5 py-px rounded text-[10px] uppercase tracking-wider whitespace-nowrap"
-      style={{ color, background: `${color}1F`, border: `1px solid ${color}40` }}
-    >
-      {kind}
-    </span>
-  );
-};
+const KindChip: React.FC<{ kind: InsightsRefreshable['kind'] }> = ({ kind }) => (
+  <span
+    className="luce-chip px-1.5 py-px text-[10px] uppercase tracking-wider whitespace-nowrap"
+    style={{ color: kindColor[kind] }}
+  >
+    {kind}
+  </span>
+);
 
 /** Tooltip for one dot: failed dataset dots explain themselves (Matt #5). */
 function dotTitle(
@@ -171,7 +172,11 @@ function dotTitle(
   return `Failed · ${time}`;
 }
 
-/** 12 dots, oldest → newest, filled from the LEFT: green ok / red fail / hollow none. */
+/**
+ * 12 dots, oldest → newest, filled from the LEFT. Quiet success is quiet
+ * (dim-lit discs); failure alone is red and slightly larger, so the strip
+ * still reads in grayscale (D12). Unused slots are unlit lamps, not outlines.
+ */
 const RunDotStrip: React.FC<{
   runs?: InsightsRefreshable['recentRuns'];
   kind: InsightsRefreshable['kind'];
@@ -188,10 +193,10 @@ const RunDotStrip: React.FC<{
             className="inline-block w-[7px] h-[7px] rounded-full"
             style={
               c.state === 'ok'
-                ? { background: luce.ok }
+                ? { background: 'rgba(235,235,245,0.45)' }
                 : c.state === 'fail'
-                  ? { background: luce.broken }
-                  : { background: 'transparent', border: hairlineBorder }
+                  ? { background: luce.broken, transform: 'scale(1.25)' }
+                  : { background: 'rgba(255,255,255,0.07)' }
             }
           />
         ))}
@@ -268,18 +273,18 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
 
 /**
  * Workspace group header (Matt #1): the chevron leads on the LEFT and rotates
- * on expand, the WHOLE header is a hover-lifted button, and an explicit
- * "N items" count says "there is something to open here" — the status glyph
- * is information, never the control.
+ * on expand (on the settle spring, D5), the WHOLE header is a pressable with
+ * switchgear travel (D10), and an explicit "N items" count says "there is
+ * something to open here" — the status glyph is information, never the control.
  */
 const WorkspaceSection: React.FC<{
   group: WorkspaceGroup;
   expanded: boolean;
   onToggle: () => void;
 }> = ({ group, expanded, onToggle }) => (
-  <div className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
+  <div className="luce-panel luce-card overflow-hidden">
     <button
-      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer transition-colors hover:bg-white/[0.06]"
+      className="luce-press w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer hover:bg-white/[0.03]"
       onClick={onToggle}
       aria-expanded={expanded}
       style={{ background: expanded ? luce.surface2 : undefined }}
@@ -287,8 +292,12 @@ const WorkspaceSection: React.FC<{
       <span className="flex items-center gap-2.5 min-w-0">
         <span
           aria-hidden="true"
-          className="inline-block text-xs transition-transform duration-150"
-          style={{ color: luce.textSecondary, transform: expanded ? 'rotate(90deg)' : 'none' }}
+          className="inline-block text-xs"
+          style={{
+            color: luce.textSecondary,
+            transform: expanded ? 'rotate(90deg)' : 'none',
+            transition: 'transform 250ms var(--spring-settle)',
+          }}
         >
           ▸
         </span>
@@ -299,8 +308,8 @@ const WorkspaceSection: React.FC<{
           {group.workspaceName}
         </span>
         <span
-          className="px-1.5 py-px rounded-full text-[10px] whitespace-nowrap"
-          style={{ color: luce.textTertiary, border: hairlineBorder, ...tabular }}
+          className="luce-chip px-1.5 py-px text-[10px] whitespace-nowrap"
+          style={{ color: luce.textTertiary, ...tabular }}
         >
           {group.items.length} item{group.items.length === 1 ? '' : 's'}
         </span>
@@ -312,7 +321,7 @@ const WorkspaceSection: React.FC<{
       </span>
     </button>
     {expanded && (
-      <div role="rowgroup" className="divide-y divide-[rgba(255,255,255,0.08)]" style={{ borderTop: hairlineBorder }}>
+      <div role="rowgroup" className="luce-groove" style={{ borderTop: '1px solid rgba(0,0,0,0.45)' }}>
         {group.items.map((r) => (
           <RefreshableRow key={`${r.kind}-${r.id}`} item={r} />
         ))}
@@ -321,17 +330,63 @@ const WorkspaceSection: React.FC<{
   </div>
 );
 
-/** Micro-caps eyebrow + title — one heading treatment for every section (Matt #8). */
+/** Engraved eyebrow + title — one heading treatment for every section (Matt #8). */
 const SectionHeading: React.FC<{ id: string; eyebrow: string; title: string }> = ({ id, eyebrow, title }) => (
   <div className="mb-1">
-    <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: luce.textTertiary }}>
-      {eyebrow}
-    </div>
+    <div className="luce-legend">{eyebrow}</div>
     <h2 id={id} className="text-lg font-semibold" style={{ color: luce.textPrimary }}>
       {title}
     </h2>
   </div>
 );
+
+/**
+ * D1/D11 — the hero instrument: backlight deck → data → lens, holding the ONE
+ * dominant figure (overall data health, % of refreshables that are neither
+ * broken nor overdue). The numeral springs to new values with mass (D5) and
+ * counts up from 0 during the ignition ceremony (D6). The live-dot, the meter
+ * needle's tremor, and the backlight drift are the board's only three idle
+ * movers (D7: 4.8s / 7s / 9s).
+ */
+const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, igniting }) => {
+  const { value, ref } = useSpringNumber(pct ?? 0, { startFromZero: igniting });
+  const needleAt = Math.max(0, Math.min(100, value));
+  return (
+    <div
+      className="luce-panel luce-panel--raised luce-hero-panel luce-rise p-6 flex flex-col justify-between"
+      style={{ '--luce-i': 0 } as React.CSSProperties}
+      data-testid="luce-hero"
+    >
+      <div className="luce-backlight luce-backlight--live" aria-hidden="true" />
+      {igniting && <span className="luce-flow" aria-hidden="true" />}
+      <div className="relative z-[1]">
+        <div className="flex items-center gap-2">
+          <span className="luce-live-dot" aria-hidden="true" />
+          <span className="luce-legend">Data health</span>
+        </div>
+        <div
+          ref={ref}
+          className="luce-hero-num mt-3"
+          aria-label={pct === null ? 'Data health unknown' : `Data health ${pct} percent`}
+        >
+          {pct === null ? '—' : Math.round(value)}
+          {pct !== null && <span className="luce-hero-unit">%</span>}
+        </div>
+      </div>
+      <div className="relative z-[1] mt-5">
+        <div className="luce-meter luce-well" aria-hidden="true">
+          <span className="luce-meter-pos" style={{ transform: `translateX(${needleAt}%)` }}>
+            <span className="luce-needle" />
+          </span>
+        </div>
+        <div className="mt-2 text-[11px]" style={{ color: luce.textTertiary }}>
+          datasets &amp; dataflows neither broken nor overdue
+        </div>
+      </div>
+      <div className="luce-lens" aria-hidden="true" />
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Page
@@ -351,6 +406,12 @@ export const InsightsPage: React.FC = () => {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   // Active summary-tile filter (Matt #2), null = show everything.
   const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
+
+  // D6: ignition ceremony — once per session, skipped under reduced motion,
+  // never gating the content (it only stages the arrival of what is already
+  // rendered). D7: the three idle movers pause while the window is hidden.
+  const igniting = useIgnition(snapshot !== null);
+  const docHidden = useDocumentHidden();
 
   // Admin tier — loaded only on explicit request so the incremental-consent
   // window can never appear unprompted.
@@ -483,6 +544,15 @@ export const InsightsPage: React.FC = () => {
     return c;
   }, [snapshot]);
 
+  // D11 — the ONE hero number: share of refreshables that are neither broken
+  // nor overdue. Null (an em-dash) when there is nothing to measure.
+  const healthPct = useMemo(() => {
+    const all = snapshot?.refreshables ?? [];
+    if (all.length === 0) return null;
+    const up = all.filter((r) => !isDown(r)).length;
+    return Math.round((up / all.length) * 100);
+  }, [snapshot]);
+
   const neverOpened = useMemo(() => {
     if (catalog.length === 0) return [];
     const openedIds = new Set(frequent.map((f) => f.id));
@@ -522,7 +592,7 @@ export const InsightsPage: React.FC = () => {
 
   if (isLoading && !snapshot) {
     return (
-      <div className="h-full flex items-center justify-center" style={{ background: luce.canvas }}>
+      <div className="luce-board h-full flex items-center justify-center">
         <div className="text-center">
           <Spinner size="large" />
           <p className="mt-4 text-sm" style={{ color: luce.textSecondary }}>
@@ -535,7 +605,7 @@ export const InsightsPage: React.FC = () => {
 
   if (error && !snapshot) {
     return (
-      <div className="h-full flex items-center justify-center" role="alert" style={{ background: luce.canvas }}>
+      <div className="luce-board h-full flex items-center justify-center" role="alert">
         <div className="text-center max-w-md">
           <p className="block mb-4 text-sm" style={{ color: luce.broken }}>
             {error}
@@ -554,14 +624,17 @@ export const InsightsPage: React.FC = () => {
     { label: 'Broken', value: counts.broken, color: counts.broken > 0 ? luce.broken : luce.textTertiary, loud: counts.broken > 0, filter: 'broken' },
     { label: 'Overdue', value: counts.overdue, color: counts.overdue > 0 ? luce.warn : luce.textTertiary, loud: counts.overdue > 0 && counts.broken === 0, filter: 'overdue' },
     { label: 'Running', value: counts.running, color: counts.running > 0 ? luce.accent : luce.textTertiary, loud: false, filter: 'running' },
-    { label: 'Healthy', value: counts.ok, color: luce.ok, loud: counts.broken === 0 && counts.overdue === 0, filter: 'healthy' },
+    { label: 'Healthy', value: counts.ok, color: luce.textSecondary, loud: counts.broken === 0 && counts.overdue === 0, filter: 'healthy' },
     { label: 'Dormant', value: counts.dormant, color: counts.dormant > 0 ? luce.dormant : luce.textTertiary, loud: false, filter: 'dormant' },
-    { label: 'Workspaces', value: snapshot.workspaceCount, color: luce.textPrimary, loud: false },
+    { label: 'Workspaces', value: snapshot.workspaceCount, color: luce.textSecondary, loud: false },
   ];
   const activeTileLabel = tiles.find((t) => t.filter === activeFilter)?.label;
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: luce.canvas, color: luce.textSecondary }}>
+    <div
+      className={`luce-board h-full overflow-y-auto${igniting ? ' luce-ignite' : ''}${docHidden ? ' luce-asleep' : ''}`}
+      style={{ color: luce.textSecondary }}
+    >
       <div className="max-w-6xl mx-auto p-6 space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
@@ -575,7 +648,7 @@ export const InsightsPage: React.FC = () => {
               {snapshot.fromCache ? ' (cached)' : ''}.
             </p>
           </div>
-          <LuceButton disabled={isLoading} onClick={() => void load(true)}>
+          <LuceButton tone="primary" disabled={isLoading} onClick={() => void load(true)}>
             {isLoading ? 'Refreshing…' : 'Refresh'}
           </LuceButton>
         </div>
@@ -583,60 +656,66 @@ export const InsightsPage: React.FC = () => {
         {snapshot.partialFailure && (
           <div
             role="status"
-            className="px-4 py-2 rounded-lg text-xs"
-            style={{ background: `${luce.warn}1A`, border: `1px solid ${luce.warn}33`, color: luce.warn }}
+            className="luce-panel px-4 py-2 text-xs flex items-center gap-2"
+            style={{ color: luce.warn }}
           >
-            Some workspaces could not be fully read:{' '}
-            {snapshot.failedWorkspaces.map((w) => w.name).join(', ')}. Their items may be missing
-            below.
+            <span aria-hidden="true">▲</span>
+            <span>
+              Some workspaces could not be fully read:{' '}
+              {snapshot.failedWorkspaces.map((w) => w.name).join(', ')}. Their items may be missing
+              below.
+            </span>
           </div>
         )}
 
-        {/* Summary tiles — the status tiles are click-to-filter (Matt #2) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {tiles.map((tile) => {
-            const active = tile.filter !== undefined && tile.filter === activeFilter;
-            const inner = (
-              <>
-                <div
-                  className={tile.loud ? 'text-4xl font-semibold' : 'text-3xl font-semibold'}
-                  style={{ color: tile.color, ...tabular }}
+        {/* Hero gauge (D11) + summary tiles — one machined cluster, parts
+            separated by 2px of canvas (D2). Status tiles click-to-filter. */}
+        <div className="grid gap-[2px] lg:grid-cols-[minmax(280px,2fr)_3fr]">
+          <HeroGauge pct={healthPct} igniting={igniting} />
+          <div className="luce-cluster grid-cols-2 sm:grid-cols-3">
+            {tiles.map((tile, idx) => {
+              const active = tile.filter !== undefined && tile.filter === activeFilter;
+              // D8: at most ONE hot glow on screen — the Broken count, only
+              // when something is actually broken (red at amber's intensity).
+              const hot = tile.filter === 'broken' && counts.broken > 0;
+              const inner = (
+                <>
+                  <div
+                    className={`${tile.loud ? 'text-4xl' : 'text-3xl'} font-semibold${
+                      hot ? ' luce-lit luce-lit--hot luce-lit--red' : ''
+                    }`}
+                    style={{ ...(hot ? {} : { color: tile.color }), ...tabular }}
+                  >
+                    {tile.value}
+                  </div>
+                  <div className="mt-1 luce-legend">{tile.label}</div>
+                </>
+              );
+              const entrance = { '--luce-i': idx + 1 } as React.CSSProperties;
+              return tile.filter ? (
+                <button
+                  key={tile.label}
+                  className={`luce-panel luce-rise p-4 text-left cursor-pointer${active ? ' luce-tile--active' : ''}`}
+                  style={entrance}
+                  onClick={() => toggleFilter(tile.filter!)}
+                  aria-pressed={active}
+                  title={active ? `Clear the ${tile.label} filter` : `Show only ${tile.label.toLowerCase()} items`}
                 >
-                  {tile.value}
+                  {inner}
+                </button>
+              ) : (
+                <div key={tile.label} className="luce-panel luce-rise p-4" style={entrance}>
+                  {inner}
                 </div>
-                <div className="mt-1 text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>
-                  {tile.label}
-                </div>
-              </>
-            );
-            const surface = {
-              background: tile.loud ? luce.surface2 : luce.surface1,
-              border: active ? `1px solid ${luce.accent}` : tile.loud ? `1px solid ${tile.color}40` : hairlineBorder,
-              boxShadow: active ? `0 0 0 1px ${luce.accent}66` : undefined,
-            };
-            return tile.filter ? (
-              <button
-                key={tile.label}
-                className="rounded-xl p-4 text-left cursor-pointer transition-colors hover:bg-white/[0.04]"
-                style={surface}
-                onClick={() => toggleFilter(tile.filter!)}
-                aria-pressed={active}
-                title={active ? `Clear the ${tile.label} filter` : `Show only ${tile.label.toLowerCase()} items`}
-              >
-                {inner}
-              </button>
-            ) : (
-              <div key={tile.label} className="rounded-xl p-4" style={surface}>
-                {inner}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {activeFilter && (
           <button
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
-            style={{ color: luce.accent, background: `${luce.accent}1F`, border: `1px solid ${luce.accent}55` }}
+            className="luce-chip luce-press inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold cursor-pointer border-0"
+            style={{ color: luce.accent }}
             onClick={() => setActiveFilter(null)}
             title="Clear filter"
           >
@@ -648,8 +727,7 @@ export const InsightsPage: React.FC = () => {
         {/* Sticky section nav (Matt #7) — wayfinding without scrolling blind */}
         <nav
           aria-label="Page sections"
-          className="sticky top-0 z-10 -mx-2 px-2 py-1.5 flex items-center gap-1 rounded-lg"
-          style={{ background: luce.canvas, borderBottom: hairlineBorder }}
+          className="luce-nav sticky top-0 z-10 -mx-2 px-2 py-1.5 flex items-center gap-1 rounded-lg"
         >
           {(
             [
@@ -658,26 +736,25 @@ export const InsightsPage: React.FC = () => {
               ['Usage', 'insights-usage'],
               ['Admin', 'insights-admin'],
             ] as const
-          ).map(([label, id], i) => (
-            <React.Fragment key={id}>
-              {i > 0 && (
-                <span aria-hidden="true" className="text-[10px]" style={{ color: luce.textTertiary }}>
-                  ·
-                </span>
-              )}
-              <button
-                className="px-2.5 py-1 rounded-md text-xs uppercase tracking-wider cursor-pointer transition-colors hover:bg-white/5"
-                style={{ color: luce.textSecondary }}
-                onClick={() => scrollToSection(id)}
-              >
-                {label}
-              </button>
-            </React.Fragment>
+          ).map(([label, id]) => (
+            <button
+              key={id}
+              className="px-2.5 py-1 rounded-lg text-xs uppercase tracking-wider cursor-pointer transition-colors hover:bg-white/5"
+              style={{ color: luce.textSecondary }}
+              onClick={() => scrollToSection(id)}
+            >
+              {label}
+            </button>
           ))}
         </nav>
 
         {/* Health board, grouped by workspace (client) */}
-        <section id="insights-health" aria-labelledby="insights-refresh-heading" style={{ scrollMarginTop: 48 }}>
+        <section
+          id="insights-health"
+          aria-labelledby="insights-refresh-heading"
+          className="luce-rise"
+          style={{ scrollMarginTop: 48, '--luce-i': 7 } as React.CSSProperties}
+        >
           <SectionHeading id="insights-refresh-heading" eyebrow="Health" title="Client health board" />
           <p className="text-xs mb-3" style={{ color: luce.textTertiary }}>
             Broken workspaces sort first; every section starts folded — the headers carry the
@@ -704,7 +781,12 @@ export const InsightsPage: React.FC = () => {
         </section>
 
         {/* Workspace access */}
-        <section id="insights-access" aria-labelledby="insights-access-heading" style={{ scrollMarginTop: 48 }}>
+        <section
+          id="insights-access"
+          aria-labelledby="insights-access-heading"
+          className="luce-wing-l"
+          style={{ scrollMarginTop: 48, '--luce-i': 0 } as React.CSSProperties}
+        >
           <SectionHeading id="insights-access-heading" eyebrow="Access" title="Who has access" />
           <p className="text-xs mb-3" style={{ color: luce.textTertiary }}>
             Workspace members only. People who reach your content through a published Power BI
@@ -712,9 +794,9 @@ export const InsightsPage: React.FC = () => {
           </p>
           <div className="space-y-2">
             {snapshot.access.map((ws) => (
-              <div key={ws.workspaceId} className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
+              <div key={ws.workspaceId} className="luce-panel luce-card overflow-hidden">
                 <button
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer transition-colors hover:bg-white/[0.06]"
+                  className="luce-press w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer hover:bg-white/[0.03]"
                   onClick={() => toggleWs(ws.workspaceId)}
                   aria-expanded={expandedWs.has(ws.workspaceId)}
                   style={{ background: expandedWs.has(ws.workspaceId) ? luce.surface2 : undefined }}
@@ -722,8 +804,12 @@ export const InsightsPage: React.FC = () => {
                   <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: luce.textPrimary }}>
                     <span
                       aria-hidden="true"
-                      className="inline-block text-xs transition-transform duration-150"
-                      style={{ color: luce.textSecondary, transform: expandedWs.has(ws.workspaceId) ? 'rotate(90deg)' : 'none' }}
+                      className="inline-block text-xs"
+                      style={{
+                        color: luce.textSecondary,
+                        transform: expandedWs.has(ws.workspaceId) ? 'rotate(90deg)' : 'none',
+                        transition: 'transform 250ms var(--spring-settle)',
+                      }}
                     >
                       ▸
                     </span>
@@ -734,7 +820,7 @@ export const InsightsPage: React.FC = () => {
                   </span>
                 </button>
                 {expandedWs.has(ws.workspaceId) && ws.users !== null && (
-                  <div className="px-4 pb-3 divide-y divide-[rgba(255,255,255,0.08)]" style={{ borderTop: hairlineBorder }}>
+                  <div className="luce-groove px-4 pb-3" style={{ borderTop: '1px solid rgba(0,0,0,0.45)' }}>
                     {ws.users.map((u, i) => (
                       <div
                         key={`${u.email || u.name}-${i}`}
@@ -749,8 +835,8 @@ export const InsightsPage: React.FC = () => {
                           )}
                         </div>
                         <span
-                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide"
-                          style={{ color: luce.textSecondary, border: hairlineBorder }}
+                          className="luce-chip px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                          style={{ color: luce.textSecondary }}
                         >
                           {u.role}
                         </span>
@@ -764,15 +850,18 @@ export const InsightsPage: React.FC = () => {
         </section>
 
         {/* Your usage */}
-        <section id="insights-usage" aria-labelledby="insights-usage-heading" style={{ scrollMarginTop: 48 }}>
+        <section
+          id="insights-usage"
+          aria-labelledby="insights-usage-heading"
+          className="luce-wing-r"
+          style={{ scrollMarginTop: 48, '--luce-i': 1 } as React.CSSProperties}
+        >
           <div className="mb-3">
             <SectionHeading id="insights-usage-heading" eyebrow="Usage" title="Your usage" />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl p-3" style={{ background: luce.surface1, border: hairlineBorder }}>
-              <div className="text-[11px] uppercase tracking-[0.14em] mb-2 px-2 pt-1" style={{ color: luce.textTertiary }}>
-                You open most
-              </div>
+            <div className="luce-panel luce-card p-3">
+              <div className="luce-legend mb-2 px-2 pt-1">You open most</div>
               {frequent.length === 0 ? (
                 <p className="text-xs" style={{ color: luce.textTertiary }}>
                   Nothing tracked yet — open a few reports first.
@@ -800,10 +889,8 @@ export const InsightsPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="rounded-xl p-3" style={{ background: luce.surface1, border: hairlineBorder }}>
-              <div className="text-[11px] uppercase tracking-[0.14em] mb-2 px-2 pt-1" style={{ color: luce.textTertiary }}>
-                Never opened by you
-              </div>
+            <div className="luce-panel luce-card p-3">
+              <div className="luce-legend mb-2 px-2 pt-1">Never opened by you</div>
               {neverOpened.length === 0 ? (
                 <p className="text-xs" style={{ color: luce.textTertiary }}>
                   {catalog.length === 0 ? 'Catalog still loading…' : "You've opened everything you can see."}
@@ -829,7 +916,12 @@ export const InsightsPage: React.FC = () => {
         </section>
 
         {/* Admin tier — App audiences + tenant activity (Fabric admin only) */}
-        <section id="insights-admin" aria-labelledby="insights-admin-heading" style={{ scrollMarginTop: 48 }}>
+        <section
+          id="insights-admin"
+          aria-labelledby="insights-admin-heading"
+          className="luce-wing-l"
+          style={{ scrollMarginTop: 48, '--luce-i': 2 } as React.CSSProperties}
+        >
           <div className="mb-3">
             <SectionHeading
               id="insights-admin-heading"
@@ -839,7 +931,7 @@ export const InsightsPage: React.FC = () => {
           </div>
 
           {!admin && (
-            <div className="rounded-xl p-4" style={{ background: luce.surface1, border: hairlineBorder }}>
+            <div className="luce-panel luce-card p-4">
               <p className="text-sm mb-3" style={{ color: luce.textSecondary }}>
                 For Fabric administrators: see who opened what across ALL users (last 2 days to
                 start) and who has access to each published App. The first unlock may show a
@@ -883,13 +975,8 @@ export const InsightsPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
-                  <div
-                    className="px-3 py-2 text-[11px] uppercase tracking-[0.14em]"
-                    style={{ background: luce.surface2, color: luce.textSecondary, borderBottom: hairlineBorder }}
-                  >
-                    What's being used
-                  </div>
+                <div className="luce-panel luce-card overflow-hidden">
+                  <div className="luce-tablehead px-3 py-2 luce-legend">What's being used</div>
                   {admin.activityByItem.length === 0 ? (
                     <p className="text-xs p-3" style={{ color: luce.textTertiary }}>
                       No report views recorded in this window.
@@ -904,7 +991,7 @@ export const InsightsPage: React.FC = () => {
                           <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Last viewed</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[rgba(255,255,255,0.08)]">
+                      <tbody className="luce-groove">
                         {admin.activityByItem.slice(0, 15).map((it) => (
                           <tr key={it.name} className="transition-colors hover:bg-white/[0.03]">
                             <td className="px-3 py-1.5" style={{ color: luce.textPrimary }}>{it.name}</td>
@@ -920,13 +1007,8 @@ export const InsightsPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
-                  <div
-                    className="px-3 py-2 text-[11px] uppercase tracking-[0.14em]"
-                    style={{ background: luce.surface2, color: luce.textSecondary, borderBottom: hairlineBorder }}
-                  >
-                    Who's using it
-                  </div>
+                <div className="luce-panel luce-card overflow-hidden">
+                  <div className="luce-tablehead px-3 py-2 luce-legend">Who's using it</div>
                   {admin.activityByUser.length === 0 ? (
                     <p className="text-xs p-3" style={{ color: luce.textTertiary }}>
                       No user activity recorded in this window.
@@ -940,7 +1022,7 @@ export const InsightsPage: React.FC = () => {
                           <th className="px-3 py-1.5 font-medium text-[11px] uppercase tracking-wider" style={{ color: luce.textTertiary }}>Last active</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[rgba(255,255,255,0.08)]">
+                      <tbody className="luce-groove">
                         {admin.activityByUser.slice(0, 15).map((u) => (
                           <tr key={u.user} className="transition-colors hover:bg-white/[0.03]">
                             <td className="px-3 py-1.5" style={{ color: luce.textPrimary }}>{u.user}</td>
@@ -967,9 +1049,9 @@ export const InsightsPage: React.FC = () => {
                     </p>
                   )}
                   {admin.appAudiences.map((app) => (
-                    <div key={app.appId} className="rounded-xl overflow-hidden" style={{ background: luce.surface1, border: hairlineBorder }}>
+                    <div key={app.appId} className="luce-panel luce-card overflow-hidden">
                       <button
-                        className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+                        className="luce-press w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer hover:bg-white/[0.03]"
                         onClick={() =>
                           setExpandedApps((prev) => {
                             const next = new Set(prev);
@@ -981,8 +1063,16 @@ export const InsightsPage: React.FC = () => {
                         aria-expanded={expandedApps.has(app.appId)}
                       >
                         <span className="flex items-center gap-2 text-sm" style={{ color: luce.textPrimary }}>
-                          <span aria-hidden="true" className="text-xs" style={{ color: luce.textTertiary }}>
-                            {expandedApps.has(app.appId) ? '▾' : '▸'}
+                          <span
+                            aria-hidden="true"
+                            className="inline-block text-xs"
+                            style={{
+                              color: luce.textTertiary,
+                              transform: expandedApps.has(app.appId) ? 'rotate(90deg)' : 'none',
+                              transition: 'transform 250ms var(--spring-settle)',
+                            }}
+                          >
+                            ▸
                           </span>
                           {app.appName}
                         </span>
@@ -991,7 +1081,7 @@ export const InsightsPage: React.FC = () => {
                         </span>
                       </button>
                       {expandedApps.has(app.appId) && app.users !== null && (
-                        <div className="px-4 pb-3 divide-y divide-[rgba(255,255,255,0.08)]">
+                        <div className="luce-groove px-4 pb-3" style={{ borderTop: '1px solid rgba(0,0,0,0.45)' }}>
                           {app.users.map((u, i) => (
                             <div key={`${u.email || u.name}-${i}`} className="flex items-center justify-between py-1.5">
                               <div>
@@ -1003,8 +1093,8 @@ export const InsightsPage: React.FC = () => {
                                 )}
                               </div>
                               <span
-                                className="px-2 py-0.5 rounded-full text-[11px]"
-                                style={{ color: luce.textSecondary, border: hairlineBorder }}
+                                className="luce-chip px-2 py-0.5 text-[11px]"
+                                style={{ color: luce.textSecondary }}
                               >
                                 {u.accessRight}
                               </span>
