@@ -17,6 +17,9 @@
 
 $ErrorActionPreference = "Stop"
 
+# PS 5.1 defaults to old TLS, which Microsoft's login servers refuse.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $ClientId = "ee7edf76-d666-4e27-8ee7-fbc19648c4f4"
 $TenantId = "65028f2d-9190-4d7f-bc2d-8ce298c3ba6f"
 $Scope = "https://analysis.windows.net/powerbi/api/.default"
@@ -54,9 +57,17 @@ function Step {
 Write-Host ""
 Write-Host "==> Power BI diagnostics - step 1: sign in" -ForegroundColor Cyan
 
-$dc = Invoke-RestMethod -Method Post `
-    -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/devicecode" `
-    -Body @{ client_id = $ClientId; scope = $Scope }
+try {
+    $dc = Invoke-RestMethod -Method Post `
+        -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/devicecode" `
+        -Body @{ client_id = $ClientId; scope = $Scope }
+} catch {
+    Write-Host ""
+    Write-Host ("    Could not reach Microsoft sign-in: " + $_.Exception.Message) -ForegroundColor Red
+    Write-Host "    Copy the line above and paste it to the assistant." -ForegroundColor Red
+    Read-Host "    Press Enter to close"
+    return
+}
 
 Write-Host ""
 Write-Host ("    Go to  https://microsoft.com/devicelogin  and enter code:  {0}" -f $dc.user_code) -ForegroundColor Yellow
@@ -85,13 +96,15 @@ while ((Get-Date) -lt $deadline) {
         } catch { }
         if ($body -notmatch "authorization_pending|slow_down") {
             Write-Host "    Sign-in failed or was declined. Body: $body" -ForegroundColor Red
-            exit 1
+            Read-Host "    Press Enter to close"
+            return
         }
     }
 }
 if (-not $token) {
     Write-Host "    The code expired before approval. Run the script again." -ForegroundColor Red
-    exit 1
+    Read-Host "    Press Enter to close"
+    return
 }
 Write-Host "    Signed in." -ForegroundColor Green
 $H = @{ Authorization = "Bearer $token" }
