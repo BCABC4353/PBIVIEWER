@@ -21,21 +21,22 @@ duration sparkline.
 
 | Piece | State |
 |---|---|
-| Core logic (status derivation, overdue math, ordering, durations) | **Ported from the desktop's verified code, 15 unit tests green here** |
-| Design tokens (palette, type, spacing, status glyphs) | From the craft spec |
-| Fleet Health + Refresh Detail screens | Typechecked, written to spec — **never yet rendered on a device**. First `expo start` is the moment of truth; expect layout fixes. |
-| Data | `MockDataSource` (sample fleet). `LiveFleetClient` is written and tested-by-construction against the same API the desktop uses, but needs auth (below). |
-| Push alerts | Not built (needs the small backend — see `../docs/PHONE-OPS-CONSOLE-PLAN.md` Phase 2). |
+| Core logic (status, overdue math, ordering, durations, DAX shaping) | **Ported/built with 112 unit tests green** |
+| Four-tab interface (Fleet / Reports / Alerts / Settings) | Built, typechecked — **never yet rendered on a device**; first `expo start` is the moment of truth, expect layout fixes |
+| Native visuals (KPI, bar, line, donut, table) + demo report canvases | Built; render offline from realistic mock query results; live mode binds the same DAX runner |
+| The feel layer (springs, haptic verbs, entrances, count-ups) + **Ignition Sweep** | Built; SwiftUI spring values translated losslessly; Reduce Motion safe |
+| Auth (AAD PKCE, SecureStore persistence, silent refresh, single-flight) | Built + 21 tests; **live mode needs the Azure GUIDs pasted into `src/auth/azure-config.ts` and a redirect URI in Entra** (see that file's header) |
+| Data | Sample mode by default; Live switch in Settings once auth is configured |
+| Push alerts | Not built (needs the small backend — `../docs/PHONE-OPS-CONSOLE-PLAN.md` Phase 2) |
 
-## Wiring live data (the one config step)
+## Wiring live data (two config steps, both yours)
 
-`LiveFleetClient` takes a `TokenProvider`. To go live:
-
-1. In the existing Entra app registration, add a **mobile platform redirect URI**
-   (`msauth.{bundleId}://auth` for iOS) — 2 minutes, same app registration,
-   no new consent (same scopes the desktop already uses).
-2. Implement `TokenProvider` with `expo-auth-session` (AAD PKCE) and swap
-   `MockDataSource` → `new LiveFleetClient(tokenProvider)` in `App.tsx`.
+1. Paste the same `clientId`/`tenantId` the desktop uses into
+   `src/auth/azure-config.ts` (values from `scripts/generate-config.js` env).
+2. Add the mobile redirect URI to the existing Entra app registration
+   (Expo Go dev: the `exp://…/--/auth` URI printed at sign-in; standalone:
+   `msauth.{bundleId}://auth`). Same scopes the desktop already uses — no
+   new consent. Then Settings → Live → Connect to Power BI.
 
 ## Visuals doctrine (owner's call, locked)
 

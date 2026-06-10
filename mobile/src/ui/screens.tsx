@@ -7,6 +7,8 @@ import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
 import { sortWorstFirst } from '../core/refresh-health';
 import { DetailLine, FleetHero, FleetRow, StatusChip, detailTrigger } from './components';
 import { Sparkline } from './Sparkline';
+import { IgnitionSweep } from '../feel/IgnitionSweep';
+import { thunk } from '../feel/haptics';
 import { relativeAge } from '../core/refresh-health';
 
 export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refreshable) => void }> = ({
@@ -16,13 +18,23 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Ignition Sweep state: real progress only (0 → 1 on the API answering);
+  // settled flips when the arc lands (clean) or catches (failure present).
+  const [ignition, setIgnition] = useState({ progress: 0, items: 0, failed: false, settled: false });
   const now = Date.now();
 
   const load = useCallback(
     async (force: boolean) => {
       setError(null);
       try {
-        setSnapshot(await source.getFleetSnapshot(force));
+        const snap = await source.getFleetSnapshot(force);
+        const failed = snap.refreshables.some(
+          (r) => r.lastStatus === 'Failed' || r.lastStatus === 'Cancelled' || r.scheduleOverdue,
+        );
+        setSnapshot(snap);
+        setIgnition((i) =>
+          i.settled ? i : { progress: 1, items: snap.refreshables.length, failed, settled: false },
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not load fleet status');
       }
@@ -31,6 +43,9 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   );
 
   useEffect(() => {
+    // New data source → fresh ignition.
+    setSnapshot(null);
+    setIgnition({ progress: 0, items: 0, failed: false, settled: false });
     void load(false);
   }, [load]);
 
@@ -49,12 +64,17 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
-      ) : !snapshot ? (
+      ) : !snapshot || !ignition.settled ? (
         <View style={styles.center}>
-          {/* Skeleton beat — three breathing placeholder rows, no spinner. */}
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={styles.skeletonRow} />
-          ))}
+          {/* The Ignition Sweep — the gauge-needle ritual. Ticks are REAL API
+              responses; on failure the arc catches and the board opens on red. */}
+          <IgnitionSweep
+            progress={ignition.progress}
+            itemsChecked={ignition.items}
+            failed={ignition.failed}
+            onSettled={() => setIgnition((i) => ({ ...i, settled: true }))}
+            onCaught={() => setIgnition((i) => ({ ...i, settled: true }))}
+          />
         </View>
       ) : (
         <FlatList
@@ -69,6 +89,7 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
               refreshing={refreshing}
               tintColor={color.accent}
               onRefresh={() => {
+                thunk(); // the catch — pull-to-refresh engages with weight
                 setRefreshing(true);
                 void load(true).finally(() => setRefreshing(false));
               }}
