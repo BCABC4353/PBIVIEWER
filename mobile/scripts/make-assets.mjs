@@ -1,5 +1,5 @@
 /**
- * make-assets.mjs — generates the MEDIC Workflows app icon + splash PNGs
+ * make-assets.mjs — generates the Power BI Viewer app icon + splash PNGs
  * from a single SVG brand mark (the "Ignition Sweep"): a 270° warm-amber
  * arc with the gap facing down and a small amber dot at the arc's end,
  * on the near-black canvas color from docs/design/IOS-CRAFT-SPEC.md.
@@ -85,7 +85,7 @@ async function png(svg, file, { width, height }) {
 
 async function main() {
   await mkdir(ASSETS, { recursive: true });
-  console.log('Generating MEDIC Workflows brand assets →', ASSETS);
+  console.log('Generating Power BI Viewer brand assets →', ASSETS);
 
   // ── SVG sources kept for future edits ─────────────────────────────────
   const iconSvg = markSvg({ size: 1024, markScale: 0.58, color: AMBER, bg: CANVAS });

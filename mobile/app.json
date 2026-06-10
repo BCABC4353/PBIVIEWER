@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "MEDIC Workflows",
-    "slug": "medic-workflows",
+    "name": "Power BI Viewer",
+    "slug": "powerbi-viewer-mobile",
     "version": "1.0.0",
     "orientation": "default",
-    "scheme": "medicworkflows",
+    "scheme": "pbiviewer",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0B0B0D",
@@ -16,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bcabc.medicworkflows",
+      "bundleIdentifier": "com.bcabc.pbiviewer",
       "splash": {
         "image": "./assets/splash.png",
         "resizeMode": "contain",
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "com.bcabc.medicworkflows",
+      "package": "com.bcabc.pbiviewer",
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0D",
         "foregroundImage": "./assets/android-icon-foreground.png",

@@ -1,4 +1,4 @@
-# Shipping MEDIC Workflows (the mobile app) — owner's guide
+# Shipping Power BI Viewer (mobile) (the mobile app) — owner's guide
 
 This is the click-by-click path from "the code is done" to "a client installs it
 from TestFlight / Google Play". No development experience assumed. Once the
@@ -73,8 +73,8 @@ npx eas-cli init                  # links this folder to an Expo project (accept
                                   #   it writes a projectId into app.json — that's expected)
 ```
 
-`eas.json` (build profiles) and `app.json` (name **MEDIC Workflows**, bundle id
-`com.bcabc.medicworkflows`, dark theme, icons/splash) are already in the repo —
+`eas.json` (build profiles) and `app.json` (name **Power BI Viewer (mobile)**, bundle id
+`com.bcabc.pbiviewer`, dark theme, icons/splash) are already in the repo —
 you don't have to configure anything else.
 
 > **Live sign-in prerequisite:** the app ships in sample-data mode until the
@@ -98,9 +98,9 @@ the documented requirements at the top of `mobile/src/auth/msal-auth.ts`.)
 
    | Redirect URI | Why |
    |---|---|
-   | `medicworkflows://auth` | What the standalone app actually sends (the `scheme` in app.json + the `auth` path the code requests) |
-   | `msauth.com.bcabc.medicworkflows://auth` | iOS MSAL-convention form (`msauth.{bundleId}://auth`) |
-   | `msauth://com.bcabc.medicworkflows/<SIGNATURE_HASH>` | Android form — `<SIGNATURE_HASH>` is the **base64 SHA-1 of the signing key** |
+   | `pbiviewer://auth` | What the standalone app actually sends (the `scheme` in app.json + the `auth` path the code requests) |
+   | `msauth.com.bcabc.pbiviewer://auth` | iOS MSAL-convention form (`msauth.{bundleId}://auth`) |
+   | `msauth://com.bcabc.pbiviewer/<SIGNATURE_HASH>` | Android form — `<SIGNATURE_HASH>` is the **base64 SHA-1 of the signing key** |
 
 4. To get the Android `<SIGNATURE_HASH>`: EAS manages your Android signing key,
    so after your first Android build run `npx eas-cli credentials -p android`,
@@ -136,7 +136,7 @@ Then submit the finished build to TestFlight:
 npx eas-cli submit --platform ios --latest
 ```
 
-- In <https://appstoreconnect.apple.com> → **My Apps → MEDIC Workflows →
+- In <https://appstoreconnect.apple.com> → **My Apps → Power BI Viewer (mobile) →
   TestFlight**: after ~15 min of processing the build appears.
 - **Internal testing** (you): add yourself under *Internal Testing* — no review.
 - **Clients**: create an *External Testing* group, add their emails, submit the
@@ -161,7 +161,7 @@ npx eas-cli build --platform android --profile production
 
 **First time only — Google requires the first upload to be manual:**
 
-1. In <https://play.google.com/console> → **Create app** → name **MEDIC
+1. In <https://play.google.com/console> → **Create app** → name **Power BI Viewer
    Workflows**, App, Free.
 2. Download the finished `.aab` from the build page at expo.dev.
 3. Play Console → **Testing → Internal testing → Create new release** → upload
