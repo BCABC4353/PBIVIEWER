@@ -56,9 +56,20 @@ export function createWindow(): void {
     mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
   }
 
-  // Navigation guard - prevent main window from navigating to external sites
+  // Navigation guard - prevent main window from navigating to external sites.
+  // Parse the URL instead of string-matching: a startsWith('http://localhost')
+  // check also matches http://localhost.evil.com.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('file://') && !url.startsWith('http://localhost')) {
+    let allowed = false;
+    try {
+      const parsed = new URL(url);
+      allowed =
+        parsed.protocol === 'file:' ||
+        (isDev && parsed.protocol === 'http:' && parsed.hostname === 'localhost');
+    } catch {
+      // Unparseable URL — keep allowed = false
+    }
+    if (!allowed) {
       event.preventDefault();
     }
   });

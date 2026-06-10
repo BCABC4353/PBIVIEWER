@@ -169,8 +169,20 @@ export function setupAutoUpdater(): void {
       if (forceImmediate) forceInstallNow();
     });
 
-    const routineCheck = () =>
-      autoUpdater.checkForUpdates().catch((err) => log.warn('[updater] check failed:', err));
+    // Single-flight: the 2h routine interval, the 10min force poll, and a slow
+    // download can otherwise stack concurrent checkForUpdates() calls.
+    let checkInFlight = false;
+    const routineCheck = async () => {
+      if (checkInFlight) return;
+      checkInFlight = true;
+      try {
+        await autoUpdater.checkForUpdates();
+      } catch (err) {
+        log.warn('[updater] check failed:', err);
+      } finally {
+        checkInFlight = false;
+      }
+    };
 
     // Force lever: poll the tiny policy file. If we're below its forceMinVersion,
     // this update is mandatory -> pull + apply it now rather than on next restart.

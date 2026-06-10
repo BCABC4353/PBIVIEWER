@@ -239,7 +239,22 @@ class PowerBIApiService {
     const allItems: TTransformed[] = [];
     let nextUrl: string | undefined = `${POWERBI_API_BASE}${endpoint}`;
 
+    // A buggy or malicious @odata.nextLink chain (circular, or unbounded) would
+    // otherwise loop forever at up to ~20s/request. 100 pages is far beyond any
+    // real tenant; truncate with a warning instead of hanging the app.
+    const seenUrls = new Set<string>();
+    const MAX_PAGES = 100;
+
     while (nextUrl) {
+      if (seenUrls.has(nextUrl)) {
+        console.warn('[PowerBI API] Circular @odata.nextLink detected — stopping pagination');
+        break;
+      }
+      if (seenUrls.size >= MAX_PAGES) {
+        console.warn(`[PowerBI API] Pagination exceeded ${MAX_PAGES} pages — truncating results`);
+        break;
+      }
+      seenUrls.add(nextUrl);
       const response: PowerBIApiResponse<TRaw> = await this.makeRequestWithUrl(nextUrl);
       allItems.push(...response.value.map(transform));
       nextUrl = response['@odata.nextLink'];

@@ -403,6 +403,65 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 
+  it('terminates pagination when @odata.nextLink is circular instead of looping forever', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    // Every page points its nextLink back at the same URL — a hang before the
+    // seen-URL guard existed.
+    const circular = 'https://api.powerbi.com/v1.0/myorg/groups?$skip=1';
+    // A fresh Response per call — a Response body is single-use.
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          value: [{ id: 'ws-1', name: 'W', isReadOnly: false, type: 'Workspace' }],
+          '@odata.nextLink': circular,
+        }),
+        { status: 200 },
+      ),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await svc.getWorkspaces();
+    expect(result.success).toBe(true);
+    // First page + one visit to the circular link, then stop.
+    expect(fetchMock.mock.calls.length).toBe(2);
+  });
+
+  it('follows @odata.nextLink across pages and concatenates results', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const page2 = 'https://api.powerbi.com/v1.0/myorg/groups?$skip=100';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            value: [{ id: 'ws-1', name: 'A', isReadOnly: false, type: 'Workspace' }],
+            '@odata.nextLink': page2,
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            value: [{ id: 'ws-2', name: 'B', isReadOnly: false, type: 'Workspace' }],
+          }),
+          { status: 200 },
+        ),
+      );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await svc.getWorkspaces();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.map((w) => w.id)).toEqual(['ws-1', 'ws-2']);
+    }
+    expect(fetchMock.mock.calls.length).toBe(2);
+  });
+
   it('getEmbedToken returns the injected access token as the embed token', async () => {
     const getAccessToken = vi.fn().mockResolvedValue({
       success: true,

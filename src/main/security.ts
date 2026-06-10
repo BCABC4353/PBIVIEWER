@@ -1,12 +1,26 @@
 import { app, shell } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 
 // ============================================
 // SECURITY HELPERS
 // ============================================
 
 export function isValidExportPath(filePath: string): boolean {
-  const resolved = path.resolve(filePath);
+  let resolved = path.resolve(filePath);
+  try {
+    // Resolve symlinks in the parent directory so a link inside Downloads
+    // pointing elsewhere cannot smuggle the write outside the allowed roots.
+    // The parent must exist (the save dialog guarantees it); the file itself
+    // may not exist yet, but if it does it must not be a symlink.
+    const realDir = fs.realpathSync(path.dirname(resolved));
+    resolved = path.join(realDir, path.basename(resolved));
+    if (fs.existsSync(resolved) && fs.lstatSync(resolved).isSymbolicLink()) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
   // SEC-S3: homedir() is intentionally excluded — exports must target a specific
   // well-known directory, not the user profile root (which would be too broad).
   const downloads = app.getPath('downloads');

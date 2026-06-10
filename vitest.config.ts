@@ -5,6 +5,22 @@ import path from 'node:path';
 // vite.config.ts so the Electron/React Vite plugin chain does not affect the
 // jsdom test environment.
 export default defineConfig({
+  plugins: [
+    // azure-config.generated.ts is emitted by scripts/generate-config.js and
+    // gitignored; without this stub the auth-service suite cannot even load
+    // on a fresh clone (CI, new machines). A resolveId hook is used instead of
+    // resolve.alias because alias does not rewrite relative specifiers.
+    {
+      name: 'stub-azure-config-generated',
+      enforce: 'pre',
+      resolveId(source) {
+        if (source.endsWith('azure-config.generated')) {
+          return path.resolve(__dirname, 'src/test/fixtures/azure-config.stub.ts');
+        }
+        return null;
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src/renderer'),
@@ -35,16 +51,17 @@ export default defineConfig({
       ],
       // NEW-CI-3: thresholds set just below current measured coverage so CI
       // fails on regression without requiring aspirational numbers.
-      // Baseline measured 2026-06-07:
-      //   statements 8.47 % → threshold 8
-      //   branches   61.67% → threshold 60
-      //   functions  30.06% → threshold 29
-      //   lines       8.47% → threshold 8
+      // Baseline measured 2026-06-10 (after the azure-config stub recovered the
+      // auth-service suite, which alone is ~a third of measured statements):
+      //   statements 27.56% → threshold 27
+      //   branches   70.15% → threshold 69
+      //   functions  48.44% → threshold 47
+      //   lines      27.56% → threshold 27
       thresholds: {
-        statements: 8,
-        branches: 60,
-        functions: 29,
-        lines: 8,
+        statements: 27,
+        branches: 69,
+        functions: 47,
+        lines: 27,
       },
     },
   },

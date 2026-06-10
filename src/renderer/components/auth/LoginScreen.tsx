@@ -18,7 +18,9 @@ export const LoginScreen: React.FC = () => {
   const [version, setVersion] = useState<string>('');
 
   useEffect(() => {
-    window.electronAPI.app.getVersion().then(setVersion);
+    window.electronAPI.app.getVersion().then(setVersion).catch(() => {
+      /* version footer is cosmetic — never let it reject unhandled */
+    });
   }, []);
 
   const handleLogin = async () => {
