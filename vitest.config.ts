@@ -53,6 +53,10 @@ export default defineConfig({
         'dist/**',
         'src/**/*.test.{ts,tsx}',
         'src/test/**',
+        // The mobile app is a separate package with its own toolchain and test
+        // suite (mobile/package.json); its sources must not dilute the desktop
+        // coverage denominator.
+        'mobile/**',
       ],
       // NEW-CI-3: thresholds set just below current measured coverage so CI
       // fails on regression without requiring aspirational numbers.
