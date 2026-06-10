@@ -156,12 +156,33 @@ if (Test-Path "$ExpoPkgPath") {
     Fail "Expo is not installed at `"$ExpoPkgPath`" even after installing dependencies."
 }
 
+# The dev server is a small web server on THIS computer. The QR code just
+# points the phone at it. If the phone cannot reach this computer directly
+# (separate office Wi-Fi, guest network, client isolation), tunnel mode
+# routes the connection through the internet instead - works from anywhere,
+# even cellular, but needs a free Expo account (expo.dev) on first use.
+Write-Host ""
+Write-Host "    How should your phone connect?" -ForegroundColor Cyan
+Write-Host "      [Enter] = same network (phone and this computer share Wi-Fi/LAN)" -ForegroundColor Cyan
+Write-Host "      T       = tunnel (phone on a DIFFERENT network or cellular)" -ForegroundColor Cyan
+$Mode = Read-Host "    Choice"
+
 Write-Host ""
 Write-Host "    A QR code will appear below. Scan it with the Expo Go app on your phone." -ForegroundColor Cyan
 Write-Host "    Leave this window open while you use the app. Press Ctrl+C here to stop." -ForegroundColor Cyan
 Write-Host ""
 
-npx expo start -c
+if ($Mode -match '^[Tt]') {
+    Write-Host "    Tunnel mode: installing the tunnel helper (one-time)..." -ForegroundColor Yellow
+    npm install --no-save "@expo/ngrok@^4.1.0"
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Could not install the tunnel helper. Check your internet connection and try again."
+    }
+    Write-Host "    If asked to log in, create/use a FREE account at https://expo.dev" -ForegroundColor Yellow
+    npx expo start -c --tunnel
+} else {
+    npx expo start -c
+}
 if ($LASTEXITCODE -ne 0) {
     Fail "The dev server stopped with an error. Scroll up for details, then run this script again."
 }
