@@ -72,6 +72,10 @@ export const IPC_CHANNELS = {
   log: {
     openFolder: 'log:open-folder',
   },
+  // Issue beacon — renderer reports a user-visible failure for remote triage.
+  beacon: {
+    report: 'beacon:report',
+  },
   // Kiosk / wall-display power management.
   kiosk: {
     preventDisplaySleep: 'kiosk:prevent-display-sleep',

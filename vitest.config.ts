@@ -11,11 +11,16 @@ export default defineConfig({
     // on a fresh clone (CI, new machines). A resolveId hook is used instead of
     // resolve.alias because alias does not rewrite relative specifiers.
     {
-      name: 'stub-azure-config-generated',
+      name: 'stub-generated-config',
       enforce: 'pre',
       resolveId(source) {
         if (source.endsWith('azure-config.generated')) {
           return path.resolve(__dirname, 'src/test/fixtures/azure-config.stub.ts');
+        }
+        // beacon-config.generated.ts is likewise build-emitted + gitignored;
+        // tests use a disabled stub so no beacon is wired under test.
+        if (source.endsWith('beacon-config.generated')) {
+          return path.resolve(__dirname, 'src/test/fixtures/beacon-config.stub.ts');
         }
         return null;
       },

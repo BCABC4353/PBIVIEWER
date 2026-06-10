@@ -7,6 +7,7 @@ import { setupLogging } from './ipc/log';
 import { registerAllIpcHandlers } from './ipc/register';
 import { releaseDisplaySleepBlocker } from './ipc/kiosk';
 import { setupAutoUpdater } from './updater';
+import { getIssueBeacon } from './services/issue-beacon-service';
 
 setupLogging();
 
@@ -60,6 +61,10 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     createWindow();
+
+    // Issue beacon: start periodic flushing of reported failures. No-op unless
+    // a beacon token+repo were baked in at build time.
+    getIssueBeacon().start();
 
     // Auto-update: Windows installs silently on next restart; macOS shows a
     // "new version available" notice. No-op in dev / unpackaged builds.

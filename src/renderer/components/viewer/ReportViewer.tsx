@@ -11,6 +11,7 @@ import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
 import { useViewerExport } from './useViewerExport';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
+import { reportIssue } from '../../lib/report-issue';
 
 export const ReportViewer: React.FC = () => {
   const { workspaceId, reportId } = useParams<{ workspaceId: string; reportId: string }>();
@@ -210,6 +211,11 @@ export const ReportViewer: React.FC = () => {
   // `events` object above is built before embedRef exists (forward reference);
   // embedRef has stable identity, so wiring it in here is safe.
   setEmbedRef(embedRef);
+
+  // Report a load failure to the issue beacon (remote triage).
+  useEffect(() => {
+    if (error) reportIssue({ code: 'REPORT_EMBED_ERROR', itemName: reportName || undefined, context: error });
+  }, [error, reportName]);
 
   // Data-driven auto-refresh: when the freshness poll sees a dataset refresh
   // newer than what's on screen, re-pull the report IN PLACE. report.refresh()

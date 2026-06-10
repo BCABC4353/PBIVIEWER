@@ -243,4 +243,7 @@ export interface AdminInsights {
   appAudiences: AdminAppAudience[];
   /** Days that could not be fetched (throttling/transient) — counts are then partial. */
   failedDays: number;
+  /** True when the activity volume hit the in-memory cap and aggregation
+   *  stopped early, so counts are a lower bound rather than complete. */
+  truncated?: boolean;
 }
