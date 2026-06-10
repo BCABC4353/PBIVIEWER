@@ -701,3 +701,73 @@ describe('PROD-B1: switchAccount', () => {
     expect(h.deps.msalClient.getAuthCodeUrl).not.toHaveBeenCalled();
   });
 });
+
+describe('getAdminAccessToken (incremental consent, admin tier)', () => {
+  it('returns silently when the admin scope is already consented', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setSilentResult({ accessToken: 'admin-at', expiresOn: new Date('2030-01-01T00:00:00Z') });
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.getAdminAccessToken();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.accessToken).toBe('admin-at');
+      expect(result.data.expiresOn).toBe('2030-01-01T00:00:00.000Z');
+    }
+    // The silent request targeted the admin scope, not the base scopes.
+    const silent = h.deps.msalClient.acquireTokenSilent as ReturnType<typeof vi.fn>;
+    const scopes = (silent.mock.calls[0]?.[0] as { scopes: string[] }).scopes;
+    expect(scopes.some((s) => s.includes('Tenant.Read.All'))).toBe(true);
+    // No auth window was opened.
+    expect(h.deps.openAuthWindow).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the interactive consent window when interaction is required', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.getAdminAccessToken();
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.accessToken).toBe('at');
+
+    // The interactive request asked for the SUPERSET (base + admin scopes).
+    const getUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
+    const scopes = (getUrl.mock.calls[0]?.[0] as { scopes: string[] }).scopes;
+    expect(scopes.some((s) => s.includes('Tenant.Read.All'))).toBe(true);
+    expect(scopes.some((s) => s.includes('Report.Read.All'))).toBe(true);
+  });
+
+  it('reports ADMIN_CONSENT_CANCELLED when the consent window is closed', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
+    (h.deps.openAuthWindow as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.getAdminAccessToken();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('ADMIN_CONSENT_CANCELLED');
+    // The in-flight guard was released: a later attempt can run interactively.
+    const again = await svc.getAdminAccessToken();
+    expect(again.success).toBe(true);
+  });
+
+  it('rejects a redirect whose state does not match (CSRF)', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
+    h.openAuthResult.value = { code: 'authcode', state: 'tampered' };
+    const svc = createAuthService(h.deps);
+
+    const result = await svc.getAdminAccessToken();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('CSRF_VALIDATION_FAILED');
+  });
+
+  it('fails with NO_ACCOUNT when nobody is signed in', async () => {
+    const h = createHarness({ accounts: [] });
+    const svc = createAuthService(h.deps);
+    const result = await svc.getAdminAccessToken();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('NO_ACCOUNT');
+  });
+});

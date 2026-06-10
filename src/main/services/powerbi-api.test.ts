@@ -712,3 +712,276 @@ describe('getInsightsSnapshot — health derivation branches', () => {
     expect(result.data.failedWorkspaces[0]?.name).toBe('Sales');
   });
 });
+
+describe('getAdminInsights', () => {
+  function adminAuth(overrides: Partial<ApiAuthPort> = {}): ApiAuthPort {
+    return {
+      getAccessToken: vi.fn().mockResolvedValue(tokenOk()),
+      getAdminAccessToken: vi.fn().mockResolvedValue({
+        success: true,
+        data: { accessToken: 'admin-token', expiresOn: null },
+      }),
+      ...overrides,
+    };
+  }
+
+  it('aggregates activity across continuation pages and maps app audiences', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('continuation-2')) {
+        return new Response(
+          JSON.stringify({
+            activityEventEntities: [
+              { UserId: 'a@client.com', ReportName: 'Sales Daily', CreationTime: '2026-06-10T10:00:00Z' },
+            ],
+            lastResultSet: true,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/admin/activityevents')) {
+        return new Response(
+          JSON.stringify({
+            activityEventEntities: [
+              { UserId: 'a@client.com', ReportName: 'Sales Daily', CreationTime: '2026-06-10T09:00:00Z' },
+              { UserId: 'b@client.com', ReportName: 'Ops Weekly', CreationTime: '2026-06-10T08:00:00Z' },
+            ],
+            continuationUri: 'https://api.powerbi.com/v1.0/myorg/admin/activityevents?continuation-2',
+            lastResultSet: false,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/admin/apps/')) {
+        return new Response(
+          JSON.stringify({
+            value: [
+              { displayName: 'Client A', emailAddress: 'a@client.com', appUserAccessRight: 'Viewer', principalType: 'User' },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/apps')) {
+        return new Response(
+          JSON.stringify({
+            value: [{ id: 'app-1', name: 'BC Suite', description: '', publishedBy: 'me', lastUpdate: '' }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuth() });
+    const result = await svc.getAdminInsights(1);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    // Continuation page was followed: a@client.com has 2 views.
+    const userA = result.data.activityByUser.find((u) => u.user === 'a@client.com');
+    expect(userA?.views).toBe(2);
+    expect(userA?.lastActive).toBe('2026-06-10T10:00:00Z');
+    const item = result.data.activityByItem.find((i) => i.name === 'Sales Daily');
+    expect(item?.views).toBe(2);
+    expect(item?.uniqueUsers).toBe(1);
+    // Sorted by views descending: Sales Daily before Ops Weekly.
+    expect(result.data.activityByItem[0]?.name).toBe('Sales Daily');
+
+    expect(result.data.appAudiences[0]?.appName).toBe('BC Suite');
+    expect(result.data.appAudiences[0]?.users?.[0]?.accessRight).toBe('Viewer');
+    expect(result.data.failedDays).toBe(0);
+  });
+
+  it('maps an admin-endpoint 403 to ADMIN_REQUIRED', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/')) return new Response('forbidden', { status: 403 });
+      if (url.includes('/apps')) {
+        return new Response(
+          JSON.stringify({ value: [{ id: 'app-1', name: 'BC Suite', description: '', publishedBy: '', lastUpdate: '' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuth() });
+    const result = await svc.getAdminInsights(1);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('ADMIN_REQUIRED');
+  });
+
+  it('propagates a declined consent as ADMIN_CONSENT_CANCELLED', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/apps')) {
+        return new Response(
+          JSON.stringify({ value: [{ id: 'app-1', name: 'BC Suite', description: '', publishedBy: '', lastUpdate: '' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({
+      auth: adminAuth({
+        getAdminAccessToken: vi.fn().mockResolvedValue({
+          success: false,
+          error: { code: 'ADMIN_CONSENT_CANCELLED', message: 'closed' },
+        }),
+      }),
+    });
+    const result = await svc.getAdminInsights(1);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('ADMIN_CONSENT_CANCELLED');
+  });
+});
+
+describe('getAdminInsights — degradation and field-fallback branches', () => {
+  function adminAuthOk(): ApiAuthPort {
+    return {
+      getAccessToken: vi.fn().mockResolvedValue(tokenOk()),
+      getAdminAccessToken: vi.fn().mockResolvedValue({
+        success: true,
+        data: { accessToken: 'admin-token', expiresOn: null },
+      }),
+    };
+  }
+
+  it('tolerates events with fallback field names and counts a failed day as partial', async () => {
+    let activityCall = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        activityCall++;
+        if (activityCall === 1) {
+          return new Response(
+            JSON.stringify({
+              activityEventEntities: [
+                // No UserId → UserKey; no ReportName → ItemName; no CreationTime.
+                { UserKey: 'key-1', ItemName: 'Fallback Item' },
+                // Entirely empty event → Unknown buckets.
+                {},
+              ],
+              lastResultSet: true,
+            }),
+            { status: 200 },
+          );
+        }
+        // Second day: a non-admin failure (404) → that day is skipped.
+        return new Response('gone', { status: 404 });
+      }
+      if (url.includes('/admin/apps/')) {
+        // Audience read fails with a plain 404 → users:null degradation.
+        return new Response('gone', { status: 404 });
+      }
+      if (url.includes('/apps')) {
+        return new Response(
+          JSON.stringify({ value: [{ id: 'app-1', name: 'BC Suite', description: '', publishedBy: '', lastUpdate: '' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuthOk() });
+    const result = await svc.getAdminInsights(2);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.failedDays).toBe(1);
+    expect(result.data.appAudiences[0]?.users).toBeNull();
+    const fallbackUser = result.data.activityByUser.find((u) => u.user === 'key-1');
+    expect(fallbackUser?.views).toBe(1);
+    expect(result.data.activityByItem.some((i) => i.name === 'Fallback Item')).toBe(true);
+    expect(result.data.activityByUser.some((u) => u.user === 'Unknown')).toBe(true);
+  });
+
+  it('serves the admin snapshot from cache and rebuilds with force', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        return new Response(JSON.stringify({ activityEventEntities: [], lastResultSet: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuthOk() });
+    const first = await svc.getAdminInsights(1);
+    expect(first.success).toBe(true);
+    const callsAfterFirst = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    const second = await svc.getAdminInsights(1);
+    expect(second.success).toBe(true);
+    if (second.success) expect(second.data.fromCache).toBe(true);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsAfterFirst);
+
+    const third = await svc.getAdminInsights(1, true);
+    expect(third.success).toBe(true);
+    if (third.success) expect(third.data.fromCache).toBe(false);
+  });
+
+  it('bounds the day window to 14 and fails cleanly when the admin port is not wired', async () => {
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        return new Response(JSON.stringify({ activityEventEntities: [], lastResultSet: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({ auth: adminAuthOk() });
+    const bounded = await svc.getAdminInsights(99, true);
+    expect(bounded.success).toBe(true);
+    if (bounded.success) expect(bounded.data.days).toBe(14);
+
+    const unwired = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    // No apps → no audience calls; activity request hits the unwired port.
+    const result = await unwired.getAdminInsights(1);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('ADMIN_INSIGHTS_FAILED');
+  });
+});
+
+describe('getInsightsSnapshot — schedule-vs-reality', () => {
+  const WS = '11111111-1111-1111-1111-111111111111';
+
+  it('flags an enabled schedule with a stale last success as Overdue', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/refreshSchedule')) {
+        return new Response(
+          JSON.stringify({ days: ['Monday', 'Tuesday'], times: ['06:00'], enabled: true, localTimeZoneId: 'UTC' }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/refreshes')) {
+        return new Response(
+          JSON.stringify({
+            value: [{ status: 'Completed', refreshType: 'ViaApi', startTime: '2026-05-01T00:00:00Z', endTime: '2026-05-01T00:05:00Z' }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (/\/datasets(\?|$)/.test(url)) {
+        return new Response(JSON.stringify({ value: [{ id: 'ds-1', name: 'Model', isRefreshable: true }] }), { status: 200 });
+      }
+      if (/\/groups\//.test(url)) return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const ds = result.data.refreshables.find((r) => r.id === 'ds-1');
+    expect(ds?.lastRefreshType).toBe('ViaApi');
+    expect(ds?.scheduleSummary).toBe('Monday, Tuesday at 06:00');
+    // Last success is weeks older than the 2-slot/week cadence → overdue.
+    expect(ds?.scheduleOverdue).toBe(true);
+  });
+});

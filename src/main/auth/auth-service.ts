@@ -7,7 +7,7 @@ import {
 } from '@azure/msal-node';
 import { BrowserWindow, session, shell } from 'electron';
 import { randomFillSync } from 'crypto';
-import { msalConfig, loginRequest, silentRequest, azureConfigValid } from './msal-config';
+import { msalConfig, loginRequest, silentRequest, adminScopes, azureConfigValid } from './msal-config';
 import { tokenCache as realTokenCache, CachedUserInfo } from './token-cache';
 import { settingsService } from '../services/settings-service';
 import { usageTrackingService } from '../services/usage-tracking-service';
@@ -691,6 +691,120 @@ class AuthService {
       // Always release the lock — success OR throw — so a failed acquisition
       // does not permanently wedge every future caller.
       this.tokenAcquisitionInFlight = null;
+    }
+  }
+
+  /**
+   * Admin-tier token (Tenant.Read.All) via incremental consent. Tries silent
+   * first; when AAD requires interaction (first use, or consent not yet
+   * granted) it opens the normal auth window where a Fabric admin can grant
+   * the permission — including "consent on behalf of your organization" — from
+   * inside the app. Regular sign-ins are untouched: this scope is never part
+   * of login(), so a client account that lacks it can never be blocked by it.
+   */
+  async getAdminAccessToken(): Promise<IPCResponse<TokenResult>> {
+    try {
+      await this.initializeCache();
+      const account = this.account ?? (await this.getActiveAccount());
+      if (!account) {
+        return {
+          success: false,
+          error: { code: 'NO_ACCOUNT', message: 'No authenticated account' },
+        };
+      }
+      this.account = account;
+
+      try {
+        const result = await this.deps.msalClient.acquireTokenSilent({
+          scopes: adminScopes,
+          account,
+        });
+        await this.persistCache();
+        return {
+          success: true,
+          data: {
+            accessToken: result.accessToken,
+            expiresOn: result.expiresOn ? result.expiresOn.toISOString() : null,
+          },
+        };
+      } catch (err) {
+        if (!(err instanceof InteractionRequiredAuthError)) throw err;
+        // Fall through to the interactive incremental-consent flow.
+      }
+
+      // Share the in-flight guard with login() so two auth windows can never
+      // stack (e.g. admin unlock clicked during a sign-in).
+      if (this.pendingAuthState !== null) {
+        return {
+          success: false,
+          error: { code: 'LOGIN_IN_PROGRESS', message: 'A sign-in is already in progress' },
+        };
+      }
+
+      this.lastAuthError = null;
+      const { verifier, challenge } = await this.deps.cryptoProvider.generatePkceCodes();
+      const state = this.generateState();
+      this.pendingAuthState = state;
+      try {
+        // Request the SUPERSET (base + admin scopes) so the refreshed grant
+        // covers everything the app uses with one consent.
+        const authCodeUrl = await this.deps.msalClient.getAuthCodeUrl({
+          scopes: [...loginRequest.scopes, ...adminScopes],
+          redirectUri: 'http://localhost',
+          codeChallenge: challenge,
+          codeChallengeMethod: 'S256',
+          state,
+        });
+        const authResult = await this.deps.openAuthWindow(authCodeUrl, state, (description) => {
+          this.lastAuthError = description;
+        });
+        if (!authResult) {
+          const message = this.lastAuthError;
+          this.lastAuthError = null;
+          return {
+            success: false,
+            error: message
+              ? { code: 'AAD_AUTH_ERROR', message }
+              : { code: 'ADMIN_CONSENT_CANCELLED', message: 'The consent window was closed' },
+          };
+        }
+        if (authResult.state !== state) {
+          return {
+            success: false,
+            error: {
+              code: 'CSRF_VALIDATION_FAILED',
+              message: 'Sign-in could not be verified. Please try again.',
+            },
+          };
+        }
+        const tokenResponse = await this.deps.msalClient.acquireTokenByCode({
+          code: authResult.code,
+          scopes: [...loginRequest.scopes, ...adminScopes],
+          redirectUri: 'http://localhost',
+          codeVerifier: verifier,
+        });
+        if (tokenResponse) {
+          await this.persistCache();
+          return {
+            success: true,
+            data: {
+              accessToken: tokenResponse.accessToken,
+              expiresOn: tokenResponse.expiresOn ? tokenResponse.expiresOn.toISOString() : null,
+            },
+          };
+        }
+        return {
+          success: false,
+          error: { code: 'ADMIN_TOKEN_FAILED', message: 'No result from consent' },
+        };
+      } finally {
+        this.pendingAuthState = null;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: { code: 'ADMIN_TOKEN_FAILED', message: String(error) },
+      };
     }
   }
 

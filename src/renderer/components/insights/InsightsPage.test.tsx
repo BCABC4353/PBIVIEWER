@@ -46,6 +46,9 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
         lastAttemptTime: '2026-06-10T02:00:00.000Z',
         lastSuccessTime: '2026-06-08T02:00:00.000Z',
         errorCode: 'ModelRefreshFailed_CredentialsNotSpecified',
+        lastRefreshType: 'ViaApi',
+        scheduleSummary: 'Daily at 06:00',
+        scheduleOverdue: true,
       },
       {
         kind: 'dataflow',
@@ -177,5 +180,68 @@ describe('InsightsPage', () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     expect(screen.getByText(/\(cached\)/)).toBeInTheDocument();
+  });
+});
+
+describe('InsightsPage — trigger column, overdue flag, admin tier', () => {
+  it('shows the Power Automate trigger label and the Overdue badge', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(screen.getByText('Power Automate / API')).toBeInTheDocument();
+    expect(screen.getByText('Overdue')).toBeInTheDocument();
+  });
+
+  it('surfaces ADMIN_REQUIRED as a friendly message after Unlock', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    // setup.ts default getAdminInsights mock returns ADMIN_REQUIRED.
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unlock admin view' }));
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(/not a Fabric administrator/);
+  });
+
+  it('renders activity and App audiences after a successful unlock', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    (window.electronAPI.content.getAdminInsights as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        generatedAt: '2026-06-10T04:00:00.000Z',
+        fromCache: false,
+        days: 7,
+        activityByUser: [{ user: 'a@client.com', views: 12, lastActive: '2026-06-10T03:00:00.000Z' }],
+        activityByItem: [
+          { name: 'Sales Daily', views: 12, uniqueUsers: 3, lastViewed: '2026-06-10T03:00:00.000Z' },
+        ],
+        appAudiences: [
+          {
+            appId: 'app-1',
+            appName: 'BC Suite',
+            users: [{ name: 'Client A', email: 'a@client.com', accessRight: 'Viewer', type: 'User' }],
+          },
+        ],
+        failedDays: 1,
+      },
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unlock admin view' }));
+    });
+    expect(screen.getByText('Sales Daily')).toBeInTheDocument();
+    expect(screen.getByText('a@client.com')).toBeInTheDocument();
+    expect(screen.getByText(/1 day\(s\) could not be read/)).toBeInTheDocument();
+
+    // Expand the App audience accordion.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /BC Suite/ }));
+    });
+    expect(screen.getByText('Client A')).toBeInTheDocument();
+    expect(screen.getByText('Viewer')).toBeInTheDocument();
   });
 });
