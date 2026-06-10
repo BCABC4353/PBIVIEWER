@@ -98,6 +98,15 @@ export const AppViewer: React.FC = () => {
         }
         datasetsRef.current = datasets;
         setDatasetCount(datasets.length);
+        // Kick a freshness poll NOW that the dataset list exists. The hook's
+        // mount poll and the webview's did-stop-loading poll can both fire
+        // before this resolver returns (the webview emits did-stop-loading on
+        // its first blank frame), and the next scheduled poll is 5 minutes
+        // out — so without this, the App view shows "Data refreshed: —" for
+        // minutes while reports populate instantly. Setting lastLoadAt also
+        // (re)baselines newDataAvailable, which is correct: the on-screen
+        // content was loaded at essentially this moment.
+        if (datasets.length > 0) setLastLoadAt(Date.now());
       } catch (err) {
         console.warn('[AppViewer] Could not resolve app datasets for freshness:', err);
       }
