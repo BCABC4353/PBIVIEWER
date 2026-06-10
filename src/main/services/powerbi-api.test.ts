@@ -690,7 +690,7 @@ describe('getInsightsSnapshot — health derivation branches', () => {
     expect(bad?.errorCode).toBeUndefined();
   });
 
-  it('flags a workspace as failed when both dataset and dataflow lists are unreadable', async () => {
+  it('returns a hard failure when EVERY workspace fails to read (not an empty board)', async () => {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -706,10 +706,60 @@ describe('getInsightsSnapshot — health derivation branches', () => {
     const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
 
     const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe('INSIGHTS_FETCH_FAILED');
+  });
+
+  it('keeps partial success when SOME workspaces read and others fail', async () => {
+    const WS2 = '22222222-2222-2222-2222-222222222222';
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      // Workspace WS2's dataset/dataflow lists fail; WS reads fine (empty).
+      if (url.includes(WS2) && (/\/datasets(\?|$)/.test(url) || /\/dataflows(\?|$)/.test(url))) {
+        return new Response('forbidden', { status: 403 });
+      }
+      if (/\/groups\//.test(url)) return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          value: [
+            { id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' },
+            { id: WS2, name: 'Ops', isReadOnly: false, type: 'Workspace' },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const result = await svc.getInsightsSnapshot();
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.partialFailure).toBe(true);
-    expect(result.data.failedWorkspaces[0]?.name).toBe('Sales');
+    expect(result.data.failedWorkspaces.map((w) => w.name)).toEqual(['Ops']);
+  });
+
+  it('clearCaches drops the cached snapshot so the next call rebuilds', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (/\/groups(\?|$)/.test(url)) {
+        return new Response(
+          JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    await svc.getInsightsSnapshot();
+    const cached = await svc.getInsightsSnapshot();
+    expect(cached.success && cached.data.fromCache).toBe(true);
+
+    svc.clearCaches();
+    const rebuilt = await svc.getInsightsSnapshot();
+    expect(rebuilt.success && rebuilt.data.fromCache).toBe(false);
   });
 });
 
@@ -983,5 +1033,39 @@ describe('getInsightsSnapshot — schedule-vs-reality', () => {
     expect(ds?.scheduleSummary).toBe('Monday, Tuesday at 06:00');
     // Last success is weeks older than the 2-slot/week cadence → overdue.
     expect(ds?.scheduleOverdue).toBe(true);
+  });
+});
+
+describe('getAdminInsights — continuation safety', () => {
+  it('stops and marks the day partial when continuationUri loops', async () => {
+    const loopUri = 'https://api.powerbi.com/v1.0/myorg/admin/activityevents?continuation-loop';
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        // Always return the SAME continuationUri with lastResultSet:false — a
+        // server bug that would loop forever without the seen-URL guard.
+        return new Response(
+          JSON.stringify({
+            activityEventEntities: [{ UserId: 'a@x.com', ReportName: 'R', CreationTime: '2026-06-10T01:00:00Z' }],
+            continuationUri: loopUri,
+            lastResultSet: false,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const svc = createPowerBIApiService({
+      auth: {
+        getAccessToken: vi.fn().mockResolvedValue(tokenOk()),
+        getAdminAccessToken: vi.fn().mockResolvedValue({ success: true, data: { accessToken: 't', expiresOn: null } }),
+      },
+    });
+    const result = await svc.getAdminInsights(1);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    // The single day looped → counted as a failed (partial) day, not infinite.
+    expect(result.data.failedDays).toBe(1);
   });
 });

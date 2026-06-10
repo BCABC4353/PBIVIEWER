@@ -101,7 +101,18 @@ export function registerContentIpc(): void {
         return exportResponse;
       }
 
-      await fs.writeFile(filePath, exportResponse.data);
+      // Write to a sibling temp file first, then rename into place. A crash or
+      // disk-full mid-write then corrupts only the throwaway temp, never the
+      // user's target path (a half-written .pdf opens as a corrupt file).
+      const tmpPath = `${filePath}.${process.pid}.tmp`;
+      try {
+        await fs.writeFile(tmpPath, exportResponse.data);
+        await fs.rm(filePath, { force: true });
+        await fs.rename(tmpPath, filePath);
+      } catch (err) {
+        await fs.rm(tmpPath, { force: true }).catch(() => {});
+        throw err;
+      }
       return { success: true, data: { path: filePath } };
     }
   );
