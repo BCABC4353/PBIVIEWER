@@ -47,3 +47,25 @@ type, same motion as everything else. `src/ui/Sparkline.tsx` is the first one;
 the visual library grows from there (bars, lines, KPI tiles, tables). Embedding
 is permitted only as a last-resort fallback for visuals we haven't translated
 yet, and it should feel like a defeat every time.
+
+## Phone quickstart (Windows)
+
+One command starts the phone dev server: it finds (or downloads) the app at
+`$HOME\Desktop\PBIVIEWER`, updates it to the latest published version,
+installs everything, and shows the QR code to scan with Expo Go.
+
+First time (paste into any PowerShell window):
+
+```powershell
+irm https://raw.githubusercontent.com/BCABC4353/PBIVIEWER/main/run-phone.ps1 | iex
+```
+
+Every time after that:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$HOME\Desktop\PBIVIEWER\run-phone.ps1"
+```
+
+Leave the window open while you use the app; press `Ctrl+C` to stop. Any local
+edits inside the folder are discarded on each run (the script lists them first),
+so the phone always runs exactly what is published on `main`.
