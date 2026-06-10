@@ -79,6 +79,15 @@ export function thunk(): void {
 }
 
 /**
+ * Light impact — the ignition needle's mass carrying it past the end-stop at
+ * the overshoot apex. The launch ceremony's ONE haptic; nothing else in the
+ * sweep may buzz.
+ */
+export function apex(): void {
+  fire(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+}
+
+/**
  * Detent tick while scrubbing across data points — feels like machined
  * detents under the finger. Internally rate-limited to ≤30/s so fast scrubs
  * read as a purr of clicks, never a buzz-saw.
@@ -107,6 +116,7 @@ const PROBE_VERBS: ReadonlyArray<[string, () => Promise<void>]> = [
   ['warn', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)],
   ['fault', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)],
   ['thunk', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid)],
+  ['apex', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)],
   ['detent', () => Haptics.selectionAsync()],
 ];
 

@@ -28,7 +28,7 @@ duration sparkline.
 | Core logic (status, overdue math, ordering, durations, DAX shaping) | **Ported/built with 112 unit tests green** |
 | Four-tab interface (Fleet / Reports / Alerts / Settings) | Built, typechecked — **never yet rendered on a device**; first `expo start` is the moment of truth, expect layout fixes |
 | Native visuals (KPI, bar, line, donut, table) + demo report canvases | Built; render offline from realistic mock query results; live mode binds the same DAX runner |
-| The feel layer (springs, haptic verbs, entrances, count-ups) + **Ignition Sweep** | Built; SwiftUI spring values translated losslessly; Reduce Motion safe |
+| The feel layer (springs, haptic verbs, entrances, count-ups) + **Ignition ceremony** (once per cold launch, non-blocking veil, Reanimated UI-thread sweep) | Built; SwiftUI spring values translated losslessly; Reduce Motion safe; loading is quiet skeletons, never a gate |
 | Auth (AAD PKCE + device code flow, SecureStore persistence, silent refresh, single-flight) | Built + tested; **live mode needs only the Azure GUIDs in the gitignored `src/auth/azure-config.local.json`** — no Entra redirect changes (device code flow) |
 | Data | Sample mode by default; Live switch in Settings once auth is configured |
 | Push alerts | Not built (needs the small backend — `../docs/PHONE-OPS-CONSOLE-PLAN.md` Phase 2) |

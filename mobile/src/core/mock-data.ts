@@ -4,12 +4,13 @@
  * (see mobile/README.md).
  *
  * STAGED LOADER: when the host passes `onProgress`, the sample fleet "checks"
- * its items one at a time — six staged increments over ~2.2 s — so the
- * Ignition Sweep gets a real per-item sweep to chase and a detent per landing,
- * exactly the cadence a live multi-workspace fan-out produces. The label in
- * Settings stays honest: this is sample data end to end; the stages simulate
- * the per-item checking rhythm, not fake live results. Without `onProgress`
- * the old single 600 ms beat is unchanged.
+ * its items one at a time — six staged increments over ~2.2 s — exactly the
+ * cadence a live multi-workspace fan-out produces, for any consumer that
+ * wants real per-item progress. (The fleet screen itself no longer animates
+ * loading progress — it shows quiet skeletons and takes the single-resolve
+ * path below.) The label in Settings stays honest: this is sample data end to
+ * end; the stages simulate the per-item checking rhythm, not fake live
+ * results. Without `onProgress` the old single 600 ms beat is unchanged.
  */
 import type { DataSource, FleetProgressFn, FleetSnapshot } from './types';
 

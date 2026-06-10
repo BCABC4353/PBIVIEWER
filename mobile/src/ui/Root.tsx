@@ -8,6 +8,7 @@ import { ReportCanvasScreen } from './ReportCanvasScreen';
 import { AlertsScreen } from './AlertsScreen';
 import { makeDemoRunner, type DemoCanvas } from '../visuals/demo-canvases';
 import { tap } from '../feel/haptics';
+import { IgnitionOverlay } from '../feel/IgnitionSweep';
 
 /**
  * App shell — own bottom tab bar (Pressable + tokens, no navigation dep).
@@ -99,6 +100,11 @@ export const Root: React.FC<{ source: DataSource; settings: React.ReactNode }> =
           );
         })}
       </View>
+      {/* The launch ceremony: a brief non-blocking veil that plays ONCE per
+          cold start (module-level latch) and fades to reveal the app already
+          laid out beneath it. Tab switches and back-navigation can never
+          bring it back — it unmounts itself and stays gone. */}
+      <IgnitionOverlay />
     </View>
   );
 };
