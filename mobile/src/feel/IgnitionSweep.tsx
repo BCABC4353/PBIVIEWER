@@ -74,6 +74,17 @@ export function IgnitionSweep({
   const onCaughtRef = useRef(onCaught);
   onCaughtRef.current = onCaught;
 
+  // Unmount mid-sweep: stop the in-flight spring and make sure its completion
+  // callback (haptic + onSettled/onCaught) never fires for a gone gauge.
+  const unmountedRef = useRef(false);
+  useEffect(
+    () => () => {
+      unmountedRef.current = true;
+      anim.stopAnimation();
+    },
+    [anim],
+  );
+
   // Detents — one gated tick per batch of REAL responses. Runs before the
   // drive effect below so the completion batch still ticks while 'sweeping'.
   // Reduce Motion → no detents (the contract is: instant settle, ONE haptic).
@@ -92,7 +103,7 @@ export function IgnitionSweep({
     const target = arcTargetFraction(result.state, progress);
 
     const fireCompletion = () => {
-      if (completionFiredRef.current) return;
+      if (unmountedRef.current || completionFiredRef.current) return;
       completionFiredRef.current = true;
       if (result.haptic === 'confirm') confirm();
       if (result.haptic === 'fault') fault();

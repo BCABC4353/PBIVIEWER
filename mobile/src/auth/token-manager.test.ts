@@ -233,6 +233,54 @@ describe('persistence shape', () => {
   });
 });
 
+describe('concurrent hydration (cold-start race)', () => {
+  it('isSignedIn() and getAccessToken() racing at launch share ONE storage read', async () => {
+    let reads = 0;
+    const storage: TokenStorage = {
+      get: async () => {
+        reads += 1;
+        await new Promise((r) => setTimeout(r, 0)); // storage read takes a tick
+        return JSON.stringify({ refreshToken: 'RT-race', user: { username: 'brendan@bc-abc.com' } });
+      },
+      set: async () => {},
+      remove: async () => {},
+    };
+    const refresh = vi.fn(async () => freshSet({ accessToken: 'AT-race' }));
+    const m = new TokenManager({ storage, refresh, now: () => NOW });
+    // Pre-fix: the second caller saw `loaded = true, tokens = null` while the
+    // first was still awaiting storage.get() → false / "Not signed in".
+    const [signedIn, token] = await Promise.all([m.isSignedIn(), m.getAccessToken()]);
+    expect(signedIn).toBe(true);
+    expect(token).toBe('AT-race');
+    expect(reads).toBe(1);
+  });
+
+  it('clear() during a slow hydration does not resurrect credentials', async () => {
+    let releaseGet!: () => void;
+    const gate = new Promise<void>((r) => (releaseGet = r));
+    let value: string | null = JSON.stringify({ refreshToken: 'RT-zombie' });
+    const storage: TokenStorage = {
+      get: async () => {
+        const snapshot = value; // read the pre-clear value…
+        await gate; // …but deliver it only after clear() has run
+        return snapshot;
+      },
+      set: async (v) => {
+        value = v;
+      },
+      remove: async () => {
+        value = null;
+      },
+    };
+    const m = new TokenManager({ storage, refresh: vi.fn(), now: () => NOW });
+    const pending = m.isSignedIn(); // hydration starts, suspended on get()
+    await m.clear(); // sign out while hydration is in flight
+    releaseGet();
+    expect(await pending).toBe(false); // stale read must not commit
+    expect(await m.isSignedIn()).toBe(false); // and a re-read sees the wipe
+  });
+});
+
 describe('id_token decoding (pure base64url, no atob/Buffer)', () => {
   const payload = (claims: object) => {
     // Node Buffer is fine IN THE TEST as the encoder; the decoder under test

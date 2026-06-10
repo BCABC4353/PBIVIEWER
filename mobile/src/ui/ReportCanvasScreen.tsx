@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import {
@@ -29,7 +31,10 @@ export const ReportCanvasScreen: React.FC<{
   runQuery: (dax: string) => Promise<QueryResult>;
   onBack: () => void;
 }> = ({ spec, runQuery, onBack }) => {
-  // KPIs ride 2-up at the top; everything else stacks full-width below.
+  // Portrait: KPIs ride 2-up at the top, everything else stacks full-width.
+  // Landscape: the KPI grid goes 4-up and the big visuals pair 2-up.
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const kpis = useMemo(() => spec.visuals.filter((v) => v.kind === 'kpi'), [spec]);
   const others = useMemo(() => spec.visuals.filter((v) => v.kind !== 'kpi'), [spec]);
 
@@ -44,13 +49,27 @@ export const ReportCanvasScreen: React.FC<{
         {kpis.length > 0 ? (
           <View style={styles.kpiRow}>
             {kpis.map((v, i) => (
-              <CanvasVisual key={v.title} visual={v} runQuery={runQuery} index={i} style={styles.kpiTile} />
+              <CanvasVisual
+                key={v.title}
+                visual={v}
+                runQuery={runQuery}
+                index={i}
+                style={landscape ? styles.kpiTileLandscape : styles.kpiTile}
+              />
             ))}
           </View>
         ) : null}
-        {others.map((v, i) => (
-          <CanvasVisual key={v.title} visual={v} runQuery={runQuery} index={kpis.length + i} />
-        ))}
+        <View style={landscape ? styles.visualsGridLandscape : styles.visualsStack}>
+          {others.map((v, i) => (
+            <CanvasVisual
+              key={v.title}
+              visual={v}
+              runQuery={runQuery}
+              index={kpis.length + i}
+              style={landscape ? styles.visualHalf : undefined}
+            />
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -126,11 +145,23 @@ const ShapedBody: React.FC<{ visual: VisualSpec; result: QueryResult }> = ({ vis
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: color.canvas },
+  screen: {
+    flex: 1,
+    backgroundColor: color.canvas,
+    // SafeAreaView is iOS-only; on Android the first render would slide
+    // under the status bar without this.
+    paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
+  },
   back: { paddingHorizontal: space.l, paddingVertical: space.s },
   backText: { ...type.body, color: color.accent },
   canvas: { paddingHorizontal: space.l, paddingBottom: space.xxl, gap: space.m },
   title: { ...type.title, color: color.textPrimary, marginBottom: space.s },
-  kpiRow: { flexDirection: 'row', gap: space.m },
+  kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m },
   kpiTile: { flex: 1 },
+  // Landscape: ~quarter-width basis → 4 tiles per row (grow fills shortfall).
+  kpiTileLandscape: { flexGrow: 1, flexBasis: '22%' },
+  visualsStack: { gap: space.m },
+  visualsGridLandscape: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m },
+  // Landscape: ~half-width basis → big visuals pair up side-by-side.
+  visualHalf: { flexGrow: 1, flexBasis: '45%' },
 });

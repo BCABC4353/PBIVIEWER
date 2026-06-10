@@ -16,6 +16,12 @@ import {
 const BASE = 'https://api.powerbi.com/v1.0/myorg';
 const WORKSPACE_BATCH = 3;
 const ITEM_CONCURRENCY = 4;
+/** Bounded retries on HTTP 429 (Power BI throttles big tenants). */
+const MAX_429_RETRIES = 2;
+/** Cap honored Retry-After at 60 s so a hostile/huge header can't hang us. */
+const MAX_RETRY_AFTER_S = 60;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function mapWithConcurrency<T, R>(
   items: readonly T[],
@@ -43,12 +49,26 @@ export class LiveFleetClient implements DataSource {
   constructor(private readonly tokens: TokenProvider) {}
 
   private async get<T>(path: string): Promise<T> {
-    const token = await this.tokens.getAccessToken();
-    const res = await fetch(`${BASE}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error(`Power BI API ${res.status} on ${path}`);
-    return (await res.json()) as T;
+    for (let attempt = 0; ; attempt++) {
+      const token = await this.tokens.getAccessToken();
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Power BI throttles fan-out on big tenants with 429 + Retry-After.
+      // Without this, tryList() swallows the 429 and the item silently shows
+      // as unreadable/empty. Bounded retry honoring Retry-After (seconds).
+      if (res.status === 429 && attempt < MAX_429_RETRIES) {
+        const retryAfter = Number(res.headers.get('Retry-After'));
+        const seconds =
+          Number.isFinite(retryAfter) && retryAfter > 0
+            ? Math.min(retryAfter, MAX_RETRY_AFTER_S)
+            : 2 * (attempt + 1); // header absent/unparsable → small backoff
+        await sleep(seconds * 1000);
+        continue;
+      }
+      if (!res.ok) throw new Error(`Power BI API ${res.status} on ${path}`);
+      return (await res.json()) as T;
+    }
   }
 
   private async tryList<T>(path: string): Promise<T[] | null> {

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  FlatList, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, Text, View,
+  FlatList, Platform, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
@@ -135,7 +135,13 @@ export const RefreshDetailScreen: React.FC<{ item: Refreshable; onBack: () => vo
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: color.canvas },
+  screen: {
+    flex: 1,
+    backgroundColor: color.canvas,
+    // SafeAreaView is iOS-only; on Android the first render would slide
+    // under the status bar without this.
+    paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.m, padding: space.l },
   errorText: { ...type.body, color: color.textSecondary, textAlign: 'center' },
   retry: { borderWidth: 1, borderColor: color.accent, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s },

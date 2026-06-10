@@ -1,22 +1,80 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { color, space, type } from '../design/tokens';
 import { formatValue, type SeriesData, type ValueFormat } from '../core/dax';
+import { detent } from '../feel/haptics';
 import { areaFill, highlight, seriesLine } from './palette';
+import { lineIndexForX } from './scrub-logic';
 
 const CHART_HEIGHT = 120;
 const PAD_V = 6; // keeps the stroke and last-point dot inside the svg
+const TAP_SLOP = 4; // px of travel before a touch counts as a scrub, not a tap
 
 /**
  * Line chart — svg path with a flat whisper of area fill (no gradients), the
- * last point dotted in amber, min/max read as quiet mono labels.
+ * last point dotted in amber, min/max read as quiet mono labels. Touch the
+ * plot to read a point; DRAG to scrub — the amber dot snaps to the nearest
+ * point, the mono readout follows live, and a detent ticks on each index
+ * change. Release keeps the last selection; a plain tap clears it. Scrubbing
+ * is interaction, not decoration — it ignores Reduce Motion.
  */
 export const LineChart: React.FC<{
   data: SeriesData;
   format?: ValueFormat;
 }> = ({ data, format = 'number' }) => {
   const [width, setWidth] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const widthRef = useRef(0);
+  const countRef = useRef(data.points.length);
+  countRef.current = data.points.length;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const movedRef = useRef(false);
+
+  // Snap the scrub to the nearest point; detent ONLY on index change
+  // (detent() is internally rate-limited, so fast scrubs purr, never buzz).
+  const scrubTo = useCallback((px: number) => {
+    const idx = lineIndexForX(px, widthRef.current, countRef.current);
+    if (idx < 0 || idx === selectedRef.current) return;
+    selectedRef.current = idx;
+    setSelected(idx);
+    detent();
+  }, []);
+
+  const endTouch = useCallback(() => {
+    // A drag keeps its last selection; a plain tap clears back to latest.
+    if (!movedRef.current) {
+      selectedRef.current = null;
+      setSelected(null);
+    }
+  }, []);
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        // Yield to the surrounding ScrollView only when the drag is clearly
+        // vertical — horizontal scrubs keep the chart. The second hook is the
+        // Android path: native scrolling bypasses termination requests and is
+        // blocked by default, so it must be released explicitly.
+        onPanResponderTerminationRequest: (_e, g) => Math.abs(g.dy) > Math.abs(g.dx),
+        onShouldBlockNativeResponder: (_e, g) => Math.abs(g.dx) >= Math.abs(g.dy),
+        onPanResponderGrant: (e) => {
+          movedRef.current = false;
+          scrubTo(e.nativeEvent.locationX);
+        },
+        onPanResponderMove: (e, g) => {
+          if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) movedRef.current = true;
+          scrubTo(e.nativeEvent.locationX);
+        },
+        onPanResponderRelease: endTouch,
+        onPanResponderTerminate: endTouch,
+      }),
+    [scrubTo, endTouch],
+  );
+
   const points = data.points;
   if (points.length === 0) return <Text style={styles.empty}>No data</Text>;
 
@@ -25,6 +83,10 @@ export const LineChart: React.FC<{
   const min = Math.min(...values);
   const range = max - min || 1;
   const last = points[points.length - 1]!;
+  // Guard against a stale selection if the data shrank under it.
+  const sel = selected !== null && selected < points.length ? selected : null;
+  const active = sel !== null ? points[sel] : undefined;
+  const activeIndex = sel ?? points.length - 1;
 
   const x = (i: number) =>
     points.length === 1 ? width / 2 : (i / (points.length - 1)) * width;
@@ -44,13 +106,23 @@ export const LineChart: React.FC<{
     >
       <View style={styles.readout}>
         <Text style={styles.readoutLabel} numberOfLines={1}>
-          {last.label}
+          {active ? active.label : last.label}
         </Text>
-        <Text style={styles.readoutValue}>{formatValue(last.value, format)}</Text>
+        <Text style={styles.readoutValue}>
+          {formatValue(active ? active.value : last.value, format)}
+        </Text>
       </View>
       <View
         style={styles.plot}
-        onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
+        // box-only: the plot itself owns every touch, so locationX is always
+        // plot-relative and the scrub math stays honest.
+        pointerEvents="box-only"
+        onLayout={(e) => {
+          const w = Math.round(e.nativeEvent.layout.width);
+          widthRef.current = w;
+          setWidth(w);
+        }}
+        {...pan.panHandlers}
       >
         {/* min/max rails — quiet mono labels pinned to the plot edges */}
         <Text style={[styles.rail, styles.railTop]}>{formatValue(max, format)}</Text>
@@ -59,7 +131,23 @@ export const LineChart: React.FC<{
           <Svg width={width} height={CHART_HEIGHT}>
             <Path d={areaPath} fill={areaFill} />
             <Path d={linePath} stroke={seriesLine} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-            <Circle cx={x(points.length - 1)} cy={y(last.value)} r={3.5} fill={highlight} />
+            {sel !== null ? (
+              // Scrub cursor — a quiet hairline pinned to the selected point.
+              <Line
+                x1={x(activeIndex)}
+                y1={0}
+                x2={x(activeIndex)}
+                y2={CHART_HEIGHT}
+                stroke={color.hairline}
+                strokeWidth={1}
+              />
+            ) : null}
+            <Circle
+              cx={x(activeIndex)}
+              cy={y(points[activeIndex]!.value)}
+              r={3.5}
+              fill={highlight}
+            />
           </Svg>
         ) : null}
       </View>
