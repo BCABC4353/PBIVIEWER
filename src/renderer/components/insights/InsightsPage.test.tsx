@@ -100,6 +100,7 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
       },
       { workspaceId: 'ws-2', workspaceName: 'Ops', users: null },
     ],
+    reports: [],
     partialFailure: false,
     failedWorkspaces: [],
     ...overrides,

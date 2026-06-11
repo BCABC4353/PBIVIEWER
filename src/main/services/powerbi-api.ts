@@ -941,6 +941,7 @@ class PowerBIApiService {
       const refreshables: InsightsRefreshable[] = [];
       const access: InsightsWorkspaceAccess[] = [];
       const failedWorkspaces: Array<{ id: string; name: string; error: string }> = [];
+      const snapshotReports: InsightsSnapshot['reports'] = [];
       let reportCount = 0;
       let dashboardCount = 0;
 
@@ -955,15 +956,29 @@ class PowerBIApiService {
         const batch = workspaces.slice(i, i + BATCH_SIZE);
         await Promise.all(
           batch.map(async (ws) => {
-            const [datasets, dataflows, users, reports, dashboards] = await Promise.all([
-              this.getWorkspaceDatasets(ws.id),
-              this.getWorkspaceDataflows(ws.id),
-              this.getWorkspaceUsers(ws.id),
-              this.getReports(ws.id),
-              this.getDashboards(ws.id),
-            ]);
+            const [datasets, dataflows, users, reports, dashboards, upstreamByDataset] =
+              await Promise.all([
+                this.getWorkspaceDatasets(ws.id),
+                this.getWorkspaceDataflows(ws.id),
+                this.getWorkspaceUsers(ws.id),
+                this.getReports(ws.id),
+                this.getDashboards(ws.id),
+                this.getWorkspaceUpstreamDataflowLinks(ws.id),
+              ]);
 
-            if (reports.success) reportCount += reports.data.length;
+            if (reports.success) {
+              reportCount += reports.data.length;
+              // Blast radius: keep the dataset→report edge from the listing we
+              // already fetched for the count — no extra request.
+              for (const r of reports.data) {
+                snapshotReports.push({
+                  id: r.id,
+                  name: r.name,
+                  workspaceId: ws.id,
+                  ...(r.datasetId ? { datasetId: r.datasetId } : {}),
+                });
+              }
+            }
             if (dashboards.success) dashboardCount += dashboards.data.length;
             access.push({ workspaceId: ws.id, workspaceName: ws.name, users });
 
@@ -980,6 +995,12 @@ class PowerBIApiService {
               datasets ?? [],
               DATASET_CONCURRENCY,
               async (ds): Promise<InsightsRefreshable> => {
+                // Lineage edge for the blast-radius cascade. null map = the
+                // workspace lineage call failed → OMIT the field (unknown),
+                // never fail the snapshot.
+                const lineage = upstreamByDataset
+                  ? { upstreamDataflowIds: upstreamByDataset.get(ds.id.toLowerCase()) ?? [] }
+                  : {};
                 if (ds.isRefreshable === false) {
                   return {
                     kind: 'dataset',
@@ -989,6 +1010,7 @@ class PowerBIApiService {
                     workspaceName: ws.name,
                     configuredBy: ds.configuredBy,
                     lastStatus: 'Disabled',
+                    ...lineage,
                   };
                 }
                 const health = await this.getDatasetRefreshHealth(ws.id, ds.id);
@@ -1002,6 +1024,7 @@ class PowerBIApiService {
                   configuredBy: ds.configuredBy,
                   ...health,
                   ...schedule,
+                  ...lineage,
                 };
               },
             );
@@ -1044,6 +1067,7 @@ class PowerBIApiService {
         reportCount,
         dashboardCount,
         refreshables,
+        reports: snapshotReports,
         access,
         partialFailure: failedWorkspaces.length > 0,
         failedWorkspaces,
@@ -1091,6 +1115,39 @@ class PowerBIApiService {
       return (resp.value ?? []).filter((d) => d.objectId);
     } catch (error) {
       console.warn('[PowerBI] dataflows list failed for insights:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Full upstream-dataflow lineage for a workspace, keyed by LOWERCASED
+   * dataset id → dataflow ids feeding it. ONE call per workspace
+   * (GET /groups/{ws}/datasets/upstreamDataflows — the same endpoint
+   * resolveUpstreamDataflowsUncached uses for freshness, but unfiltered: the
+   * snapshot needs every dataset's edges, not a specific id set). Returns
+   * null when the call fails so callers can OMIT the field (unknown lineage)
+   * instead of failing the snapshot.
+   */
+  private async getWorkspaceUpstreamDataflowLinks(
+    workspaceId: string,
+  ): Promise<Map<string, string[]> | null> {
+    try {
+      const resp = await this.makeRequest<PowerBIApiResponse<{
+        datasetObjectId: string;
+        dataflowObjectId: string;
+        workspaceObjectId: string;
+      }>>(`/groups/${workspaceId}/datasets/upstreamDataflows`);
+      const byDataset = new Map<string, string[]>();
+      for (const link of resp.value ?? []) {
+        if (!link.datasetObjectId || !link.dataflowObjectId) continue;
+        const key = link.datasetObjectId.toLowerCase();
+        const flows = byDataset.get(key) ?? [];
+        if (!flows.includes(link.dataflowObjectId)) flows.push(link.dataflowObjectId);
+        byDataset.set(key, flows);
+      }
+      return byDataset;
+    } catch (error) {
+      console.warn('[PowerBI] upstreamDataflows lineage failed for insights:', error);
       return null;
     }
   }
