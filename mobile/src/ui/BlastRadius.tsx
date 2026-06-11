@@ -1,26 +1,3 @@
-/**
- * BlastRadius — the fleet board's workspace TILES and their full-screen
- * expansion (docs/design/BLAST-RADIUS.md, phone pattern).
- *
- * The interaction: each workspace is a tile (status edge, worst pulse dots,
- * counts). Tap → the tile EXPANDS into a sheet on ONE continuous reanimated
- * settle spring (springs.card — the house "card expand/collapse" curve,
- * ~400ms feel), growing from the tile's measured frame while the board blurs
- * and dims behind it. Tap the dimmed strip, the close affordance, or Android
- * system back → it contracts the same way in reverse. Nothing teleports; the
- * tile literally becomes the sheet (FLIP on layout, not a fade-swap).
- *
- * Haptics: ONE light detent (haptics.latch) when the sheet latches fully
- * open, ONE when it lands fully closed. The travel is silent.
- *
- * Reduce Motion: instant open/close, static dim instead of animated blur,
- * no haptics.
- *
- * Inside, items are organized BY TYPE — dataflows (upstream) first, then
- * datasets (core/workspace-tiles.ts, unit-tested). Each dataflow row carries a
- * downstream-damage annotation SLOT (`downstreamNotes`), hidden when absent —
- * the cascade data arrives with the blast-radius spine; nothing is fabricated.
- */
 import React, { useCallback, useEffect, useRef } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -45,14 +22,12 @@ import { FleetRow, RunDots } from './components';
 import { latch } from '../feel/haptics';
 import { motionEnabled, springs } from '../feel/springs';
 
-/** Severity → tone, straight from tokens: red is broken's alone. */
 const severityTone: Record<TileSeverity, string> = {
   broken: color.broken,
   attention: color.warn,
   quiet: color.neutral,
 };
 
-/** A measured rectangle, relative to the fleet screen's overlay host. */
 export interface FrameRect {
   x: number;
   y: number;
@@ -60,21 +35,15 @@ export interface FrameRect {
   height: number;
 }
 
-// ---------------------------------------------------------------------------
-// WorkspaceTileCard — the collapsed face on the board
-// ---------------------------------------------------------------------------
 
 export const WorkspaceTileCard: React.FC<{
   tile: WorkspaceTile;
-  /** Called with the tile's frame in WINDOW coordinates — the expansion origin. */
   onExpand: (tile: WorkspaceTile, windowFrame: FrameRect) => void;
 }> = ({ tile, onExpand }) => {
   const frameRef = useRef<View>(null);
   const tone = severityTone[tile.severity];
 
   const press = useCallback(() => {
-    // measureInWindow, not onLayout: the tile lives in a scrolled list, so
-    // only window coordinates are honest about where it is RIGHT NOW.
     const node = frameRef.current;
     if (!node) return;
     node.measureInWindow((x, y, width, height) => {
@@ -120,7 +89,7 @@ const tileStyles = StyleSheet.create({
     backgroundColor: color.surface1,
     borderRadius: radius.card,
     overflow: 'hidden',
-    minHeight: 44, // floor; real tiles run ~96pt
+    minHeight: 44,
   },
   cardPressed: { backgroundColor: color.surface2, transform: [{ scale: 0.985 }] },
   edge: { width: 4 },
@@ -133,15 +102,9 @@ const tileStyles = StyleSheet.create({
   worstName: { ...type.caption, color: color.textTertiary, flexShrink: 1 },
 });
 
-// ---------------------------------------------------------------------------
-// BlastSheet — the expanded tile
-// ---------------------------------------------------------------------------
 
-/** The blurred board stays visible above the open sheet — and is tappable to close. */
 const TOP_INSET = 56;
 
-/** The settle spring (springs.card: SwiftUI 0.42/0.82 — ~400ms card expand),
- *  re-expressed for reanimated's withSpring (same physical triple). */
 const SETTLE = {
   stiffness: springs.card.stiffness,
   damping: springs.card.damping,
@@ -150,37 +113,25 @@ const SETTLE = {
 
 export const BlastSheet: React.FC<{
   tile: WorkspaceTile;
-  /** Expansion origin: the tile's frame relative to the overlay host. */
   origin: FrameRect;
-  /** The overlay host's size — the sheet's fully-open target. */
   host: { width: number; height: number };
   now: number;
-  /** Fired after the contraction lands (instantly under Reduce Motion). */
   onClose: () => void;
-  /** Drill into one item (existing RefreshDetail flow). */
   onOpenItem?: (item: Refreshable) => void;
-  /**
-   * Downstream-damage annotation per dataflow id ("what refreshed against
-   * stale data"). Slot only — absent notes render nothing. The cascade spine
-   * is built separately; this sheet never invents damage.
-   */
   downstreamNotes?: Record<string, string | undefined>;
 }> = ({ tile, origin, host, now, onClose, onOpenItem, downstreamNotes }) => {
-  // ONE shared value drives everything — panel frame, backdrop, content —
-  // so the whole expansion is one continuous spring, never a fade-swap.
   const progress = useSharedValue(0);
   const motion = useRef(motionEnabled()).current;
   const closing = useRef(false);
 
   useEffect(() => {
     if (!motion) {
-      progress.value = 1; // Reduce Motion: open instantly, no haptic.
+      progress.value = 1;
       return;
     }
     progress.value = withSpring(1, SETTLE, (finished) => {
-      if (finished) runOnJS(latch)(); // the ONE detent at full-open
+      if (finished) runOnJS(latch)();
     });
-    // Mount-only: the expansion happens once per open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -188,19 +139,17 @@ export const BlastSheet: React.FC<{
     if (closing.current) return;
     closing.current = true;
     if (!motion) {
-      onClose(); // instant, silent
+      onClose();
       return;
     }
     progress.value = withSpring(0, SETTLE, (finished) => {
       if (finished) {
-        runOnJS(latch)(); // the ONE detent at close
+        runOnJS(latch)();
         runOnJS(onClose)();
       }
     });
   }, [motion, onClose, progress]);
 
-  // Android system back contracts the sheet instead of leaving the screen.
-  // (iOS has no system back here; web's shim only logs, so gate to Android.)
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -223,8 +172,6 @@ export const BlastSheet: React.FC<{
     };
   });
 
-  // Content rides the SAME spring: the tile's facts (name, counts) persist
-  // through the morph; the deeper rows fill in as room becomes available.
   const fillInStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0.55, 1], [0, 1], Extrapolation.CLAMP),
   }));
@@ -233,10 +180,8 @@ export const BlastSheet: React.FC<{
   const sections = sheetSections(tile.items);
 
   return (
-    // accessibilityViewIsModal: while the sheet is up, screen readers must
-    // not wander the blurred board behind it.
     <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
-      {/* The board, blurring and dimming behind the growing tile. Tapping it closes. */}
+      {}
       <Animated.View style={[StyleSheet.absoluteFill, motion ? backdropStyle : null]}>
         {motion ? (
           <BlurView
@@ -246,7 +191,7 @@ export const BlastSheet: React.FC<{
             style={StyleSheet.absoluteFill}
           />
         ) : null}
-        {/* Static dim — under Reduce Motion it IS the whole backdrop. */}
+        {}
         <View style={sheetStyles.dim} />
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -318,7 +263,7 @@ const sheetStyles = StyleSheet.create({
   panelEdge: { width: 4 },
   header: {
     position: 'absolute',
-    left: 4, // clears the edge bar
+    left: 4,
     right: 0,
     top: 0,
     flexDirection: 'row',
@@ -340,7 +285,7 @@ const sheetStyles = StyleSheet.create({
   closePressed: { opacity: 0.6, transform: [{ scale: 0.92 }] },
   closeGlyph: { ...type.body, color: color.textSecondary },
 
-  fillIn: { flex: 1, marginTop: 88 }, // below the header band
+  fillIn: { flex: 1, marginTop: 88 },
   scrollBody: { paddingBottom: space.xl },
   sectionTitle: {
     ...type.micro,

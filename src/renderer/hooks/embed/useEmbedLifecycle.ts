@@ -22,28 +22,14 @@ export interface UseEmbedLifecycleOptions {
   watchdog: UseEmbedWatchdogResult;
   tokenRefresh: UseEmbedTokenRefreshResult;
   refreshEmbedToken: () => Promise<void>;
-  /**
-   * Current error value, mirrored into a ref so the auto-refresh interval can
-   * read it without re-creating the timer on every error/isLoading change.
-   */
   error: string | null;
 }
 
 export interface UseEmbedLifecycleResult {
-  /** Retry button calls this. Resets generation and runs a fresh load. */
   reload: () => void;
-  /** Synchronous pre-navigation teardown. */
   teardownNow: () => void;
 }
 
-/**
- * Embed load lifecycle.
- *
- * Owns the main load effect (token fetch -> embed -> handler registration),
- * the auto-refresh interval, handler detachment, `reload`, and the
- * synchronous `teardownNow`. Watchdog and token-refresh concerns are injected
- * so this hook only orchestrates them.
- */
 export function useEmbedLifecycle(
   opts: UseEmbedLifecycleOptions
 ): UseEmbedLifecycleResult {
@@ -80,15 +66,10 @@ export function useEmbedLifecycle(
 
   const powerbiService = usePowerBIService();
 
-  // Latest buildConfig / events / error knobs from the caller — refs let us
-  // avoid putting them in the effect deps (callers typically pass inline
-  // functions/objects).
   const buildConfigRef = useRef(buildConfig);
   const eventsRef = useRef(events);
   const errorFallbackRef = useRef(errorFallback);
   const errorPolicyRef = useRef(errorPolicy);
-  // Mirror error state into a ref so the auto-refresh interval can
-  // read the current value without the effect depending on `error`.
   const errorRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -103,14 +84,10 @@ export function useEmbedLifecycle(
   useEffect(() => {
     errorPolicyRef.current = errorPolicy;
   }, [errorPolicy]);
-  // Mirror error state into a ref so the auto-refresh interval can
-  // read the current value without the effect depending on `error`.
   useEffect(() => {
     errorRef.current = error;
   }, [error]);
 
-  // Reload counter — bumped by the public reload() method to force the
-  // load effect to re-run even when workspaceId/itemId haven't changed.
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const detachEmbedHandlers = useCallback(() => {
@@ -118,17 +95,13 @@ export function useEmbedLifecycle(
     if (!embed) return;
     for (const eventName of registeredEventsRef.current) {
       try {
-        // powerbi-client's off(eventName) with no handler removes ALL
-        // listeners for that event.
         embed.off(eventName);
       } catch {
-        // ignore detach errors
       }
     }
     registeredEventsRef.current = [];
   }, [embedRef, registeredEventsRef]);
 
-  // Main load effect — runs on workspaceId/itemId/reloadNonce change.
   useEffect(() => {
     if (!workspaceId || !itemId) {
       setError('Invalid embed parameters');
@@ -137,8 +110,6 @@ export function useEmbedLifecycle(
     }
     if (!containerRef.current) return;
 
-    // Bump generation FIRST so any in-flight callbacks from the previous
-    // load see a mismatch and bail out before touching state.
     generationRef.current += 1;
     const generation = generationRef.current;
     hasLoadedRef.current = false;
@@ -153,17 +124,14 @@ export function useEmbedLifecycle(
         const container = containerRef.current;
         if (!container) return;
 
-        // Reset any previous embed in the container before fetching token.
         powerbiService.reset(container);
 
         const tokenResponse =
           await window.electronAPI.content.getEmbedToken(itemId, workspaceId);
 
-        // Generation guard — a newer load started during the await.
         if (generation !== generationRef.current || cancelled) return;
 
         if (!tokenResponse.success) {
-          // Prefer the friendly userMessage when the main process supplies one.
           throw new Error(
             tokenResponse.error.userMessage ||
               tokenResponse.error.message ||
@@ -180,10 +148,8 @@ export function useEmbedLifecycle(
         const embed = powerbiService.embed(containerRef.current, embedConfig);
         embedRef.current = embed;
 
-        // Watchdog — fires if neither loaded nor pre-load error arrives.
         armWatchdog(generation);
 
-        // Register handlers. Track names so cleanup can detach the exact set.
         const callerEvents = eventsRef.current ?? {};
         const eventNames = new Set<string>(['loaded', 'error']);
         for (const name of Object.keys(callerEvents)) {
@@ -191,14 +157,11 @@ export function useEmbedLifecycle(
         }
         registeredEventsRef.current = Array.from(eventNames);
 
-        // Built-in loaded handler — housekeeping first, then caller's loaded.
         embed.on('loaded', (event: pbi.service.ICustomEvent<unknown>) => {
-          if (generation !== generationRef.current) return; // stale load
+          if (generation !== generationRef.current) return;
           hasLoadedRef.current = true;
           clearWatchdog();
           setIsLoading(false);
-          // Proactive refresh becomes meaningful only once the embed is alive
-          // (we need a real setAccessToken target). Schedule here.
           scheduleProactiveRefresh();
           const callerLoaded = eventsRef.current?.loaded;
           if (callerLoaded) {
@@ -210,10 +173,8 @@ export function useEmbedLifecycle(
           }
         });
 
-        // Built-in error handler — token expiry routes to refresh; pre-load
-        // errors surface to UI; post-load errors follow the error policy.
         embed.on('error', (event: pbi.service.ICustomEvent<unknown>) => {
-          if (generation !== generationRef.current) return; // stale load
+          if (generation !== generationRef.current) return;
           const detail = event?.detail;
           console.error('[usePowerBIEmbed] embed error:', detail);
 
@@ -229,7 +190,6 @@ export function useEmbedLifecycle(
             setError(msg);
             setIsLoading(false);
           }
-          // Always give caller's error handler a chance (e.g. logging).
           const callerError = eventsRef.current?.error;
           if (callerError) {
             try {
@@ -240,7 +200,6 @@ export function useEmbedLifecycle(
           }
         });
 
-        // Register any extra caller events verbatim.
         for (const [name, handler] of Object.entries(callerEvents)) {
           if (name === 'loaded' || name === 'error') continue;
           embed.on(name, handler);
@@ -255,14 +214,9 @@ export function useEmbedLifecycle(
 
     void run();
 
-    // Capture containerRef.current now so the cleanup closure uses the value
-    // captured at effect-run time rather than re-reading the ref at teardown
-    // (the ref may have changed by then — react-hooks/exhaustive-deps).
     const capturedContainer = containerRef.current;
     return () => {
       cancelled = true;
-      // Bump generation again so any callbacks fired during teardown are
-      // recognised as stale.
       generationRef.current += 1;
       detachEmbedHandlers();
       clearWatchdog();
@@ -271,25 +225,15 @@ export function useEmbedLifecycle(
         try {
           powerbiService.reset(capturedContainer);
         } catch {
-          // ignore reset errors during teardown
         }
       }
       embedRef.current = null;
       hasLoadedRef.current = false;
       tokenRefreshInProgressRef.current = false;
     };
-    // buildConfig/events/error knobs are read via refs to keep this effect
-    // stable across renders. Only identity-changing inputs go in deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, itemId, reloadNonce, powerbiService, watchdogMs]);
 
-  // Auto-refresh interval — embed.refresh() at the user's configured cadence,
-  // but only when the tab is visible, embed has loaded, and there's no error.
-  //
-  // Read current error and loaded state through refs so that
-  // neither `error` nor `isLoading` state changes cause this effect to tear
-  // down and recreate the setInterval. The only legitimate reasons to restart
-  // the timer are a user-toggled on/off or an interval-length change.
   useEffect(() => {
     if (!autoRefreshEnabled) return;
 
@@ -301,15 +245,11 @@ export function useEmbedLifecycle(
         document.visibilityState === 'visible'
       ) {
         (embedRef.current as pbi.Report).refresh?.().catch(() => {
-          // Some visuals throw authorization errors during auto-refresh —
-          // non-fatal, the embed is still usable.
         });
       }
     }, autoRefreshIntervalMinutes * 60 * 1000);
 
     return () => clearInterval(intervalId);
-    // errorRef / hasLoadedRef are stable MutableRefObjects — ESLint correctly
-    // omits them from deps. Only the user-configurable knobs go here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefreshEnabled, autoRefreshIntervalMinutes]);
 
@@ -317,21 +257,7 @@ export function useEmbedLifecycle(
     setReloadNonce((n) => n + 1);
   }, []);
 
-  /**
-   * Synchronous pre-navigation teardown.
-   *
-   * Detaches all registered SDK event handlers, cancels both pending timers,
-   * and hard-resets the embed container via powerbiService.reset(). Safe to
-   * call before navigate() so the iframe stops rendering immediately rather
-   * than waiting for the React unmount cycle.
-   *
-   * The hook's own cleanup (effect return) will no-op gracefully on the
-   * subsequent unmount because embedRef / registeredEventsRef are already
-   * cleared here.
-   */
   const teardownNow = useCallback(() => {
-    // Bump generation so any in-flight async callbacks (token refresh,
-    // watchdog timeout) see a mismatch and bail out.
     generationRef.current += 1;
     detachEmbedHandlers();
     clearWatchdog();
@@ -341,7 +267,6 @@ export function useEmbedLifecycle(
       try {
         powerbiService.reset(container);
       } catch {
-        // Ignore reset errors — container may already be detached.
       }
     }
     embedRef.current = null;

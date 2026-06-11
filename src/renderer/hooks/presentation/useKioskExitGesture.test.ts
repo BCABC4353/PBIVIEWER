@@ -1,11 +1,3 @@
-/**
- * Tests for the kiosk exit-gesture helpers + hook.
- *
- * Covers the pure gesture predicates and the hook's two exit paths:
- *   - 3-second Escape-hold
- *   - Ctrl+Shift+Q chord (immediate)
- * plus cancellation (keyup, other key) and listener cleanup on unmount.
- */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -30,7 +22,6 @@ describe('PROD-S1 gesture predicates', () => {
     expect(isChordExit({ key: 'Q', ctrlKey: true, shiftKey: false })).toBe(false);
     expect(isChordExit({ key: 'Q', ctrlKey: false, shiftKey: true })).toBe(false);
     expect(isChordExit({ key: 'a', ctrlKey: true, shiftKey: true })).toBe(false);
-    // The OS-reserved Task-Manager chord must not trigger exit.
     expect(isChordExit({ key: 'Escape', ctrlKey: true, shiftKey: true })).toBe(false);
   });
 });
@@ -93,9 +84,6 @@ describe('PROD-S1 useKioskExitGesture hook', () => {
     const onExit = vi.fn();
     renderHook(() => useKioskExitGesture({ onExit }));
 
-    // Ctrl+Shift+Esc reaching the app should NOT chord-exit. It is an Escape
-    // keydown, so it only arms the hold timer; without the full hold it must
-    // not exit on its own.
     act(() => dispatchKeyDown({ key: 'Escape', ctrlKey: true, shiftKey: true }));
     expect(onExit).not.toHaveBeenCalled();
   });
@@ -136,7 +124,6 @@ describe('PROD-S1 useKioskExitGesture hook', () => {
     act(() => {
       vi.advanceTimersByTime(KIOSK.ESCAPE_HOLD_MS * 2);
     });
-    // Timer was cleared on unmount; the post-unmount keydown is ignored.
     act(() => dispatchKeyDown({ key: 'Q', ctrlKey: true, shiftKey: true }));
     expect(onExit).not.toHaveBeenCalled();
   });

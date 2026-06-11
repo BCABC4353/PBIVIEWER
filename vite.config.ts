@@ -19,10 +19,6 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
     strictPort: true,
   },
-  // Production stripping: drop debugger statements + chatty console.log/debug,
-  // BUT keep console.error and console.warn — those carry our renderer crash
-  // capture (TELEM-01 unhandledrejection + ErrorBoundary diagnostics). Dropping
-  // them entirely would neuter production telemetry for the renderer process.
   esbuild:
     mode === 'production'
       ? { drop: ['debugger'], pure: ['console.log', 'console.debug', 'console.info'] }

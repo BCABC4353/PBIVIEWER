@@ -9,14 +9,12 @@ import { useSettingsStore } from './stores/settings-store';
 import { TITLE_BAR_COLORS } from '../shared/constants';
 import type { ElectronAPI } from '../shared/ipc-types';
 
-// Type declaration for the preload-injected API — references the shared typed interface.
 declare global {
   interface Window {
     electronAPI: ElectronAPI;
   }
 }
 
-// Global unhandled rejection handler for the renderer process
 window.addEventListener('unhandledrejection', (e) => {
   console.error('[renderer:unhandledRejection]', e.reason);
 });
@@ -24,22 +22,17 @@ window.addEventListener('error', (e) => {
   console.error('[renderer:error]', e.message, e.error?.stack);
 });
 
-// Theme provider component that responds to settings changes
 const ThemedApp: React.FC = () => {
   const { settings, loadSettings } = useSettingsStore();
   const [systemDark, setSystemDark] = useState(false);
 
   useEffect(() => {
-    // Load initial settings, then force the sidebar to start collapsed on every
-    // launch (icons only). The collapse is NOT persisted — the user can still
-    // expand it for the session via the toggle; the next launch starts collapsed.
     void loadSettings().then(() => {
       useSettingsStore.setState((s) => ({
         settings: { ...s.settings, sidebarCollapsed: true },
       }));
     });
 
-    // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     setSystemDark(mediaQuery.matches);
 
@@ -57,13 +50,10 @@ const ThemedApp: React.FC = () => {
   const isDark = theme === 'dark' || (theme === 'system' && systemDark);
   const fluentTheme = isDark ? brandDarkTheme : brandLightTheme;
 
-  // Toggle dark class on root element for Tailwind dark: classes
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
 
-  // Update title bar overlay colors when theme changes. Optional chaining
-  // guards environments where the preload bridge is absent (tests).
   useEffect(() => {
     const colors = TITLE_BAR_COLORS[isDark ? 'dark' : 'light'];
     window.electronAPI?.window?.setTitleBarOverlay?.({

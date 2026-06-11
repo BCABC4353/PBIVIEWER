@@ -101,9 +101,6 @@ describe('fleet ordering and labels', () => {
     lastStatus: 'Completed', ...over,
   });
   it('sorts worst-first in the desktop board\'s Matt #4 order: Failed, Cancelled, Overdue, Never, Running, OK, Live', () => {
-    // Converged 2026-06-11 on the desktop's Matt #4 ruling (insights-luce.ts
-    // itemRank): a schedule-overdue item OUTRANKS quiet Never/Running items.
-    // The old mobile order ranked overdue below them.
     const sorted = sortWorstFirst([
       mk({ id: 'ok', lastStatus: 'Completed' }),
       mk({ id: 'never', lastStatus: 'Never' }),
@@ -135,7 +132,7 @@ describe('native-visual fuel: refresh durations', () => {
       { status: 'Failed', startTime: '2026-06-09T06:00:00Z', endTime: '2026-06-09T06:01:00Z' },
       { status: 'Completed', startTime: '2026-06-08T06:00:00Z', endTime: '2026-06-08T06:04:00Z' },
     ]);
-    expect(r.recentDurationsMin).toEqual([4, 8]); // oldest first, failure skipped
+    expect(r.recentDurationsMin).toEqual([4, 8]);
   });
   it('omits the series when no successful run has both timestamps', () => {
     expect(deriveDatasetHealth([{ status: 'Failed', endTime: 'x' }]).recentDurationsMin).toBeUndefined();

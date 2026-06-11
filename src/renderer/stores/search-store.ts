@@ -10,7 +10,6 @@ interface SearchResult {
   description?: string;
 }
 
-// Cache for search data - reduces API calls
 interface SearchCache {
   workspaces: Workspace[] | null;
   apps: App[] | null;
@@ -19,7 +18,7 @@ interface SearchCache {
   lastFetched: number;
 }
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minute cache for full content
+const CACHE_TTL = 5 * 60 * 1000;
 
 let searchCache: SearchCache = {
   workspaces: null,
@@ -29,7 +28,6 @@ let searchCache: SearchCache = {
   lastFetched: 0,
 };
 
-// Track the current search request to cancel stale ones
 let currentSearchId = 0;
 
 interface SearchState {
@@ -38,11 +36,8 @@ interface SearchState {
   results: SearchResult[];
   isSearching: boolean;
   error: string | null;
-  // Non-blocking notice surfaced when getAllItems reports partial failure.
-  // Null means no warning; UI may render it inline without blocking results.
   partialFailureWarning: string | null;
 
-  // Actions
   openSearch: () => void;
   closeSearch: () => void;
   setQuery: (query: string) => void;
@@ -65,16 +60,11 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
   },
 
   closeSearch: () => {
-    // Bump the generation so any in-flight search() whose results would
-    // otherwise stream back into a now-closed dialog discards itself.
     currentSearchId++;
     set({ isOpen: false, query: '', results: [], isSearching: false });
   },
 
   setQuery: (query: string) => {
-    // When the user clears the query (e.g. clicks the X button), any
-    // in-flight search must be discarded — otherwise its late-returning
-    // results would repopulate the now-empty list.
     if (!query) {
       currentSearchId++;
       set({ query, results: [], isSearching: false });
@@ -94,7 +84,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
   },
 
   invalidateAll: () => {
-    // Drop the module-level cache so the next search re-fetches.
     searchCache = {
       workspaces: null,
       apps: null,
@@ -102,9 +91,7 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
       dashboards: null,
       lastFetched: 0,
     };
-    // Discard any in-flight search by bumping the id.
     currentSearchId++;
-    // Clear surfaced state.
     set({ results: [], query: '', error: null, partialFailureWarning: null });
   },
 
@@ -114,7 +101,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
       return;
     }
 
-    // Increment search ID to track this request
     const thisSearchId = ++currentSearchId;
 
     set({ isSearching: true });
@@ -125,26 +111,20 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
       const now = Date.now();
       const cacheValid = now - searchCache.lastFetched < CACHE_TTL;
 
-      // Fetch data (use cache if valid)
       let workspaces = searchCache.workspaces;
       let apps = searchCache.apps;
       let reports = searchCache.reports;
       let dashboards = searchCache.dashboards;
 
       if (!cacheValid || !workspaces || !apps || !reports || !dashboards) {
-        // Fetch all data in parallel:
-        // - workspaces (for workspace search and name lookup)
-        // - apps
-        // - all reports and dashboards from all workspaces
         const [workspacesResponse, appsResponse, allItemsResponse] = await Promise.all([
           window.electronAPI.content.getWorkspaces(),
           window.electronAPI.content.getApps(),
           window.electronAPI.content.getAllItems(),
         ]);
 
-        // Check if this search is still current
         if (thisSearchId !== currentSearchId) {
-          return; // Stale search, abort
+          return;
         }
 
         workspaces = workspacesResponse.success ? workspacesResponse.data : [];
@@ -152,9 +132,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         reports = allItemsResponse.success ? allItemsResponse.data.reports : [];
         dashboards = allItemsResponse.success ? allItemsResponse.data.dashboards : [];
 
-        // Surface partial-failure warning if the bulk fetch couldn't reach
-        // every workspace. Tolerate payload shapes without partialFailure /
-        // failedWorkspaces by reading via an unknown cast.
         let partialFailure = false;
         if (allItemsResponse.success) {
           const bulk = allItemsResponse.data as unknown as {
@@ -174,10 +151,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
           }
         }
 
-        // Update cache — but never cache a partial (or failed) fetch. Caching it
-        // would pin searches to an incomplete catalog for the full TTL with no
-        // way to self-heal; leaving lastFetched at 0 makes the next keystroke
-        // retry the fetch instead.
         if (!partialFailure && workspacesResponse.success && appsResponse.success && allItemsResponse.success) {
           searchCache = {
             workspaces,
@@ -189,18 +162,15 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         }
       }
 
-      // Check again if this search is still current
       if (thisSearchId !== currentSearchId) {
-        return; // Stale search, abort
+        return;
       }
 
-      // Create workspace name lookup map
       const workspaceNameMap = new Map<string, string>();
       for (const ws of workspaces) {
         workspaceNameMap.set(ws.id, ws.name);
       }
 
-      // Search workspaces
       const matchingWorkspaces = workspaces.filter(ws =>
         ws.name.toLowerCase().includes(searchLower)
       );
@@ -210,7 +180,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         type: 'workspace' as const,
       })));
 
-      // Search apps
       const matchingApps = apps.filter(app =>
         app.name.toLowerCase().includes(searchLower) ||
         app.description?.toLowerCase().includes(searchLower)
@@ -222,7 +191,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         description: app.description,
       })));
 
-      // Search all reports from Power BI
       const matchingReports = reports.filter(report =>
         report.name.toLowerCase().includes(searchLower)
       );
@@ -234,7 +202,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         workspaceName: workspaceNameMap.get(report.workspaceId) || 'Unknown Workspace',
       })));
 
-      // Search all dashboards from Power BI
       const matchingDashboards = dashboards.filter(dashboard =>
         dashboard.name.toLowerCase().includes(searchLower)
       );
@@ -246,7 +213,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         workspaceName: workspaceNameMap.get(dashboard.workspaceId) || 'Unknown Workspace',
       })));
 
-      // Sort results - exact matches first, then partial matches
       results.sort((a, b) => {
         const aExact = a.name.toLowerCase() === searchLower;
         const bExact = b.name.toLowerCase() === searchLower;
@@ -261,12 +227,10 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         return a.name.localeCompare(b.name);
       });
 
-      // Final check before updating state
       if (thisSearchId !== currentSearchId) {
-        return; // Stale search, abort
+        return;
       }
 
-      // Limit results
       set({ results: results.slice(0, 30), isSearching: false });
     } catch (error) {
       console.error('Search error:', error);
@@ -277,8 +241,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
   },
 
   clearResults: () => {
-    // Bump generation so a search() still in flight cannot repopulate the
-    // list after we've intentionally cleared it.
     currentSearchId++;
     set({ results: [], query: '', isSearching: false });
   },

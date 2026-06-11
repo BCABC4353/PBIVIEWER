@@ -1,37 +1,18 @@
-/**
- * Lineage diagram — pure layout logic for the blast-radius sheet's process
- * diagram (owner punch list v3, item 3): DATAFLOWS → DATASETS → REPORTS as
- * three columns of rounded-rect nodes joined by cubic beziers.
- *
- * Color language (OWNER-AUTHORIZED GREEN — diagram only, overriding the old
- * no-green rule): green = healthy nodes + happy-path edges, red = failed
- * nodes and the edges leaving them, amber = stale/suspect datasets and their
- * edges to reports, ash gray = dormant/never-run (abandoned, not on fire).
- *
- * Everything here is pure and unit-testable: node derivation, damage-first
- * prioritization, the +N-more cap, edge derivation (including report
- * bindings), bezier routing, and middle truncation. No React, no DOM.
- */
 import type { InsightsRefreshable } from '../../../shared/types';
 import type { BlastRadius } from '../../../shared/blast-radius';
 import { isDormant } from './insights-luce';
 
-// ---------------------------------------------------------------------------
-// Color language
-// ---------------------------------------------------------------------------
 
 export type LineageHealth = 'failed' | 'stale' | 'healthy' | 'dormant';
 export type LineageColumn = 'dataflow' | 'dataset' | 'report';
 
-/** The diagram's four voices. Green is owner-authorized HERE only. */
 export const lineageColor: Record<LineageHealth, string> = {
   healthy: '#3FB68B',
   failed: '#E5484D',
-  stale: '#E5484D', // owner: downstream of a failure IS broken — both red
-  dormant: 'rgba(255,255,255,0.45)', // ash, not failure — must still READ as a node
+  stale: '#E5484D',
+  dormant: 'rgba(255,255,255,0.45)',
 } as const;
 
-/** Damage-first order for prioritization and edge dedupe (worst wins). */
 export const damageRank: Record<LineageHealth, number> = {
   failed: 0,
   stale: 1,
@@ -39,9 +20,6 @@ export const damageRank: Record<LineageHealth, number> = {
   dormant: 3,
 } as const;
 
-// ---------------------------------------------------------------------------
-// Node + edge derivation
-// ---------------------------------------------------------------------------
 
 export interface LineageNodeSpec {
   id: string;
@@ -68,10 +46,6 @@ export interface LineageReportInput {
   datasetId?: string;
 }
 
-/**
- * One item's voice in the diagram: failed (red) beats suspect/overdue
- * (amber) beats dormant/never-run (ash) beats healthy (green).
- */
 export function itemHealth(
   item: InsightsRefreshable,
   suspectDatasetIds: ReadonlySet<string>,
@@ -84,28 +58,11 @@ export function itemHealth(
   return 'healthy';
 }
 
-/** A report inherits its dataset's trouble: red or amber upstream both mean
- *  "this report may be lying" (amber); ash stays ash; green stays green. */
 function reportHealth(datasetHealth: LineageHealth): LineageHealth {
   if (datasetHealth === 'failed' || datasetHealth === 'stale') return 'stale';
   return datasetHealth;
 }
 
-/**
- * Build the full (uncapped) lineage graph for ONE workspace:
- * - dataflow nodes + dataset nodes from the group's items;
- * - report nodes for ALL reports bound to the workspace's datasets (a
- *   per-dataset report map computed from snapshot.reports — not just the
- *   blast-radius suspects);
- * - dataflow→dataset edges from upstreamDataflowIds (case-insensitive id
- *   match, same rule as computeBlastRadius) and dataset→report edges from
- *   the datasetId bindings.
- *
- * Edge color: red when it LEAVES a failed node; amber when it carries a
- * suspect dataset's staleness (including a timing-skew implication from a
- * non-failed flow, via blast.suspectsByDataflow); ash from dormant nodes;
- * green for the happy path.
- */
 export function deriveLineage(
   items: InsightsRefreshable[],
   blast: Pick<BlastRadius, 'suspectDatasetIds' | 'suspectsByDataflow'>,
@@ -120,8 +77,6 @@ export function deriveLineage(
   const health = (item: InsightsRefreshable): LineageHealth =>
     itemHealth(item, blast.suspectDatasetIds, now);
 
-  // Per-dataset report map from snapshot.reports — every report bound to one
-  // of this workspace's datasets, suspect or not.
   const reportsByDataset = new Map<string, LineageReportInput[]>();
   for (const r of reports) {
     if (!r.datasetId || !setIds.has(r.datasetId)) continue;
@@ -130,8 +85,6 @@ export function deriveLineage(
     reportsByDataset.set(r.datasetId, list);
   }
 
-  // Owner rule: dormancy propagates. A dataset fed ONLY by dormant flows is
-  // dormant (failure/staleness still outrank); reports inherit downstream.
   const effectiveDatasetHealth = (s: InsightsRefreshable): LineageHealth => {
     const own = health(s);
     if (own === 'failed' || own === 'stale' || own === 'dormant') return own;
@@ -152,15 +105,11 @@ export function deriveLineage(
     const dsHealth = effectiveDatasetHealth(ds);
     for (const flowId of ds.upstreamDataflowIds ?? []) {
       const flow = flowByLowerId.get(flowId.toLowerCase());
-      if (!flow) continue; // lineage can reference flows the snapshot can't see
+      if (!flow) continue;
       const flowHealth = health(flow);
       links.push({
         from: flow.id,
         to: ds.id,
-        // Owner (Mohawk ruling): the line out of a flow speaks for THAT
-        // flow — a green flow feeds a green line even into a red dataset.
-        // The dataset node carries the damage (one red parent poisons it),
-        // never its siblings' lines.
         health: flowHealth,
       });
     }
@@ -174,7 +123,7 @@ export function deriveLineage(
         to: r.id,
         health:
           dsHealth === 'failed' || dsHealth === 'stale'
-            ? 'failed' // contiguous damage (owner v8)
+            ? 'failed'
             : dsHealth === 'dormant'
                 ? 'dormant'
                 : 'healthy',
@@ -185,39 +134,25 @@ export function deriveLineage(
   return { dataflows, datasets, reports: reportNodes, links };
 }
 
-// ---------------------------------------------------------------------------
-// Damage-first prioritization + the +N-more cap
-// ---------------------------------------------------------------------------
 
-/** Max visible nodes per column — real workspaces carry 25+ datasets. */
 export const LINEAGE_CAP = 8;
 
-/** Stable damage-first order: failed, stale, healthy, dormant (ash last). */
 export function prioritizeDamageFirst(nodes: LineageNodeSpec[]): LineageNodeSpec[] {
   return [...nodes].sort((a, b) => damageRank[a.health] - damageRank[b.health]);
 }
 
 export interface CappedColumn {
   visible: LineageNodeSpec[];
-  /** How many nodes the "+N more" ash node stands in for (0 = none). */
   overflow: number;
 }
 
-/**
- * Cap a column at `cap` rows, damage-first. When the column overflows, the
- * last row is surrendered to a "+N more" ash node, so cap-1 named nodes show.
- */
 export function capColumn(nodes: LineageNodeSpec[], cap: number = LINEAGE_CAP): CappedColumn {
   const sorted = prioritizeDamageFirst(nodes);
   if (sorted.length <= cap) return { visible: sorted, overflow: 0 };
   return { visible: sorted.slice(0, cap - 1), overflow: sorted.length - (cap - 1) };
 }
 
-// ---------------------------------------------------------------------------
-// Truncation + edge routing
-// ---------------------------------------------------------------------------
 
-/** Middle-truncate to `max` chars: "AUTO FINANCE…G MODEL" — ends survive. */
 export function middleTruncate(name: string, max: number = 24): string {
   if (name.length <= max) return name;
   const head = Math.ceil((max - 1) / 2);
@@ -225,15 +160,11 @@ export function middleTruncate(name: string, max: number = 24): string {
   return `${name.slice(0, head)}…${name.slice(name.length - tail)}`;
 }
 
-/** Smooth cubic bezier between two node anchor points, left → right. */
 export function edgePath(x1: number, y1: number, x2: number, y2: number): string {
   const mx = x1 + (x2 - x1) / 2;
   return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
 }
 
-// ---------------------------------------------------------------------------
-// Layout — node placement, column centering, edge remapping
-// ---------------------------------------------------------------------------
 
 export interface LineageNode extends LineageNodeSpec {
   column: LineageColumn;
@@ -241,9 +172,7 @@ export interface LineageNode extends LineageNodeSpec {
   y: number;
   width: number;
   height: number;
-  /** Middle-truncated display label (full name stays in `name`). */
   label: string;
-  /** Set on the "+N more" stand-in node. */
   overflow?: number;
 }
 
@@ -256,7 +185,6 @@ export interface LineageLayout {
   edges: LineageEdge[];
   width: number;
   height: number;
-  /** Left x of each column, for the engraved column headers. */
   columnX: [number, number, number];
 }
 
@@ -275,18 +203,10 @@ const COLUMN_KEYS: [LineageColumn, LineageColumn, LineageColumn] = [
   'report',
 ];
 
-/** Stable id for a column's "+N more" stand-in node. */
 export function overflowNodeId(column: LineageColumn): string {
   return `more:${column}`;
 }
 
-/**
- * Lay the capped graph out: three columns (left/center/right), rows top-down
- * in damage-first order, shorter columns vertically centered against the
- * tallest. Edges whose endpoint was capped away re-route to that column's
- * "+N more" node; parallel edges between the same drawn pair dedupe to the
- * WORST health so damage never disappears into the aggregate.
- */
 export function layoutLineage(
   graph: LineageGraph,
   opts: LineageLayoutOptions = {},
@@ -296,9 +216,6 @@ export function layoutLineage(
   const nodeHeight = opts.nodeHeight ?? 30;
   const rowGap = opts.rowGap ?? 10;
   const headerHeight = opts.headerHeight ?? 26;
-  // Owner mandate: the diagram shows EVERY node — his data is never elided
-  // ("you don't get to cut off and say +10 others"). The sheet scrolls; the
-  // diagram takes the height it needs. capColumn remains for explicit opts.
   const cap = opts.cap ?? Number.MAX_SAFE_INTEGER;
 
   const columns = [graph.dataflows, graph.datasets, graph.reports];
@@ -308,7 +225,6 @@ export function layoutLineage(
   const maxRows = Math.max(...rowCounts, 1);
 
   const nodes: LineageNode[] = [];
-  /** original id → drawn id (itself, or the column's +N-more node). */
   const drawnId = new Map<string, string>();
 
   capped.forEach((col, i) => {
@@ -333,7 +249,7 @@ export function layoutLineage(
       nodes.push({
         id,
         name: `${col.overflow} more ${column}s`,
-        health: 'dormant', // ash — the rest of the fleet, not a failure
+        health: 'dormant',
         column,
         x,
         y: top + col.visible.length * (nodeHeight + rowGap),

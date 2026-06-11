@@ -1,15 +1,3 @@
-/**
- * useSignOutConfirm
- *
- * Returns a trigger function and a Dialog element. Calling the trigger shows
- * a Fluent UI confirmation dialog; if the user confirms, the auth-store
- * `logout` action is invoked. The dialog state is fully managed internally.
- *
- * Usage:
- *   const { triggerSignOut, SignOutDialog } = useSignOutConfirm();
- *   // Render <SignOutDialog /> somewhere in the tree (e.g. below TitleBar),
- *   // then call triggerSignOut() from any click handler.
- */
 
 import React, { useCallback, useState } from 'react';
 import {
@@ -25,7 +13,6 @@ import {
 import { SignOutRegular } from '@fluentui/react-icons';
 import { useAuthStore } from '../stores/auth-store';
 
-// Internal dialog component
 
 interface SignOutDialogInternalProps {
   open: boolean;
@@ -41,10 +28,7 @@ const SignOutDialogInternal: React.FC<SignOutDialogInternalProps> = ({
   onCancel,
 }) => (
   <Dialog open={open} onOpenChange={(_e, data) => onOpenChange(data.open)}>
-    {/* DialogTrigger is not rendered — we drive open state externally via
-        triggerSignOut(). The Dialog is still accessible because open/
-        onOpenChange are controlled. A hidden sentinel satisfies Fluent's
-        internal trigger requirement. */}
+    {}
     <DialogTrigger disableButtonEnhancement>
       <span style={{ display: 'none' }} aria-hidden="true" />
     </DialogTrigger>
@@ -69,12 +53,9 @@ const SignOutDialogInternal: React.FC<SignOutDialogInternalProps> = ({
   </Dialog>
 );
 
-// Public hook
 
 export interface UseSignOutConfirmReturn {
-  /** Call this to open the confirmation dialog (e.g. from a MenuItem onClick). */
   triggerSignOut: () => void;
-  /** Render this element in the component tree — it manages its own Dialog state. */
   SignOutDialog: React.FC;
 }
 
@@ -95,8 +76,6 @@ export function useSignOutConfirm(): UseSignOutConfirmReturn {
     setOpen(false);
   }, []);
 
-  // Stable reference — the internal component reads the latest state via
-  // props that close over the hook's local callbacks.
   const SignOutDialog: React.FC = useCallback(
     () => (
       <SignOutDialogInternal

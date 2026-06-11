@@ -37,10 +37,6 @@ export const SettingsPage: React.FC = () => {
   const [openingGuide, setOpeningGuide] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
 
-  // Stable ID for the theme-toggle group label (aria-labelledby on the group).
-  // Field owns the label association for the Slider components: an aria-label
-  // on a Field-wrapped Slider shadows the visible Field label, so we omit it
-  // and let Field wire them.
   const themeGroupId = useId();
 
   useEffect(() => {
@@ -48,16 +44,11 @@ export const SettingsPage: React.FC = () => {
     loadRecentItems();
     loadFrequentItems();
     loadApps();
-    // getVersion() is fully typed on window.electronAPI.app — no cast needed.
     window.electronAPI.app.getVersion().then((version: string) => {
       setAppVersion(version);
     });
   }, [loadSettings, loadRecentItems, loadFrequentItems, loadApps]);
 
-  // Fluent's Slider fires onChange on EVERY drag step; persisting each step
-  // would flood the settings IPC + disk-write path. The two sliders route
-  // through the shared debounced-persist hook (optimistic store write now,
-  // one IPC per drag, pending value flushed on unmount).
   const { onDebouncedUpdate } = useDebouncedSettings();
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
@@ -85,14 +76,11 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleAutoStartModeChange = (mode: 'off' | 'report' | 'app') => {
-    // Clear the ids that don't apply to the chosen mode so a stale target can't be used.
-    // Coalesced into a single updateSettings call to prevent partial-failure desync.
     if (mode === 'off') {
       updateSettings({ autoStartMode: mode, autoStartReportId: undefined, autoStartWorkspaceId: undefined, autoStartAppId: undefined });
     } else if (mode === 'report') {
       updateSettings({ autoStartMode: mode, autoStartAppId: undefined });
     } else {
-      // mode === 'app'
       updateSettings({ autoStartMode: mode, autoStartReportId: undefined, autoStartWorkspaceId: undefined });
     }
   };
@@ -139,8 +127,6 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  // Build a deduplicated list of recent + frequent items for the auto-start picker.
-  // Reports only (dashboards are not valid auto-start targets).
   const autoStartCandidates: ContentItem[] = React.useMemo(() => {
     const seen = new Set<string>();
     const all = [...recentItems, ...frequentItems].filter(
@@ -153,14 +139,12 @@ export const SettingsPage: React.FC = () => {
     });
   }, [recentItems, frequentItems]);
 
-  // Display name for the currently selected auto-start report.
   const autoStartSelectedName = React.useMemo(() => {
     if (!settings.autoStartReportId) return '';
     const found = autoStartCandidates.find((c) => c.id === settings.autoStartReportId);
     return found ? found.name : settings.autoStartReportId;
   }, [settings.autoStartReportId, autoStartCandidates]);
 
-  // Display name for the currently selected auto-start app.
   const autoStartSelectedAppName = React.useMemo(() => {
     if (!settings.autoStartAppId) return '';
     const found = apps.find((a) => a.id === settings.autoStartAppId);
@@ -183,7 +167,7 @@ export const SettingsPage: React.FC = () => {
         </h1>
 
         <div className="space-y-6">
-          {/* Account section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
@@ -211,14 +195,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Appearance section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Appearance
               </h2>
               <div className="space-y-4">
-                {/* Theme toggle group with role=group + aria-pressed */}
+                {}
                 <div>
                   <Text
                     id={themeGroupId}
@@ -264,14 +248,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Slideshow section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Slideshow / Presentation Mode
               </h2>
               <div className="space-y-5">
-                {/* Slider wrapped in Field */}
+                {}
                 <Field
                   label={
                     <div className="flex items-center justify-between w-full">
@@ -292,7 +276,7 @@ export const SettingsPage: React.FC = () => {
                   />
                 </Field>
 
-                {/* Select wrapped in Field */}
+                {}
                 <Field label="Slideshow mode">
                   <Select
                     value={settings.slideshowMode}
@@ -306,7 +290,7 @@ export const SettingsPage: React.FC = () => {
                   </Select>
                 </Field>
 
-                {/* Switch wrapped in Field */}
+                {}
                 <Field label="Auto-start slideshow">
                   <Switch
                     checked={settings.autoStartSlideshow}
@@ -318,14 +302,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Launch on startup section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Launch on Startup
               </h2>
               <div className="space-y-5">
-                {/* Radio group wrapped in Field */}
+                {}
                 <Field
                   label="Startup behavior"
                   hint="Controls what the app opens when it launches."
@@ -345,7 +329,7 @@ export const SettingsPage: React.FC = () => {
                   </RadioGroup>
                 </Field>
 
-                {/* Item picker — shown only when mode is 'report' */}
+                {}
                 {settings.autoStartMode === 'report' && (
                   <Field
                     label="Report to open at launch"
@@ -394,7 +378,7 @@ export const SettingsPage: React.FC = () => {
                   </Field>
                 )}
 
-                {/* App picker — shown only when mode is 'app' */}
+                {}
                 {settings.autoStartMode === 'app' && (
                   <Field
                     label="App to open at launch"
@@ -433,14 +417,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Data Refresh section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Data Refresh
               </h2>
               <div className="space-y-5">
-                {/* Switch wrapped in Field */}
+                {}
                 <Field label="Auto-refresh reports">
                   <Switch
                     checked={settings.autoRefreshEnabled}
@@ -477,14 +461,14 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Usage history section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
                 Usage History
               </h2>
               <div className="space-y-5">
-                {/* Radio group in Field for usageClearOnLogout */}
+                {}
                 <Field
                   label="Clear usage history on sign-out"
                   hint="Controls when Recent and Frequent data is cleared. Use 'On shared machine' if multiple people sign in to this device."
@@ -520,7 +504,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Reset section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
@@ -540,7 +524,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* About section */}
+          {}
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
@@ -550,7 +534,7 @@ export const SettingsPage: React.FC = () => {
                 <Text className="text-neutral-foreground-1 block">
                   Power BI Viewer v{appVersion}
                 </Text>
-                {/* User guide — opens the bundled offline illustrated guide */}
+                {}
                 <div>
                   <Button
                     appearance="secondary"

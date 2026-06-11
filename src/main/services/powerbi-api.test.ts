@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Powerbi-api.ts imports auth/singleton.ts, which (lazily) reaches for
-// the electron/MSAL-backed auth service. The DI factory means the SERVICE needs
-// none of that, but the module's top-level imports still transitively load
-// electron via the auth module graph. Stub electron so the import is clean.
 vi.mock('electron', () => ({
   BrowserWindow: class {},
   session: {
@@ -67,7 +63,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     expect(result.success).toBe(true);
     expect(getAccessToken).toHaveBeenCalled();
 
-    // Bearer header carries the injected token.
     const [, init] = fetchMock.mock.calls[0]!;
     const headers = (init as RequestInit).headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer test-access-token');
@@ -80,7 +75,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     } satisfies IPCResponse<TokenResult>);
     const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
 
-    // fetch should never be reached; make it explode if it is.
     globalThis.fetch = vi.fn(() => {
       throw new Error('fetch should not be called when token acquisition fails');
     }) as unknown as typeof fetch;
@@ -90,11 +84,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     if (!result.success) expect(result.error.code).toBe('WORKSPACES_FETCH_FAILED');
   });
 
-  // The data-freshness indicator (ReportViewer + DashboardViewer)
-  // depends on getDatasetRefreshInfo distinguishing "no refresh history" from a
-  // real timestamp. When the dataset has never refreshed, the API returns
-  // success with empty data (no lastRefreshTime) so viewers render no indicator
-  // rather than a blank/garbage value.
   it('getDatasetRefreshInfo returns empty data when there is no refresh history', async () => {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
@@ -140,11 +129,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 
-  // GetDashboardDataFreshness derives a single freshness signal for a
-  // whole dashboard by enumerating tiles, collecting distinct datasetIds,
-  // querying each dataset's refresh history, and returning the OLDEST (stalest)
-  // lastRefreshTime. The fetch mock below routes by URL: the tiles endpoint
-  // returns the tile list; the per-dataset refreshes endpoints return history.
   function makeFreshnessFetch(
     tiles: Array<{ id: string; datasetId?: string }>,
     refreshes: Record<string, { value: unknown[] } | { status: number }>
@@ -154,7 +138,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
       if (url.includes('/tiles')) {
         return Promise.resolve(new Response(JSON.stringify({ value: tiles }), { status: 200 }));
       }
-      // /datasets/<id>/refreshes
       const match = url.match(/datasets\/([^/]+)\/refreshes/);
       const datasetId = match?.[1] ?? '';
       const entry = refreshes[datasetId];
@@ -190,7 +173,7 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
       [
         { id: 't1', datasetId: 'ds-new' },
         { id: 't2', datasetId: 'ds-old' },
-        { id: 't3', datasetId: 'ds-new' }, // duplicate dataset → deduped
+        { id: 't3', datasetId: 'ds-new' },
       ],
       {
         'ds-new': refreshAt('2026-06-05T00:00:00.000Z'),
@@ -243,7 +226,7 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
       ],
       {
         'ds-good-old': refreshAt('2026-06-02T00:00:00.000Z'),
-        'ds-bad': { status: 403 }, // inaccessible dataset — skipped, doesn't fail call
+        'ds-bad': { status: 403 },
         'ds-good-new': refreshAt('2026-06-04T00:00:00.000Z'),
       }
     );
@@ -255,16 +238,12 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     }
   });
 
-  // --- Freshness correctness: a FAILED refresh must not masquerade as fresh ----
   function refreshWith(time: string, status: string) {
     return {
       value: [{ requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: time, endTime: time, status }],
     };
   }
 
-  // Routes every getDataFreshness sub-call by URL: dataset refreshes, the
-  // upstreamDataflows lineage link, the workspace dataflows list (fallback), and
-  // per-dataflow transactions.
   function makeDataFreshnessFetch(opts: {
     refreshes?: Record<string, { value: unknown[] }>;
     upstream?: unknown[];
@@ -303,7 +282,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
       new Response(
         JSON.stringify({
           value: [
-            // newest-first: latest attempt FAILED, but an earlier one published data
             { requestId: 'r', id: '2', refreshType: 'Scheduled', startTime: '2026-06-08T00:00:00.000Z', endTime: '2026-06-08T00:01:00.000Z', status: 'Failed' },
             { requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: '2026-06-07T00:00:00.000Z', endTime: '2026-06-07T00:05:00.000Z', status: 'Completed' },
           ],
@@ -315,7 +293,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
     expect(result.success).toBe(true);
     if (result.success) {
-      // Show when data was actually published (the Completed one), not the failed attempt.
       expect(result.data.lastRefreshTime).toBe('2026-06-07T00:05:00.000Z');
       expect(result.data.lastRefreshStatus).toBe('Completed');
     }
@@ -332,7 +309,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
     expect(result.success).toBe(true);
     if (result.success) {
-      // No success in history → still surface a timestamp (better than a blank stamp).
       expect(result.data.lastRefreshTime).toBe('2026-06-08T00:01:00.000Z');
       expect(result.data.lastRefreshStatus).toBe('Failed');
     }
@@ -362,7 +338,7 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
         'ds-old': refreshWith('2026-06-01T00:00:00.000Z', 'Completed'),
       },
       upstream: [],
-      dataflowsList: [], // no dataflows → no fallback, no dataflow stamp
+      dataflowsList: [],
     });
 
     const result = await svc.getDataFreshness('ws-1', ['ds-new', 'ds-old']);
@@ -387,8 +363,8 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
         'df-2': {
           value: [
             { status: 'Success', endTime: '2026-06-01T00:00:00.000Z' },
-            { status: 'Failed', endTime: '2026-06-09T00:00:00.000Z' }, // newer but FAILED → ignored
-            { status: 'InProgress' }, // no endTime → ignored
+            { status: 'Failed', endTime: '2026-06-09T00:00:00.000Z' },
+            { status: 'InProgress' },
           ],
         },
       },
@@ -397,7 +373,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     const result = await svc.getDataFreshness('ws-1', ['ds-1']);
     expect(result.success).toBe(true);
     if (result.success) {
-      // stalest of df-1 (06-03) and df-2 (06-01, ignoring its newer Failed) = 06-01
       expect(result.data.dataflowRefreshTime).toBe('2026-06-01T00:00:00.000Z');
       expect(result.data.datasetRefreshTime).toBe('2026-06-06T00:00:00.000Z');
     }
@@ -407,10 +382,7 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
 
-    // Every page points its nextLink back at the same URL — would hang
-    // forever without the seen-URL guard.
     const circular = 'https://api.powerbi.com/v1.0/myorg/groups?$skip=1';
-    // A fresh Response per call — a Response body is single-use.
     const fetchMock = vi.fn().mockImplementation(async () =>
       new Response(
         JSON.stringify({
@@ -424,7 +396,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
 
     const result = await svc.getWorkspaces();
     expect(result.success).toBe(true);
-    // First page + one visit to the circular link, then stop.
     expect(fetchMock.mock.calls.length).toBe(2);
   });
 
@@ -482,8 +453,6 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
 });
 
 describe('getInsightsSnapshot', () => {
-  // Route fetch by URL (ordered regex routes, first match wins) so one mock
-  // serves the whole insights fan-out.
   function insightsFetchMock(routes: Array<[RegExp, unknown]>) {
     return vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -504,7 +473,6 @@ describe('getInsightsSnapshot', () => {
     return createPowerBIApiService(makeDeps({ getAccessToken }));
   }
 
-  // The workspaces list is the bare /groups URL (no trailing path segment).
   const workspacesRoute: [RegExp, unknown] = [
     /\/groups(\?|$)/,
     { value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] },
@@ -564,7 +532,6 @@ describe('getInsightsSnapshot', () => {
     if (!result.success) return;
     const ds = result.data.refreshables[0];
     expect(ds?.lastStatus).toBe('Disabled');
-    // No /refreshes call was made for the disabled dataset.
     const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
     expect(calls.some((u) => u.includes('/refreshes'))).toBe(false);
   });
@@ -715,7 +682,6 @@ describe('getInsightsSnapshot — health derivation branches', () => {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
-      // Workspace WS2's dataset/dataflow lists fail; WS reads fine (empty).
       if (url.includes(WS2) && (/\/datasets(\?|$)/.test(url) || /\/dataflows(\?|$)/.test(url))) {
         return new Response('forbidden', { status: 403 });
       }
@@ -828,14 +794,12 @@ describe('getAdminInsights', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    // Continuation page was followed: a@client.com has 2 views.
     const userA = result.data.activityByUser.find((u) => u.user === 'a@client.com');
     expect(userA?.views).toBe(2);
     expect(userA?.lastActive).toBe('2026-06-10T10:00:00Z');
     const item = result.data.activityByItem.find((i) => i.name === 'Sales Daily');
     expect(item?.views).toBe(2);
     expect(item?.uniqueUsers).toBe(1);
-    // Sorted by views descending: Sales Daily before Ops Weekly.
     expect(result.data.activityByItem[0]?.name).toBe('Sales Daily');
 
     expect(result.data.appAudiences[0]?.appName).toBe('BC Suite');
@@ -909,9 +873,7 @@ describe('getAdminInsights — degradation and field-fallback branches', () => {
           return new Response(
             JSON.stringify({
               activityEventEntities: [
-                // No UserId → UserKey; no ReportName → ItemName; no CreationTime.
                 { UserKey: 'key-1', ItemName: 'Fallback Item' },
-                // Entirely empty event → Unknown buckets.
                 {},
               ],
               lastResultSet: true,
@@ -919,11 +881,9 @@ describe('getAdminInsights — degradation and field-fallback branches', () => {
             { status: 200 },
           );
         }
-        // Second day: a non-admin failure (404) → that day is skipped.
         return new Response('gone', { status: 404 });
       }
       if (url.includes('/admin/apps/')) {
-        // Audience read fails with a plain 404 → users:null degradation.
         return new Response('gone', { status: 404 });
       }
       if (url.includes('/apps')) {
@@ -986,7 +946,6 @@ describe('getAdminInsights — degradation and field-fallback branches', () => {
     if (bounded.success) expect(bounded.data.days).toBe(14);
 
     const unwired = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
-    // No apps → no audience calls; activity request hits the unwired port.
     const result = await unwired.getAdminInsights(1);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('ADMIN_INSIGHTS_FAILED');
@@ -1031,7 +990,6 @@ describe('getInsightsSnapshot — schedule-vs-reality', () => {
     const ds = result.data.refreshables.find((r) => r.id === 'ds-1');
     expect(ds?.lastRefreshType).toBe('ViaApi');
     expect(ds?.scheduleSummary).toBe('Monday, Tuesday at 06:00');
-    // Last success is weeks older than the 2-slot/week cadence → overdue.
     expect(ds?.scheduleOverdue).toBe(true);
   });
 });
@@ -1042,8 +1000,6 @@ describe('getAdminInsights — continuation safety', () => {
     globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes('/admin/activityevents')) {
-        // Always return the SAME continuationUri with lastResultSet:false — a
-        // server bug that would loop forever without the seen-URL guard.
         return new Response(
           JSON.stringify({
             activityEventEntities: [{ UserId: 'a@x.com', ReportName: 'R', CreationTime: '2026-06-10T01:00:00Z' }],
@@ -1065,7 +1021,6 @@ describe('getAdminInsights — continuation safety', () => {
     const result = await svc.getAdminInsights(1);
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // The single day looped → counted as a failed (partial) day, not infinite.
     expect(result.data.failedDays).toBe(1);
   });
 });
@@ -1093,12 +1048,9 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
     const svc = svcWith([
       [/\/datasets\/ds-1\/refreshes/, {
         value: [
-          // Newest first, as the API returns them. The in-flight Unknown (no
-          // endTime) must be excluded from the strip.
           { status: 'Unknown', startTime: '2026-06-10T03:00:00Z' },
           { status: 'Failed', startTime: '2026-06-10T02:00:00Z', endTime: '2026-06-10T02:05:00Z' },
           { status: 'Completed', startTime: '2026-06-09T02:00:00Z', endTime: '2026-06-09T02:05:00Z' },
-          // 'Unknown' WITH endTime = completed on-demand refresh → ok.
           { status: 'Unknown', startTime: '2026-06-08T02:00:00Z', endTime: '2026-06-08T02:05:00Z' },
         ],
       }],
@@ -1109,7 +1061,6 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    // $top bumped 5 → 12 so the strip has real history.
     const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
     expect(calls.some((u) => u.includes('/refreshes?$top=12'))).toBe(true);
 
@@ -1125,7 +1076,6 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
     const svc = svcWith([
       [/\/datasets\/ds-1\/refreshes/, {
         value: [
-          // Newest: code + errorDescription + nested pbi.error details.
           {
             status: 'Failed',
             endTime: '2026-06-10T02:05:00Z',
@@ -1138,7 +1088,6 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
               },
             }),
           },
-          // Older failure: only the nested pbi.error code, string detail form.
           {
             status: 'Failed',
             endTime: '2026-06-09T02:05:00Z',
@@ -1146,9 +1095,7 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
               'pbi.error': { code: 'Gateway_Offline', details: [{ detail: 'GW-EU-1 unreachable' }] },
             }),
           },
-          // Malformed payload → run kept, error fields omitted.
           { status: 'Failed', endTime: '2026-06-08T02:05:00Z', serviceExceptionJson: 'not-json{' },
-          // Success runs never carry error fields even if the API echoes junk.
           { status: 'Completed', endTime: '2026-06-07T02:05:00Z' },
         ],
       }],
@@ -1176,7 +1123,6 @@ describe('getInsightsSnapshot — recentRuns derivation (Luce dot strip)', () =>
         errorDetail: 'The credentials provided for the SQL source are invalid. · Server: sql.contoso.com',
       },
     ]);
-    // The newest failure's code still surfaces as the item-level errorCode.
     expect(ds?.errorCode).toBe('ModelRefreshFailed_CredentialsNotSpecified');
   });
 
@@ -1247,7 +1193,7 @@ describe('getAdminInsights — unlock-hang fixes (Part B)', () => {
     }) as unknown as typeof fetch;
 
     const svc = createPowerBIApiService({ auth: adminAuthOk() });
-    const result = await svc.getAdminInsights(); // no explicit days
+    const result = await svc.getAdminInsights();
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.days).toBe(2);
     expect(activityUrls.length).toBe(2);
@@ -1259,7 +1205,6 @@ describe('getAdminInsights — unlock-hang fixes (Part B)', () => {
       const url = String(input);
       if (url.includes('/admin/activityevents')) {
         activityCalls++;
-        // Always throttled with an immediate Retry-After so the test is fast.
         return new Response('throttled', { status: 429, headers: { 'Retry-After': '0' } });
       }
       return new Response(JSON.stringify({ value: [] }), { status: 200 });
@@ -1267,28 +1212,12 @@ describe('getAdminInsights — unlock-hang fixes (Part B)', () => {
 
     const svc = createPowerBIApiService({ auth: adminAuthOk() });
     const result = await svc.getAdminInsights(1, true);
-    // The throttled day degrades to a failed day, not a page error…
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.failedDays).toBe(1);
-    // …and the 429 was retried exactly once (2 attempts), not twice.
     expect(activityCalls).toBe(2);
   });
 });
 
-// ---------------------------------------------------------------------------
-// App freshness (AppViewer "Data refreshed: — / Dataflow: —" forever bug).
-// Two failure modes, both fixed:
-//   1. App content can bind to SHARED datasets living in a different workspace
-//      than the app's source workspace, and app-audience-only users have no
-//      workspace membership at all — either way the grouped
-//      /groups/{ws}/datasets/{id}/refreshes call 401/403/404s, every result was
-//      skipped, and the strip stayed "—" forever. getDatasetRefreshInfo now
-//      falls back to the groupless /datasets/{id}/refreshes form (works for any
-//      dataset the user can read).
-//   2. getDataFreshness queried ALL datasets under the FIRST dataset's
-//      workspace. It now accepts {datasetId, workspaceId} pairs and queries
-//      each dataset in its OWN home workspace.
-// ---------------------------------------------------------------------------
 describe('App freshness — per-dataset workspaces and groupless fallback', () => {
   function authOk(): ApiAuthPort {
     return { getAccessToken: vi.fn().mockResolvedValue(tokenOk()) };
@@ -1307,9 +1236,7 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
     globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       urls.push(url);
-      // Wrong-group / no-workspace-access: the grouped form 404s…
       if (url.includes('/groups/')) return new Response('not found', { status: 404 });
-      // …but the groupless form works for any readable dataset.
       return new Response(JSON.stringify(refreshBody('2026-06-09T10:00:00.000Z')), { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -1320,7 +1247,6 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
       expect(result.data.lastRefreshTime).toBe('2026-06-09T10:00:00.000Z');
       expect(result.data.lastRefreshStatus).toBe('Completed');
     }
-    // Grouped attempt first, then the groupless fallback.
     expect(urls.some((u) => u.includes('/groups/ws-fb404/datasets/ds-fb404/refreshes'))).toBe(true);
     expect(urls.some((u) => u.includes('/myorg/datasets/ds-fb404/refreshes'))).toBe(true);
   });
@@ -1348,7 +1274,6 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
     const svc = createPowerBIApiService(makeDeps(authOk()));
     const result = await svc.getDatasetRefreshInfo('ds-fb400', 'ws-fb400');
     expect(result.success).toBe(false);
-    // Only the grouped attempt — no speculative groupless retry on a real error.
     expect(urls).toHaveLength(1);
     expect(urls[0]).toContain('/groups/ws-fb400/');
   });
@@ -1363,7 +1288,6 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
         const time = m[2] === 'ds-pair-a' ? '2026-06-05T00:00:00.000Z' : '2026-06-02T00:00:00.000Z';
         return new Response(JSON.stringify(refreshBody(time)), { status: 200 });
       }
-      // upstreamDataflows / dataflows-list lookups → empty (no dataflow stamp).
       return new Response(JSON.stringify({ value: [] }), { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -1375,22 +1299,17 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
 
     expect(result.success).toBe(true);
     if (result.success) {
-      // Stalest across BOTH workspaces' datasets, both resolved successfully.
       expect(result.data.datasetRefreshTime).toBe('2026-06-02T00:00:00.000Z');
       expect(result.data.datasetCount).toBe(2);
     }
-    // Each dataset was queried under ITS OWN workspace…
     expect(groupedCalls).toContain('ws-pair-a|ds-pair-a');
     expect(groupedCalls).toContain('ws-pair-b|ds-pair-b');
-    // …and never under the other dataset's workspace (the old bug).
     expect(groupedCalls).not.toContain('ws-pair-a|ds-pair-b');
   });
 
   it('getDataFreshness populates the dataset time via the groupless fallback when ALL grouped calls fail (bug repro)', async () => {
     globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
-      // App-audience access: EVERY /groups/... call is denied (refreshes,
-      // upstreamDataflows lineage, dataflows list).
       if (url.includes('/groups/')) return new Response('forbidden', { status: 403 });
       if (/myorg\/datasets\/[^/]+\/refreshes/.test(url)) {
         return new Response(JSON.stringify(refreshBody('2026-06-09T06:00:00.000Z')), { status: 200 });
@@ -1405,9 +1324,7 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
 
     expect(result.success).toBe(true);
     if (result.success) {
-      // Previously: grouped 403 → skipped → null forever ("Data refreshed: —").
       expect(result.data.datasetRefreshTime).toBe('2026-06-09T06:00:00.000Z');
-      // Dataflow lineage genuinely needs workspace access → honestly absent.
       expect(result.data.dataflowRefreshTime).toBeNull();
       expect(result.data.datasetCount).toBe(1);
     }
@@ -1430,7 +1347,6 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.datasetRefreshTime).toBe('2026-06-07T00:00:00.000Z');
-      // Duplicate ids deduped, exactly as before.
       expect(result.data.datasetCount).toBe(2);
     }
     expect(groupedCalls).toContain('ws-legacy|ds-legacy-1');
@@ -1438,11 +1354,6 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
   });
 });
 
-// ---------------------------------------------------------------------------
-// App dataset backfill — tenant-verified quirk (diagnose-pbi 2026-06-10):
-// /apps/{id}/reports returns datasetId:"" but carries originalReportObjectId.
-// One workspace-listing hop must recover the dataset so App freshness works.
-// ---------------------------------------------------------------------------
 describe('getAppReports dataset backfill', () => {
   function urlOf(call: unknown[]): string {
     return String(call[0]);
@@ -1466,7 +1377,6 @@ describe('getAppReports dataset backfill', () => {
               {
                 id: 'app-r2', name: 'BELL - KPI', embedUrl: 'e2',
                 datasetId: '', reportType: 'PowerBIReport', appId: 'app-1',
-                // no originalReportObjectId -> must fall back to name match
               },
             ],
           }),
@@ -1498,9 +1408,8 @@ describe('getAppReports dataset backfill', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     const [dash, kpi] = result.data;
-    expect(dash?.datasetId).toBe('ds-dash'); // via originalReportObjectId
-    expect(kpi?.datasetId).toBe('ds-kpi'); // via case-insensitive name match
-    // The hop hit the source workspace exactly once.
+    expect(dash?.datasetId).toBe('ds-dash');
+    expect(kpi?.datasetId).toBe('ds-kpi');
     const wsCalls = fetchMock.mock.calls.filter((c) => urlOf(c).includes('/groups/ws-1/reports'));
     expect(wsCalls.length).toBe(1);
   });
@@ -1559,7 +1468,7 @@ describe('getAppReports dataset backfill', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await svc.getAppReports('app-1');
-    expect(result.success).toBe(true); // hop is best-effort, never fatal
+    expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data[0]?.datasetId).toBe('');
   });
@@ -1572,7 +1481,6 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
     { value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] },
   ];
 
-  // Ordered regex routes, first match wins (same harness as the suites above).
   function svcWith(routes: Array<[RegExp, unknown]>) {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
@@ -1591,13 +1499,10 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
 
   it('populates upstreamDataflowIds from ONE workspace-level lineage call', async () => {
     const svc = svcWith([
-      // Full workspace link list: ds-multi feeds from two flows, ds-solo from one,
-      // ds-none appears in no link at all.
       [/\/datasets\/upstreamDataflows/, {
         value: [
           { datasetObjectId: 'ds-multi', dataflowObjectId: 'df-1', workspaceObjectId: WS },
           { datasetObjectId: 'ds-multi', dataflowObjectId: 'df-2', workspaceObjectId: WS },
-          // Duplicate link + casing difference must dedupe into one id.
           { datasetObjectId: 'DS-MULTI', dataflowObjectId: 'df-1', workspaceObjectId: WS },
           { datasetObjectId: 'ds-solo', dataflowObjectId: 'df-2', workspaceObjectId: WS },
         ],
@@ -1619,11 +1524,8 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
     const byId = new Map(result.data.refreshables.map((r) => [r.id, r]));
     expect(byId.get('ds-multi')?.upstreamDataflowIds).toEqual(['df-1', 'df-2']);
     expect(byId.get('ds-solo')?.upstreamDataflowIds).toEqual(['df-2']);
-    // Lineage succeeded but holds no link for this dataset → KNOWN none ([]),
-    // not unknown (omitted). Disabled datasets carry lineage too.
     expect(byId.get('ds-none')?.upstreamDataflowIds).toEqual([]);
 
-    // Exactly ONE lineage request for the whole workspace (not per dataset).
     expect(fetchUrls().filter((u) => u.includes('/datasets/upstreamDataflows')).length).toBe(1);
   });
 
@@ -1653,7 +1555,6 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
     if (!result.success) return;
     const ds = result.data.refreshables.find((r) => r.id === 'ds-1');
     expect(ds).toBeDefined();
-    // Unknown lineage: the FIELD is absent, not an empty array.
     expect(ds && 'upstreamDataflowIds' in ds).toBe(false);
     expect(result.data.partialFailure).toBe(false);
   });
@@ -1663,7 +1564,6 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
       [/\/reports(\?|$)/, {
         value: [
           { id: 'r-1', name: 'Sales Daily', embedUrl: 'e1', datasetId: 'ds-1', reportType: 'PowerBIReport' },
-          // Paginated report with no bound dataset: datasetId comes back empty.
           { id: 'r-2', name: 'Invoice Pack', embedUrl: 'e2', datasetId: '', reportType: 'PaginatedReport' },
         ],
       }],
@@ -1676,9 +1576,8 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
 
     expect(result.data.reports).toEqual([
       { id: 'r-1', name: 'Sales Daily', workspaceId: WS, datasetId: 'ds-1' },
-      { id: 'r-2', name: 'Invoice Pack', workspaceId: WS }, // datasetId omitted, not ''
+      { id: 'r-2', name: 'Invoice Pack', workspaceId: WS },
     ]);
-    // reportCount and the reports array come from the SAME single listing.
     expect(result.data.reportCount).toBe(2);
     expect(fetchUrls().filter((u) => /\/reports(\?|$)/.test(u)).length).toBe(1);
   });
@@ -1712,9 +1611,6 @@ describe('resolveAppReportDataset (App view per-report freshness target)', () =>
   const ORIGINAL = '55555555-5555-4555-8555-555555555555';
   const DATASET = '66666666-6666-4666-8666-666666666666';
 
-  /** Route fetches by URL substring. A number value = that HTTP status with an
-   *  empty body; an object = 200 with that JSON body. Unrouted URLs explode so
-   *  a test can assert exactly which endpoints were touched. */
   function routeFetch(routes: Array<[string, number | object]>): ReturnType<typeof vi.fn> {
     const mock = vi.fn(async (url: string | URL) => {
       const u = String(url);
@@ -1749,8 +1645,6 @@ describe('resolveAppReportDataset (App view per-report freshness target)', () =>
     const result = await makeService().resolveAppReportDataset(APP, URL_REPORT);
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // The dataset's REAL group, not the app's source workspace — shared
-    // datasets need their own group for refreshes AND dataflow lineage.
     expect(result.data).toEqual({ datasetId: DATASET, workspaceId: HOME_WS });
   });
 
@@ -1837,8 +1731,6 @@ describe('resolveAppReportDataset (App view per-report freshness target)', () =>
   });
 
   it('does NOT cache a transient failure — the next call retries', async () => {
-    // 403 on the app-report read is NOT the confident-404 path: it throws and
-    // surfaces as an error envelope.
     const fetchMock = routeFetch([
       [`/apps/${APP}/reports/${URL_REPORT}`, 403],
       [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],

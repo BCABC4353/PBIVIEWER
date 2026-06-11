@@ -35,7 +35,6 @@ describe('friendlyApiError', () => {
   });
 
   it('ignores the raw body parameter (kept for future structured parsing)', () => {
-    // The raw body is intentionally not surfaced (PII / authz leaks).
     const fromStatus = friendlyApiError(403);
     const fromStatusAndRaw = friendlyApiError(403, 'user@contoso.com lacks access');
     expect(fromStatusAndRaw).toBe(fromStatus);
@@ -68,16 +67,12 @@ describe('friendlyApiErrorFromMessage', () => {
   });
 
   it('handles contexts containing colons without misparsing', () => {
-    // The regex pins on ": <3-digit> - " — leading colons in the context
-    // (e.g. "module:submodule") should not be mistaken for the separator.
     expect(
       friendlyApiErrorFromMessage('module:submodule: 401 - token expired'),
     ).toBe('Your session expired. Please sign in again.');
   });
 
   it('returns the input unchanged when the colon/dash shape matches but the status is non-numeric', () => {
-    // The regex requires \d{3}, so "abc - body" does NOT match and the input
-    // should be returned verbatim.
     expect(friendlyApiErrorFromMessage('Bad message: abc - body')).toBe(
       'Bad message: abc - body',
     );

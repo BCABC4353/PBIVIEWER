@@ -1,10 +1,3 @@
-/**
- * LiveFleetClient — HTTP 429 throttling behavior. Power BI throttles the
- * per-workspace fan-out on big tenants (50 workspaces ≈ 100+ list calls plus
- * 2 per dataset); without bounded retry-on-429 every throttled call degrades
- * silently to "unreadable"/empty health. Pure logic: global fetch mocked,
- * fake timers so Retry-After waits cost nothing.
- */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LiveFleetClient } from './fleet-client';
 import type { TokenProvider } from './types';
@@ -56,7 +49,7 @@ describe('get() retry on 429', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(throttled('1'))
-      .mockResolvedValueOnce(ok({ value: [] })); // /groups
+      .mockResolvedValueOnce(ok({ value: [] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const p = new LiveFleetClient(tokens).getFleetSnapshot();
@@ -107,7 +100,7 @@ describe('get() retry on 429', () => {
     await vi.advanceTimersByTimeAsync(120_000);
     const err = await settled;
 
-    expect(fetchMock).toHaveBeenCalledTimes(3); // initial + MAX_429_RETRIES
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toMatch(/Could not list your workspaces/);
   });
@@ -123,11 +116,7 @@ describe('get() retry on 429', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Never-blank guarantees: partial failure surfacing, progress, concurrency.
-// ---------------------------------------------------------------------------
 
-/** URL-routed fetch stub: path → body (or an HTTP status number). */
 function routedFetch(routes: Record<string, unknown>, perCall?: () => Promise<void>) {
   return vi.fn(async (url: string) => {
     if (perCall) await perCall();
@@ -140,7 +129,7 @@ function routedFetch(routes: Record<string, unknown>, perCall?: () => Promise<vo
 }
 
 describe('getFleetSnapshot — partial failure and progress', () => {
-  beforeEach(() => vi.useRealTimers()); // no throttling here — real microtasks
+  beforeEach(() => vi.useRealTimers());
 
   it('loads readable workspaces and counts the unreadable ones (partial honesty)', async () => {
     vi.stubGlobal(
@@ -163,7 +152,7 @@ describe('getFleetSnapshot — partial failure and progress', () => {
 
     expect(snap.partialFailure).toBe(true);
     expect(snap.failedWorkspaces).toEqual([{ id: 'g2', name: 'Locked WS', error: 'unreadable' }]);
-    expect(snap.refreshables.map((r) => r.id)).toEqual(['d1']); // loaded data still shows
+    expect(snap.refreshables.map((r) => r.id)).toEqual(['d1']);
     expect(snap.workspaceCount).toBe(2);
   });
 
@@ -189,7 +178,7 @@ describe('getFleetSnapshot — partial failure and progress', () => {
       seen.push({ pct, items }),
     );
 
-    expect(seen).toHaveLength(2); // one tick per workspace
+    expect(seen).toHaveLength(2);
     expect(seen.at(-1)).toEqual({ pct: 1, items: 1 });
     expect(seen.every((s, i) => i === 0 || s.pct >= seen[i - 1]!.pct)).toBe(true);
   });
@@ -213,7 +202,7 @@ describe('getFleetSnapshot — partial failure and progress', () => {
       routedFetch(routes, async () => {
         active += 1;
         peak = Math.max(peak, active);
-        await new Promise((r) => setTimeout(r, 1)); // let calls overlap
+        await new Promise((r) => setTimeout(r, 1));
         active -= 1;
       }),
     );
@@ -221,7 +210,7 @@ describe('getFleetSnapshot — partial failure and progress', () => {
     const snap = await new LiveFleetClient(tokens).getFleetSnapshot();
 
     expect(snap.refreshables).toHaveLength(9);
-    expect(peak).toBeGreaterThan(1); // there WAS parallelism…
-    expect(peak).toBeLessThanOrEqual(5); // …but never a stampede
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(5);
   });
 });

@@ -2,11 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { color, radius, space, type } from '../design/tokens';
 
-/**
- * Surface every native visual sits on: surface1 card, caption title, and the
- * three quiet states — breathing skeleton (never a spinner), error with a
- * quiet retry, and content.
- */
 export const VisualCard: React.FC<{
   title: string;
   loading?: boolean;

@@ -1,28 +1,6 @@
-/**
- * Canvas crosswalk v1 — derive a native CanvasSpec from a REAL dataset at
- * runtime. No report definitions are readable from the REST API, so we read
- * the MODEL instead and chart what it declares:
- *
- *   1. DAX INFO functions (INFO.MEASURES / INFO.TABLES / INFO.COLUMNS)
- *      → measures become KPIs, the first date column becomes a trend line,
- *        a low-cardinality text column becomes a bar (donut when ≤6
- *        categories), and the widest table becomes a top-rows table.
- *   2. INFO unavailable → EVALUATE COLUMNSTATISTICS() (older engines):
- *      row counts and column sums stand in for measures.
- *   3. Both unavailable → CanvasDerivationError carrying the EXACT API
- *      error, so the UI can say precisely why (usually missing Build
- *      permission). We never fake data and never show a blank screen.
- *
- * Pure TS, fully deterministic given the same model — unit-testable with
- * fake INFO payloads. Every identifier that reaches a DAX string goes
- * through the escape helpers below; nothing is interpolated raw.
- */
 import { executeDax, type CanvasSpec, type QueryResult, type ValueFormat, type VisualSpec } from './dax';
 import type { TokenProvider } from './types';
 
-/** Runs one DAX query against the dataset being derived. The optional signal
- *  is the ladder's abort handle — live runners MUST pass it to fetch so a
- *  timed-out rung actually cancels its requests (fakes may ignore it). */
 export type DaxRunner = (dax: string, signal?: AbortSignal) => Promise<QueryResult>;
 
 const MAX_VISUALS = 8;
@@ -35,40 +13,28 @@ const MAX_TABLE_COLUMNS = 5;
 const TABLE_TOP_N = 10;
 const MAX_CARDINALITY_PROBES = 6;
 
-// ---------------------------------------------------------------------------
-// DAX identifier escaping — the only way identifiers enter a query string.
-// ---------------------------------------------------------------------------
 
-/** `Sales Data` → `'Sales Data'`; embedded single quotes double: `''`. */
 export function escapeTableName(name: string): string {
   return `'${name.replace(/'/g, "''")}'`;
 }
 
-/** `Total [net]` → `[Total [net]]]`; closing brackets double: `]]`. */
 export function escapeBracketName(name: string): string {
   return `[${name.replace(/]/g, ']]')}]`;
 }
 
-/** `'Table'[Column]` reference with both parts escaped. */
 export function columnRef(table: string, column: string): string {
   return `${escapeTableName(table)}${escapeBracketName(column)}`;
 }
 
-/** `[Measure]` reference, escaped. */
 export function measureRef(name: string): string {
   return escapeBracketName(name);
 }
 
-/** DAX string literal: embedded double quotes double. */
 export function daxStringLiteral(s: string): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-// ---------------------------------------------------------------------------
-// Model discovery via INFO functions
-// ---------------------------------------------------------------------------
 
-/** TOM DataType enum values the crosswalk cares about. */
 const DATATYPE_STRING = 2;
 const DATATYPE_INT64 = 6;
 const DATATYPE_DOUBLE = 8;
@@ -91,7 +57,6 @@ interface ModelTable {
 }
 export interface ModelInfo {
   measures: ModelMeasure[];
-  /** Visible data columns of visible tables, model order. */
   columns: ModelColumn[];
   tables: ModelTable[];
 }
@@ -110,14 +75,9 @@ const asNumber = (v: unknown): number | null => {
 const asString = (v: unknown): string | null =>
   typeof v === 'string' && v.length > 0 ? v : null;
 
-/** Engine-internal tables that must never reach a canvas. */
 const isInternalTableName = (name: string): boolean =>
   name.startsWith('DateTableTemplate_') || name.startsWith('LocalDateTable_');
 
-/**
- * Read the model through INFO.TABLES / INFO.COLUMNS / INFO.MEASURES.
- * Throws if any of the three queries fails (callers fall to the next rung).
- */
 export async function discoverModel(run: DaxRunner): Promise<ModelInfo> {
   const [tablesR, columnsR, measuresR] = await Promise.all([
     run('EVALUATE INFO.TABLES()'),
@@ -125,7 +85,6 @@ export async function discoverModel(run: DaxRunner): Promise<ModelInfo> {
     run('EVALUATE INFO.MEASURES()'),
   ]);
 
-  // Visible tables, keyed by engine ID so columns can find their owner.
   const tableNameById = new Map<number, string>();
   for (const row of tablesR.rows) {
     const id = asNumber(row['ID']);
@@ -167,16 +126,12 @@ export async function discoverModel(run: DaxRunner): Promise<ModelInfo> {
       formatString: asString(row['FormatString']) ?? '',
     });
   }
-  measures.sort((a, b) => a.id - b.id); // model order — deterministic
+  measures.sort((a, b) => a.id - b.id);
 
   return { measures, columns, tables: [...tablesByName.values()] };
 }
 
-// ---------------------------------------------------------------------------
-// Derivation rules (INFO rung)
-// ---------------------------------------------------------------------------
 
-/** Guess display format from the measure's own format string, then its name. */
 export function guessFormat(name: string, formatString: string): ValueFormat {
   if (formatString.includes('%')) return 'percent';
   if (/[$€£¥¤]/.test(formatString)) return 'currency';
@@ -190,12 +145,10 @@ export function guessFormat(name: string, formatString: string): ValueFormat {
 const isNumericType = (t: number): boolean =>
   t === DATATYPE_INT64 || t === DATATYPE_DOUBLE || t === DATATYPE_DECIMAL;
 
-/** Key-shaped names ("Order ID", "CustomerKey") make meaningless categories. */
 const looksLikeKey = (name: string): boolean =>
   /(^|[\s_-])(id|key|guid|code)$/i.test(name) ||
   /[a-z0-9](Id|ID|Key|KEY|Guid|GUID|Code|CODE)$/.test(name);
 
-/** Visuals must have unique titles (canvas uses them as React keys). */
 function dedupeTitles(visuals: VisualSpec[]): VisualSpec[] {
   const seen = new Map<string, number>();
   return visuals.map((v) => {
@@ -205,10 +158,6 @@ function dedupeTitles(visuals: VisualSpec[]): VisualSpec[] {
   });
 }
 
-/**
- * Probe DISTINCTCOUNT for candidate category columns in ONE query.
- * Returns null on failure — callers degrade to a TOPN bar, never throw.
- */
 async function probeCardinality(
   run: DaxRunner,
   candidates: ModelColumn[],
@@ -231,7 +180,6 @@ async function probeCardinality(
   }
 }
 
-/** Build the visuals the INFO rung promises. Async only for the cardinality probe. */
 export async function deriveFromModel(
   model: ModelInfo,
   run: DaxRunner,
@@ -239,7 +187,6 @@ export async function deriveFromModel(
 ): Promise<CanvasSpec> {
   const visuals: VisualSpec[] = [];
 
-  // 1) Top measures → KPI tiles.
   const kpiMeasures = model.measures.slice(0, MAX_KPIS);
   for (const m of kpiMeasures) {
     visuals.push({
@@ -259,7 +206,6 @@ export async function deriveFromModel(
     ? guessFormat(primary.name, primary.formatString)
     : 'number';
 
-  // 2) First date-typed column + a measure → line trend (last N points).
   const dateCol = model.columns.find((c) => c.dataType === DATATYPE_DATETIME);
   if (dateCol) {
     const ref = columnRef(dateCol.table, dateCol.name);
@@ -276,7 +222,6 @@ export async function deriveFromModel(
     });
   }
 
-  // 3) Low-cardinality text column + measure → bar; donut only when ≤6 slices.
   const candidates = model.columns
     .filter((c) => c.dataType === DATATYPE_STRING && !looksLikeKey(c.name))
     .slice(0, MAX_CARDINALITY_PROBES);
@@ -293,7 +238,7 @@ export async function deriveFromModel(
       }
     }
   } else {
-    categoryCol = candidates[0]; // probe failed — bar with TOPN stays honest
+    categoryCol = candidates[0];
   }
   if (categoryCol) {
     const ref = columnRef(categoryCol.table, categoryCol.name);
@@ -313,7 +258,6 @@ export async function deriveFromModel(
     });
   }
 
-  // 4) Top-N rows of the widest table.
   const widest = [...model.tables].sort((a, b) => b.columns.length - a.columns.length)[0];
   if (widest && widest.columns.length >= 2) {
     const cols = widest.columns.slice(0, MAX_TABLE_COLUMNS);
@@ -330,9 +274,6 @@ export async function deriveFromModel(
   return { title: reportName, visuals: dedupeTitles(visuals.slice(0, MAX_VISUALS)) };
 }
 
-// ---------------------------------------------------------------------------
-// COLUMNSTATISTICS rung — older engines where INFO functions are unavailable.
-// ---------------------------------------------------------------------------
 
 interface StatsColumn {
   table: string;
@@ -343,7 +284,6 @@ interface StatsColumn {
   maxLength: number | null;
 }
 
-/** Find a stats column key tolerantly ("Table Name" vs "TableName" etc.). */
 function statsKey(columns: string[], wanted: string): string | undefined {
   const norm = (s: string) => s.toLowerCase().replace(/[\s_]/g, '');
   return columns.find((c) => norm(c) === norm(wanted));
@@ -352,7 +292,6 @@ function statsKey(columns: string[], wanted: string): string | undefined {
 const looksLikeDateValue = (v: unknown): boolean =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v);
 
-/** Parse an `EVALUATE COLUMNSTATISTICS()` result into per-column stats. */
 export function parseColumnStatistics(result: QueryResult): StatsColumn[] {
   const tableKey = statsKey(result.columns, 'Table Name');
   const columnKey = statsKey(result.columns, 'Column Name');
@@ -380,7 +319,6 @@ export function parseColumnStatistics(result: QueryResult): StatsColumn[] {
   return out;
 }
 
-/** Without measures, row counts and column sums are the honest stand-ins. */
 export function deriveFromStatistics(result: QueryResult, reportName: string): CanvasSpec {
   const stats = parseColumnStatistics(result);
   const visuals: VisualSpec[] = [];
@@ -395,7 +333,6 @@ export function deriveFromStatistics(result: QueryResult, reportName: string): C
   const widest = [...byTable.entries()].sort((a, b) => b[1].length - a[1].length)[0]!;
   const [widestName, widestCols] = widest;
 
-  // KPI: row count of the widest table.
   visuals.push({
     kind: 'kpi',
     title: `${widestName} rows`,
@@ -404,7 +341,6 @@ export function deriveFromStatistics(result: QueryResult, reportName: string): C
     format: 'number',
   });
 
-  // KPIs: sums of the first numeric columns anywhere in the model.
   const numeric = stats.filter(
     (s) => asNumber(s.min) !== null && asNumber(s.max) !== null && !looksLikeKey(s.name),
   );
@@ -418,7 +354,6 @@ export function deriveFromStatistics(result: QueryResult, reportName: string): C
     });
   }
 
-  // Line: first date-looking column, counting rows over time.
   const dateCol = stats.find((s) => looksLikeDateValue(s.min) && looksLikeDateValue(s.max));
   if (dateCol) {
     const ref = columnRef(dateCol.table, dateCol.name);
@@ -436,7 +371,6 @@ export function deriveFromStatistics(result: QueryResult, reportName: string): C
     });
   }
 
-  // Category: text column with known low cardinality → donut ≤6, else bar.
   const category = stats.find(
     (s) =>
       (s.maxLength ?? 0) > 0 &&
@@ -464,7 +398,6 @@ export function deriveFromStatistics(result: QueryResult, reportName: string): C
     });
   }
 
-  // Table: top rows of the widest table.
   if (widestCols.length >= 2) {
     const cols = widestCols.slice(0, MAX_TABLE_COLUMNS);
     const parts = cols.map((c) => `${daxStringLiteral(c.name)}, ${columnRef(widestName, c.name)}`);
@@ -478,15 +411,10 @@ export function deriveFromStatistics(result: QueryResult, reportName: string): C
   return { title: reportName, visuals: dedupeTitles(visuals.slice(0, MAX_VISUALS)) };
 }
 
-// ---------------------------------------------------------------------------
-// Fallback ladder + session cache
-// ---------------------------------------------------------------------------
 
-/** Both rungs failed — carries the exact API error for the explanation card. */
 export class CanvasDerivationError extends Error {
   constructor(
     message: string,
-    /** The verbatim error from the Power BI API (last rung attempted). */
     public readonly apiError: string,
   ) {
     super(message);
@@ -496,26 +424,17 @@ export class CanvasDerivationError extends Error {
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-/** Ladder stage, surfaced so the UI's loading face can visibly advance. */
 export type DeriveStep = 'model' | 'visuals' | 'stats';
 
 export interface DeriveOptions {
-  /** Hard ceiling per ladder rung (default 25 s). */
   rungTimeoutMs?: number;
-  /** Hard ceiling for the whole derivation (default 60 s). */
   totalTimeoutMs?: number;
-  /** Fires as the ladder advances — drives the live step line in the UI. */
   onStep?: (step: DeriveStep) => void;
 }
 
 export const RUNG_TIMEOUT_MS = 25_000;
 export const TOTAL_TIMEOUT_MS = 60_000;
 
-/**
- * Run one rung under a hard deadline. The AbortController cancels the rung's
- * in-flight HTTP when time is up; the race guarantees we settle even if the
- * runner ignores the signal (fakes, stubborn fetch implementations).
- */
 async function runRung<T>(
   label: string,
   ms: number,
@@ -536,14 +455,6 @@ async function runRung<T>(
   }
 }
 
-/**
- * Walk the ladder: INFO functions → COLUMNSTATISTICS → CanvasDerivationError.
- * Every rung is honest: a derived spec only ever queries the real dataset,
- * and the terminal error carries the exact API failure for display. Each rung
- * is capped (25 s) and the whole walk is capped (60 s) — a hung query can
- * never strand the UI on its loading face: it ALWAYS settles, success or a
- * loud CanvasDerivationError.
- */
 export async function deriveCanvasSpec(
   run: DaxRunner,
   reportName: string,
@@ -552,7 +463,6 @@ export async function deriveCanvasSpec(
   const rungMs = opts.rungTimeoutMs ?? RUNG_TIMEOUT_MS;
   const totalMs = opts.totalTimeoutMs ?? TOTAL_TIMEOUT_MS;
   const startedAt = Date.now();
-  /** Per-rung budget: the rung cap, shrunk by whatever the walk already spent. */
   const budget = (): number => Math.max(1, Math.min(rungMs, totalMs - (Date.now() - startedAt)));
 
   let infoError: unknown = null;
@@ -561,8 +471,6 @@ export async function deriveCanvasSpec(
     const model = await runRung('Reading the dataset model (INFO functions)', budget(), (signal) =>
       discoverModel((dax) => run(dax, signal)),
     );
-    // Zero-row / unexpected-shape INFO responses are NOT a usable model —
-    // fall to the next rung instead of deriving an empty (blank) canvas.
     if (model.measures.length === 0 && model.columns.length === 0 && model.tables.length === 0) {
       throw new Error('INFO functions answered but exposed no visible tables, columns, or measures.');
     }
@@ -595,15 +503,12 @@ export async function deriveCanvasSpec(
   );
 }
 
-/** Session cache: one derived CanvasSpec per dataset. */
 const specCache = new Map<string, CanvasSpec>();
 
-/** Test seam / sign-out hygiene. */
 export function clearCanvasSpecCache(): void {
   specCache.clear();
 }
 
-/** Derive (or reuse) the canvas for a dataset, querying with the live token. */
 export async function deriveCanvasForDataset(
   tokens: TokenProvider,
   datasetId: string,

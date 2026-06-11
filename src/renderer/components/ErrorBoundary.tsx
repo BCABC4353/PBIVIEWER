@@ -3,15 +3,9 @@ import { Button, Text, Card } from '@fluentui/react-components';
 import { ArrowSyncRegular, HomeRegular } from '@fluentui/react-icons';
 import { reportIssue } from '../lib/report-issue';
 
-// Internal class boundary
 
 interface ClassProps {
   children: ReactNode;
-  /**
-   * Called when the user presses "Try Again". The functional
-   * wrapper provides this; it bumps the recovery key so the entire subtree
-   * is re-mounted, breaking out of any deterministic render-error loop.
-   */
   onTryAgain: () => void;
 }
 
@@ -36,18 +30,12 @@ class ErrorBoundaryClass extends Component<ClassProps, ClassState> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Single structured log line — error object + component stack render
-    // cleanly in DevTools and serialize into electron-log's file transport.
     console.error('[ErrorBoundary]', error.message, error, errorInfo.componentStack);
-    // Surface a React crash to the issue beacon for remote triage (the message
-    // is sanitized + length-capped in the main process before any transmission).
     reportIssue({ code: 'RENDERER_CRASH', context: error.message });
     this.setState({ error, errorInfo });
   }
 
   handleGoHome = () => {
-    // Reset local error state then navigate; the functional wrapper's
-    // onTryAgain also bumps the recovery key, so both actions happen.
     this.setState({ hasError: false, error: null, errorInfo: null });
     window.location.hash = '#/';
   };
@@ -66,7 +54,6 @@ class ErrorBoundaryClass extends Component<ClassProps, ClassState> {
   }
 }
 
-// Fallback UI
 
 interface ErrorFallbackProps {
   error: Error | null;
@@ -120,25 +107,11 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onGoHome, onTryAga
   </div>
 );
 
-// Public export — functional wrapper
 
 interface Props {
   children: ReactNode;
 }
 
-/**
- * The functional wrapper owns a `recoveryKey` counter.
- *
- * When the user presses "Try Again", `onTryAgain` is called:
- *   1. The recovery key is incremented, which changes the `key` prop on the
- *      class boundary. React unmounts the entire old subtree (including the
- *      component that threw) and mounts a fresh one.
- *   2. The hash is reset to "#/" so the app starts from the home route.
- *
- * Without the key bump, React re-renders the same throwing component tree and
- * immediately re-triggers componentDidCatch — a deterministic loop with no way
- * out. The key bump breaks that loop.
- */
 export const ErrorBoundary: React.FC<Props> = ({ children }) => {
   const [recoveryKey, setRecoveryKey] = useState(0);
 

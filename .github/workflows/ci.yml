@@ -2,8 +2,6 @@ name: CI
 
 on:
   pull_request:
-    # ready_for_review included so a draft-opened PR re-triggers CI when marked
-    # ready; without it the draft-skip `if` below would let it merge unchecked.
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [master, main]
@@ -11,10 +9,6 @@ on:
 permissions:
   contents: read
 
-# NEW-CI-6: cancel any in-flight run for the same ref/PR so overlapping pushes
-# don't queue and race. pull_request events use the PR number; push events on a
-# branch use the branch name. The workflow name is included so ci.yml and
-# build.yml each have their own independent concurrency namespace.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true

@@ -30,80 +30,25 @@ import { WorkspaceTile } from './WorkspaceTile';
 import { WorkspaceSheet } from './WorkspaceSheet';
 import './insights-luce.css';
 
-/**
- * Insights — the data-health board, in the Luce design language
- * (docs/design/FERRARI-DASHBOARD-RND.md, D1–D12).
- *
- * THIS PAGE ONLY goes dark (owner request): near-black canvas, stacked panels
- * separated by seams (never outlines), one virtual light source, one amber
- * accent, red reserved strictly for broken. Motion runs on two linear()
- * springs; the board plays a ≤1400ms ignition ceremony once per session and
- * keeps exactly three sub-perceptual idle movers between refreshes.
- *
- * Everything here is scoped to the signed-in user's token: each user sees
- * exactly the workspaces, datasets, dataflows, and access lists they are
- * allowed to see, so the page is safe to expose to every client.
- *
- * Sections:
- *   1. Hero gauge (D11) + summary tiles — ONE dominant data-health figure;
- *      the status tiles are clickable filters (Matt #2).
- *   2. Health board — one TILE per workspace (client), triaged damage-first
- *      (DESIGN-CONTRACT §B); a solo client gets the hero tile (§A). A tile
- *      expands (FLIP, §D) into the blast-radius sheet (§C): the lineage
- *      process diagram (owner v3 #3) on top, then chipless dataflow/dataset
- *      rows, the people with access, and the user's USAGE for that workspace
- *      (owner: usage belongs in the same window as its tile) — total opens as
- *      a bar graph, never-opened items as one footnote line.
- *   3. The admin tier (owner-only; App audiences, activity).
- */
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
 
 export const InsightsPage: React.FC = () => {
   const user = useAuthStore((s) => s.user);
-  // The Administration entry is for the owner alone (owner directive).
   const isOwner = (user?.email ?? '').toLowerCase() === 'brendan@bc-abc.com';
 
   const [snapshot, setSnapshot] = useState<InsightsSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Active summary-tile filter (Matt #2), null = show everything.
   const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
-  // Blast-radius sheet: the open workspace + the originating tile ELEMENT,
-  // kept solely so focus can return to it on contraction (§D).
   const [sheet, setSheet] = useState<{
     workspaceId: string;
     el: HTMLElement | null;
   } | null>(null);
-  // The workspace whose TILE carries the `sheet-morph` view-transition name
-  // while the sheet is closed (set just before the open morph captures its
-  // old snapshot; the name moves to the sheet panel the moment it renders).
   const [morphId, setMorphId] = useState<string | null>(null);
-  // §E: the sheet's glass (backdrop blur) switches on at the open morph's
-  // `finished` promise; with no morph (reduced motion / no engine) it is on
-  // from the first frame.
   const [sheetSettled, setSheetSettled] = useState(true);
 
-  /**
-   * §D expansion — a native View Transition morph: the clicked tile IS the
-   * sheet. The tile already carries `sheet-morph` when the engine captures
-   * the old snapshot; ALL sheet state changes run inside the callback
-   * (flushSync) so the new snapshot pairs the name onto the sheet panel.
-   * Fallback (reduced motion, or no startViewTransition — e.g. jsdom): the
-   * sheet simply appears at final geometry.
-   */
-  // The active view transition — a new interaction SKIPS it (instant settle)
-  // and starts the next morph from the real current layout: reversible at
-  // any time, never wait for completion (owner ruling).
   const activeVtRef = useRef<{ skipTransition: () => void } | null>(null);
-  // True only while a transition is actually animating. The press router
-  // below keys off this — it must never hijack at-rest clicks.
   const vtLiveRef = useRef(false);
-  // Synchronous truth for the press router: which workspace the sheet is
-  // (or is about to be) showing. React state lags one VT update callback
-  // behind (probe-measured ~300ms), so the router can never trust `sheet`.
   const sheetIntentRef = useRef<{ workspaceId: string; el: HTMLElement } | null>(null);
 
   const armVt = useCallback(
@@ -124,45 +69,32 @@ export const InsightsPage: React.FC = () => {
       setSheet({ workspaceId, el });
       return;
     }
-    // A re-open during an interrupted close must not inherit the close speed.
     document.documentElement.classList.remove('vt-closing');
     flushSync(() => {
       setSheetSettled(false);
       setMorphId(workspaceId);
     });
-    activeVtRef.current?.skipTransition(); // interrupt any running morph (owner: never wait)
+    activeVtRef.current?.skipTransition();
     const vt = document.startViewTransition(() => {
-      // Inside the callback the tile loses the name and the sheet renders
-      // with it (snapshots break if this state change escapes the callback).
       flushSync(() => setSheet({ workspaceId, el }));
     });
     armVt(vt);
     void vt.finished.finally(() => setSheetSettled(true));
   }, [armVt]);
 
-  /** §D contraction — the same morph in reverse, at the close observation
-   *  speed (a `:root`-level class scopes the shorter duration rule). Focus
-   *  returns to the originating tile; the tile itself was never hidden, so a
-   *  grid hole is impossible by construction. */
   const closeSheet = useCallback(() => {
-    // The intent ref covers the race where the opening VT's update callback
-    // (which commits `sheet`) hasn't run yet but the user already reversed.
     const current = sheet ?? sheetIntentRef.current;
     if (!current) return;
     sheetIntentRef.current = null;
     const opener = current.el;
     if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
-      // Unmount synchronously so the sheet's focus guard is gone before
-      // focus returns to the tile (it would otherwise pull focus back).
       flushSync(() => setSheet(null));
       opener?.focus?.();
       return;
     }
     document.documentElement.classList.add('vt-closing');
-    activeVtRef.current?.skipTransition(); // reverse instantly mid-flight
+    activeVtRef.current?.skipTransition();
     const vt = document.startViewTransition(() => {
-      // The name returns to the tile in the same flush that unmounts the
-      // sheet — the engine morphs the panel back into the tile.
       flushSync(() => {
         setMorphId(current.workspaceId);
         setSheet(null);
@@ -172,34 +104,17 @@ export const InsightsPage: React.FC = () => {
     armVt(vt);
     void vt.finished.finally(() => {
       document.documentElement.classList.remove('vt-closing');
-      // At rest nothing needs the name; clear it unless a newer open owns it.
       setMorphId((prev) => (prev === current.workspaceId ? null : prev));
     });
   }, [sheet, armVt]);
 
-  // While ANY view transition runs, the spec captures the whole document
-  // into the root snapshot — the live DOM is unhittable and every press
-  // lands on <html> (probe-verified: mid-morph clicks targeted the root's
-  // "dark" class). So interruption cannot be done in CSS; presses are
-  // routed here instead: skip the transition (the live DOM is hit-testable
-  // again the same instant), then deliver the press to what the user aimed
-  // at. A workspace tile under the point wins even through the scrim —
-  // "I should also be able to open another tile while the animation is
-  // happening." Anything else goes to the topmost live element: the scrim
-  // and panel dead space contract the sheet, real controls activate.
   useEffect(() => {
     const onPress = (e: PointerEvent) => {
       if (!vtLiveRef.current) return;
       vtLiveRef.current = false;
       activeVtRef.current?.skipTransition();
-      // The press already happened against the un-hittable document, so the
-      // browser's own click will target <html> and die; suppress it and
-      // route the intent ourselves.
       e.preventDefault();
       e.stopPropagation();
-      // Geometry, not hit-testing: right after a skip the live DOM can still
-      // be one update-callback behind (probe-measured), but the board is
-      // always mounted behind the sheet, so tile rects are always true.
       const tile = Array.from(
         document.querySelectorAll<HTMLElement>('[data-workspace-tile]'),
       ).find((t) => {
@@ -209,22 +124,14 @@ export const InsightsPage: React.FC = () => {
       const closing = document.documentElement.classList.contains('vt-closing');
       const openWs = sheetIntentRef.current?.workspaceId ?? null;
       if (closing) {
-        // Mid-contraction: a press on any tile (including the one closing)
-        // opens it — reversal and tile-switch in one rule. Empty-board
-        // presses need nothing beyond the skip.
         if (tile) openSheet(tile.dataset.workspaceTile as string, tile);
         return;
       }
       if (tile && tile.dataset.workspaceTile !== openWs) {
-        // "I should also be able to open another tile while the animation
-        // is happening."
         openSheet(tile.dataset.workspaceTile as string, tile);
         return;
       }
       if (openWs) {
-        // Press on the morphing sheet itself (or its originating tile): a
-        // real control inside the live panel activates; anything else means
-        // "reverse it" — same rules as the settled panel.
         const top = document.elementsFromPoint(e.clientX, e.clientY)[0];
         if (
           top instanceof HTMLElement &&
@@ -237,8 +144,6 @@ export const InsightsPage: React.FC = () => {
         closeSheet();
         return;
       }
-      // No sheet in play (e.g. the filter glide): hand the press to the
-      // topmost live element so cluster tiles and nav stay responsive.
       const top = document.elementsFromPoint(e.clientX, e.clientY)[0];
       if (top instanceof HTMLElement) top.click();
     };
@@ -246,22 +151,14 @@ export const InsightsPage: React.FC = () => {
     return () => document.removeEventListener('pointerdown', onPress, true);
   }, [openSheet, closeSheet]);
 
-  // D6: ignition ceremony — once per session, skipped under reduced motion,
-  // never gating the content (it only stages the arrival of what is already
-  // rendered). D7: the three idle movers pause while the window is hidden.
   const igniting = useIgnition(snapshot !== null);
   const docHidden = useDocumentHidden();
 
-  // Admin tier — loaded only on explicit request so the incremental-consent
-  // window can never appear unprompted.
   const [admin, setAdmin] = useState<AdminInsights | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
-  // Staged honest loading copy (local timer only — no IPC changes).
   const [unlockElapsedMs, setUnlockElapsedMs] = useState(0);
-  // Generation counter: Cancel bumps it, so a stale in-flight result is
-  // discarded client-side (the main-process call simply finishes unobserved).
   const adminGen = useRef(0);
 
   useEffect(() => {
@@ -278,7 +175,7 @@ export const InsightsPage: React.FC = () => {
     setAdminError(null);
     try {
       const resp = await window.electronAPI.content.getAdminInsights(2, force);
-      if (gen !== adminGen.current) return; // cancelled — discard the result
+      if (gen !== adminGen.current) return;
       if (!resp.success) {
         setAdminError(
           resp.error.code === 'ADMIN_REQUIRED'
@@ -301,9 +198,6 @@ export const InsightsPage: React.FC = () => {
     setAdminLoading(false);
   }, []);
 
-  // Usage cross-reference: most-opened (frequent) + the full catalog. Both are
-  // loaded ONCE here and sliced per workspace into each tile's sheet (owner:
-  // usage renders in the same window as the tile it belongs to).
   const [frequent, setFrequent] = useState<ContentItem[]>([]);
   const [catalog, setCatalog] = useState<Array<{ id: string; name: string; workspaceId: string }>>([]);
 
@@ -353,7 +247,6 @@ export const InsightsPage: React.FC = () => {
           ]);
         }
       } catch {
-        /* usage cross-reference is best-effort; the health board still renders */
       }
     })();
     return () => {
@@ -361,9 +254,6 @@ export const InsightsPage: React.FC = () => {
     };
   }, [user?.id]);
 
-  // The damage path — computed ONCE per snapshot (DESIGN-CONTRACT): the
-  // sheet's cascades, the tiles' STALE DATA hints, and the hero's blast line
-  // all read from this single result.
   const blast = useMemo<BlastRadius>(
     () =>
       snapshot
@@ -372,15 +262,8 @@ export const InsightsPage: React.FC = () => {
     [snapshot],
   );
 
-  // The board shows everything, or — with an active tile filter — only the
-  // matching items, regrouped so empty workspaces drop out entirely. Tiles
-  // triage themselves (§B): broken desc → suspects desc → overdue desc →
-  // running present → name A–Z.
   const groups = useMemo(() => {
     const all = snapshot?.refreshables ?? [];
-    // The filter selects WHICH clients show — it never recomputes a tile's
-    // stats (owner: filtering to Broken showed 0% everywhere because health
-    // was derived from the filtered subset). Full groups, filtered LIST.
     const full = triageSortGroups(groupByWorkspace(all), blast.suspectDatasetIds);
     if (!activeFilter) return full;
     return full.filter((g) => g.items.some((r) => matchesTileFilter(r, activeFilter)));
@@ -398,8 +281,6 @@ export const InsightsPage: React.FC = () => {
     return c;
   }, [snapshot]);
 
-  // D11 — the ONE hero number: share of refreshables that are neither broken
-  // nor overdue. Null (an em-dash) when there is nothing to measure.
   const healthPct = useMemo(() => {
     const all = snapshot?.refreshables ?? [];
     if (all.length === 0) return null;
@@ -407,7 +288,6 @@ export const InsightsPage: React.FC = () => {
     return Math.round((up / all.length) * 100);
   }, [snapshot]);
 
-  // Access folded into each client tile (owner spec): workspaceId -> roster.
   const accessByWs = useMemo(() => {
     const m = new Map<string, InsightsWorkspaceAccess>();
     for (const a of snapshot?.access ?? []) m.set(a.workspaceId, a);
@@ -416,23 +296,19 @@ export const InsightsPage: React.FC = () => {
 
   const sheetGroup = sheet ? groups.find((g) => g.workspaceId === sheet.workspaceId) ?? null : null;
 
-  /** Tile click: activate the filter, or clear it when already active. */
   const toggleFilter = (f: TileFilter) => {
     const apply = () => setActiveFilter((prev) => (prev === f ? null : f));
     if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
       apply();
       return;
     }
-    // The grid transition rides a quick view transition — cards animate
-    // instead of teleporting (owner: "animate and transition the cards below").
     document.documentElement.classList.add('vt-filter');
     const vt = document.startViewTransition(() => flushSync(apply));
-    armVt(vt); // the grid glide is interruptible like every other morph
+    armVt(vt);
     void vt.finished.finally(() => document.documentElement.classList.remove('vt-filter'));
   };
 
   const scrollToSection = (id: string) => {
-    // Layout moves obey Reduce Motion like everything else (Pierre, std 7).
     document.getElementById(id)?.scrollIntoView?.({
       behavior: prefersReducedMotion() ? 'auto' : 'smooth',
       block: 'start',
@@ -484,13 +360,12 @@ export const InsightsPage: React.FC = () => {
       className={`luce-board h-full overflow-y-auto${igniting ? ' luce-ignite' : ''}${docHidden ? ' luce-asleep' : ''}`}
       style={{ color: luce.textSecondary }}
     >
-      {/* §D: while the sheet is open the board beneath takes no input — the
-          dialog re-enables pointer events on itself. */}
+      {}
       <div
         className="max-w-6xl mx-auto p-6 space-y-8"
         style={sheet ? { pointerEvents: 'none' } : undefined}
       >
-        {/* Header */}
+        {}
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold" style={{ color: luce.textPrimary }}>
@@ -522,15 +397,12 @@ export const InsightsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Hero gauge (D11) + summary tiles — one machined cluster, parts
-            separated by 2px of canvas (D2). Status tiles click-to-filter. */}
+        {}
         <div className="grid gap-[2px] lg:grid-cols-[minmax(280px,2fr)_3fr]">
           <HeroGauge pct={healthPct} igniting={igniting} />
           <div className="luce-cluster grid-cols-2 sm:grid-cols-3">
             {tiles.map((tile, idx) => {
               const active = tile.filter !== undefined && tile.filter === activeFilter;
-              // D8: at most ONE hot glow on screen — the Broken count, only
-              // when something is actually broken (red at amber's intensity).
               const hot = tile.filter === 'broken' && counts.broken > 0;
               const inner = (
                 <>
@@ -578,7 +450,7 @@ export const InsightsPage: React.FC = () => {
           </button>
         )}
 
-        {/* Sticky section nav (Matt #7) — wayfinding without scrolling blind */}
+        {}
         <nav
           aria-label="Page sections"
           className="luce-nav sticky top-0 z-10 -mx-2 px-2 py-1.5 flex items-center gap-1 rounded-lg"
@@ -600,7 +472,7 @@ export const InsightsPage: React.FC = () => {
           ))}
         </nav>
 
-        {/* Health board, grouped by workspace (client) */}
+        {}
         <section
           id="insights-health"
           aria-labelledby="insights-refresh-heading"
@@ -619,7 +491,6 @@ export const InsightsPage: React.FC = () => {
                 : 'No datasets or dataflows are visible to your account.'}
             </p>
           ) : groups.length === 1 ? (
-            /* Most clients see exactly ONE workspace — the hero tile (§A). */
             <HeroTile
               group={groups[0]!}
               access={accessByWs.get(groups[0]!.workspaceId)}
@@ -628,7 +499,6 @@ export const InsightsPage: React.FC = () => {
               onOpen={(el) => openSheet(groups[0]!.workspaceId, el)}
             />
           ) : (
-            /* The n=20 triage grid (§B): damage findable across the room. */
             <div
               className="grid"
               style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}
@@ -647,7 +517,7 @@ export const InsightsPage: React.FC = () => {
           )}
         </section>
 
-        {/* Admin tier — the owner's eyes only */}
+        {}
         {isOwner && (
         <section
           id="insights-admin"
@@ -844,8 +714,7 @@ export const InsightsPage: React.FC = () => {
         </section>
         )}
       </div>
-      {/* The sheet is a SIBLING of the (inert-able) board content, never a
-          child — otherwise `inert` would disable the sheet's own controls. */}
+      {}
       {sheetGroup && (
         <WorkspaceSheet
           group={sheetGroup}

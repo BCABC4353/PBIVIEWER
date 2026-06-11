@@ -1,7 +1,3 @@
-/**
- * Native visuals library — the app's own design language for Power BI data.
- * Data via core/dax.ts; pixels via tokens. No embedded Microsoft canvas.
- */
 export { VisualCard } from './VisualCard';
 export { KpiTile } from './KpiTile';
 export { BarChart } from './BarChart';

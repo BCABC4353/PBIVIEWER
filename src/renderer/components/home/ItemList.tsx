@@ -1,8 +1,3 @@
-/**
- * Per-type icon-color token map — reports use accent-primary (orange brand),
- * dashboards use brand-primary. Badge: report = 'informative',
- * dashboard = 'brand'.
- */
 import React from 'react';
 import {
   Table,

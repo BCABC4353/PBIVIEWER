@@ -17,13 +17,6 @@ import type { CanvasSpec } from '../core/dax';
 import { SkeletonPulse } from '../feel/primitives';
 import { ReportCanvasScreen } from './ReportCanvasScreen';
 
-/**
- * One REAL report. Derives a CanvasSpec from the report's dataset (crosswalk
- * v1), then hands the existing ReportCanvasScreen a live executeDax runner.
- * When the dataset can't be queried, this screen says so honestly: what
- * happened, the dataset's latest refresh status, and the exact API error —
- * never fake data, never a blank screen.
- */
 export const LiveReportScreen: React.FC<{
   report: ReportRef;
   model: ReportsModel;
@@ -37,10 +30,6 @@ export const LiveReportScreen: React.FC<{
   const mountedRef = useRef(true);
   const runIdRef = useRef(0);
   useEffect(() => {
-    // SET in the effect body, not just at ref creation: a cleanup+re-run
-    // (StrictMode dev, Fast Refresh) used to latch this false forever, after
-    // which BOTH setSpec and setError were silently dropped and the screen
-    // sat on "Reading the dataset model…" for good.
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -48,12 +37,10 @@ export const LiveReportScreen: React.FC<{
   }, []);
 
   const derive = useCallback(async () => {
-    const runId = ++runIdRef.current; // stale derivations may not touch state
+    const runId = ++runIdRef.current;
     const live = () => mountedRef.current && runIdRef.current === runId;
     setSpec(null);
     setError(null);
-    // App reports arrive with datasetId="" on this tenant; hop to the source
-    // workspace (originalReportObjectId) to recover the dataset first.
     let datasetId = report.datasetId;
     if (!datasetId) {
       setStep('locate');
@@ -108,7 +95,6 @@ export const LiveReportScreen: React.FC<{
     void derive();
   }, [derive]);
 
-  // Refresh status rides along on the explanation card — best-effort only.
   useEffect(() => {
     if (!error) return;
     let alive = true;
@@ -149,8 +135,6 @@ export const LiveReportScreen: React.FC<{
   );
 };
 
-/** The honest failure face: plain-language reason, the exact error, Retry,
- *  and an expandable technical block built for support copy-paste. */
 const ErrorCard: React.FC<{
   error: { message: string; apiError: string | null };
   refresh: LatestRefresh | null | 'pending';
@@ -229,13 +213,6 @@ const STEP_LINE: Record<DeriveStep | 'locate', string> = {
   stats: 'Reading column statistics…',
 };
 
-/**
- * The loading face is ALIVE: a step line that advances with the derivation
- * ladder, over a SkeletonPulse mirroring the canvas that will appear (KPI
- * tiles up top, card-sized visuals below). SkeletonPulse honors Reduce
- * Motion — static blocks, the step text still changes. Once the spec lands,
- * each visual shows its own per-visual loading state on the canvas.
- */
 const Deriving: React.FC<{ step: DeriveStep | 'locate' }> = ({ step }) => (
   <View accessibilityLabel={`Loading report: ${STEP_LINE[step]}`}>
     <Text style={styles.stepLine} accessibilityLiveRegion="polite">
@@ -279,14 +256,12 @@ const styles = StyleSheet.create({
   cardMeta: { ...type.caption, color: color.textSecondary },
   cardApi: { ...type.caption, color: color.textTertiary },
 
-  // Loading face — skeleton mirrors the canvas (KPI grid + visual cards).
   stepLine: { ...type.caption, color: color.textSecondary, marginBottom: space.m },
   skeletonWrap: { gap: space.m },
   skeletonKpiRow: { flexDirection: 'row', gap: space.m },
   skeletonKpi: { flex: 1, height: 72, borderRadius: 16, backgroundColor: color.surface1 },
   skeletonCard: { height: 180, borderRadius: 16, backgroundColor: color.surface1 },
 
-  // Technical details — selectable so support can copy-paste the exact error.
   detailsToggle: { minHeight: 44, justifyContent: 'center' },
   detailsToggleText: { ...type.caption, color: color.accent },
   detailsBody: {

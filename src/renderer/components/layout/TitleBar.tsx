@@ -25,14 +25,9 @@ import { TITLE_BAR_COLORS } from '../../../shared/constants';
 import logoIcon from '../../assets/logo.png';
 
 export interface TitleBarProps {
-  /** 'authenticated' (default) renders the full chrome including avatar, search, and nav.
-   *  'unauthenticated' renders only the draggable shell and window-control space. */
   variant?: 'authenticated' | 'unauthenticated';
 }
 
-// Deterministic tenant badge color: derive a stable hue from the tenant domain
-// string so repeat users always see the same color. Uses a simple djb2-style
-// hash over the character codes, mapped to one of eight Fluent-safe badge colors.
 
 const BADGE_COLORS = [
   'brand',
@@ -55,13 +50,11 @@ function tenantBadgeColor(tenant: string): BadgeColor {
   return BADGE_COLORS[Math.abs(hash) % BADGE_COLORS.length] ?? 'brand';
 }
 
-/** Extract the domain part of an email ("user@contoso.com" → "contoso.com"). */
 function emailToDomain(email: string): string {
   const at = email.lastIndexOf('@');
   return at >= 0 ? email.slice(at + 1) : email;
 }
 
-// Component
 
 export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' }) => {
   const { user, switchAccount, isLoading } = useAuthStore();
@@ -69,8 +62,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
   const { settings } = useSettingsStore();
   const { triggerSignOut, SignOutDialog } = useSignOutConfirm();
 
-  // Resolve the effective dark state the same way main.tsx does:
-  // explicit 'dark', OR 'system' with the OS in dark mode.
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   );
@@ -92,7 +83,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
       .slice(0, 2);
   };
 
-  // Handle Ctrl+K keyboard shortcut — only relevant when authenticated
   useEffect(() => {
     if (variant !== 'authenticated') return;
 
@@ -107,15 +97,12 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openSearch, variant]);
 
-  // Derive tenant domain once from user.email
   const tenantDomain = user ? emailToDomain(user.email) : '';
   const badgeColor: BadgeColor = tenantDomain ? tenantBadgeColor(tenantDomain) : 'brand';
 
   return (
     <>
-      {/* SignOutDialog is rendered here — it is invisible until
-          triggerSignOut() opens it. Placing it as a sibling of the title bar
-          keeps it outside the drag region and avoids portal-stacking issues. */}
+      {}
       {variant === 'authenticated' && <SignOutDialog />}
 
       <div
@@ -125,7 +112,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
           WebkitAppRegion: 'drag',
         } as React.CSSProperties}
       >
-        {/* App title - draggable */}
+        {}
         <div className="flex items-center gap-2 mr-4">
           <img
             src={logoIcon}
@@ -139,7 +126,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
 
         {variant === 'authenticated' && (
           <>
-            {/* Search bar - only the button itself is no-drag */}
+            {}
             <div className="flex-1 flex justify-center">
               <button
                 onClick={openSearch}
@@ -153,9 +140,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
               </button>
             </div>
 
-            {/* Right side actions - only the button itself is no-drag */}
+            {}
             <div className="flex items-center gap-2 ml-4">
-              {/* User menu */}
+              {}
               {user && (
                 <Menu>
                   <MenuTrigger disableButtonEnhancement>
@@ -166,9 +153,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                       aria-haspopup="menu"
                       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     >
-                      {/* Avatar + tenant chip side-by-side.
-                          The Badge is hidden below the 768 px breakpoint via
-                          Tailwind's responsive hidden/inline-flex utilities. */}
+                      {}
                       <div className="flex items-center gap-1.5">
                         <Avatar
                           name={user.displayName}
@@ -201,8 +186,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                         </div>
                       </MenuItem>
                       <MenuDivider />
-                      {/* Switch account — logs out then re-runs an
-                          interactive login with the account picker. */}
+                      {}
                       <MenuItem
                         icon={<PersonSwapRegular />}
                         onClick={switchAccount}
@@ -211,8 +195,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                       >
                         Switch account
                       </MenuItem>
-                      {/* Open the confirmation dialog instead of
-                          calling logout() directly */}
+                      {}
                       <MenuItem icon={<SignOutRegular />} onClick={triggerSignOut}>
                         Sign out
                       </MenuItem>

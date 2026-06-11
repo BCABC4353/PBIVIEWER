@@ -2,10 +2,6 @@ appId: com.bcabc.powerbi-viewer
 productName: Power BI Viewer
 copyright: Copyright © 2024-2026
 
-# Update feed: electron-updater reads this to generate app-update.yml (bundled in
-# the packaged app) and latest.yml (the release metadata it checks on GitHub).
-# GitHub Actions still does the actual upload (we build with --publish never), so
-# this only GENERATES the metadata — it does not auto-publish.
 publish:
   provider: github
   owner: BCABC4353
@@ -20,10 +16,6 @@ files:
   - assets/**/*
   - package.json
 
-# Bundle the offline user guide (HTML + screenshots) into the app's resources
-# dir so the in-app "Open user guide" button (Settings -> About) can open it
-# with no network. Resolves to <app>/resources/manual/ at runtime; the HTML
-# references its images via the relative screenshots/ subfolder shipped here.
 extraResources:
   - from: docs/manual
     to: manual
@@ -31,40 +23,14 @@ extraResources:
       - PowerBI-Viewer-User-Guide.html
       - screenshots/*.png
 
-# Windows Configuration
 win:
   target:
     - target: nsis
       arch:
         - x64
   icon: assets/icons/icon.ico
-  # No spaces in the filename: electron-updater's latest.yml URL-encodes spaces to
-  # hyphens while GitHub names the uploaded asset with dots, which would 404 the
-  # auto-update download. A space-free name keeps disk == latest.yml == release asset.
   artifactName: PowerBI-Viewer-${version}-Windows-Setup.${ext}
-  # The build is unsigned, so electron-updater would otherwise reject the update
-  # ("New version is not signed by the application owner"). Skip the publisher-
-  # signature check so unsigned -> unsigned auto-updates install. Re-enable (and
-  # set publisherName) when a code-signing certificate is added.
   verifyUpdateCodeSignature: false
-  # ============================================================================
-  # TODO: CODE SIGNING (backlog #1 — retires the SmartScreen click-through)
-  # ----------------------------------------------------------------------------
-  # The build is currently UNSIGNED. Windows users see a "Windows protected your
-  # PC / Unknown publisher" SmartScreen warning and must click "More info ->
-  # Run anyway" on first install. Documented for users in docs/INSTALL-GUIDE.md.
-  #
-  # To enable signing, obtain a Windows code-signing certificate (OV or EV; EV
-  # bypasses SmartScreen reputation immediately) and set in CI:
-  #   CSC_LINK              -> base64-encoded .pfx OR path/URL to the cert
-  #   CSC_KEY_PASSWORD      -> the cert's password
-  # Or use Windows Certificate Store via:
-  #   certificateSubjectName: "Your Company Name"
-  # Then verify in CI with `signtool verify /pa <Setup.exe>`.
-  # NOTE (electron-builder 26): per-signing options like signingHashAlgorithms /
-  # signDlls moved under `win.signtoolOptions`. They're omitted here because the
-  # build is unsigned; re-add them under `signtoolOptions:` when enabling signing.
-  # ============================================================================
 
 nsis:
   oneClick: true
@@ -75,13 +41,7 @@ nsis:
   installerHeaderIcon: assets/icons/icon.ico
   deleteAppDataOnUninstall: false
 
-# macOS Configuration
 mac:
-  # ZIP target instead of DMG: the DMG path calls `hdiutil` which fails
-  # intermittently on GitHub's arm64 macOS runners (electron-builder #9155),
-  # and the Intel runners that work reliably are queue-starved. A ZIP needs no
-  # hdiutil, builds anywhere, and the resulting .zip extracts to a runnable
-  # .app — a normal pattern for unsigned macOS distribution.
   target:
     - target: zip
       arch:
@@ -92,18 +52,9 @@ mac:
   category: public.app-category.business
   hardenedRuntime: true
   gatekeeperAssess: false
-  # No paid Apple Developer ID cert yet, but ad-hoc sign ('-') so Apple Silicon
-  # does not reject the arm64 build as "damaged and can't be opened" (the
-  # unrecoverable Gatekeeper error with no GUI fix). Ad-hoc signing yields the
-  # recoverable "unidentified developer -> Open Anyway" path instead. Replace
-  # with a real Developer ID + notarization to remove the warning entirely.
   identity: "-"
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  # Notarization - set these environment variables:
-  # APPLE_ID: your Apple ID email
-  # APPLE_APP_SPECIFIC_PASSWORD: app-specific password from appleid.apple.com
-  # APPLE_TEAM_ID: your Apple Developer Team ID
   notarize: false  # Set to true when you have Apple Developer credentials
 
 dmg:

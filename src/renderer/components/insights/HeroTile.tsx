@@ -17,19 +17,10 @@ import { DamageCounts } from './DamageCounts';
 import { HeroLabel } from './HeroLabel';
 import { RunDotStrip } from './RunDotStrip';
 
-/**
- * The solo-client hero tile (DESIGN-CONTRACT §A): when a client sees exactly
- * one workspace, that single tile folds in named assets with pulse strips,
- * members, and freshness — the n=20 tile grown up, same edge/chips/pulse
- * grammar. The amber blast line appears only when suspects exist; health
- * stays silent (no green substitute, ever).
- */
 export const HeroTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
-  /** True while this hero tile is the morph's tile-side endpoint (see
-   *  WorkspaceTile.morphSource — one name, one element at a time). */
   morphSource: boolean;
   onOpen: (el: HTMLElement) => void;
 }> = ({ group, access, blast, morphSource, onOpen }) => {
@@ -39,7 +30,7 @@ export const HeroTile: React.FC<{
     ? luce.broken
     : group.counts.overdue > 0 || suspectCount > 0
       ? luce.warn
-      : 'rgba(63,182,139,0.7)'; // ALL GOOD — owner-authorized green
+      : 'rgba(63,182,139,0.7)';
   const affected = workspaceAffectedReportCount(group, blast);
   const assets = group.items;
   const shownAssets = assets.slice(0, 5);
@@ -66,7 +57,7 @@ export const HeroTile: React.FC<{
         className="absolute left-0 top-0 bottom-0"
         style={{ width: 4, borderRadius: '4px 0 0 4px', background: edge }}
       />
-      {/* Row 1 — name + damage summary */}
+      {}
       <div className="flex items-start justify-between gap-4 min-w-0">
         <span
           className="truncate"
@@ -76,13 +67,13 @@ export const HeroTile: React.FC<{
         </span>
         <DamageCounts counts={group.counts} size={13} gap={16} />
       </div>
-      {/* Row 2 — the blast line, only when suspects exist (silence = health) */}
+      {}
       {suspectCount > 0 && (
         <div className="mt-2" style={{ fontSize: 14, fontWeight: 500, color: luce.warn }}>
           {affected} report{affected === 1 ? '' : 's'} may be reading stale data — open to trace
         </div>
       )}
-      {/* Row 3 — ASSETS / MEMBERS / FRESHNESS */}
+      {}
       <div className="mt-6 grid grid-cols-3" style={{ gap: 32 }}>
         <div className="min-w-0">
           <HeroLabel>Assets</HeroLabel>
@@ -138,7 +129,7 @@ export const HeroTile: React.FC<{
           </div>
           {oldest && (
             <div title={formatTime(oldest)} style={{ display: 'none' }}>
-              {/* absolute date lives on hover of the line above only */}
+              {}
             </div>
           )}
           <div className="mt-2" style={{ fontSize: 12, ...nowrap }}>

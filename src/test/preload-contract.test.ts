@@ -1,30 +1,10 @@
-/**
- * Preload contextBridge channel-map contract test.
- *
- * Asserts that every channel string declared in IPC_CHANNELS is invoked (or
- * sent) by the preload bridge, so a rename in the channel map is caught
- * immediately rather than silently diverging at runtime.
- *
- * Strategy:
- *   1. Build a flat set of all channel strings from IPC_CHANNELS.
- *   2. Read the compiled preload source as text and confirm each channel
- *      literal appears in it. This is a static-text check — no Electron
- *      runtime is needed, which keeps the test runnable in jsdom/Node.
- *
- * Note: the preload source is read from disk at src/preload/index.ts, which
- * is the authoritative file that gets bundled into the Electron context.
- */
 
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { IPC_CHANNELS } from '../shared/ipc-channels';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
-/** Recursively collect all leaf string values from a nested const object. */
 function collectChannels(obj: unknown): string[] {
   if (typeof obj === 'string') return [obj];
   if (typeof obj === 'object' && obj !== null) {
@@ -33,18 +13,12 @@ function collectChannels(obj: unknown): string[] {
   return [];
 }
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
 
 const PRELOAD_PATH = path.resolve(__dirname, '../preload/index.ts');
 const preloadSource = fs.readFileSync(PRELOAD_PATH, 'utf-8');
 
 const allChannels = collectChannels(IPC_CHANNELS);
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('preload contextBridge channel-map contract', () => {
   it('src/preload/index.ts exists and is non-empty', () => {
@@ -77,9 +51,6 @@ describe('preload contextBridge channel-map contract', () => {
   );
 
   it('preload does not reference channels absent from IPC_CHANNELS (no orphan literals)', () => {
-    // Extract every string that looks like a colon-namespaced IPC channel from
-    // the preload source (e.g. 'auth:login', 'window:close').
-    // Pattern: one or more word chars, colon, one or more word-chars-or-hyphens.
     const channelPattern = /['"`]([a-z]+:[a-z][a-z0-9-]+)['"`]/g;
     const foundInPreload = new Set<string>();
     let match: RegExpExecArray | null;

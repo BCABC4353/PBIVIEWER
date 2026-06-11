@@ -11,10 +11,7 @@ import { getIssueBeacon } from './services/issue-beacon-service';
 
 setupLogging();
 
-// Global error handlers are installed by `log.errorHandler.startCatching()` in
-// setupLogging() — do not duplicate them here, or each crash logs twice.
 
-// App lifecycle
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -27,33 +24,15 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
-    // Present embedded browser surfaces (the AAD auth window and the App
-    // <webview>) as plain Chrome. Microsoft 365 / Power BI flag the default
-    // Electron user-agent (the "Electron/<ver>" + app-name tokens) as an
-    // unsupported / "out of date" browser and refuse silent SSO — which forced a
-    // password re-prompt in the Apps webview on Electron 42. Stripping those
-    // tokens keeps the real (current) Chromium version while looking supported.
     const appNameToken = app.getName().replace(/[.*+?^${}()|[\]\\\s]/g, '\\$&');
     app.userAgentFallback = app.userAgentFallback
       .replace(/ Electron\/[\d.]+/i, '')
       .replace(new RegExp(` ${appNameToken}\\/[\\d.]+`, 'i'), '');
 
-    // Content Security Policy - register on default session always, and on the
-    // partition session in production (where the packaged renderer is file://).
     installCsp(session.defaultSession);
-    // installCsp on the partition is intentionally inert in practice: the partition only ever
-    // serves remote https Power BI / AAD content (never file://), so the file:// guard inside
-    // installCsp never fires. CSP is only applied to the local file:// app document; remote
-    // responses must NOT have their headers rewritten or Power BI embeds break.
     if (!isDev) installCsp(session.fromPartition(PARTITION_NAME));
 
-    // Webview guard is wired onto each WebContents in the
-    // web-contents-created handler below (will-attach-webview is a WebContents
-    // event, not a Session event). Nothing to do here.
 
-    // Initialize auth service. A throw here must NOT leave the app running with
-    // no window (a double-clicked app where "nothing happens"). Log it and show
-    // the window anyway so the user still reaches the login screen.
     try {
       await authService.initialize();
     } catch (err) {
@@ -62,12 +41,8 @@ if (!app.requestSingleInstanceLock()) {
 
     createWindow();
 
-    // Issue beacon: start periodic flushing of reported failures. No-op unless
-    // a beacon token+repo were baked in at build time.
     getIssueBeacon().start();
 
-    // Auto-update: Windows installs silently on next restart; macOS shows a
-    // "new version available" notice. No-op in dev / unpackaged builds.
     setupAutoUpdater();
 
     app.on('activate', () => {
@@ -84,24 +59,15 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Release any kiosk display-sleep blocker on quit so a slideshow left running on
-// a wall display doesn't dangle the blocker past app exit (defense-in-depth; the
-// OS reclaims it on process exit regardless).
 app.on('will-quit', () => {
   releaseDisplaySleepBlocker();
 });
 
-// Diagnosability: log TLS/certificate failures (e.g. a corporate TLS-inspection
-// root CA that isn't in the OS trust store) instead of failing silently with a
-// blank window. We do NOT auto-trust — callback(false) preserves the secure
-// default; this only surfaces the host + error code in the log file for IT.
 app.on('certificate-error', (_event, _webContents, url, error, _certificate, callback) => {
   console.error('[certificate-error]', url, error);
   callback(false);
 });
 
-// Webview security guard (will-attach-webview / web-contents-created).
 registerWebviewSecurity();
 
-// Register all IPC handlers (window, auth, content, settings, export, usage, app, log).
 registerAllIpcHandlers();

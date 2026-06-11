@@ -1,11 +1,3 @@
-/**
- * Luce motion system unit tests — the D5/D6/D7 logic layer.
- *
- * The spring sampler and ticker are driven with an injected manual clock so
- * curve shape (one proud overshoot, dead settle) and mid-flight retargeting
- * (mass: re-aim from the CURRENT value, never snap) are asserted exactly.
- * jsdom lacks `element.animate`, so the WAAPI path is stubbed where needed.
- */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import {
@@ -24,11 +16,7 @@ import {
   IGNITION_MS,
 } from './luce-motion';
 
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
 
-/** Manual clock + scheduler so ticker time is fully deterministic. */
 function makeScheduler() {
   let time = 0;
   let nextId = 1;
@@ -43,7 +31,6 @@ function makeScheduler() {
     cancel(id: number): void {
       pending.delete(id);
     },
-    /** Advance the clock and fire everything that was scheduled. */
     tick(ms: number): void {
       time += ms;
       const callbacks = [...pending.values()];
@@ -77,9 +64,6 @@ afterEach(() => {
   window.sessionStorage.clear();
 });
 
-// ---------------------------------------------------------------------------
-// D5 — springs and durations
-// ---------------------------------------------------------------------------
 
 describe('spring curves + duration scale (D5)', () => {
   it('exposes exactly the four sanctioned durations', () => {
@@ -91,11 +75,9 @@ describe('spring curves + duration scale (D5)', () => {
     expect(stops[0]).toEqual({ t: 0, v: 0 });
     expect(stops[stops.length - 1]?.t).toBe(1);
     expect(stops[stops.length - 1]?.v).toBeCloseTo(1, 1);
-    // The needle's mass: a visible overshoot beyond the target…
     const peak = Math.max(...stops.map((s) => s.v));
     expect(peak).toBeGreaterThan(1.1);
     expect(peak).toBeLessThan(1.2);
-    // …and progress stays monotonic.
     for (let i = 1; i < stops.length; i++) {
       expect(stops[i]!.t).toBeGreaterThanOrEqual(stops[i - 1]!.t);
     }
@@ -104,8 +86,8 @@ describe('spring curves + duration scale (D5)', () => {
   it('parses SPRING_SETTLE: damping ≈ 0.9 with no proud overshoot', () => {
     const stops = parseLinearStops(SPRING_SETTLE);
     const peak = Math.max(...stops.map((s) => s.v));
-    expect(peak).toBeGreaterThan(1); // it breathes past 1…
-    expect(peak).toBeLessThan(1.08); // …but never visibly bounces
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThan(1.08);
   });
 
   it('spreads unpositioned stops evenly (css-easing-2 behavior)', () => {
@@ -125,9 +107,6 @@ describe('spring curves + duration scale (D5)', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Spring ticker — retargeting with mass
-// ---------------------------------------------------------------------------
 
 describe('createSpringTicker', () => {
   it('animates to the exact target and reports done at the end of the duration', () => {
@@ -145,7 +124,7 @@ describe('createSpringTicker', () => {
     for (let i = 0; i < 50 && clock.hasPending(); i++) clock.tick(50);
     const last = seen[seen.length - 1];
     expect(last).toEqual({ v: 100, done: true });
-    expect(clock.hasPending()).toBe(false); // settles dead — no zombie frames
+    expect(clock.hasPending()).toBe(false);
   });
 
   it('overshoots the target once (needle mass) before settling', () => {
@@ -180,14 +159,14 @@ describe('createSpringTicker', () => {
       cancel: clock.cancel,
     });
     ticker.retarget(100);
-    clock.tick(100); // mid-flight, before the overshoot crests
+    clock.tick(100);
     const midway = current;
     expect(midway).toBeGreaterThan(0);
     expect(midway).toBeLessThan(100);
 
-    ticker.retarget(0); // interrupted — re-aim like a real needle
-    clock.tick(16); // first frame of the new leg
-    expect(Math.abs(current - midway)).toBeLessThan(midway * 0.2); // continuity, no snap
+    ticker.retarget(0);
+    clock.tick(16);
+    expect(Math.abs(current - midway)).toBeLessThan(midway * 0.2);
     for (let i = 0; i < 60 && clock.hasPending(); i++) clock.tick(50);
     expect(current).toBe(0);
   });
@@ -225,9 +204,6 @@ describe('createSpringTicker', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Reduced motion + WAAPI pulse
-// ---------------------------------------------------------------------------
 
 describe('prefersReducedMotion / pulse', () => {
   it('reflects the prefers-reduced-motion media query', () => {
@@ -244,7 +220,7 @@ describe('prefersReducedMotion / pulse', () => {
       value: undefined,
     });
     expect(prefersReducedMotion()).toBe(false);
-    stubMatchMedia(false); // restore for following assertions
+    stubMatchMedia(false);
   });
 
   it('pulses via WAAPI on the settle spring', () => {
@@ -269,9 +245,6 @@ describe('prefersReducedMotion / pulse', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// useSpringNumber — the hero numeral hook (D5 / D11)
-// ---------------------------------------------------------------------------
 
 describe('useSpringNumber', () => {
   function stubFrames() {
@@ -317,7 +290,7 @@ describe('useSpringNumber', () => {
     rerender({ t: 100 });
     act(() => clock.advanceTo(350));
     expect(result.current.value).toBeGreaterThan(50);
-    expect(result.current.value).not.toBe(100); // mid-flight, not a snap
+    expect(result.current.value).not.toBe(100);
     act(() => clock.advanceTo(700));
     expect(result.current.value).toBe(100);
   });
@@ -328,15 +301,12 @@ describe('useSpringNumber', () => {
     const { result, rerender } = renderHook(({ t }) => useSpringNumber(t, { startFromZero: true }), {
       initialProps: { t: 60 },
     });
-    expect(result.current.value).toBe(60); // no count-up ceremony
+    expect(result.current.value).toBe(60);
     rerender({ t: 25 });
-    expect(result.current.value).toBe(25); // no spring, no frames
+    expect(result.current.value).toBe(25);
   });
 });
 
-// ---------------------------------------------------------------------------
-// useIgnition — once-per-session ceremony (D6)
-// ---------------------------------------------------------------------------
 
 describe('useIgnition', () => {
   it('plays once when the board is ready, marks the session, ends after 1400ms', () => {
@@ -375,7 +345,6 @@ describe('useIgnition', () => {
     window.sessionStorage.removeItem(IGNITION_FLAG);
     const { result } = renderHook(() => useIgnition(true));
     expect(result.current).toBe(false);
-    // The session is not consumed — flag stays unset.
     expect(window.sessionStorage.getItem(IGNITION_FLAG)).toBeNull();
   });
 
@@ -392,9 +361,6 @@ describe('useIgnition', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// useDocumentHidden — idle movers pause when the window hides (D7)
-// ---------------------------------------------------------------------------
 
 describe('useDocumentHidden', () => {
   it('tracks visibilitychange', () => {

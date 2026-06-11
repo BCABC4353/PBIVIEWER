@@ -1,13 +1,3 @@
-/**
- * Unit tests for evict-on-logout subscription wiring.
- *
- * Verifies:
- *   - content.reset() and search.invalidateAll() fire on a true→false
- *     isAuthenticated transition.
- *   - No eviction fires when signing *in* (false→true) or on unrelated updates.
- *   - The cleanup function unsubscribes; no eviction fires after cleanup.
- *   - Double-invoke (React StrictMode: init → cleanup → init) works correctly.
- */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAuthStore } from '../stores/auth-store';
@@ -15,17 +5,11 @@ import { useContentStore } from '../stores/content-store';
 import { useSearchStore } from '../stores/search-store';
 import { initEvictOnLogout } from './evict-on-logout';
 
-// ---------------------------------------------------------------------------
-// Helpers — seed initial store states each test starts clean
-// ---------------------------------------------------------------------------
 
 function seedAuthAuthenticated(): void {
   useAuthStore.setState({ isAuthenticated: true, user: null, isLoading: false, error: null });
 }
 
-// Seed an authenticated state carrying a concrete identity. The user's
-// id is the homeAccountId; evict-on-logout watches it
-// to detect an account switch (id A → id B).
 function seedAuthAuthenticatedAs(id: string): void {
   useAuthStore.setState({
     isAuthenticated: true,
@@ -39,10 +23,6 @@ function seedAuthSignedOut(): void {
   useAuthStore.setState({ isAuthenticated: false, user: null, isLoading: false, error: null });
 }
 
-// ---------------------------------------------------------------------------
-// Reset Zustand stores to clean defaults before each test.
-// The search store holds module-level cache; invalidateAll wipes it.
-// ---------------------------------------------------------------------------
 beforeEach(() => {
   seedAuthSignedOut();
   useContentStore.setState({
@@ -65,9 +45,6 @@ beforeEach(() => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Spy helpers — patch store action refs so we can count invocations.
-// ---------------------------------------------------------------------------
 
 function spyOnContentReset() {
   const spy = vi.fn();
@@ -81,9 +58,6 @@ function spyOnSearchInvalidateAll() {
   return spy;
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('initEvictOnLogout', () => {
   it('evicts content and search when auth transitions true → false', () => {
@@ -93,7 +67,6 @@ describe('initEvictOnLogout', () => {
 
     const cleanup = initEvictOnLogout();
 
-    // Simulate logout
     useAuthStore.setState({ isAuthenticated: false });
 
     expect(contentReset).toHaveBeenCalledTimes(1);
@@ -109,7 +82,6 @@ describe('initEvictOnLogout', () => {
 
     const cleanup = initEvictOnLogout();
 
-    // Simulate login
     useAuthStore.setState({ isAuthenticated: true });
 
     expect(contentReset).not.toHaveBeenCalled();
@@ -125,7 +97,6 @@ describe('initEvictOnLogout', () => {
 
     const cleanup = initEvictOnLogout();
 
-    // Unrelated update — error message changes but auth stays signed-out
     useAuthStore.setState({ error: 'some error', isAuthenticated: false });
 
     expect(contentReset).not.toHaveBeenCalled();
@@ -140,9 +111,8 @@ describe('initEvictOnLogout', () => {
     const searchInvalidate = spyOnSearchInvalidateAll();
 
     const cleanup = initEvictOnLogout();
-    cleanup(); // unsubscribe immediately
+    cleanup();
 
-    // This transition would have fired eviction if still subscribed
     useAuthStore.setState({ isAuthenticated: false });
 
     expect(contentReset).not.toHaveBeenCalled();
@@ -157,7 +127,6 @@ describe('initEvictOnLogout', () => {
     const cleanup = initEvictOnLogout();
 
     useAuthStore.setState({ isAuthenticated: false });
-    // Additional updates after already signed-out should not re-fire.
     useAuthStore.setState({ error: 'post-logout error', isAuthenticated: false });
     useAuthStore.setState({ isLoading: false, isAuthenticated: false });
 
@@ -167,8 +136,6 @@ describe('initEvictOnLogout', () => {
     cleanup();
   });
 
-  // Account switch is an identity change between two authenticated
-  // states (id A → id B). Eviction must fire exactly once.
   it('evicts when the identity changes between two authenticated states (A → B)', () => {
     seedAuthAuthenticatedAs('acct-A');
     const contentReset = spyOnContentReset();
@@ -176,7 +143,6 @@ describe('initEvictOnLogout', () => {
 
     const cleanup = initEvictOnLogout();
 
-    // Account switch: still authenticated, but a different user id.
     seedAuthAuthenticatedAs('acct-B');
 
     expect(contentReset).toHaveBeenCalledTimes(1);
@@ -185,9 +151,6 @@ describe('initEvictOnLogout', () => {
     cleanup();
   });
 
-  // Switching BACK to a previously-cached account
-  // (id B → id A) is still an identity change and must evict — account A must
-  // not see account B's cached workspace/search data.
   it('evicts when switching back to a previously-seen identity (B → A)', () => {
     seedAuthAuthenticatedAs('acct-B');
     const contentReset = spyOnContentReset();
@@ -203,16 +166,13 @@ describe('initEvictOnLogout', () => {
     cleanup();
   });
 
-  // Login (null identity → A) must NOT evict — there is no previous
-  // user's data to wipe, and evicting would clear a freshly-loaded view.
   it('does NOT evict on login (no identity → A)', () => {
-    seedAuthSignedOut(); // signed out, user null
+    seedAuthSignedOut();
     const contentReset = spyOnContentReset();
     const searchInvalidate = spyOnSearchInvalidateAll();
 
     const cleanup = initEvictOnLogout();
 
-    // Login: become authenticated with a concrete identity.
     seedAuthAuthenticatedAs('acct-A');
 
     expect(contentReset).not.toHaveBeenCalled();
@@ -221,8 +181,6 @@ describe('initEvictOnLogout', () => {
     cleanup();
   });
 
-  // An authenticated state-update that leaves the identity unchanged
-  // (e.g. a loading flag toggling) must NOT evict.
   it('does NOT evict when an authenticated update keeps the same identity', () => {
     seedAuthAuthenticatedAs('acct-A');
     const contentReset = spyOnContentReset();
@@ -230,7 +188,6 @@ describe('initEvictOnLogout', () => {
 
     const cleanup = initEvictOnLogout();
 
-    // Same identity, unrelated field changes.
     useAuthStore.setState({ isLoading: true });
     useAuthStore.setState({ error: 'transient' });
 
@@ -245,16 +202,13 @@ describe('initEvictOnLogout', () => {
     const contentReset = spyOnContentReset();
     const searchInvalidate = spyOnSearchInvalidateAll();
 
-    // First mount
     const cleanup1 = initEvictOnLogout();
-    cleanup1(); // Strict Mode unmounts first render
+    cleanup1();
 
-    // Second mount (Strict Mode re-mount)
     const cleanup2 = initEvictOnLogout();
 
     useAuthStore.setState({ isAuthenticated: false });
 
-    // Only the active (second) subscription should fire, and exactly once.
     expect(contentReset).toHaveBeenCalledTimes(1);
     expect(searchInvalidate).toHaveBeenCalledTimes(1);
 

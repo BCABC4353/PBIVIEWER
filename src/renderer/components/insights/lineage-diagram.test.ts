@@ -1,10 +1,3 @@
-/**
- * Pure-layout coverage for the lineage diagram (owner punch list v3 #3):
- * column assignment, the diagram color language (red fails / amber stale /
- * green happy path / ash dormant), damage-first prioritization, the +N-more
- * cap, edge derivation including report bindings, bezier routing, and
- * middle truncation.
- */
 import { describe, it, expect } from 'vitest';
 import type { InsightsRefreshable } from '../../../shared/types';
 import type { BlastRadius } from '../../../shared/blast-radius';
@@ -52,8 +45,8 @@ describe('itemHealth — the diagram color language', () => {
   it('reads failed/cancelled as red; suspects keep the internal stale token (rendered red, owner v8)', () => {
     expect(itemHealth(item({ lastStatus: 'Failed' }), new Set(), NOW)).toBe('failed');
     expect(itemHealth(item({ lastStatus: 'Cancelled' }), new Set(), NOW)).toBe('failed');
-    expect(itemHealth(item({ id: 'sus' }), new Set(['sus']), NOW)).toBe('stale'); // token; renders red
-    expect(itemHealth(item({ scheduleOverdue: true }), new Set(), NOW)).toBe('stale'); // overdue token
+    expect(itemHealth(item({ id: 'sus' }), new Set(['sus']), NOW)).toBe('stale');
+    expect(itemHealth(item({ scheduleOverdue: true }), new Set(), NOW)).toBe('stale');
   });
 
   it('reads dormant and never-run as ash (isDormant helper), healthy as green', () => {
@@ -80,35 +73,34 @@ describe('itemHealth — the diagram color language', () => {
     expect(lineageColor.healthy).toBe('#3FB68B');
     expect(lineageColor.failed).toBe('#E5484D');
     expect(lineageColor.stale).toBe('#E5484D');
-    expect(lineageColor.dormant).toContain('255,255,255'); // ash, not a hue
+    expect(lineageColor.dormant).toContain('255,255,255');
   });
 });
 
 describe('deriveLineage — column assignment + edge derivation', () => {
   const flow = item({ kind: 'dataflow', id: 'df-1', name: 'Root Flow', lastStatus: 'Failed' });
-  const sus = item({ id: 'ds-sus', name: 'Suspect Model', upstreamDataflowIds: ['DF-1'] }); // case-insensitive
+  const sus = item({ id: 'ds-sus', name: 'Suspect Model', upstreamDataflowIds: ['DF-1'] });
   const clean = item({ id: 'ds-clean', name: 'Clean Model' });
   const reports = [
     { id: 'r-1', name: 'Exec Daily', datasetId: 'ds-sus' },
     { id: 'r-2', name: 'Quiet Report', datasetId: 'ds-clean' },
-    { id: 'r-3', name: 'Foreign Report', datasetId: 'ds-elsewhere' }, // not this workspace's dataset
-    { id: 'r-4', name: 'Unbound Report' }, // no datasetId — no lineage signal
+    { id: 'r-3', name: 'Foreign Report', datasetId: 'ds-elsewhere' },
+    { id: 'r-4', name: 'Unbound Report' },
   ];
 
   it('assigns dataflows / datasets / reports to their columns', () => {
     const g = deriveLineage([flow, sus, clean], blastOf(['ds-sus'], [['df-1', [sus]]]), reports, NOW);
     expect(g.dataflows.map((n) => n.id)).toEqual(['df-1']);
     expect(g.datasets.map((n) => n.id)).toEqual(['ds-sus', 'ds-clean']);
-    // ALL reports of the workspace's datasets appear — not just suspects.
     expect(g.reports.map((n) => n.id)).toEqual(['r-1', 'r-2']);
   });
 
   it('colors nodes: failed flow red, suspect tokenized stale (renders red), clean dataset green', () => {
     const g = deriveLineage([flow, sus, clean], blastOf(['ds-sus'], [['df-1', [sus]]]), reports, NOW);
     expect(g.dataflows[0]?.health).toBe('failed');
-    expect(g.datasets.find((n) => n.id === 'ds-sus')?.health).toBe('stale'); // token; renders red
+    expect(g.datasets.find((n) => n.id === 'ds-sus')?.health).toBe('stale');
     expect(g.datasets.find((n) => n.id === 'ds-clean')?.health).toBe('healthy');
-    expect(g.reports.find((n) => n.id === 'r-1')?.health).toBe('stale'); // token; renders red
+    expect(g.reports.find((n) => n.id === 'r-1')?.health).toBe('stale');
     expect(g.reports.find((n) => n.id === 'r-2')?.health).toBe('healthy');
   });
 
@@ -133,9 +125,7 @@ describe('deriveLineage — column assignment + edge derivation', () => {
       [],
       NOW,
     );
-    // The dataset node is red (one red parent poisons it)…
-    expect(g.datasets.find((n) => n.id === 'ds-mohawk')?.health).toBe('stale'); // token; renders red
-    // …but each line keeps its own source's color.
+    expect(g.datasets.find((n) => n.id === 'ds-mohawk')?.health).toBe('stale');
     expect(g.links).toContainEqual({ from: 'df-green', to: 'ds-mohawk', health: 'healthy' });
     expect(g.links).toContainEqual({ from: 'df-red', to: 'ds-mohawk', health: 'failed' });
   });
@@ -151,7 +141,7 @@ describe('deriveLineage — column assignment + edge derivation', () => {
   it('inherits report health from a FAILED dataset (renders red, owner v8)', () => {
     const dead = item({ id: 'ds-dead', name: 'Dead Model', lastStatus: 'Failed' });
     const g = deriveLineage([dead], blastOf(), [{ id: 'r-x', name: 'Bound', datasetId: 'ds-dead' }], NOW);
-    expect(g.reports[0]?.health).toBe('stale'); // internal token; renders red
+    expect(g.reports[0]?.health).toBe('stale');
     expect(g.links).toContainEqual({ from: 'ds-dead', to: 'r-x', health: 'failed' });
   });
 });
@@ -188,7 +178,6 @@ describe('prioritizeDamageFirst + capColumn (+N more)', () => {
     ];
     const { visible, overflow } = capColumn(nodes);
     expect(visible).toHaveLength(LINEAGE_CAP - 1);
-    // Damage survives the cap — the FALLON ash fleet folds into +N more.
     expect(visible[0]?.id).toBe('failed');
     expect(visible[1]?.id).toBe('stale');
     expect(overflow).toBe(22 - (LINEAGE_CAP - 1));
@@ -236,7 +225,6 @@ describe('layoutLineage — placement, +N more node, edge remapping', () => {
     expect(rNode.x).toBe(layout.columnX[2]);
     expect(fNode.x).toBeLessThan(dNode.x);
     expect(dNode.x).toBeLessThan(rNode.x);
-    // Nodes carry the middle-truncated label but keep the full name.
     expect(dNode.label).toBe('Suspect Model');
     expect(layout.height).toBeLessThanOrEqual(360);
   });
@@ -257,26 +245,21 @@ describe('layoutLineage — placement, +N more node, edge remapping', () => {
     const flows = Array.from({ length: 17 }, (_, i): LineageNodeSpec => ({ id: `df-${i}`, name: `Flow ${i}`, health: i === 0 ? 'failed' : 'dormant' }));
     const graph = { dataflows: flows, datasets: [{ id: 'ds-1', name: 'Set', health: 'healthy' } as LineageNodeSpec], reports: [], links: [] };
     const layout = layoutLineage(graph);
-    // Default: every node renders — the sheet scrolls, the data is whole.
     expect(layout.nodes.filter((n) => n.column === 'dataflow')).toHaveLength(17);
     expect(layout.nodes.some((n) => (n.overflow ?? 0) > 0)).toBe(false);
-    // Explicit cap remains available for callers that opt in.
     const cappedLayout = layoutLineage(graph, { cap: 8 });
     const dfCapped = cappedLayout.nodes.filter((n) => n.column === 'dataflow');
-    expect(dfCapped).toHaveLength(8); // 7 named + the "+N more" ash node
+    expect(dfCapped).toHaveLength(8);
     expect(dfCapped.some((n) => (n.overflow ?? 0) > 0)).toBe(true);
 
   });
 
   it('dedupes parallel edges into one, keeping the WORST health', () => {
     const old = new Date(NOW - 482 * 24 * 3600_000).toISOString();
-    // Two hidden datasets both feed the same report-id space via the overflow
-    // node: one healthy-bound, one amber-bound — amber must win the dedupe.
     const hidden = Array.from({ length: 9 }, (_, i) =>
       item({ id: `ds-h${i}`, name: `Hidden ${i}`, lastAttemptTime: old, lastSuccessTime: old }),
     );
     const g = deriveLineage([...hidden], blastOf(), [], NOW);
-    // Manufacture two parallel links between the same drawn pair.
     g.links.push({ from: 'ds-h7', to: 'ds-h8', health: 'healthy' });
     g.links.push({ from: 'ds-h7', to: 'ds-h8', health: 'failed' });
     const layout = layoutLineage(g, { cap: 8 });

@@ -1,15 +1,3 @@
-/**
- * Map HTTP status / Power BI API error shapes to a friendly user message.
- *
- * IMPORTANT: this function does NOT pass raw response bodies through, ever.
- * Upstream API errors can contain user-identifying data (emails, GUIDs, etc.)
- * and authorization-related fragments — surfacing them in the UI would leak
- * identifiers to anyone watching the screen, and capturing them in error logs
- * would leak the same content into support bundles. The `raw` parameter is
- * accepted only for future structured-parsing use (e.g. picking a well-known
- * OData error code out of a parsed JSON body); the current implementation
- * ignores it.
- */
 export function friendlyApiError(status: number | undefined, _raw?: string): string {
   if (status === 401) return 'Your session expired. Please sign in again.';
   if (status === 403) return 'You do not have access to this content.';
@@ -19,21 +7,6 @@ export function friendlyApiError(status: number | undefined, _raw?: string): str
   return 'Something went wrong. Please try again.';
 }
 
-/**
- * Parse a thrown-error message of the form `"<context>: <status> - <body>"`
- * (the shape `throwForStatus` produces in powerbi-api.ts), extract the HTTP
- * status code, and map it to a friendly user-facing message via
- * `friendlyApiError`. If the message doesn't match the pattern, the input
- * is returned unchanged so callers don't accidentally overwrite a more
- * specific message (e.g. token-refresh failures) with a generic one.
- */
-/**
- * Detect a main-process network / TLS-certificate / proxy failure (undici
- * 'fetch failed', Node connect errors, or certificate-chain errors). These carry
- * no HTTP status, so the status-based mapper can't classify them — and on a
- * corporate TLS-inspection / authenticating-proxy network they are the most
- * likely cause of "signed in, but nothing loads".
- */
 const NETWORK_OR_CERT_RE =
   /fetch failed|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|ENETUNREACH|self[- ]signed certificate|unable to verify|UNABLE_TO_VERIFY|SELF_SIGNED|CERT_|ERR_TLS|ERR_PROXY/i;
 

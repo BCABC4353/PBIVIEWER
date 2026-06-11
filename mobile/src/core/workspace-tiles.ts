@@ -1,25 +1,6 @@
-/**
- * Workspace-tile grouping — pure logic for the fleet board's workspace TILES
- * and their expanded type-organized sheets (the "blast radius" interaction,
- * docs/design/BLAST-RADIUS.md). Formerly named blast-radius.ts; renamed
- * because the DESKTOP tree has an unrelated src/shared/blast-radius.ts
- * (failed-dataflow cascade math) and the name collision kept sending
- * grep-driven edits into the wrong file.
- * No React Native imports: everything here unit-tests on plain node.
- *
- * The tile carries the workspace's summary (worst status, counts, the worst
- * item's recent-runs pulse); the sheet organizes the same items BY TYPE —
- * dataflows (upstream) first, then datasets. Works on whatever the current
- * FleetSnapshot carries, mock or live — no data-layer contract changes.
- */
 import type { Refreshable } from './types';
 import { itemRank, sortWorstFirst } from './refresh-health';
 
-/**
- * Tile edge severity. Red is sacred — `broken` means Failed, nothing else.
- * `attention` is the amber band: cancelled, never-run, or schedule-overdue.
- * Everything healthy stays `quiet` (grayscale).
- */
 export type TileSeverity = 'broken' | 'attention' | 'quiet';
 
 export function itemSeverity(r: Refreshable): TileSeverity {
@@ -31,9 +12,7 @@ export function itemSeverity(r: Refreshable): TileSeverity {
 }
 
 export interface TileCounts {
-  /** Failed items (the red number). */
   failed: number;
-  /** Amber band, split honestly by why. An item counts ONCE, status first. */
   cancelled: number;
   neverRun: number;
   overdue: number;
@@ -44,19 +23,12 @@ export interface TileCounts {
 export interface WorkspaceTile {
   workspaceId: string;
   workspaceName: string;
-  /** Worst severity across the workspace — drives the tile edge color. */
   severity: TileSeverity;
-  /** Every item in the workspace, worst-first (same ranking as the board). */
   items: Refreshable[];
-  /** The single worst item — its pulse row fronts the tile. */
   worst: Refreshable;
   counts: TileCounts;
 }
 
-/**
- * Group a snapshot's refreshables into workspace tiles, worst workspace
- * first (ranked by each tile's worst item, exactly the board's ordering).
- */
 export function groupFleetByWorkspace(refreshables: Refreshable[]): WorkspaceTile[] {
   const byWorkspace = new Map<string, Refreshable[]>();
   for (const r of refreshables) {
@@ -97,9 +69,6 @@ export function groupFleetByWorkspace(refreshables: Refreshable[]): WorkspaceTil
     });
   }
 
-  // Worst workspace first — rank tiles by their worst item with the board's
-  // own key (the desktop's Matt #4 itemRank, where overdue is its own band
-  // above Never/Running), then name.
   tiles.sort(
     (a, b) =>
       itemRank(a.worst) - itemRank(b.worst) ||
@@ -108,11 +77,6 @@ export function groupFleetByWorkspace(refreshables: Refreshable[]): WorkspaceTil
   return tiles;
 }
 
-/**
- * The tile's one-line summary. Trouble first, honestly worded, then the
- * inventory. Zero-count segments stay silent; a fully quiet tile reads as
- * just its inventory ("3 datasets · 1 dataflow").
- */
 export function tileCountsLine(tile: WorkspaceTile): string {
   const { failed, cancelled, neverRun, overdue, datasets, dataflows } = tile.counts;
   const parts: string[] = [];
@@ -127,16 +91,10 @@ export function tileCountsLine(tile: WorkspaceTile): string {
 
 export interface SheetSection {
   key: 'dataflows' | 'datasets';
-  /** Section caption, exactly as rendered. Upstream movers lead. */
   title: string;
   items: Refreshable[];
 }
 
-/**
- * Organize a tile's items BY TYPE for the expanded sheet: dataflows (the
- * upstream movers) first, then datasets — worst-first within each, empty
- * sections omitted.
- */
 export function sheetSections(items: Refreshable[]): SheetSection[] {
   const dataflows = sortWorstFirst(items.filter((r) => r.kind === 'dataflow'));
   const datasets = sortWorstFirst(items.filter((r) => r.kind === 'dataset'));

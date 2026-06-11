@@ -21,13 +21,6 @@ import { useCursorHide } from '../../hooks/presentation/useCursorHide';
 import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGesture';
 import { ViewerToolbar } from './ViewerToolbar';
 
-/**
- * Returns true when a keydown target is an interactive control that
- * should own its own keyboard handling, so the global slideshow keydown handler
- * must NOT preventDefault or navigate. Covers native form/button elements, ARIA
- * widget roles (slider/button/menuitem), contenteditable, and anything inside
- * the ViewerToolbar.
- */
 export function isInteractiveTarget(target: HTMLElement | null): boolean {
   if (!target) return false;
 
@@ -46,10 +39,6 @@ export function isInteractiveTarget(target: HTMLElement | null): boolean {
     return true;
   }
 
-  // Both checks are needed: isContentEditable reflects the live, computed
-  // editability (covers inherited/connected cases) but is unreliable for
-  // detached nodes and in jsdom; the attribute closest() covers the explicit
-  // contenteditable markup robustly across environments.
   if (
     target.isContentEditable ||
     target.closest('[contenteditable=""], [contenteditable="true"]')
@@ -57,7 +46,6 @@ export function isInteractiveTarget(target: HTMLElement | null): boolean {
     return true;
   }
 
-  // Anything inside the shared toolbar (its buttons, breadcrumb controls, etc.).
   if (target.closest('[data-viewer-toolbar]')) {
     return true;
   }
@@ -76,9 +64,6 @@ export const PresentationMode: React.FC = () => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const slideshowIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isExitingRef = useRef(false);
-  // Gates the auto-start effect to a single trigger so that
-  // pressing Pause after auto-start doesn't immediately re-start the slideshow
-  // on the next render cycle (slidesReady / isLoading / error can re-fire).
   const hasAutoStartedRef = useRef(false);
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -87,28 +72,18 @@ export const PresentationMode: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [slideAnnouncement, setSlideAnnouncement] = useState<string>('');
 
-  // Subscribe to the settings store so changes made in SettingsPage while
-  // the slideshow is open take effect immediately — no remount needed.
-  // Selectors return primitives so a single field change only re-renders
-  // the slice that cares about it.
   const intervalSeconds = useSettingsStore((s) => s.settings.slideshowInterval);
   const slideshowMode = useSettingsStore((s) => s.settings.slideshowMode);
   const autoStartSlideshow = useSettingsStore((s) => s.settings.autoStartSlideshow);
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
   const autoRefreshIntervalMinutes = useSettingsStore((s) => s.settings.autoRefreshInterval);
 
-  // Debounced interval-persist (slider onChange) lives in a hook that
-  // owns its own pending-timer ref and unmount flush.
   const { onIntervalChange } = useDebouncedSettings();
 
-  // Defensive bootstrap: ensure the store has fetched once. Idempotent if
-  // App bootstrap already ran it; each viewer self-bootstraps. Real values
-  // come from the store subscriptions above.
   useEffect(() => {
     void useSettingsStore.getState().loadSettings();
   }, []);
 
-  // Build embed configuration — presentation hides all panes and nav.
   const buildConfig = useCallback(
     (token: string): pbi.IReportEmbedConfiguration => ({
       type: 'report',
@@ -121,7 +96,6 @@ export const PresentationMode: React.FC = () => {
           filters: { visible: false },
           pageNavigation: { visible: false },
         },
-        // Use default background, not transparent
         background: pbi.models.BackgroundType.Default,
         navContentPaneEnabled: false,
       },
@@ -129,9 +103,6 @@ export const PresentationMode: React.FC = () => {
     [workspaceId, reportId]
   );
 
-  // Slide-source data (pages, bookmarks, unified slide list) and the
-  // Power BI `loaded` handler live in useSlideList. The handler reads the live
-  // embed lazily via setEmbedRef (wired below, after usePowerBIEmbed returns).
   const { slides, slidesReady, events, setEmbedRef } = useSlideList(slideshowMode);
 
   const {
@@ -149,21 +120,11 @@ export const PresentationMode: React.FC = () => {
     autoRefreshEnabled,
     autoRefreshIntervalMinutes,
     errorFallback: 'Failed to load report. Please try again.',
-    // Presentation mode wants visibility into post-load problems too —
-    // a slideshow stuck on a broken page should surface, not silently fail.
     surfacePostLoadErrors: true,
   });
 
-  // useSlideList needs the embedRef from usePowerBIEmbed, but usePowerBIEmbed
-  // needs the `events` object from useSlideList — a forward reference. Thread the
-  // (stable-identity) embedRef back into the hook so the `loaded` handler reads
-  // the live embed.
   setEmbedRef(embedRef);
 
-  // Auto-start slideshow when slides are ready (if setting enabled).
-  // The hasAutoStartedRef gate ensures we fire exactly once per
-  // mount, so pressing Pause after auto-start stays paused — subsequent
-  // re-renders of slidesReady / isLoading / error don't re-trigger play.
   useEffect(() => {
     if (
       slidesReady &&
@@ -177,33 +138,24 @@ export const PresentationMode: React.FC = () => {
     }
   }, [slidesReady, autoStartSlideshow, isLoading, error]);
 
-  // Exit function - navigates back to report viewer
   const doExit = useCallback(() => {
     if (isExitingRef.current) return;
     isExitingRef.current = true;
 
-    // Release the display-sleep blocker on exit (kiosk). Fire-and-forget;
-    // the main handler is idempotent so the unmount cleanup re-calling is safe.
     void window.electronAPI.kiosk.allowDisplaySleep().catch(() => {});
 
-    // Stop slideshow
     setIsPlaying(false);
     if (slideshowIntervalRef.current) {
       clearInterval(slideshowIntervalRef.current);
       slideshowIntervalRef.current = null;
     }
 
-    // Use teardownNow() so the hook owns the SDK event
-    // detachment and container reset — no direct embed.off or powerbiService
-    // calls here. Stops the iframe from rendering before navigate() runs.
     teardownNow();
 
-    // Exit fullscreen if active
     if (document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => {});
     }
 
-    // Navigate back to the report viewer (explicit route, not -1)
     if (workspaceId && reportId) {
       navigate(`/report/${workspaceId}/${reportId}`, { replace: true });
     } else {
@@ -211,9 +163,6 @@ export const PresentationMode: React.FC = () => {
     }
   }, [workspaceId, reportId, navigate, teardownNow]);
 
-  // Fullscreen enter-on-mount + exit-on-fullscreenchange teardown.
-  // Shares isExitingRef / slideshowIntervalRef with doExit so both exit paths
-  // coordinate.
   useExitOnFullscreenChange({
     workspaceId,
     reportId,
@@ -223,13 +172,8 @@ export const PresentationMode: React.FC = () => {
     slideshowIntervalRef,
   });
 
-  // Focus management (save/restore previously-focused element + Tab
-  // focus trap scoped to the overlay).
   useFocusTrap(overlayRef);
 
-  // Keep the display awake for unattended wall-display use. Start the
-  // powerSaveBlocker on enter; release it on unmount. doExit() also releases it
-  // explicitly — the main handler is idempotent so the double-call is safe.
   useEffect(() => {
     void window.electronAPI.kiosk.preventDisplaySleep().catch(() => {});
     return () => {
@@ -237,35 +181,16 @@ export const PresentationMode: React.FC = () => {
     };
   }, []);
 
-  // Slideshow auto-recovery with 5s → 30s → 60s backoff (then 60s).
-  // Wired to usePowerBIEmbed's `error` signal and `reload` (re-embed). Only
-  // attempts while the slideshow is playing; resets backoff once the error
-  // clears (successful recovery). Timer is cleaned up on exit/unmount.
   useKioskRecovery({ error, active: isPlaying, recover: reload });
 
-  // Kiosk-safe exit gesture — 3s Escape-hold OR Ctrl+Shift+Q → exit.
   useKioskExitGesture({ onExit: doExit });
 
-  // Hide the cursor after inactivity in presentation/fullscreen; reveal
-  // on mousemove. Drives a `cursor-none` class on the overlay.
   const cursorHidden = useCursorHide();
 
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
 
-      // Escape is the GLOBAL slideshow exit and must be handled regardless of
-      // focus — interactive controls (toolbar buttons, the scrubber) don't own
-      // Escape, so it must be processed BEFORE the interactive-target bail
-      // below (otherwise Escape over a toolbar button never exits).
-      // Order of precedence:
-      //   1. If the settings panel is open, Escape closes it (not exit).
-      //   2. In a manually-started slideshow, Escape exits.
-      //   3. In unattended/kiosk mode (auto-started), a single Escape is inert —
-      //      exit is gated behind the deliberate gesture (3s Escape-hold or
-      //      Ctrl+Shift+Q) in useKioskExitGesture. preventDefault still
-      //      suppresses the browser's native fullscreen-exit-on-Escape.
       if (e.key === 'Escape') {
         e.preventDefault();
         if (showSettings) {
@@ -276,12 +201,6 @@ export const PresentationMode: React.FC = () => {
         return;
       }
 
-      // Do not hijack NAVIGATION keys (Arrows/Space/p) from
-      // interactive overlay controls — the scrubber (role="slider"), the
-      // ViewerToolbar buttons, the settings slider, and the dot-indicator
-      // buttons must handle their own keys. Bail (no preventDefault, no nav)
-      // when focus is on an interactive control. Slideshow nav still works when
-      // focus is on the slide surface / overlay background.
       if (isInteractiveTarget(target)) {
         return;
       }
@@ -313,7 +232,6 @@ export const PresentationMode: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [slides.length, doExit, autoStartSlideshow, showSettings]);
 
-  // Handle slideshow auto-advance
   useEffect(() => {
     if (isPlaying && slides.length > 0) {
       slideshowIntervalRef.current = setInterval(() => {
@@ -333,7 +251,6 @@ export const PresentationMode: React.FC = () => {
     };
   }, [isPlaying, intervalSeconds, slides.length]);
 
-  // Navigate to slide (page or bookmark) when index changes
   useEffect(() => {
     const report = embedRef.current as pbi.Report | null;
     if (report && slides.length > 0) {
@@ -352,9 +269,6 @@ export const PresentationMode: React.FC = () => {
     }
   }, [currentSlideIndex, slides, embedRef]);
 
-  // Announce current slide to screen readers via the persistent live region.
-  // Fires whenever the index or the slides list changes so that auto-advance,
-  // keyboard navigation, and dot-indicator clicks all produce an announcement.
   useEffect(() => {
     if (slides.length === 0) return;
     const slide = slides[currentSlideIndex];
@@ -364,10 +278,6 @@ export const PresentationMode: React.FC = () => {
     );
   }, [currentSlideIndex, slides]);
 
-  // Hide controls after inactivity.
-  // Bind to `document` only — `window` re-dispatches the same
-  // bubbled mousemove events, so attaching to both fires the handler twice
-  // per move. A single `document` listener is sufficient for the entire page.
   useEffect(() => {
     let timeout: NodeJS.Timeout | undefined;
 
@@ -411,9 +321,6 @@ export const PresentationMode: React.FC = () => {
     setIsPlaying((prev) => !prev);
   };
 
-  // Label for the shared toolbar breadcrumb. The report name isn't fetched in
-  // presentation mode, so use the current slide's name for context, falling
-  // back to a generic slideshow label.
   const toolbarItemName =
     slides[currentSlideIndex]?.displayName ?? 'Slideshow';
 
@@ -425,7 +332,7 @@ export const PresentationMode: React.FC = () => {
       aria-label="Presentation mode"
       className={`fixed inset-0 z-50 bg-neutral-background-1 ${cursorHidden ? 'cursor-none' : ''}`}
     >
-      {/* Loading overlay */}
+      {}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-20">
           <div className="text-center">
@@ -437,7 +344,7 @@ export const PresentationMode: React.FC = () => {
         </div>
       )}
 
-      {/* Error overlay */}
+      {}
       {error && (
         <div
           role="alert"
@@ -452,13 +359,13 @@ export const PresentationMode: React.FC = () => {
         </div>
       )}
 
-      {/* Report embed container */}
+      {}
       <div
         ref={embedContainerRef}
         className={`w-full h-full ${isLoading || error ? 'invisible' : 'visible'}`}
       />
 
-      {/* Transparent overlay to detect mouse movement over iframe */}
+      {}
       {!isLoading && !error && !showControls && (
         <div
           className="absolute inset-0 z-[5] bg-transparent cursor-default"
@@ -468,9 +375,7 @@ export const PresentationMode: React.FC = () => {
         />
       )}
 
-      {/* Persistent slide announcer — always mounted so screen readers reliably
-          receive updates even when the visible controls fade out. The sr-only
-          class hides it visually without removing it from the accessibility tree. */}
+      {}
       <div
         aria-live="polite"
         aria-atomic="true"
@@ -479,14 +384,7 @@ export const PresentationMode: React.FC = () => {
         {slideAnnouncement}
       </div>
 
-      {/* PERSISTENT kiosk exit hint. Rendered OUTSIDE the auto-hide
-          `showControls` block so it never fades — an unattended-wall-display
-          operator (esp. the autoStartSlideshow/kiosk scenario where a single
-          Escape is intentionally inert) always sees how to get out. Kept small,
-          low-opacity, and corner-anchored so it stays unobtrusive over the
-          slide. aria-hidden because it duplicates content already exposed to
-          screen readers via the live region / controls — it's visual-only
-          guidance and would otherwise be noise for SR users. */}
+      {}
       {!isLoading && !error && (
         <div
           aria-hidden="true"
@@ -503,23 +401,17 @@ export const PresentationMode: React.FC = () => {
         </div>
       )}
 
-      {/* Controls overlay */}
+      {}
       {showControls && !isLoading && !error && (
         <>
-          {/* Shared ViewerToolbar for visual consistency with the other
-              viewers. Only the props that make sense in slideshow context are
-              wired: Back/Exit (doExit, backLabel "Exit") and the item name.
-              Export/Refresh/Full-Screen/Slideshow actions don't apply here and
-              are intentionally omitted. Slideshow-specific controls (Settings,
-              play/pause, prev/next, slide counter) live in the complementary
-              control bars below — ViewerToolbar can't host them. */}
+          {}
           <div className="absolute top-0 left-0 right-0 z-10">
             <ViewerToolbar
               onBack={doExit}
               backLabel="Exit"
               itemName={toolbarItemName}
             />
-            {/* Complementary slideshow controls: counter + settings toggle. */}
+            {}
             <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-b from-black/60 to-transparent">
               <Text className="text-white text-shadow">
                 {slides[currentSlideIndex]?.displayName || 'Slide'}
@@ -538,7 +430,7 @@ export const PresentationMode: React.FC = () => {
             </div>
           </div>
 
-          {/* Settings panel */}
+          {}
           {showSettings && (
             <div className="absolute top-24 right-4 bg-neutral-background-1 rounded-lg p-4 shadow-lg z-30 border border-neutral-stroke-1">
               <Text weight="semibold" className="block mb-3">Slideshow Settings</Text>
@@ -557,7 +449,7 @@ export const PresentationMode: React.FC = () => {
             </div>
           )}
 
-          {/* Bottom controls */}
+          {}
           <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent z-10">
             <div className="flex items-center justify-center gap-4">
               <Button
@@ -590,7 +482,7 @@ export const PresentationMode: React.FC = () => {
               />
             </div>
 
-            {/* Slide indicators */}
+            {}
             {slides.length > 1 && slides.length <= 20 && (
               <div className="flex items-center justify-center gap-2 mt-4">
                 {slides.map((slide, index) => (
@@ -607,11 +499,7 @@ export const PresentationMode: React.FC = () => {
                 ))}
               </div>
             )}
-            {/* Scrubber fallback for decks with more than 20
-                slides where dot indicators become impractical.
-                A11Y: role="slider" correctly describes an interactive control
-                that changes value; keyboard support (Left/Right/Home/End)
-                makes it operable without a mouse. */}
+            {}
             {slides.length > 20 && (
               <div className="mt-4 px-4">
                 <div
@@ -661,7 +549,7 @@ export const PresentationMode: React.FC = () => {
             )}
           </div>
 
-          {/* Keyboard hints */}
+          {}
           <div className="absolute bottom-4 left-4 text-white/60 text-xs">
             <div>← → Arrow keys: Navigate</div>
             <div>Space: Next slide</div>

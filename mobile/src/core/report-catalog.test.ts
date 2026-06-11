@@ -42,7 +42,6 @@ describe('listAllPages', () => {
   });
 });
 
-/** fetch stub: route → body (or status number for an error). */
 function stubFetch(routes: Record<string, unknown | number>) {
   const calls: string[] = [];
   const mock = vi.fn(async (url: string) => {
@@ -74,7 +73,7 @@ describe('LiveReportCatalog', () => {
         '@odata.nextLink': 'https://api.powerbi.com/v1.0/myorg/groups/ws1/reports?skip=1',
       },
       '/groups/ws1/reports?skip=1': {
-        value: [{ id: 'r3', name: 'Paginated Thing' }], // no datasetId (RDL)
+        value: [{ id: 'r3', name: 'Paginated Thing' }],
       },
     });
 
@@ -91,7 +90,6 @@ describe('LiveReportCatalog', () => {
       sourceKind: 'app',
       sourceName: 'Client App',
     });
-    // Paging followed the nextLink: both workspace reports landed.
     expect(groups[1]!.reports.map((r) => r.id)).toEqual(['r2', 'r3']);
     expect(groups[1]!.reports[0]!.workspaceId).toBe('ws1');
     expect(groups[1]!.reports[1]!.datasetId).toBeUndefined();
@@ -131,9 +129,9 @@ describe('LiveReportCatalog', () => {
     const catalog = new LiveReportCatalog(tokens);
     await catalog.listReports();
     const afterFirst = mock.mock.calls.length;
-    await catalog.listReports(); // cached
+    await catalog.listReports();
     expect(mock.mock.calls.length).toBe(afterFirst);
-    await catalog.listReports(true); // pull-to-refresh
+    await catalog.listReports(true);
     expect(mock.mock.calls.length).toBeGreaterThan(afterFirst);
   });
 
@@ -148,9 +146,6 @@ describe('LiveReportCatalog', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Catalog organization — the pure logic the Reports screen renders from.
-// ---------------------------------------------------------------------------
 
 const ref = (name: string, group: Pick<ReportGroup, 'kind' | 'id' | 'name'>): ReportRef => ({
   id: `id-${name}`,
@@ -175,7 +170,7 @@ describe('sortCatalogGroups', () => {
     ]);
     expect(sorted.map((g) => `${g.kind}:${g.name}`)).toEqual([
       'app:Exec App',
-      'app:finance App', // case-insensitive: 'finance' after 'Exec'
+      'app:finance App',
       'workspace:Alpha Ops',
       'workspace:zeta Ops',
     ]);
@@ -269,16 +264,13 @@ describe('fetchLatestRefresh', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Dataset hop (app reports arrive with datasetId="" — tenant-verified quirk)
-// ---------------------------------------------------------------------------
 import { pickDatasetIdFromReports } from './report-catalog';
 
 describe('pickDatasetIdFromReports', () => {
   const reports = [
     { id: 'r-1', name: 'BELL - DASHBOARD', datasetId: 'ds-1' },
     { id: 'r-2', name: 'BELL - KPI', datasetId: 'ds-2' },
-    { id: 'r-3', name: 'BELL - PAGINATED' }, // no dataset (paginated)
+    { id: 'r-3', name: 'BELL - PAGINATED' },
   ];
 
   it('matches by original report id first', () => {

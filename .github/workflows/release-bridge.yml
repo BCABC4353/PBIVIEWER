@@ -1,10 +1,5 @@
 name: Release Bridge
 
-# Lets the repo's automation (Claude sessions) start a release WITHOUT the
-# Actions-dispatch API permission integrations lack: pushing a change to
-# RELEASE_REQUEST on main dispatches the existing Build and Release pipeline.
-# Humans can keep using the Actions tab button — this is an additional door,
-# not a replacement.
 on:
   push:
     branches: [main]

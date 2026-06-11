@@ -1,9 +1,3 @@
-// ---------------------------------------------------------------------------
-// Export tier: report → PDF export plus the user-owns-data embed token. Both
-// need the RAW access token (they hand it to fetch / the embed SDK rather
-// than going through the facade's request plumbing), so the port is the
-// token slice of the auth service.
-// ---------------------------------------------------------------------------
 
 import {
   POWERBI_API_BASE,
@@ -16,7 +10,6 @@ import {
 import { withErrorEnvelope } from './envelope';
 import type { EmbedToken, IPCResponse, TokenResult } from '../../../shared/types';
 
-/** Token source for export/embed calls (structurally the facade's ApiAuthPort). */
 export interface ExportAuthPort {
   getAccessToken(): Promise<IPCResponse<TokenResult>>;
 }
@@ -33,24 +26,20 @@ export class PowerBIExportApi {
     _workspaceId: string
   ): Promise<IPCResponse<EmbedToken>> {
     return withErrorEnvelope('EMBED_TOKEN_FAILED', async () => {
-      // For user-owns-data scenario, we use the access token directly
-      // For app-owns-data, we would generate an embed token
       const tokenResponse = await this.auth.getAccessToken();
 
       if (!tokenResponse.success) {
         throw new Error(tokenResponse.error.message || 'Failed to get access token');
       }
 
-      // Prefer MSAL's authoritative expiry; fall back to +1h only when null.
       const expiration =
         tokenResponse.data.expiresOn ?? new Date(Date.now() + 3600000).toISOString();
 
-      // Return the access token as the embed token for user-owns-data scenario
       return {
         success: true,
         data: {
           token: tokenResponse.data.accessToken,
-          tokenId: '', // Not used in user-owns-data
+          tokenId: '',
           expiration,
         },
       };
@@ -89,10 +78,6 @@ export class PowerBIExportApi {
         reportConfig.pages = [page];
       }
 
-      // Wrap the kickoff ExportTo POST in withRetry so a transient 429/5xx on
-      // start-up backs off and retries (throwForStatus throws RetriableHttpError
-      // for those; other 4xx short-circuit). The poll loop below already handles
-      // transient errors — this brings the initial POST to parity.
       const exportResponse = await withRetry(async () => {
         const resp = await fetchWithTimeout(`${baseUrl}/ExportTo`, {
           method: 'POST',
@@ -122,12 +107,6 @@ export class PowerBIExportApi {
       let status: string | undefined;
 
       while (attempts < maxAttempts) {
-        // Shorter per-call timeout for the polling loop — the 30-iteration cap
-        // bounds total wait time; we don't want each poll holding the default 20s.
-        // A transient timeout, 429, or 5xx on a poll is non-fatal: count the
-        // attempt and continue (honoring Retry-After if present). Only a non-
-        // retriable 4xx, a "Failed" status payload, or running out the cap
-        // aborts the export.
         let statusResponse: Response;
         try {
           statusResponse = await fetchWithTimeout(
@@ -137,7 +116,6 @@ export class PowerBIExportApi {
           );
         } catch (pollErr: unknown) {
           if ((pollErr as { name?: string } | null)?.name === 'AbortError') {
-            // Per-poll timeout — keep trying.
             attempts += 1;
             await new Promise((resolve) => setTimeout(resolve, 2000));
             continue;

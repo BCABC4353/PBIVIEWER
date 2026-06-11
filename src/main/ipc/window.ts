@@ -23,8 +23,6 @@ export function registerWindowIpc(): void {
     return getMainWindow()?.isMaximized() ?? false;
   });
 
-  // Fire-and-forget (ipcMain.on, not ipcMain.handle) — the renderer
-  // sends this on every theme change and does not wait for a response.
   ipcMain.on('window:set-title-bar-overlay', (event, options: { color: string; symbolColor: string }) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && process.platform === 'win32') {

@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { InteractionRequiredAuthError, type AccountInfo } from '@azure/msal-node';
 
-// Msal-config pulls in electron-log/main at module load. Stub the
-// electron surface so importing auth-service under jsdom never touches real
-// electron internals. The DI factory (createAuthService) means the SERVICE
-// itself needs none of this — but the module-level `import` of msal-config
-// (for loginRequest/silentRequest scopes) transitively loads electron-log.
 vi.mock('electron', () => ({
   BrowserWindow: class {},
   session: {
@@ -31,9 +26,6 @@ import {
 } from './auth-service';
 import type { CachedUserInfo } from './token-cache';
 
-// ---------------------------------------------------------------------------
-// Test harness: a fully in-memory dependency set with knobs for each test.
-// ---------------------------------------------------------------------------
 
 function makeAccount(homeAccountId: string, username = 'user@example.com'): AccountInfo {
   return {
@@ -51,10 +43,8 @@ interface Harness {
   accounts: AccountInfo[];
   corruptionListeners: Array<() => void>;
   cookieClearCalls: Array<{ jar: 'a' | 'b'; storages?: string[] }>;
-  // Records which jars had their HTTP cache flushed.
   cacheClearCalls: Array<'a' | 'b'>;
   clearedUsageAccounts: string[];
-  // mutable knobs
   setSilentResult: (r: { accessToken: string; expiresOn: Date | null } | Error) => void;
   setUsagePolicy: (p: 'always' | 'never' | 'on-shared-machine') => void;
   setJarBFails: (fails: boolean) => void;
@@ -94,7 +84,6 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     getAuthCodeUrl: vi.fn(async () => 'https://login.microsoftonline.com/authorize'),
     acquireTokenByCode: vi.fn(async () => {
       const acct = makeAccount('acct-1');
-      // Simulate MSAL adding the account to the cache on a successful code exchange.
       if (!accounts.find((a) => a.homeAccountId === acct.homeAccountId)) accounts.push(acct);
       return { accessToken: 'at', expiresOn: new Date(Date.now() + 3_600_000), account: acct };
     }),
@@ -112,7 +101,6 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     clearCache: vi.fn(async () => {
       persisted.cache = null;
       persisted.userInfo = null;
-      // Token-cache deletes the active id in lockstep with the cache.
       persisted.activeId = null;
     }),
     saveUserInfo: vi.fn(async (u: CachedUserInfo) => {
@@ -136,7 +124,6 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
     clearStorageData: vi.fn(async (opts?: { storages?: string[] }) => {
       cookieClearCalls.push({ jar: 'a', storages: opts?.storages });
     }),
-    // Each jar must also flush the HTTP cache on logout/switch.
     clearCache: vi.fn(async () => {
       cacheClearCalls.push('a');
     }),
@@ -163,7 +150,6 @@ function createHarness(initial: { accounts?: AccountInfo[] } = {}): Harness {
         onAadError(openAuthResult.aadError);
         return null;
       }
-      // Default: echo the expected state so CSRF passes.
       if (openAuthResult.value === null) return { code: 'authcode', state };
       return openAuthResult.value;
     }),
@@ -197,9 +183,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// validateToken short-circuit honesty
-// ---------------------------------------------------------------------------
 describe('authService.validateToken (cache short-circuit)', () => {
   it('returns { success: true, data: false } on a fresh service with no account', async () => {
     const h = createHarness();
@@ -218,21 +201,15 @@ describe('authService.validateToken (cache short-circuit)', () => {
   it('short-circuits to true only for the CURRENT account expiry (NEW-AUTH-3)', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     const svc = createAuthService(h.deps);
-    // Prime lastKnownExpiry for acct-1 via a successful getAccessToken.
     h.setSilentResult({ accessToken: 'at', expiresOn: new Date(Date.now() + 30 * 60 * 1000) });
     const first = await svc.getAccessToken();
     expect(first.success).toBe(true);
-    // Now validateToken should short-circuit (account === acct-1, expiry far off).
     const validated = await svc.validateToken();
     expect(validated).toEqual({ success: true, data: true });
-    // acquireTokenSilent must NOT be called a second time (short-circuit hit).
     expect(h.deps.msalClient.acquireTokenSilent).toHaveBeenCalledTimes(1);
   });
 });
 
-// ---------------------------------------------------------------------------
-// getAccessToken expiry lifecycle
-// ---------------------------------------------------------------------------
 describe('authService.getAccessToken (SEC-S4: InteractionRequired drops expiry)', () => {
   it('returns NO_ACCOUNT and leaves no cached expiry on a fresh service', async () => {
     const h = createHarness();
@@ -240,7 +217,6 @@ describe('authService.getAccessToken (SEC-S4: InteractionRequired drops expiry)'
     const result = await svc.getAccessToken();
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('NO_ACCOUNT');
-    // validateToken must still report false (no stale expiry leaked through).
     await expect(svc.validateToken()).resolves.toEqual({ success: true, data: false });
   });
 
@@ -248,29 +224,20 @@ describe('authService.getAccessToken (SEC-S4: InteractionRequired drops expiry)'
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     const svc = createAuthService(h.deps);
 
-    // First, a good acquisition primes lastKnownExpiry far in the future.
     h.setSilentResult({ accessToken: 'at', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
     await svc.getAccessToken();
-    // Sanity: short-circuit now active.
     await expect(svc.validateToken()).resolves.toEqual({ success: true, data: true });
 
-    // Now silent acquisition starts failing with InteractionRequired.
     h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
     const r = await svc.getAccessToken();
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error.code).toBe('INTERACTION_REQUIRED');
 
-    // The cached expiry for this account is gone, so
-    // validateToken can no longer short-circuit to a stale `true`. It falls
-    // through to getAccessToken, which now returns INTERACTION_REQUIRED → false.
     const validated = await svc.validateToken();
     expect(validated).toEqual({ success: true, data: false });
   });
 });
 
-// ---------------------------------------------------------------------------
-// Token-cache corruption honesty
-// ---------------------------------------------------------------------------
 describe('BEH-B2: corruption invalidates in-memory auth state', () => {
   it('registers a corruption hook on construction', () => {
     const h = createHarness();
@@ -286,13 +253,10 @@ describe('BEH-B2: corruption invalidates in-memory auth state', () => {
     await svc.getAccessToken();
     await expect(svc.validateToken()).resolves.toEqual({ success: true, data: true });
 
-    // Simulate the persistent cache detecting corruption and purging itself.
-    h.accounts.length = 0; // cache is gone
+    h.accounts.length = 0;
     h.persisted.cache = null;
     h.corruptionListeners.forEach((fn) => fn());
 
-    // After corruption, the account + expiry are nulled, so validateToken must
-    // NOT lie — it falls through to getAccessToken which now finds NO_ACCOUNT.
     const validated = await svc.validateToken();
     expect(validated).toEqual({ success: true, data: false });
   });
@@ -301,17 +265,13 @@ describe('BEH-B2: corruption invalidates in-memory auth state', () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     const svc = createAuthService(h.deps);
     h.setSilentResult({ accessToken: 'at', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
-    await svc.getAccessToken(); // hydrates this.account
+    await svc.getAccessToken();
 
     svc.invalidateCache();
-    // No persisted userInfo → getCurrentUser returns null (account was nulled).
     await expect(svc.getCurrentUser()).resolves.toEqual({ success: true, data: null });
   });
 });
 
-// ---------------------------------------------------------------------------
-// isAuthenticated non-mutating + initializeCache idempotent
-// ---------------------------------------------------------------------------
 describe('NEW-AUTH-2: non-mutating reads, idempotent cache init', () => {
   it('initializeCache() deserializes at most once across many reads', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
@@ -322,7 +282,6 @@ describe('NEW-AUTH-2: non-mutating reads, idempotent cache init', () => {
     await svc.isAuthenticated();
     await svc.getAccessToken();
 
-    // deserialize is the side-effecting step in initializeCache; it must run once.
     expect(h.deps.msalClient.getTokenCache().deserialize).toHaveBeenCalledTimes(1);
   });
 
@@ -336,9 +295,6 @@ describe('NEW-AUTH-2: non-mutating reads, idempotent cache init', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Logout cookie symmetry + reusedPreviousAccount + proactive sweep
-// ---------------------------------------------------------------------------
 describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
   it('clears cookie jars sequentially (jar a then jar b), not via allSettled', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
@@ -352,8 +308,6 @@ describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     const svc = createAuthService(h.deps);
     await svc.logout();
-    // Each jar must clear cookies AND the per-account web storages so a second
-    // account can't surface the first account's cached Power BI content.
     for (const call of h.cookieClearCalls) {
       expect(call.storages).toEqual(
         expect.arrayContaining([
@@ -372,7 +326,6 @@ describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
     const svc = createAuthService(h.deps);
     const result = await svc.logout();
     expect(result.success).toBe(true);
-    // Both jars had their HTTP cache flushed, not just their storage data.
     expect(h.cacheClearCalls).toEqual(['a', 'b']);
     expect(h.deps.getCookieJars()[0]!.clearCache).toHaveBeenCalled();
     expect(h.deps.getCookieJars()[1]!.clearCache).toHaveBeenCalled();
@@ -408,17 +361,15 @@ describe('BEH-B1: logout cookie clearing is sequential and fail-loud', () => {
 
 describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
   it('sweeps partition cookies before opening the auth window when signed out', async () => {
-    const h = createHarness(); // no accounts, no pending state
+    const h = createHarness();
     const svc = createAuthService(h.deps);
     await svc.login();
-    // The proactive sweep ran (both jars cleared) BEFORE the auth-code exchange.
     expect(h.cookieClearCalls.map((c) => c.jar)).toEqual(['a', 'b']);
   });
 
   it('does NOT sweep when an account already exists', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     const svc = createAuthService(h.deps);
-    // Force hydration of this.account first.
     h.setSilentResult({ accessToken: 'at', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
     await svc.getAccessToken();
     h.cookieClearCalls.length = 0;
@@ -432,7 +383,6 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
     await svc.login();
     const getAuthCodeUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
     const lastCall = getAuthCodeUrl.mock.calls.at(-1)?.[0];
-    // No forced account picker — AAD can silently continue an existing session.
     expect(lastCall).not.toHaveProperty('prompt');
   });
 
@@ -449,7 +399,6 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
     const h = createHarness();
     const svc = createAuthService(h.deps);
     const result = await svc.login();
-    // Narrow to the success-data variant; fails loudly if login regressed.
     expect(result.success && result.data.success).toBe(true);
     if (result.success && result.data.success) {
       expect(result.data.reusedPreviousAccount).toBe(false);
@@ -458,7 +407,6 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
 
   it('reports reusedPreviousAccount=true when the same account signs back in', async () => {
     const h = createHarness();
-    // Persisted user info from a prior session for the SAME account acquireTokenByCode returns.
     h.persisted.userInfo = { homeAccountId: 'acct-1', displayName: 'T', email: 'e' };
     const svc = createAuthService(h.deps);
     const result = await svc.login();
@@ -472,7 +420,7 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
     const h = createHarness();
     h.persisted.userInfo = { homeAccountId: 'other-account', displayName: 'O', email: 'o' };
     const svc = createAuthService(h.deps);
-    const result = await svc.login(); // acquireTokenByCode returns acct-1
+    const result = await svc.login();
     expect(result.success && result.data.success).toBe(true);
     if (result.success && result.data.success) {
       expect(result.data.reusedPreviousAccount).toBe(false);
@@ -480,20 +428,15 @@ describe('BEH-B1: proactive pre-login sweep + reusedPreviousAccount', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// ACTIVE-account source of truth (homeAccountId-keyed)
-// ---------------------------------------------------------------------------
 describe('NEW-AUTH-1: active account selection', () => {
   it('(a) first login adopts the new account as active and persists it', async () => {
-    const h = createHarness(); // no accounts; acquireTokenByCode adds acct-1
+    const h = createHarness();
     const svc = createAuthService(h.deps);
 
     const result = await svc.login();
     expect(result.success && result.data.success).toBe(true);
 
-    // The just-signed-in account is now persisted as the active id.
     expect(h.persisted.activeId).toBe('acct-1');
-    // getActiveAccount resolves to it without re-adopting.
     const active = await svc.getActiveAccount();
     expect(active?.homeAccountId).toBe('acct-1');
   });
@@ -505,30 +448,28 @@ describe('NEW-AUTH-1: active account selection', () => {
 
     const active = await svc.getActiveAccount();
     expect(active?.homeAccountId).toBe('acct-1');
-    // First-login behaviour: it adopted + persisted acct-1.
     expect(h.persisted.activeId).toBe('acct-1');
     expect(h.deps.persistentCache.saveActiveAccountId).toHaveBeenCalledWith('acct-1');
   });
 
   it('(a) getActiveAccount honors a persisted active id over accounts[0]', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1'), makeAccount('acct-2')] });
-    h.persisted.activeId = 'acct-2'; // restart with acct-2 chosen previously
+    h.persisted.activeId = 'acct-2';
     const svc = createAuthService(h.deps);
 
     const active = await svc.getActiveAccount();
     expect(active?.homeAccountId).toBe('acct-2');
-    // It did NOT re-adopt/persist; the persisted id already matched a live account.
     expect(h.deps.persistentCache.saveActiveAccountId).not.toHaveBeenCalled();
   });
 
   it('(a) getActiveAccount falls back + adopts when the persisted id is stale', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
-    h.persisted.activeId = 'ghost-account'; // account no longer in the cache
+    h.persisted.activeId = 'ghost-account';
     const svc = createAuthService(h.deps);
 
     const active = await svc.getActiveAccount();
     expect(active?.homeAccountId).toBe('acct-1');
-    expect(h.persisted.activeId).toBe('acct-1'); // re-adopted the surviving account
+    expect(h.persisted.activeId).toBe('acct-1');
   });
 
   it('(a) getActiveAccount returns null when the cache holds no accounts', async () => {
@@ -542,24 +483,19 @@ describe('NEW-AUTH-1: active account selection', () => {
     h.persisted.activeId = 'acct-1';
     const svc = createAuthService(h.deps);
 
-    // Hydrate this.account from the active selection (a token call would do this
-    // in the real flow). Baseline: getUser reflects the active account, acct-1.
     h.setSilentResult({ accessToken: 'at-1', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
     await svc.getAccessToken();
     const before = await svc.getCurrentUser();
     expect(before.success && before.data?.id).toBe('acct-1');
 
-    // Switch to acct-2.
     const switched = await svc.setActiveAccount('acct-2');
     expect(switched.success).toBe(true);
     expect(h.persisted.activeId).toBe('acct-2');
 
-    // getUser now reflects acct-2.
     const after = await svc.getCurrentUser();
     expect(after.success && after.data?.id).toBe('acct-2');
     expect(after.success && after.data?.email).toBe('b@x.com');
 
-    // getAccessToken acquires silently against acct-2 (the new active account).
     h.setSilentResult({ accessToken: 'at-2', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
     const token = await svc.getAccessToken();
     expect(token.success).toBe(true);
@@ -574,7 +510,6 @@ describe('NEW-AUTH-1: active account selection', () => {
     const result = await svc.setActiveAccount('not-a-real-account');
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('ACCOUNT_NOT_FOUND');
-    // The active selection was untouched.
     expect(h.deps.persistentCache.saveActiveAccountId).not.toHaveBeenCalled();
   });
 
@@ -587,52 +522,38 @@ describe('NEW-AUTH-1: active account selection', () => {
     expect(h.persisted.activeId).toBeNull();
     expect(h.deps.persistentCache.saveActiveAccountId).toHaveBeenCalledWith(null);
 
-    // A fresh getActiveAccount after logout finds no accounts → null, nothing adopted.
     await expect(svc.getActiveAccount()).resolves.toBeNull();
   });
 
   it('(c) login overwrites a stale active id from a previous account (switch)', async () => {
     const h = createHarness();
-    h.persisted.activeId = 'old-account'; // a prior, different active account
+    h.persisted.activeId = 'old-account';
     const svc = createAuthService(h.deps);
 
-    await svc.login(); // acquireTokenByCode signs in acct-1
+    await svc.login();
     expect(h.persisted.activeId).toBe('acct-1');
   });
 });
 
-// ---------------------------------------------------------------------------
-// In-app account switch — logout() THEN login(prompt=select_account)
-// ---------------------------------------------------------------------------
 describe('PROD-B1: switchAccount', () => {
   it('logs out (clears cookies, expiry map, active id) THEN logs in', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     h.persisted.activeId = 'acct-1';
     const svc = createAuthService(h.deps);
 
-    // Prime an in-memory expiry for acct-1 so we can assert logout cleared it:
-    // a successful getAccessToken primes lastKnownExpiry, which lets validateToken
-    // short-circuit to true. After the switch the map is cleared, so a later
-    // validateToken cannot short-circuit against the old account's expiry.
     h.setSilentResult({ accessToken: 'at', expiresOn: new Date(Date.now() + 60 * 60 * 1000) });
     await svc.getAccessToken();
     await expect(svc.validateToken()).resolves.toEqual({ success: true, data: true });
 
-    h.cookieClearCalls.length = 0; // ignore the proactive pre-login sweep history
+    h.cookieClearCalls.length = 0;
 
     const result = await svc.switchAccount();
 
-    // Returns the same success shape as login().
     expect(result.success && result.data.success).toBe(true);
 
-    // logout ran: cookies cleared sequentially (jar a then jar b). The switch
-    // also triggers login's proactive pre-login sweep, but the logout sweep is
-    // guaranteed to have happened — assert both jars were cleared at least once.
     expect(h.cookieClearCalls.some((c) => c.jar === 'a')).toBe(true);
     expect(h.cookieClearCalls.some((c) => c.jar === 'b')).toBe(true);
 
-    // logout cleared the persisted active id; the subsequent login re-adopts the
-    // newly signed-in account (acct-1 from the fake acquireTokenByCode).
     expect(h.persisted.activeId).toBe('acct-1');
   });
 
@@ -674,7 +595,6 @@ describe('PROD-B1: switchAccount', () => {
     h.persisted.activeId = 'acct-1';
     const svc = createAuthService(h.deps);
 
-    // The auth window resolves null with no AAD error → user cancelled the picker.
     h.openAuthResult.value = null;
     const openAuth = h.deps.openAuthWindow as ReturnType<typeof vi.fn>;
     openAuth.mockResolvedValueOnce(null);
@@ -683,21 +603,18 @@ describe('PROD-B1: switchAccount', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('LOGIN_CANCELLED');
 
-    // The logout phase still happened: the active id was cleared (user is signed
-    // out), so the renderer falls back to the login screen.
     expect(h.persisted.activeId).toBeNull();
   });
 
   it('surfaces logout failure WITHOUT opening the login window', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
-    h.setJarBFails(true); // logout's cookie clear fails loud
+    h.setJarBFails(true);
     const svc = createAuthService(h.deps);
 
     const result = await svc.switchAccount();
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('LOGOUT_FAILED');
 
-    // login was never reached — no authorization URL was requested.
     expect(h.deps.msalClient.getAuthCodeUrl).not.toHaveBeenCalled();
   });
 });
@@ -714,11 +631,9 @@ describe('getAdminAccessToken (incremental consent, admin tier)', () => {
       expect(result.data.accessToken).toBe('admin-at');
       expect(result.data.expiresOn).toBe('2030-01-01T00:00:00.000Z');
     }
-    // The silent request targeted the admin scope, not the base scopes.
     const silent = h.deps.msalClient.acquireTokenSilent as ReturnType<typeof vi.fn>;
     const scopes = (silent.mock.calls[0]?.[0] as { scopes: string[] }).scopes;
     expect(scopes.some((s) => s.includes('Tenant.Read.All'))).toBe(true);
-    // No auth window was opened.
     expect(h.deps.openAuthWindow).not.toHaveBeenCalled();
   });
 
@@ -731,7 +646,6 @@ describe('getAdminAccessToken (incremental consent, admin tier)', () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.accessToken).toBe('at');
 
-    // The interactive request asked for the SUPERSET (base + admin scopes).
     const getUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
     const scopes = (getUrl.mock.calls[0]?.[0] as { scopes: string[] }).scopes;
     expect(scopes.some((s) => s.includes('Tenant.Read.All'))).toBe(true);
@@ -747,7 +661,6 @@ describe('getAdminAccessToken (incremental consent, admin tier)', () => {
     const result = await svc.getAdminAccessToken();
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('ADMIN_CONSENT_CANCELLED');
-    // The in-flight guard was released: a later attempt can run interactively.
     const again = await svc.getAdminAccessToken();
     expect(again.success).toBe(true);
   });
@@ -776,7 +689,6 @@ describe('getAdminAccessToken — account-mismatch guard', () => {
   it('rejects when the consented account differs from the signed-in account', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
     h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
-    // The consent dialog returns a DIFFERENT account ("Use a different account").
     (h.deps.msalClient.acquireTokenByCode as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       accessToken: 'at',
       expiresOn: new Date(Date.now() + 3_600_000),
@@ -788,7 +700,6 @@ describe('getAdminAccessToken — account-mismatch guard', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe('ADMIN_ACCOUNT_MISMATCH');
 
-    // The original session is intact: a normal token call still resolves acct-1.
     h.setSilentResult({ accessToken: 'base', expiresOn: new Date(Date.now() + 3_600_000) });
     const base = await svc.getAccessToken();
     expect(base.success).toBe(true);

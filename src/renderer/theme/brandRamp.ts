@@ -1,13 +1,6 @@
 import { createLightTheme, createDarkTheme } from '@fluentui/react-components';
 import type { BrandVariants } from '@fluentui/react-components';
 
-/**
- * Safety-Orange brand ramp anchored on #FF5F15.
- * Step 80 is the primary brand stop (colorBrandBackground in light theme).
- * The ramp is monotonically darkening from step 10 (lightest) to 160 (darkest),
- * as required by Fluent's createLightTheme/createDarkTheme.
- * Steps 10–70 are lighter tints; 90–160 are deeper shades for hover/pressed/dark surfaces.
- */
 const orangeRamp: BrandVariants = {
   10: '#FFF5F0',
   20: '#FFE8D9',

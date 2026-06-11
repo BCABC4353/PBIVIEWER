@@ -1,14 +1,6 @@
 import React from 'react';
 
-// ---------------------------------------------------------------------------
-// Small Luce primitives (scoped to this page)
-// ---------------------------------------------------------------------------
 
-/**
- * Switchgear (D10): every button presses 80ms INTO the panel and releases on
- * the 250ms settle spring (see .luce-btn). `primary` is the gear selector —
- * the one capsule with the anodised bezel and a resting glow (D9/D10).
- */
 export const LuceButton: React.FC<
   React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'primary' | 'accent' | 'quiet' }
 > = ({ tone = 'quiet', className, style, children, ...rest }) => (

@@ -7,7 +7,6 @@ import {
 } from './workspace-tiles';
 import type { Refreshable } from './types';
 
-/** Minimal honest refreshable — override what the case is about. */
 function make(over: Partial<Refreshable>): Refreshable {
   return {
     kind: 'dataset',
@@ -74,10 +73,6 @@ describe('groupFleetByWorkspace', () => {
   });
 
   it('an overdue tile outranks quiet Never and Running tiles (Matt #4 order)', () => {
-    // Converged 2026-06-11 on the desktop's Matt #4 ruling (insights-luce.ts
-    // itemRank): Failed, Cancelled, Overdue, Never, Running, OK, Live. The
-    // old mobile statusOrder ranked an overdue-but-Completed workspace BELOW
-    // quiet Never/InProgress ones.
     const tiles = groupFleetByWorkspace([
       make({ id: 'n', workspaceId: 'wN', workspaceName: 'Neverland', lastStatus: 'Never' }),
       make({ id: 'r', workspaceId: 'wR', workspaceName: 'Running', lastStatus: 'InProgress' }),
@@ -88,7 +83,7 @@ describe('groupFleetByWorkspace', () => {
 
   it('counts each item exactly once, status before overdue', () => {
     const tile = groupFleetByWorkspace([
-      make({ id: '1', lastStatus: 'Failed', scheduleOverdue: true }), // failed, NOT also overdue
+      make({ id: '1', lastStatus: 'Failed', scheduleOverdue: true }),
       make({ id: '2', lastStatus: 'Cancelled' }),
       make({ id: '3', lastStatus: 'Never', kind: 'dataflow' }),
       make({ id: '4', lastStatus: 'Completed', scheduleOverdue: true }),

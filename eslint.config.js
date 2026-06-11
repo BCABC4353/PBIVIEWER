@@ -1,16 +1,3 @@
-// ESLint flat config (eslint.config.js) — see https://eslint.org/docs/latest/use/configure/configuration-files-new
-//
-// Notes for future maintainers:
-//   - `@typescript-eslint/no-unused-vars` is OFF because we delegate that to
-//     TypeScript via `noUnusedLocals` / `noUnusedParameters` in tsconfig.*.json
-//     (see Sprint 3, task DX-02).
-//   - `react-hooks/exhaustive-deps` is set to "warn" rather than "error" on
-//     purpose: the existing codebase has accumulated violations and turning the
-//     rule on as an error would flood CI red. Promote to "error" once the
-//     existing warnings have been cleaned up (planned Sprint-4 follow-up).
-//   - `no-console` allows `console.warn` and `console.error` because esbuild's
-//     `pure` config (DX-01) keeps those calls in production; `console.log` /
-//     `debug` / `info` should still be flagged so they don't ship.
 
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
@@ -32,11 +19,6 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  // NEW-CI-7: plain JS config files and scripts run in Node, not the browser.
-  // Declare Node globals so `require`, `__dirname`, `process`, `module`, etc.
-  // resolve without no-undef errors.  Also disable TS-specific rules that are
-  // irrelevant for .js files (TypeScript-ESLint applies them by default when
-  // tseslint.configs.recommended is spread globally).
   {
     files: ['*.config.js', 'scripts/*.js'],
     languageOptions: {
@@ -67,12 +49,10 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-hooks/rules-of-hooks': 'error',
-      // Start as warn so the existing codebase doesn't all light up red; promote
-      // to error once existing violations are cleaned up.
       'react-hooks/exhaustive-deps': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      // tsc owns this via noUnusedLocals/noUnusedParameters (DX-02).
       '@typescript-eslint/no-unused-vars': 'off',
     },
   }

@@ -43,7 +43,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   return (
     <div className="h-screen flex flex-col bg-neutral-background-2">
-      {/* Skip link — visually hidden until focused */}
+      {}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-neutral-background-1 focus:text-neutral-foreground-1 focus:rounded focus:shadow-fluent-4 focus:outline-none focus:ring-2 focus:ring-accent-primary"
@@ -51,14 +51,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         Skip to main content
       </a>
 
-      {/* Banner landmark wraps the application chrome at the top */}
+      {}
       <header role="banner">
         <TitleBar />
       </header>
 
-      {/* Main content area */}
+      {}
       <div className="flex-1 flex overflow-hidden">
-        {/* Navigation landmark wraps the sidebar */}
+        {}
         <nav aria-label="Application navigation">
           <Sidebar
             collapsed={settings.sidebarCollapsed}
@@ -70,7 +70,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           />
         </nav>
 
-        {/* Named main landmark — id used by skip link */}
+        {}
         <main
           id="main-content"
           aria-label="Main content"
@@ -81,7 +81,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </main>
       </div>
 
-      {/* Contentinfo landmark — application footer / status area */}
+      {}
       <footer role="contentinfo" className="sr-only">
         Power BI Viewer
       </footer>

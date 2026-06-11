@@ -1,15 +1,3 @@
-/**
- * The global slideshow keydown handler must NOT hijack
- * Space/Arrows/Escape/p from interactive overlay controls (the scrubber
- * role="slider", ViewerToolbar buttons, the Settings slider, dot-indicator
- * buttons, inputs, contenteditable). It must still drive slideshow navigation
- * when focus is on the slide surface / overlay background.
- *
- * Two layers of coverage:
- *   1. Pure predicate `isInteractiveTarget` (every branch).
- *   2. Component-level: dispatch real KeyboardEvents from real DOM nodes and
- *      assert defaultPrevented + whether the slide actually advanced.
- */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
@@ -19,10 +7,6 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { isInteractiveTarget } from './PresentationMode';
 import type { SlideItem } from '../../hooks/presentation/useSlideList';
 
-// ---------------------------------------------------------------------------
-// Mock the heavy embed hooks so PresentationMode renders deterministically with
-// a controlled slide list and no real powerbi-client / IPC embed.
-// ---------------------------------------------------------------------------
 const makeSlides = (n: number): SlideItem[] =>
   Array.from({ length: n }, (_, i) => ({
     type: 'page' as const,
@@ -30,7 +14,7 @@ const makeSlides = (n: number): SlideItem[] =>
     displayName: `Page ${i + 1}`,
   }));
 
-const MANY = 25; // > 20 → renders the scrubber (role="slider")
+const MANY = 25;
 const slidesMock = makeSlides(MANY);
 
 vi.mock('../../hooks/usePowerBIEmbed', () => ({
@@ -52,8 +36,6 @@ vi.mock('../../hooks/presentation/useSlideList', () => ({
   }),
 }));
 
-// Neutralize the side-effecty presentation hooks (fullscreen, cursor hide,
-// kiosk power/gestures) so they don't touch jsdom-unsupported APIs.
 vi.mock('../../hooks/presentation/useFocusTrap', () => ({ useFocusTrap: vi.fn() }));
 vi.mock('../../hooks/presentation/useExitOnFullscreenChange', () => ({
   useExitOnFullscreenChange: vi.fn(),
@@ -67,7 +49,6 @@ vi.mock('../../hooks/presentation/useDebouncedSettings', () => ({
   useDebouncedSettings: () => ({ onIntervalChange: vi.fn() }),
 }));
 
-// Import after mocks are registered.
 import { PresentationMode } from './PresentationMode';
 
 function renderPresentation() {
@@ -84,11 +65,6 @@ function renderPresentation() {
   return result!;
 }
 
-/**
- * Dispatch a real keydown from a specific element and report whether the global
- * window handler called preventDefault on it. The event bubbles to window where
- * PresentationMode's listener lives.
- */
 function dispatchKeyFrom(el: Element, key: string): boolean {
   const event = new KeyboardEvent('keydown', {
     key,
@@ -154,10 +130,6 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
     const scrubber = screen.getByRole('slider', { name: 'Slide scrubber' });
     const before = valueNow(scrubber);
 
-    // The scrubber's own onKeyDown does not handle Space, and the GLOBAL handler
-    // must bail on an interactive target — so nothing prevents default and the
-    // slide does not advance. (If the global handler ran it would preventDefault
-    // and advance.)
     expect(dispatchKeyFrom(scrubber, ' ')).toBe(false);
     expect(valueNow(scrubber)).toBe(before);
   });
@@ -167,8 +139,6 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
     const scrubber = screen.getByRole('slider', { name: 'Slide scrubber' });
     const before = valueNow(scrubber);
 
-    // The scrubber's own onKeyDown handles ArrowRight (advance + preventDefault).
-    // The global handler must NOT also fire, otherwise the slide would jump by 2.
     dispatchKeyFrom(scrubber, 'ArrowRight');
     expect(valueNow(scrubber)).toBe(before + 1);
   });
@@ -179,8 +149,6 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
     const scrubber = screen.getByRole('slider', { name: 'Slide scrubber' });
     const before = valueNow(scrubber);
 
-    // Global handler must bail (toolbar is data-viewer-toolbar). No preventDefault,
-    // no navigation.
     expect(dispatchKeyFrom(exitBtn, ' ')).toBe(false);
     expect(dispatchKeyFrom(exitBtn, 'ArrowRight')).toBe(false);
     expect(valueNow(scrubber)).toBe(before);
@@ -191,19 +159,14 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
     const dialog = screen.getByRole('dialog', { name: 'Presentation mode' });
     const scrubber = screen.getByRole('slider', { name: 'Slide scrubber' });
 
-    // Slide 1 of MANY initially.
     expect(valueNow(scrubber)).toBe(1);
 
-    // ArrowRight from the overlay background (a plain div, not interactive):
-    // global handler preventDefaults AND advances the slide.
     expect(dispatchKeyFrom(dialog, 'ArrowRight')).toBe(true);
     expect(valueNow(scrubber)).toBe(2);
 
-    // Space also advances.
     expect(dispatchKeyFrom(dialog, ' ')).toBe(true);
     expect(valueNow(scrubber)).toBe(3);
 
-    // ArrowLeft goes back.
     expect(dispatchKeyFrom(dialog, 'ArrowLeft')).toBe(true);
     expect(valueNow(scrubber)).toBe(2);
   });
@@ -216,9 +179,6 @@ describe('#6 persistent kiosk exit hint', () => {
 
   it('renders a manual-mode exit hint ("Press Esc to exit") matching the single-Esc exit', () => {
     renderPresentation();
-    // Manual slideshow (autoStartSlideshow false): a single Esc exits, so the
-    // hint must say that — NOT the kiosk-only "hold 3s / Ctrl+Shift+Q" gesture,
-    // which only applies when the slideshow auto-started unattended.
     expect(screen.getByText('Press Esc to exit')).not.toBeNull();
     expect(screen.queryByText('Hold Esc 3s to exit')).toBeNull();
   });
@@ -226,18 +186,13 @@ describe('#6 persistent kiosk exit hint', () => {
   it('marks the hint aria-hidden so it is not noise for screen readers', () => {
     renderPresentation();
     const hint = screen.getByText('Press Esc to exit');
-    // The hint lives in an aria-hidden wrapper (visual-only guidance).
     expect(hint.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
   it('keeps the hint mounted independently of the auto-hide controls (kiosk persistence)', () => {
     renderPresentation();
-    // The hint must NOT be a descendant of the controls/toolbar region, so it
-    // survives when showControls toggles off in the autoStart/kiosk scenario.
     const hint = screen.getByText('Press Esc to exit');
     expect(hint.closest('[data-viewer-toolbar]')).toBeNull();
-    // Hiding the controls block does not remove the hint: it's rendered as a
-    // sibling, so simply assert it stays present after a re-query.
     expect(screen.queryByText('Press Esc to exit')).not.toBeNull();
   });
 });
@@ -251,11 +206,6 @@ describe('PROD-S1 / antagonist P0: Escape is a global exit handled regardless of
     renderPresentation();
     const exitBtn = screen.getByRole('button', { name: 'Exit' });
 
-    // Regression guard: Escape must be handled BEFORE the interactive-target
-    // bail — otherwise the handler returns early (no preventDefault) and Escape
-    // over a toolbar button never exits. preventDefault is called for Escape in
-    // both manual and kiosk modes, so this assertion is mode-independent and
-    // proves the global handler ran.
     expect(dispatchKeyFrom(exitBtn, 'Escape')).toBe(true);
   });
 
@@ -268,8 +218,6 @@ describe('PROD-S1 / antagonist P0: Escape is a global exit handled regardless of
     });
     expect(screen.queryByText('Slideshow Settings')).not.toBeNull();
 
-    // Escape (dispatched from the interactive settings button) closes the panel
-    // and must NOT exit the slideshow — the dialog stays mounted.
     expect(dispatchKeyFrom(settingsBtn, 'Escape')).toBe(true);
     expect(screen.queryByText('Slideshow Settings')).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Presentation mode' })).not.toBeNull();

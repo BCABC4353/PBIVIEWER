@@ -1,14 +1,3 @@
-/**
- * App view per-report freshness — logic-level tests (no webview needed).
- *
- * Power BI stamps each report inside an app individually, so the header must
- * show the refresh time of the report CURRENTLY on screen:
- *   - parseReportIdFromUrl: the app SPA's URL is the only signal for which
- *     report is viewed — /reports/{guid}/ReportSection… → guid, home → null.
- *   - selectFreshnessTarget: a known report WITH a dataset → single-dataset
- *     getDataFreshness args ('report' mode); anything else → the app-wide
- *     aggregate fallback ('aggregate' mode, the v2.2.10 behavior).
- */
 
 import { describe, it, expect } from 'vitest';
 
@@ -69,7 +58,6 @@ describe('parseReportIdFromUrl', () => {
     expect(
       parseReportIdFromUrl(`https://app.powerbi.com/groups/me/apps/${APP_ID}/reports/notaguid`),
     ).toBeNull();
-    // 37 hex-ish chars: a GUID-length prefix of a longer token must NOT match.
     expect(
       parseReportIdFromUrl(
         `https://app.powerbi.com/groups/me/apps/${APP_ID}/reports/${REPORT_A}f/ReportSection1`,
@@ -78,13 +66,11 @@ describe('parseReportIdFromUrl', () => {
   });
 
   it('requires the real 8-4-4-4-12 GUID shape, not any 36-char hex/dash run', () => {
-    // 36 dashes — length matches, shape does not.
     expect(
       parseReportIdFromUrl(
         `https://app.powerbi.com/groups/me/apps/${APP_ID}/reports/${'-'.repeat(36)}/x`,
       ),
     ).toBeNull();
-    // 36 ungrouped hex chars — length matches, grouping does not.
     expect(
       parseReportIdFromUrl(
         `https://app.powerbi.com/groups/me/apps/${APP_ID}/reports/${'a'.repeat(36)}/x`,
@@ -147,7 +133,6 @@ describe('selectFreshnessTarget', () => {
       mode: 'report',
       datasets: [{ datasetId: 'ds-workflows', workspaceId: 'ws-1' }],
     });
-    // case-insensitive on the original id as well
     expect(selectFreshnessTarget(original.toUpperCase(), withOriginal, aggregate).mode).toBe(
       'report',
     );
@@ -170,7 +155,6 @@ describe('selectFreshnessTarget', () => {
     const target = selectFreshnessTarget('deadbeef-dead-beef-dead-beefdeadbeef', reports, aggregate);
     expect(target.mode).toBe('aggregate');
     expect(target.datasets).toEqual(aggregate);
-    // The caller escalates this id to the main-process resolver.
     expect(target.unresolvedReportId).toBe('deadbeef-dead-beef-dead-beefdeadbeef');
   });
 

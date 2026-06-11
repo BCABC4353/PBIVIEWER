@@ -21,18 +21,11 @@ import {
 } from '../core/dax';
 import { BarChart, DataTable, DonutChart, KpiTile, LineChart, VisualCard } from '../visuals';
 
-/**
- * A report page rendered ENTIRELY in the app's own design language — each
- * visual runs its DAX through the injected runner (mock offline, executeDax
- * live) and draws with the native visual library. No embedded canvas, ever.
- */
 export const ReportCanvasScreen: React.FC<{
   spec: CanvasSpec;
   runQuery: (dax: string) => Promise<QueryResult>;
   onBack: () => void;
 }> = ({ spec, runQuery, onBack }) => {
-  // Portrait: KPIs ride 2-up at the top, everything else stacks full-width.
-  // Landscape: the KPI grid goes 4-up and the big visuals pair 2-up.
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
   const kpis = useMemo(() => spec.visuals.filter((v) => v.kind === 'kpi'), [spec]);
@@ -75,7 +68,6 @@ export const ReportCanvasScreen: React.FC<{
   );
 };
 
-/** One visual: query lifecycle + staggered fade/translate entrance. */
 const CanvasVisual: React.FC<{
   visual: VisualSpec;
   runQuery: (dax: string) => Promise<QueryResult>;
@@ -99,7 +91,6 @@ const CanvasVisual: React.FC<{
     void load();
   }, [load]);
 
-  // Entrance with weight: fade + settle up, staggered per visual.
   const enter = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(enter, {
@@ -148,8 +139,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: color.canvas,
-    // SafeAreaView is iOS-only; on Android the first render would slide
-    // under the status bar without this.
     paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
   },
   back: { paddingHorizontal: space.l, paddingVertical: space.s },
@@ -158,10 +147,8 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: color.textPrimary, marginBottom: space.s },
   kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m },
   kpiTile: { flex: 1 },
-  // Landscape: ~quarter-width basis → 4 tiles per row (grow fills shortfall).
   kpiTileLandscape: { flexGrow: 1, flexBasis: '22%' },
   visualsStack: { gap: space.m },
   visualsGridLandscape: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m },
-  // Landscape: ~half-width basis → big visuals pair up side-by-side.
   visualHalf: { flexGrow: 1, flexBasis: '45%' },
 });

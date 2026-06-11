@@ -1,31 +1,12 @@
 import { useRef, useState } from 'react';
 import type * as pbi from 'powerbi-client';
 
-/**
- * Shared export hook for ReportViewer + DashboardViewer.
- *
- * Encapsulates the ~70-line export flow: path dialog, bounds calculation,
- * HiDPI correction, status message lifecycle, and the isExporting flag.
- *
- * The caller provides an optional `getReportMeta` callback that, if present,
- * captures the current page name + bookmark state before the API export
- * attempt (report-specific behaviour that DashboardViewer does not need).
- *
- * If the API export path is unavailable (featureNotAvailable / 404) and
- * `containerRef` is provided the hook falls back to a viewport screenshot.
- */
 
 export interface ViewerExportOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
-  /**
-   * Report-only: return { pageName, bookmarkState } to include those in the
-   * API export call. Omit (or return undefined) to skip API export and go
-   * straight to the screenshot fallback.
-   */
   getReportMeta?: (
     embedRef: React.MutableRefObject<pbi.Embed | null>
   ) => Promise<{ pageName?: string; bookmarkState?: string } | undefined>;
-  /** Pass workspaceId + reportId to attempt the API export path first. */
   reportExportIds?: { reportId: string; workspaceId: string };
 }
 
@@ -51,9 +32,6 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const exportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Re-entry guard: the isExporting state lands a render late, so a fast
-  // double-click (or Enter-key repeat) could start two concurrent export flows
-  // racing for the same file path.
   const exportInFlightRef = useRef(false);
 
   const showExportStatus = (message: string) => {
@@ -85,11 +63,9 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
 
       const filePath = pathResponse.data.path;
 
-      // --- API export path (report-only) ---
       if (reportExportIds && getReportMeta) {
         const meta = await getReportMeta(embedRef);
         if (!meta) {
-          // meta undefined means report is not ready
           showExportStatus('Report not ready');
           return;
         }
@@ -118,7 +94,6 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
           return;
         }
 
-        // Feature unavailable — fall through to screenshot fallback with pane hiding
         const report = embedRef.current as pbi.Report | null;
         let hidPanes = false;
         if (report) {
@@ -178,7 +153,6 @@ export function useViewerExport(options: ViewerExportOptions): ViewerExportResul
         return;
       }
 
-      // --- Screenshot-only path (dashboard / app) ---
       const rect = containerRef.current?.getBoundingClientRect();
       const bounds =
         rect && rect.width > 0 && rect.height > 0

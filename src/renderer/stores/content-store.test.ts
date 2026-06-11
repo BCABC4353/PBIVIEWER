@@ -3,10 +3,6 @@ import { useContentStore } from './content-store';
 import { useAuthStore } from './auth-store';
 import type { ContentItem } from '../../shared/types';
 
-// loadRecentItems/loadFrequentItems read the active accountId
-// when the IPC STARTS and re-check it after the await. If an account switch
-// lands mid-flight, the prior account's response must be DISCARDED rather than
-// written into the new account's store.
 
 function item(id: string): ContentItem {
   return {
@@ -54,7 +50,6 @@ describe('content-store loadRecentItems (FIX-3: stale cross-account write)', () 
   });
 
   it('DISCARDS the response when an account switch lands mid-flight', async () => {
-    // The IPC starts under acct-1, but acct-2 signs in before it resolves.
     getRecent.mockImplementation(async () => {
       useAuthStore.setState({ user: { id: 'acct-2', displayName: 'B', email: 'b@x.com' } });
       return { success: true, data: [item('acct-1-recent')] };
@@ -62,7 +57,6 @@ describe('content-store loadRecentItems (FIX-3: stale cross-account write)', () 
 
     await useContentStore.getState().loadRecentItems();
 
-    // acct-1's data must NOT have leaked into the (now acct-2) store.
     expect(useContentStore.getState().recentItems).toEqual([]);
   });
 });

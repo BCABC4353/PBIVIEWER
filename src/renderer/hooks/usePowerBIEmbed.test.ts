@@ -1,20 +1,3 @@
-/**
- * Embed core behavioral coverage — lifecycle / orchestrator.
- *
- * Drives the full usePowerBIEmbed composition (lifecycle + token refresh +
- * watchdog) against a controllable fake Power BI service + fake embed, with the
- * getEmbedToken IPC mocked. Asserts:
- *   - mount fetches a token, builds the config, and embeds it
- *   - the built-in 'loaded' handler clears loading + runs the caller's loaded
- *   - the built-in 'error' handler (pre-load) surfaces the error to UI
- *   - a token-expiry error routes to refresh (setAccessToken), not the error UI
- *   - a not-found error reaches the caller's handler (eviction path) w/o throwing
- *   - a failed token IPC surfaces the friendly error
- *   - the watchdog fires when 'loaded' never arrives
- *   - teardownNow detaches handlers + resets the container; remount re-embeds
- *     exactly once (no double-embed)
- *   - unmount detaches handlers and resets the container
- */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -22,10 +5,6 @@ import * as pbi from 'powerbi-client';
 
 import { isNotFoundError } from '../../shared/powerbi-errors';
 
-// ---------------------------------------------------------------------------
-// Controllable fake embed + Power BI service. usePowerBIService is the single
-// seam: every embed goes through powerbiService.embed()/reset().
-// ---------------------------------------------------------------------------
 const h = vi.hoisted(() => {
   type Handler = (event: unknown) => void;
 
@@ -78,9 +57,6 @@ vi.mock('./usePowerBIService', () => ({
 import { usePowerBIEmbed } from './usePowerBIEmbed';
 import type { UsePowerBIEmbedOptions } from './usePowerBIEmbed';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function makeContainerRef(): React.RefObject<HTMLDivElement | null> {
   return { current: document.createElement('div') };
 }
@@ -111,7 +87,6 @@ function baseOptions(
   };
 }
 
-/** The most recently created fake embed. */
 function lastEmbed() {
   return h.service.embeds.at(-1)!;
 }
@@ -128,7 +103,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/** Render the hook and flush the async load (token IPC + embed). */
 async function renderEmbed(options: UsePowerBIEmbedOptions) {
   const view = renderHook((props: UsePowerBIEmbedOptions) => usePowerBIEmbed(props), {
     initialProps: options,
@@ -183,20 +157,14 @@ describe('#7 usePowerBIEmbed lifecycle', () => {
   });
 
   it('a token-expiry error routes to refresh (setAccessToken), not the error UI', async () => {
-    // Expiry far in the future so the proactive timer cannot fire and mask the
-    // error-driven refresh — the only path that can call setAccessToken here is
-    // the 'error' handler routing TokenExpired to refreshEmbedToken().
     const farExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     tokenResolves('tok', farExpiry);
     const view = await renderEmbed(baseOptions());
-    // Mark as loaded so refreshEmbedToken's loaded-guard passes.
     act(() => lastEmbed().fire('loaded'));
     const embed = lastEmbed();
     embed.setAccessToken.mockClear();
     tokenResolves('refreshed-token', farExpiry);
 
-    // Drive only microtasks — no timers — so a token-expiry refresh is the sole
-    // possible cause of setAccessToken.
     await act(async () => {
       embed.fire('error', { message: 'TokenExpired' });
       await Promise.resolve();
@@ -205,7 +173,6 @@ describe('#7 usePowerBIEmbed lifecycle', () => {
     });
 
     expect(embed.setAccessToken).toHaveBeenCalledWith('refreshed-token');
-    // Token-expiry must NOT paint the error UI.
     expect(view.result.current.error).toBeNull();
   });
 
@@ -220,7 +187,6 @@ describe('#7 usePowerBIEmbed lifecycle', () => {
     );
 
     expect(onError).toHaveBeenCalledTimes(1);
-    // The caller inspects the event detail to decide eviction.
     const event = onError.mock.calls[0]?.[0] as { detail: unknown };
     expect(isNotFoundError(event.detail)).toBe(true);
     expect(view.result.current.error).toBe('PowerBIEntityNotFound');
@@ -276,7 +242,6 @@ describe('#7 usePowerBIEmbed lifecycle', () => {
       await Promise.resolve();
     });
 
-    // One additional embed — the prior one was torn down, not duplicated.
     expect(h.service.embed).toHaveBeenCalledTimes(2);
     expect(h.service.embeds).toHaveLength(2);
   });

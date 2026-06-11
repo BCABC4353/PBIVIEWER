@@ -20,7 +20,6 @@ function res(status: number, body: unknown): DeviceCodeHttpResponse {
   return { status, json: () => Promise.resolve(body) };
 }
 
-/** Scripted fetch: pops one response per call, records every request. */
 function scriptedFetch(responses: DeviceCodeHttpResponse[]) {
   const calls: Array<{ url: string; body: string }> = [];
   const fetch: DeviceCodeFetch = (url, init) => {
@@ -32,7 +31,6 @@ function scriptedFetch(responses: DeviceCodeHttpResponse[]) {
   return { fetch, calls };
 }
 
-/** Instant injected sleep that records requested durations. */
 function fakeSleep() {
   const slept: number[] = [];
   const sleep = (ms: number) => {
@@ -42,7 +40,6 @@ function fakeSleep() {
   return { sleep, slept };
 }
 
-// A minimal unsigned JWT with the identity claims decodeIdToken reads.
 function fakeIdToken(claims: Record<string, unknown>): string {
   const b64url = (s: string) =>
     Buffer.from(s, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -144,7 +141,7 @@ describe('pollDeviceCode state machine', () => {
     );
     expect(calls[0]!.body).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code');
     expect(calls[0]!.body).toContain('device_code=dev-code-opaque');
-    expect(slept).toEqual([5000, 5000, 5000]); // one wait BEFORE each poll
+    expect(slept).toEqual([5000, 5000, 5000]);
     expect(statuses).toEqual(['waiting', 'waiting']);
     expect(set.accessToken).toBe('at-123');
     expect(set.refreshToken).toBe('rt-456');
@@ -168,7 +165,7 @@ describe('pollDeviceCode state machine', () => {
     await pollDeviceCode(CONFIG, challenge(), { fetch, sleep, now: () => 0 }, {
       onStatus: (s) => statuses.push(s),
     });
-    expect(slept).toEqual([5000, 10000, 10000]); // bumped after slow_down, stays bumped
+    expect(slept).toEqual([5000, 10000, 10000]);
     expect(statuses).toEqual(['slow_down', 'waiting']);
   });
 
@@ -187,7 +184,6 @@ describe('pollDeviceCode state machine', () => {
     ]);
     const { sleep } = fakeSleep();
     let t = 0;
-    // Each now() call advances 400 s; expires_in 900 s → a couple of polls then expiry.
     const now = () => {
       const v = t;
       t += 400_000;
@@ -210,9 +206,6 @@ describe('pollDeviceCode state machine', () => {
   it("authorization_declined (Microsoft's spelling of access_denied) → same friendly declined error", async () => {
     const { fetch } = scriptedFetch([res(400, { error: 'authorization_declined' })]);
     const { sleep } = fakeSleep();
-    // The full friendly copy, NOT just /declined/i — the pre-fix fallback
-    // surfaced the raw OAuth code 'authorization_declined', which would have
-    // matched the looser regex and hidden the regression.
     await expect(
       pollDeviceCode(CONFIG, challenge(), { fetch, sleep, now: () => 0 }),
     ).rejects.toThrow('Sign-in was declined on the Microsoft page.');

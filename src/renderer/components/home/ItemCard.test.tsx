@@ -69,10 +69,8 @@ describe('ItemCard — keyboard activation (A11Y-B5)', () => {
     const kebab = screen.getByRole('button', {
       name: `More options for ${mockItem.name}`,
     });
-    // Dispatch a keyDown on the kebab; stopPropagation prevents the card handler
     fireEvent.keyDown(kebab, { key: 'Enter', code: 'Enter' });
 
-    // The card's onKeyDown must not fire because the kebab stopped propagation
     expect(onOpen).not.toHaveBeenCalled();
   });
 });

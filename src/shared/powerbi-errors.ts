@@ -1,7 +1,3 @@
-/**
- * Extract a human-readable error message from an unknown Power BI SDK error detail.
- * Handles strings, Error objects, and nested { message, detailedMessage, error } shapes.
- */
 export function getErrorMessage(detail: unknown): string {
   if (!detail) return '';
   if (typeof detail === 'string') return detail;
@@ -21,9 +17,6 @@ export function getErrorMessage(detail: unknown): string {
   return '';
 }
 
-/**
- * Check whether a Power BI SDK error detail indicates an expired or invalid token.
- */
 export function isTokenExpiredError(detail: unknown): boolean {
   const message = getErrorMessage(detail).toLowerCase();
   return (
@@ -34,17 +27,6 @@ export function isTokenExpiredError(detail: unknown): boolean {
   );
 }
 
-/**
- * Check whether a Power BI SDK error detail indicates a not-found
- * (404) condition — the item has been deleted or moved. Callers (viewers) use
- * this to decide whether to evict the item from the recent/frequent lists.
- *
- * Matches:
- *  - HTTP status codes extracted from throwForStatus messages ("404 -")
- *  - OData / Power BI error codes that map to not-found ("PowerBIEntityNotFound",
- *    "ItemNotFound", "ReportNotFound", "DashboardNotFound")
- *  - SDK-level strings ("not found", "notfound")
- */
 export function isNotFoundError(detail: unknown): boolean {
   const message = getErrorMessage(detail).toLowerCase();
   if (!message) return false;

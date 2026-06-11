@@ -1,8 +1,3 @@
-/**
- * Automated UI shell screenshot script for Power BI Viewer documentation.
- * Starts vite dev server, injects window.electronAPI mock, and captures screenshots.
- * Run: node scripts/take-screenshots.mjs
- */
 
 import puppeteer from 'puppeteer';
 import { spawn } from 'child_process';
@@ -15,9 +10,6 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SCREENSHOTS_DIR = path.join(PROJECT_ROOT, 'docs', 'manual', 'screenshots');
 const BASE_URL = 'http://localhost:5173/';
 
-// ─────────────────────────────────────────────────────────────
-// Sample data for mocks
-// ─────────────────────────────────────────────────────────────
 
 const SAMPLE_USER = {
   id: 'sample-user-id-001',
@@ -74,9 +66,6 @@ const DEFAULT_SETTINGS = {
   usageClearOnLogout: 'never',
 };
 
-// ─────────────────────────────────────────────────────────────
-// Mock factory — serialized and injected into page context
-// ─────────────────────────────────────────────────────────────
 
 function buildMockScript(opts = {}) {
   const {
@@ -209,9 +198,6 @@ function buildMockScript(opts = {}) {
   `;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Dev server management
-// ─────────────────────────────────────────────────────────────
 
 function startDevServer() {
   return new Promise((resolve, reject) => {
@@ -229,7 +215,7 @@ function startDevServer() {
       process.stdout.write('[vite] ' + text);
       if (!resolved && text.includes('localhost:5173')) {
         resolved = true;
-        setTimeout(() => resolve(proc), 1500); // Give vite a moment to fully ready
+        setTimeout(() => resolve(proc), 1500);
       }
     });
 
@@ -239,19 +225,15 @@ function startDevServer() {
 
     proc.on('error', reject);
 
-    // Timeout after 30s
     setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        resolve(proc); // Try anyway
+        resolve(proc);
       }
     }, 30000);
   });
 }
 
-// ─────────────────────────────────────────────────────────────
-// Helper: navigate + wait for React to stabilize
-// ─────────────────────────────────────────────────────────────
 
 async function navigateTo(page, hash, waitMs = 1500) {
   await page.goto(BASE_URL + hash, { waitUntil: 'networkidle0', timeout: 15000 });
@@ -286,21 +268,14 @@ async function screenshotElement(page, selector, filename, padding = 0) {
   return outPath;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Helper: open new page with mock injected
-// ─────────────────────────────────────────────────────────────
 
 async function newMockedPage(browser, mockOpts) {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
-  // Inject mock BEFORE the page script runs
   await page.evaluateOnNewDocument(buildMockScript(mockOpts));
   return page;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Main
-// ─────────────────────────────────────────────────────────────
 
 const captured = [];
 const failed = [];
@@ -318,9 +293,6 @@ async function main() {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
 
-    // ──────────────────────────────────────
-    // 1. Login screen — default (unauthenticated)
-    // ──────────────────────────────────────
     console.log('\n[1] Login screen...');
     try {
       const page = await newMockedPage(browser, { isAuthenticated: false });
@@ -330,14 +302,9 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('01-login.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 2. Login screen — error state
-    // ──────────────────────────────────────
     console.log('\n[2] Login error state...');
     try {
       const page = await newMockedPage(browser, { isAuthenticated: false });
-      // Override login to return an error so clicking Sign-in surfaces the
-      // error state in the auth store.
       await navigateTo(page, '#/login', 2000);
       await page.evaluate(() => {
         const root = document.querySelector('#root');
@@ -351,7 +318,6 @@ async function main() {
           },
         });
       });
-      // Click sign-in to trigger error
       await page.click('button[class*="fui-Button"]');
       await new Promise(r => setTimeout(r, 1500));
       await screenshotFull(page, '02-login-error.png');
@@ -359,9 +325,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('02-login-error.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 3. Home — populated (with usage data)
-    // ──────────────────────────────────────
     console.log('\n[3] Home populated...');
     try {
       const page = await newMockedPage(browser, {
@@ -380,9 +343,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('03-home-populated.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 4. Home — first-run empty state
-    // ──────────────────────────────────────
     console.log('\n[4] Home empty state...');
     try {
       const page = await newMockedPage(browser, {
@@ -401,9 +361,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('04-home-empty.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 5. Title bar close-up (with avatar + tenant badge)
-    // ──────────────────────────────────────
     console.log('\n[5] Title bar close-up...');
     try {
       const page = await newMockedPage(browser, {
@@ -413,7 +370,6 @@ async function main() {
         settings: { ...DEFAULT_SETTINGS, sidebarCollapsed: false },
       });
       await navigateTo(page, '#/', 2000);
-      // Crop just the title bar (first 40px from top)
       await page.screenshot({
         path: path.join(SCREENSHOTS_DIR, '05-titlebar.png'),
         clip: { x: 0, y: 0, width: 1280, height: 48 },
@@ -421,7 +377,6 @@ async function main() {
       console.log('  Saved: 05-titlebar.png');
       captured.push('05-titlebar.png');
 
-      // Open the account menu
       try {
         const avatarBtn = await page.$('[aria-haspopup="menu"]');
         if (avatarBtn) {
@@ -438,9 +393,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('05-titlebar.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 6. Sidebar — expanded
-    // ──────────────────────────────────────
     console.log('\n[6] Sidebar expanded...');
     try {
       const page = await newMockedPage(browser, {
@@ -449,7 +401,6 @@ async function main() {
         settings: { ...DEFAULT_SETTINGS, sidebarCollapsed: false },
       });
       await navigateTo(page, '#/', 2000);
-      // Crop just the sidebar area (left side)
       await page.screenshot({
         path: path.join(SCREENSHOTS_DIR, '06-sidebar-expanded.png'),
         clip: { x: 0, y: 40, width: 260, height: 760 },
@@ -459,9 +410,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('06-sidebar-expanded.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 7. Sidebar — collapsed
-    // ──────────────────────────────────────
     console.log('\n[7] Sidebar collapsed...');
     try {
       const page = await newMockedPage(browser, {
@@ -479,9 +427,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('07-sidebar-collapsed.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 8. Search dialog open
-    // ──────────────────────────────────────
     console.log('\n[8] Search dialog...');
     try {
       const searchResults = [
@@ -507,22 +452,17 @@ async function main() {
         },
       });
       await navigateTo(page, '#/', 2000);
-      // Open search via keyboard shortcut
       await page.keyboard.down('Control');
       await page.keyboard.press('k');
       await page.keyboard.up('Control');
       await new Promise(r => setTimeout(r, 800));
-      // Type a query
       await page.keyboard.type('sales');
-      await new Promise(r => setTimeout(r, 1500)); // wait for search debounce + results
+      await new Promise(r => setTimeout(r, 1500));
       await screenshotFull(page, '08-search-dialog.png');
       captured.push('08-search-dialog.png');
       await page.close();
     } catch (e) { failed.push('08-search-dialog.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 9. Workspaces page
-    // ──────────────────────────────────────
     console.log('\n[9] Workspaces page...');
     try {
       const page = await newMockedPage(browser, {
@@ -537,10 +477,8 @@ async function main() {
       await screenshotFull(page, '09-workspaces-collapsed.png');
       captured.push('09-workspaces-collapsed.png');
 
-      // Try to expand the first workspace by clicking on it
       try {
         const expandBtns = await page.$$('[data-testid="workspace-expand"], button');
-        // Find a button that might expand the workspace
         const allBtns = await page.$$('button');
         for (const btn of allBtns) {
           const text = await btn.evaluate(el => el.textContent);
@@ -557,9 +495,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('09-workspaces-collapsed.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 10. Apps page
-    // ──────────────────────────────────────
     console.log('\n[10] Apps page...');
     try {
       const page = await newMockedPage(browser, {
@@ -574,12 +509,8 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('10-apps-page.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 11. Report viewer toolbar (fresh data)
-    // ──────────────────────────────────────
     console.log('\n[11] Report viewer toolbar...');
     try {
-      // Recent refresh time = 30 minutes ago (not stale)
       const freshTime = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const page = await newMockedPage(browser, {
         isAuthenticated: true,
@@ -588,13 +519,11 @@ async function main() {
         reports: SAMPLE_REPORTS,
         settings: { ...DEFAULT_SETTINGS, sidebarCollapsed: false },
       });
-      // Override getDatasetRefreshInfo to return a fresh time
       await page.evaluateOnNewDocument(`
         const _orig = window.electronAPI;
         // This runs before our main mock — defer to after page load
       `);
       await navigateTo(page, '#/report/ws-001/rpt-001', 3000);
-      // Patch getDatasetRefreshInfo after load
       await page.evaluate((freshTime) => {
         window.electronAPI.content.getDatasetRefreshInfo = async () => ({
           success: true,
@@ -602,10 +531,8 @@ async function main() {
         });
       }, freshTime);
 
-      // Wait for the toolbar to be rendered (it should already be)
       await new Promise(r => setTimeout(r, 500));
 
-      // Crop just the toolbar (h-12 = 48px, below the title bar of 40px)
       await page.screenshot({
         path: path.join(SCREENSHOTS_DIR, '11-report-toolbar-fresh.png'),
         clip: { x: 0, y: 40, width: 1280, height: 50 },
@@ -615,12 +542,9 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('11-report-toolbar-fresh.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 12. Report viewer toolbar — stale data (>24h)
-    // ──────────────────────────────────────
     console.log('\n[12] Report viewer toolbar stale...');
     try {
-      const staleTime = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(); // 25h ago
+      const staleTime = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
       const page = await newMockedPage(browser, {
         isAuthenticated: true,
         user: SAMPLE_USER,
@@ -629,9 +553,6 @@ async function main() {
         settings: { ...DEFAULT_SETTINGS, sidebarCollapsed: false },
       });
       await navigateTo(page, '#/report/ws-001/rpt-001', 3000);
-      // Inject stale time into the toolbar via DOM manipulation
-      // The toolbar shows lastDataRefresh from the component state
-      // We need to trigger a data refresh display — use evaluate to set it
       await page.evaluate((staleTime) => {
         window.electronAPI.content.getDatasetRefreshInfo = async () => ({
           success: true,
@@ -649,9 +570,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('12-report-toolbar-stale.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 13. Settings page — full scroll (dark theme, 3 crops)
-    // ──────────────────────────────────────
     console.log('\n[13] Settings page...');
     try {
       const page = await newMockedPage(browser, {
@@ -663,7 +581,6 @@ async function main() {
       });
       await navigateTo(page, '#/settings', 2500);
 
-      // Full-page screenshot
       await page.screenshot({
         path: path.join(SCREENSHOTS_DIR, '13-settings-full.png'),
         fullPage: true,
@@ -671,7 +588,6 @@ async function main() {
       console.log('  Saved: 13-settings-full.png');
       captured.push('13-settings-full.png');
 
-      // Viewport-sized top crop
       await page.screenshot({
         path: path.join(SCREENSHOTS_DIR, '13a-settings-top.png'),
         clip: { x: 0, y: 0, width: 1280, height: 800 },
@@ -679,7 +595,6 @@ async function main() {
       console.log('  Saved: 13a-settings-top.png');
       captured.push('13a-settings-top.png');
 
-      // Scroll down to capture rest
       await page.evaluate(() => window.scrollTo(0, 800));
       await new Promise(r => setTimeout(r, 300));
       await page.screenshot({
@@ -692,9 +607,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('13-settings-full.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 14. Settings page — light theme
-    // ──────────────────────────────────────
     console.log('\n[14] Settings page light theme...');
     try {
       const page = await newMockedPage(browser, {
@@ -710,9 +622,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('14-settings-light.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 15. Sign-out confirm dialog
-    // ──────────────────────────────────────
     console.log('\n[15] Sign-out confirm dialog...');
     try {
       const page = await newMockedPage(browser, {
@@ -721,12 +630,10 @@ async function main() {
         settings: { ...DEFAULT_SETTINGS, sidebarCollapsed: false },
       });
       await navigateTo(page, '#/', 2000);
-      // Open account menu
       const avatarBtn = await page.$('[aria-haspopup="menu"]');
       if (avatarBtn) {
         await avatarBtn.click();
         await new Promise(r => setTimeout(r, 600));
-        // Click "Sign out" menu item
         const menuItems = await page.$$('[role="menuitem"]');
         for (const item of menuItems) {
           const text = await item.evaluate(el => el.textContent);
@@ -744,9 +651,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('15-signout-dialog.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 16. Home in light vs dark comparison
-    // ──────────────────────────────────────
     console.log('\n[16] Home light theme...');
     try {
       const page = await newMockedPage(browser, {
@@ -779,9 +683,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('16b-home-dark.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 17. Kiosk EXIT reminder overlay (simulate via DOM injection)
-    // ──────────────────────────────────────
     console.log('\n[17] Kiosk exit overlay...');
     try {
       const page = await newMockedPage(browser, {
@@ -790,7 +691,6 @@ async function main() {
         settings: { ...DEFAULT_SETTINGS, sidebarCollapsed: false },
       });
       await navigateTo(page, '#/', 2000);
-      // Inject a mock kiosk overlay into the DOM
       await page.evaluate(() => {
         const overlay = document.createElement('div');
         overlay.style.cssText = `
@@ -808,9 +708,6 @@ async function main() {
       await page.close();
     } catch (e) { failed.push('17-kiosk-exit-overlay.png: ' + e.message); }
 
-    // ──────────────────────────────────────
-    // 18. Dashboard viewer toolbar (no Slideshow button)
-    // ──────────────────────────────────────
     console.log('\n[18] Dashboard viewer toolbar...');
     try {
       const page = await newMockedPage(browser, {
@@ -844,7 +741,6 @@ async function main() {
   console.log('Failed:', failed.length);
   failed.forEach(f => console.log('  FAIL:', f));
 
-  // Write summary to JSON
   const summary = JSON.stringify({ captured, failed, dir: SCREENSHOTS_DIR }, null, 2);
   const { writeFile } = await import('fs/promises');
   await writeFile(path.join(SCREENSHOTS_DIR, '_summary.json'), summary);

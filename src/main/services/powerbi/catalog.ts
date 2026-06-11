@@ -1,17 +1,10 @@
-// ---------------------------------------------------------------------------
-// Catalog tier: workspace / report / dashboard / app listings plus the
-// @odata.nextLink pagination helper they share. Requests flow through the
-// injected port so the token plumbing stays in powerbi-api.ts (the facade).
-// ---------------------------------------------------------------------------
 
 import { POWERBI_API_BASE, type PowerBIApiResponse } from './http';
 import { buildErrorEnvelope, withErrorEnvelope } from './envelope';
 import type { Workspace, Report, Dashboard, App, IPCResponse } from '../../../shared/types';
 
-/** Authenticated request functions supplied by the facade (auth plumbing). */
 export interface CatalogRequestPort {
   request<T>(endpoint: string): Promise<T>;
-  /** Request against a full URL (used for pagination with @odata.nextLink). */
   requestWithUrl<T>(fullUrl: string): Promise<T>;
 }
 
@@ -22,9 +15,6 @@ export class PowerBICatalogApi {
     this.port = port;
   }
 
-  /**
-   * Fetches all pages of a paginated API response using @odata.nextLink
-   */
   private async fetchAllPages<TRaw, TTransformed>(
     endpoint: string,
     transform: (item: TRaw) => TTransformed
@@ -32,9 +22,6 @@ export class PowerBICatalogApi {
     const allItems: TTransformed[] = [];
     let nextUrl: string | undefined = `${POWERBI_API_BASE}${endpoint}`;
 
-    // A buggy or malicious @odata.nextLink chain (circular, or unbounded) would
-    // otherwise loop forever at up to ~20s/request. 100 pages is far beyond any
-    // real tenant; truncate with a warning instead of hanging the app.
     const seenUrls = new Set<string>();
     const MAX_PAGES = 100;
 
@@ -204,8 +191,6 @@ export class PowerBICatalogApi {
 
   async getAppReports(appId: string): Promise<IPCResponse<Report[]>> {
     return withErrorEnvelope('APP_REPORTS_FETCH_FAILED', async () => {
-      // First, get the app to retrieve its actual workspaceId
-      // Power BI embedding requires the real workspace GUID, not the app ID
       const appResponse = await this.getApp(appId);
       if (!appResponse.success) {
         return {
@@ -229,24 +214,14 @@ export class PowerBICatalogApi {
         datasetId: string;
         reportType: string;
         appId: string;
-        /** The SAME report's id in the app's source workspace. */
         originalReportObjectId?: string;
       }
 
-      // Use fetchAllPages so apps with >100 reports paginate via @odata.nextLink
-      // instead of silently truncating to the first page.
       const raw = await this.fetchAllPages<RawAppReport, RawAppReport>(
         `/apps/${appId}/reports`,
         (report) => report,
       );
 
-      // Tenant-verified quirk (diagnose-pbi 2026-06-10): /apps/{id}/reports can
-      // return datasetId:"" while carrying originalReportObjectId — a pointer to
-      // the SAME report in the app's source workspace, where datasetId IS
-      // populated. Without this hop the App view has no datasets to ask about
-      // and the freshness strip reads "Data refreshed: —" forever. Backfill
-      // with ONE workspace listing (id match first, then name match); the hop
-      // is best-effort so a denied workspace degrades to the old behavior.
       if (raw.some((r) => !r.datasetId)) {
         try {
           const wsReports = await this.fetchAllPages<
@@ -277,13 +252,10 @@ export class PowerBICatalogApi {
       const reports: Report[] = raw.map((report) => ({
         id: report.id,
         name: report.name,
-        workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
+        workspaceId: actualWorkspaceId,
         embedUrl: report.embedUrl,
         datasetId: report.datasetId,
         reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
-        // The app webview's URL can name this report by EITHER guid (the
-        // app-scoped id or the source-workspace original) depending on how
-        // Power BI routed the navigation — freshness matching accepts both.
         originalReportObjectId: report.originalReportObjectId,
       }));
 
@@ -293,8 +265,6 @@ export class PowerBICatalogApi {
 
   async getAppDashboards(appId: string): Promise<IPCResponse<Dashboard[]>> {
     return withErrorEnvelope('APP_DASHBOARDS_FETCH_FAILED', async () => {
-      // First, get the app to retrieve its actual workspaceId
-      // Power BI embedding requires the real workspace GUID, not the app ID
       const appResponse = await this.getApp(appId);
       if (!appResponse.success) {
         return {
@@ -319,14 +289,12 @@ export class PowerBICatalogApi {
         appId: string;
       }
 
-      // Use fetchAllPages so apps with >100 dashboards paginate via
-      // @odata.nextLink instead of silently truncating to the first page.
       const dashboards = await this.fetchAllPages<RawAppDashboard, Dashboard>(
         `/apps/${appId}/dashboards`,
         (dashboard) => ({
           id: dashboard.id,
           name: dashboard.displayName,
-          workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
+          workspaceId: actualWorkspaceId,
           embedUrl: dashboard.embedUrl,
           isReadOnly: dashboard.isReadOnly,
         })
@@ -336,15 +304,6 @@ export class PowerBICatalogApi {
     });
   }
 
-  /**
-   * Fetches all available reports and dashboards from all workspaces.
-   * For actual "recent" items based on user activity, use usage-tracking-service.
-   *
-   * Per-workspace failures do NOT abort the whole call: successful workspaces
-   * still contribute to the result, and the failures are surfaced via
-   * `failedWorkspaces` / `partialFailure` so the renderer can warn the user.
-   * If every workspace fails, the call returns success:false.
-   */
   async getAllItems(): Promise<IPCResponse<{
     workspaces: Workspace[];
     reports: Report[];
@@ -353,7 +312,6 @@ export class PowerBICatalogApi {
     failedWorkspaces: Array<{ id: string; name: string; error: string }>;
   }>> {
     return withErrorEnvelope('ALL_ITEMS_FETCH_FAILED', async () => {
-      // Get all workspaces first
       const workspacesResponse = await this.getWorkspaces();
       if (!workspacesResponse.success) {
         return {
@@ -366,9 +324,8 @@ export class PowerBICatalogApi {
       const allDashboards: Dashboard[] = [];
       const failedWorkspaces: Array<{ id: string; name: string; error: string }> = [];
 
-      // Fetch reports and dashboards from all workspaces in parallel batches
       const workspaces = workspacesResponse.data;
-      const BATCH_SIZE = 5; // Process 5 workspaces at a time to avoid rate limits
+      const BATCH_SIZE = 5;
 
       for (let i = 0; i < workspaces.length; i += BATCH_SIZE) {
         const batch = workspaces.slice(i, i + BATCH_SIZE);
@@ -406,8 +363,6 @@ export class PowerBICatalogApi {
         }
       }
 
-      // If every workspace failed, surface a hard failure rather than an
-      // empty success — the renderer should not silently render "no content".
       if (workspaces.length > 0 && failedWorkspaces.length === workspaces.length) {
         return {
           success: false,

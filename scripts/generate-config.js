@@ -1,17 +1,10 @@
-/**
- * Build-time configuration generator
- * This script generates a config file with Azure AD credentials embedded
- * Run this during the build process to bake credentials into the app
- */
 
 const fs = require('fs');
 const path = require('path');
 
-// Try to load from environment variables first, then fall back to .env file
 let clientId = process.env.AZURE_CLIENT_ID;
 let tenantId = process.env.AZURE_TENANT_ID;
 
-// If not in environment, try to read from .env file
 if (!clientId || !tenantId) {
   const envPath = path.join(__dirname, '..', '.env');
   if (fs.existsSync(envPath)) {
@@ -36,19 +29,10 @@ if (!clientId || !tenantId) {
   process.exit(1);
 }
 
-// Normalize: env-var values (CI secrets) may carry stray surrounding whitespace
-// or a trailing newline that would corrupt the embedded GUID.
 clientId = clientId.trim();
 tenantId = tenantId.trim();
 
-// Fail the build if the credentials aren't real GUIDs (e.g. the .env.example
-// placeholders). Shipping a placeholder produces an installer whose Microsoft
-// sign-in window comes up BLANK with no error — the worst failure for end users.
-// Catch it here, where the operator building the release actually sees it.
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// A GUID that is a single repeated hex digit (00000000-..., 11111111-...) is a
-// format-valid PLACEHOLDER, not a real Entra id. These pass GUID_RE but would
-// still ship a broken sign-in, so reject them explicitly.
 const isPlaceholderGuid = (g) => /^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(g) || /^([0-9a-f])\1*$/i.test(g.replace(/-/g, ''));
 const bad = [];
 if (!GUID_RE.test(clientId) || isPlaceholderGuid(clientId)) bad.push(`AZURE_CLIENT_ID (got "${clientId}")`);
@@ -76,10 +60,6 @@ const outputPath = path.join(__dirname, '..', 'src', 'main', 'auth', 'azure-conf
 fs.writeFileSync(outputPath, configContent);
 console.log('Generated Azure config at:', outputPath);
 
-// ---------------------------------------------------------------------------
-// Issue beacon config (OPTIONAL). Baked from BEACON_* env vars; when unset the
-// beacon is disabled and the app transmits nothing. Never committed.
-// ---------------------------------------------------------------------------
 const beaconToken = (process.env.BEACON_GH_TOKEN || '').trim();
 const beaconRepo = (process.env.BEACON_GH_REPO || '').trim();
 const beaconIncludeNames = (process.env.BEACON_INCLUDE_NAMES || '').trim().toLowerCase() !== 'false';

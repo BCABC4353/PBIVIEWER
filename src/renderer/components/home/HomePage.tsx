@@ -13,11 +13,6 @@ import { FrequentStrip } from './FrequentStrip';
 import { ItemList } from './ItemList';
 import type { ContentItem, Workspace } from '../../../shared/types';
 
-// -----------------------------------------------------------------------
-// FeaturedWorkspacesStrip
-// Always shows the top-3 workspaces the user has access to.
-// Rendered as simple cards so the user can orient themselves on first launch.
-// -----------------------------------------------------------------------
 interface FeaturedWorkspacesStripProps {
   workspaces: Workspace[];
   isLoading: boolean;
@@ -33,7 +28,7 @@ const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
 
   return (
     <section aria-labelledby="featured-workspaces-heading" className="mb-6">
-      {/* H2 for section heading */}
+      {}
       <h2
         id="featured-workspaces-heading"
         className="text-base font-semibold text-neutral-foreground-1 mb-3"
@@ -68,7 +63,6 @@ const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
           ))}
         </div>
       ) : (
-        // No workspaces yet — show empty placeholder so layout is stable
         <div className="bg-neutral-background-3 rounded-lg px-4 py-3">
           <Text className="text-neutral-foreground-3">
             No workspaces loaded yet — use Browse Workspaces below.
@@ -79,9 +73,6 @@ const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
   );
 };
 
-// -----------------------------------------------------------------------
-// HomePage
-// -----------------------------------------------------------------------
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
@@ -114,9 +105,6 @@ export const HomePage: React.FC = () => {
   };
 
   const handleOpenItem = (item: ContentItem) => {
-    // Fire-and-forget — recordItemOpened returns void so the navigate()
-    // fires on the same tick as the click, not after the usage-bookkeeping
-    // IPC + recent/frequent reloads (~100-400ms saved).
     recordItemOpened(item);
     if (item.type === 'dashboard') {
       navigate(`/dashboard/${item.workspaceId}/${item.id}`);
@@ -142,7 +130,7 @@ export const HomePage: React.FC = () => {
   return (
     <div className="h-full overflow-auto">
       <div className="p-6 max-w-7xl mx-auto">
-        {/* Header */}
+        {}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-neutral-foreground-1 mb-1">
@@ -162,7 +150,7 @@ export const HomePage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Always-visible Browse Workspaces CTA + Featured Workspaces strip */}
+        {}
         <div className="flex items-center justify-between mb-4">
           <FeaturedWorkspacesStrip
             workspaces={workspaces}
@@ -171,7 +159,7 @@ export const HomePage: React.FC = () => {
           />
         </div>
 
-        {/* Always-visible Browse Workspaces primary CTA */}
+        {}
         <div className="mb-6">
           <Button
             appearance="primary"
@@ -183,14 +171,14 @@ export const HomePage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Loading state */}
+        {}
         {isLoading && !hasUsageData && (
           <div className="flex items-center justify-center py-16">
             <Spinner size="large" label="Loading content..." />
           </div>
         )}
 
-        {/* Substantive empty state — shows signed-in email + Sign Out */}
+        {}
         {!isLoading && !hasUsageData && (
           <div className="bg-neutral-background-2 rounded-lg p-8 text-center">
             <FolderRegular className="text-4xl text-brand-primary mx-auto mb-4" />
@@ -217,10 +205,10 @@ export const HomePage: React.FC = () => {
           </div>
         )}
 
-        {/* Content - show when user has usage history */}
+        {}
         {hasUsageData && (
           <>
-            {/* H2 on Frequent section */}
+            {}
             {frequentItems.length > 0 && (
               <FrequentStrip
                 items={frequentItems}
@@ -230,16 +218,16 @@ export const HomePage: React.FC = () => {
               />
             )}
 
-            {/* Divider */}
+            {}
             {frequentItems.length > 0 && recentItems.length > 0 && (
               <div className="border-t border-neutral-stroke-2 my-6" />
             )}
 
-            {/* Recent content */}
+            {}
             {recentItems.length > 0 && (
               <>
                 <div className="flex items-center justify-between mb-4">
-                  {/* H2 on Recent section */}
+                  {}
                   <h2 className="text-base font-semibold text-neutral-foreground-1">
                     Recent
                   </h2>

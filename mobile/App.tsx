@@ -13,18 +13,10 @@ import {
 import type { DataSource } from './src/core/types';
 import { color } from './src/design/tokens';
 
-/**
- * Composition root: four-tab shell (Fleet / Reports / Alerts / Settings),
- * data source per the persisted mode (sample data by default; Live once the
- * Azure config is pasted and the user connects — see src/auth/azure-config.ts).
- */
 export default function App() {
   const [mode, setMode] = useState<DataMode>('mock');
   const [source, setSource] = useState<DataSource>(() => createDataSource('mock'));
   const [reports, setReports] = useState<ReportsModel | null>(null);
-  // Settings fires onModeChange then onDataSourceChange in the same tick, so
-  // the rebuild must read the mode through a ref — `mode` from this render
-  // would still be the OLD value and rebuild the wrong source.
   const modeRef = useRef<DataMode>(mode);
 
   useEffect(() => {

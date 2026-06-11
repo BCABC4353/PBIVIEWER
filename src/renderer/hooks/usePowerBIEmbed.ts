@@ -14,7 +14,6 @@ import { useEmbedWatchdog } from './embed/useEmbedWatchdog';
 import { useEmbedTokenRefresh } from './embed/useEmbedTokenRefresh';
 import { useEmbedLifecycle } from './embed/useEmbedLifecycle';
 
-// Public type surface preserved for existing importers.
 export type {
   EmbedEvent,
   EmbedEventHandlers,
@@ -22,11 +21,6 @@ export type {
   UsePowerBIEmbedResult,
 } from './embed/embedTypes';
 
-/**
- * Thin composition over three cooperating embed hooks
- * (lifecycle, token refresh, watchdog) sharing a single mutable ref-bag.
- * Public return shape: {@link UsePowerBIEmbedResult}.
- */
 export function usePowerBIEmbed(
   options: UsePowerBIEmbedOptions
 ): UsePowerBIEmbedResult {
@@ -37,7 +31,6 @@ export function usePowerBIEmbed(
     buildConfig,
     events,
     autoRefreshEnabled = true,
-    // Keep in sync with DEFAULT_SETTINGS.autoRefreshInterval.
     autoRefreshIntervalMinutes = 10,
     watchdogMs = DEFAULT_WATCHDOG_MS,
     errorFallback = DEFAULT_ERROR_FALLBACK,
@@ -48,8 +41,6 @@ export function usePowerBIEmbed(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Shared mutable state threaded into every sub-hook so they all operate on
-  // the same refs (generation counter, loaded flag, embed handle).
   const embedRef = useRef<pbi.Embed | null>(null);
   const generationRef = useRef(0);
   const hasLoadedRef = useRef(false);

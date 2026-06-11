@@ -7,10 +7,6 @@ const MAX_ROWS = 8;
 
 const isNumeric = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-/**
- * Quiet data table — micro-caps header, hairline rows, numbers right-aligned
- * in tabular numerals, capped at 8 rows with an honest "N more" tail.
- */
 export const DataTable: React.FC<{ data: TableData; maxRows?: number }> = ({
   data,
   maxRows = MAX_ROWS,
@@ -22,7 +18,6 @@ export const DataTable: React.FC<{ data: TableData; maxRows?: number }> = ({
 
   const visible = rows.slice(0, maxRows);
   const remaining = rows.length - visible.length;
-  // A column is numeric when every present value in it is a finite number.
   const numericCol = columns.map((c) =>
     rows.some((r) => r[c] !== null && r[c] !== undefined) &&
     rows.every((r) => r[c] === null || r[c] === undefined || isNumeric(r[c])),

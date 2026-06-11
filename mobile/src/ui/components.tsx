@@ -21,7 +21,6 @@ export const StatusChip: React.FC<{ status: Refreshable['lastStatus']; overdue?:
   </View>
 );
 
-/** Hero: the one number that matters — how many things need attention. */
 export const FleetHero: React.FC<{ broken: number; total: number; generatedAt: string; now: number }> = ({
   broken,
   total,
@@ -42,12 +41,6 @@ export const FleetHero: React.FC<{ broken: number; total: number; generatedAt: s
   );
 };
 
-/**
- * Recent-runs dot row — the item's pulse. One quiet gray dot per recent
- * successful run (oldest→newest, last 10), closed by a state dot in the
- * given tone (red only when broken). Decorative: hidden from screen readers,
- * which already hear the status label.
- */
 export const RunDots: React.FC<{ item: Refreshable; tone: string }> = ({ item, tone }) => {
   const runs = (item.recentDurationsMin ?? []).slice(-10);
   return (
@@ -64,23 +57,10 @@ export const FleetRow: React.FC<{
   item: Refreshable;
   now: number;
   onPress: () => void;
-  /**
-   * 'board' (default) — the fleet list row: workspace + age meta, chevron.
-   * 'sheet' — inside an expanded workspace sheet: status label + last
-   * success, the recent-runs dot row, and an optional downstream-damage
-   * annotation. Same row, different facts; never a fork.
-   */
   variant?: 'board' | 'sheet';
-  /** Dot-row state tone for the sheet variant (severity color from tokens). */
   tone?: string;
-  /**
-   * Downstream-damage annotation slot (dataflows: "what refreshed against
-   * this while it was stale"). Hidden entirely when absent — the cascade
-   * data arrives with the blast-radius spine; nothing is fabricated here.
-   */
   downstreamNote?: string;
 }> = ({ item, now, onPress, variant = 'board', tone, downstreamNote }) => {
-  // Quiet breathing on in-progress rows — stillness elsewhere.
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (item.lastStatus !== 'InProgress') return;
@@ -124,8 +104,7 @@ export const FleetRow: React.FC<{
           </Text>
         ) : null}
       </View>
-      {/* Board keeps its red flag; the sheet says "overdue" in words and its
-          edge is already amber — red stays reserved for broken there. */}
+      {}
       {variant === 'board' && item.scheduleOverdue ? (
         <Text style={[styles.rowFlag, { color: color.broken }]}>!</Text>
       ) : null}
@@ -172,8 +151,6 @@ const styles = StyleSheet.create({
   rowChevron: { ...type.title, color: color.textTertiary },
   rowDownstream: { ...type.caption, color: color.warn, marginTop: 4 },
 
-  // The pulse row: history dots are the grayscale ladder; only the closing
-  // state dot carries tone (and red only when broken).
   dotRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: color.textTertiary, opacity: 0.55 },
   dotState: { width: 6, height: 6, borderRadius: 3, opacity: 1 },

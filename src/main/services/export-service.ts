@@ -63,10 +63,6 @@ export async function exportCurrentViewPdf(
     const image = await mainWindow.webContents.capturePage(captureRect);
     const { width: imgWidth, height: imgHeight } = image.getSize();
 
-    // On a HiDPI display capturePage returns physical pixels (e.g. 2x), so
-    // dividing raw pixels by 96 DPI yields a PDF page twice the intended size.
-    // Convert to logical (CSS) dimensions using the display scale factor first;
-    // on a 1x display scaleFactor is 1 so behaviour is unchanged.
     let scaleFactor = 1;
     try {
       scaleFactor = screen.getDisplayMatching(mainWindow.getBounds()).scaleFactor || 1;
@@ -76,13 +72,10 @@ export async function exportCurrentViewPdf(
     const cssWidth = Math.max(1, Math.round(imgWidth / scaleFactor));
     const cssHeight = Math.max(1, Math.round(imgHeight / scaleFactor));
 
-    // Convert logical pixel dimensions to microns for PDF page size
-    // 1 inch = 25400 microns, 96 CSS px per inch.
     const MICRONS_PER_INCH = 25400;
     const pageWidthMicrons = Math.round((cssWidth / 96) * MICRONS_PER_INCH);
     const pageHeightMicrons = Math.round((cssHeight / 96) * MICRONS_PER_INCH);
 
-    // Convert image to base64 PNG
     const pngBuffer = image.toPNG();
     const base64 = pngBuffer.toString('base64');
     const dataUrl = `data:image/png;base64,${base64}`;
@@ -92,22 +85,17 @@ export async function exportCurrentViewPdf(
       width: cssWidth,
       height: cssHeight,
       webPreferences: {
-        // Explicit hardening — this window loads a self-contained
-        // data: URL and must never reach Node or the network.
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
       },
     });
 
-    // Deny any window.open() or navigation attempts from the
-    // transient PDF render window — it loads only a data: URL.
     pdfWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     pdfWindow.webContents.on('will-navigate', (event) => {
       event.preventDefault();
     });
 
-    // HTML with viewport meta and image sized to viewport
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -125,10 +113,6 @@ export async function exportCurrentViewPdf(
 </body>
 </html>`;
 
-    // Race a 30 s deadline against the data: URL load so a
-    // stalled/crashed renderer cannot orphan the hidden window and leak memory.
-    // The finally block always closes pdfWindow, but it only runs once the
-    // promise settles — without this race the await above could hang forever.
     const LOAD_TIMEOUT_MS = 30_000;
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -143,13 +127,6 @@ export async function exportCurrentViewPdf(
         settle(() => reject(new Error('Export window load timed out after 30 s')));
       }, LOAD_TIMEOUT_MS);
 
-      // One-shot per export. Use .once() so these handlers self-detach the
-      // moment they fire — without this the same hidden-window webContents would
-      // accumulate did-finish-load / did-fail-load listeners across repeated
-      // exports (a listener leak). The race below settles exactly once, so only
-      // one of the two ever fires; .once() guarantees the unfired one is the
-      // only listener that could linger, and pdfWindow.close() in `finally`
-      // tears down the webContents (and its listeners) regardless.
       pdfWindow!.webContents.once('did-finish-load', () => settle(resolve));
       pdfWindow!.webContents.once('did-fail-load', (_e, code, desc) =>
         settle(() => reject(new Error(`Load failed: ${code} ${desc}`))),

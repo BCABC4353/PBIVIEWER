@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useSearchStore } from './search-store';
 
-// Snapshot the initial slice we care about so each test starts clean.
-// Zustand's `create` doesn't expose getInitialState in v4, so we reset by
-// hand to the documented defaults from search-store.ts.
 const INITIAL_STATE = {
   isOpen: false,
   query: '',
@@ -14,13 +11,11 @@ const INITIAL_STATE = {
 };
 
 beforeEach(() => {
-  // Preserve action references — merge our defaults on top of current state.
   useSearchStore.setState(INITIAL_STATE);
 });
 
 describe('useSearchStore — closeSearch', () => {
   it('clears results, query, and isOpen', () => {
-    // Seed the store with some non-default state.
     useSearchStore.setState({
       isOpen: true,
       query: 'foo',
@@ -63,7 +58,6 @@ describe('useSearchStore — clearResults', () => {
     const state = useSearchStore.getState();
     expect(state.results).toEqual([]);
     expect(state.query).toBe('');
-    // closeSearch flips isOpen, clearResults does not.
     expect(state.isOpen).toBe(true);
   });
 });

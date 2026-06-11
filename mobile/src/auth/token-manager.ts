@@ -1,75 +1,34 @@
-/**
- * TokenManager — the pure, unit-testable heart of mobile auth.
- *
- * NO React Native / Expo imports here (vitest runs this on Node). The Expo
- * wrapper (msal-auth.ts) injects the platform pieces: SecureStore-backed
- * storage, an expo-auth-session refresh function, and the system clock.
- *
- * Responsibilities:
- *  - hold the current token set (access token in memory; refresh token + user
- *    persisted via the injected storage),
- *  - serve getAccessToken() with auto-refresh when expired/near-expiry,
- *  - SINGLE-FLIGHT the refresh: concurrent callers all await the same
- *    in-flight acquisition (mirrors desktop auth-service.ts
- *    `tokenAcquisitionInFlight` — two parallel refresh_token grants would
- *    race, and AAD rotates refresh tokens, so the loser would persist a
- *    dead token),
- *  - drop dead credentials on AAD's `invalid_grant` (refresh token revoked /
- *    expired) so the app falls back to a clean signed-out state.
- */
 
 export interface UserInfo {
-  /** preferred_username / email / upn from the id_token. */
   username: string;
-  /** Display name, when the id_token carries one. */
   name?: string;
-  /** AAD tenant id (tid claim). */
   tenantId?: string;
-  /** AAD object id (oid claim). */
   objectId?: string;
 }
 
 export interface TokenSet {
   accessToken: string;
-  /** Epoch milliseconds when the access token expires. */
   expiresAt: number;
   refreshToken?: string;
   user?: UserInfo;
 }
 
-/** Minimal async key-less storage seam (the Expo wrapper backs it with
- *  expo-secure-store; tests use an in-memory fake). */
 export interface TokenStorage {
   get(): Promise<string | null>;
   set(value: string): Promise<void>;
   remove(): Promise<void>;
 }
 
-/** Performs the OAuth refresh_token grant. Must throw on failure; an
- *  `invalid_grant` failure should carry that code on the error's `code`
- *  property (expo-auth-session's TokenError is a CodedError — the OAuth error
- *  code goes in `code`, while `message` is human prose that never contains
- *  the literal "invalid_grant"). Embedding the code in the message also works,
- *  as a fallback for other providers / injected fakes. */
 export type RefreshFn = (refreshToken: string) => Promise<TokenSet>;
 
 export interface TokenManagerDeps {
   storage: TokenStorage;
   refresh: RefreshFn;
-  /** Injected clock (epoch ms). Defaults to Date.now. */
   now?: () => number;
-  /** Refresh this many ms before actual expiry. Default 5 minutes. */
   expiryMarginMs?: number;
-  /**
-   * Persist the access token alongside the refresh token. Default FALSE:
-   * Power BI access tokens are multi-KB JWTs and expo-secure-store warns
-   * above ~2048 bytes on Android — the refresh token alone is enough,
-   * because launch does a silent refresh anyway (desktop model).
-   */
   persistAccessToken?: boolean;
 }
 
-/** Shape written to storage (a subset of TokenSet, JSON-encoded). */
 interface PersistedTokens {
   accessToken?: string;
   expiresAt?: number;
@@ -84,19 +43,11 @@ export class TokenManager {
   private readonly expiryMarginMs: number;
   private readonly persistAccessToken: boolean;
 
-  /** In-memory token set (authoritative once loaded). */
   private tokens: TokenSet | null = null;
-  /** Storage hydrated at most once (re-armed by clear()). */
   private loaded = false;
-  /** Single-flight hydration — concurrent first readers share one storage read. */
   private hydration: Promise<TokenSet | null> | null = null;
-  /** Bumped by clear() so an in-flight hydration can't resurrect credentials. */
   private epoch = 0;
-  /** In-flight clear(), if any — load() must wait it out: hydrating while
-   *  storage.remove() is still pending would read (and commit) the
-   *  PRE-removal SecureStore value — zombie credentials after sign-out. */
   private clearing: Promise<void> | null = null;
-  /** Single-flight lock — all concurrent getAccessToken callers share it. */
   private acquisitionInFlight: Promise<string> | null = null;
 
   constructor(deps: TokenManagerDeps) {
@@ -107,7 +58,6 @@ export class TokenManager {
     this.persistAccessToken = deps.persistAccessToken ?? false;
   }
 
-  /** True when we hold credentials (a refresh token or a live access token). */
   async isSignedIn(): Promise<boolean> {
     const t = await this.load();
     return t !== null && (!!t.refreshToken || this.isFresh(t));
@@ -118,7 +68,6 @@ export class TokenManager {
     return t?.user ?? null;
   }
 
-  /** Store a freshly acquired token set (interactive sign-in or refresh). */
   async setTokens(tokens: TokenSet): Promise<void> {
     this.tokens = tokens;
     this.loaded = true;
@@ -132,38 +81,25 @@ export class TokenManager {
     await this.storage.set(JSON.stringify(persisted));
   }
 
-  /** Sign out: wipe memory + storage. */
   async clear(): Promise<void> {
-    this.epoch += 1; // invalidate any hydration still in flight
-    // Storage BEFORE the in-memory reset: flipping `loaded` while the remove
-    // is still pending would re-arm hydration against the pre-removal store
-    // value, and a load() landing in that window would resurrect the very
-    // credentials being wiped. `clearing` parks such loads until we're done.
+    this.epoch += 1;
     const clearing = (async () => {
       try {
         await this.storage.remove();
       } finally {
-        // Reset even when the remove throws — memory must not outlive sign-out.
         this.hydration = null;
         this.tokens = null;
-        this.loaded = false; // re-arm hydration so a later read sees the cleared store
+        this.loaded = false;
       }
     })();
     this.clearing = clearing;
     try {
       await clearing;
     } finally {
-      // Release only our own gate — a newer clear() may have replaced it.
       if (this.clearing === clearing) this.clearing = null;
     }
   }
 
-  /**
-   * Get a live access token, silently refreshing when expired or inside the
-   * expiry margin. Concurrent callers coalesce onto ONE acquisition
-   * (single-flight), exactly like desktop's tokenAcquisitionInFlight.
-   * Throws when not signed in or the refresh fails.
-   */
   async getAccessToken(): Promise<string> {
     if (this.acquisitionInFlight !== null) {
       return await this.acquisitionInFlight;
@@ -173,8 +109,6 @@ export class TokenManager {
     try {
       return await work;
     } finally {
-      // Always release — success OR throw — so a failed refresh does not
-      // permanently wedge every future caller.
       this.acquisitionInFlight = null;
     }
   }
@@ -190,13 +124,6 @@ export class TokenManager {
     try {
       next = await this.refresh(t.refreshToken);
     } catch (e) {
-      // AAD invalid_grant = the refresh token itself is dead (revoked,
-      // expired, password change…). Keeping it would loop forever; drop the
-      // credentials so the UI falls back to a clean "Sign in" state.
-      // expo-auth-session's TokenError (a CodedError) puts the OAuth error
-      // code in `e.code` — its `message` is human prose that never says
-      // "invalid_grant" — so check the code first; the message regex stays
-      // only as a fallback for other providers / injected fakes.
       if (
         e instanceof Error &&
         ((e as { code?: unknown }).code === 'invalid_grant' || /invalid_grant/i.test(e.message))
@@ -207,8 +134,6 @@ export class TokenManager {
     }
     const merged: TokenSet = {
       ...next,
-      // AAD rotates refresh tokens, but RFC 6749 allows omitting the new one —
-      // in that case the old refresh token remains valid; keep it.
       refreshToken: next.refreshToken ?? t.refreshToken,
       user: next.user ?? t.user,
     };
@@ -220,15 +145,7 @@ export class TokenManager {
     return !!t.accessToken && t.expiresAt - this.expiryMarginMs > this.now();
   }
 
-  /** Hydrate from storage at most once (until clear() re-arms it).
-   *  SINGLE-FLIGHT: concurrent first readers (e.g. isSignedIn() and
-   *  getAccessToken() racing at launch) share one storage read — otherwise
-   *  the second caller would observe `loaded = true, tokens = null` while the
-   *  first is still awaiting storage.get() and wrongly report signed-out. */
   private async load(): Promise<TokenSet | null> {
-    // A clear() may still be flushing storage.remove(); hydrating now would
-    // read the pre-removal value. Wait the wipe out first (its outcome is
-    // clear()'s caller's problem, not ours — hence the swallowed rejection).
     while (this.clearing) await this.clearing.catch(() => {});
     if (this.loaded) return this.tokens;
     this.hydration ??= this.hydrate();
@@ -241,7 +158,7 @@ export class TokenManager {
     try {
       raw = await this.storage.get();
     } catch {
-      raw = null; // unreadable store (keychain invalidation…) = signed out
+      raw = null;
     }
     let parsed: TokenSet | null = null;
     if (raw) {
@@ -254,12 +171,9 @@ export class TokenManager {
           user: p.user,
         };
       } catch {
-        parsed = null; // corrupted JSON = signed out
+        parsed = null;
       }
     }
-    // Commit only if nothing changed underneath us: clear() bumps the epoch,
-    // and setTokens() flips `loaded` — in either case the in-memory state is
-    // newer than what we just read.
     if (epoch === this.epoch && !this.loaded) {
       this.tokens = parsed;
       this.loaded = true;
@@ -269,14 +183,9 @@ export class TokenManager {
   }
 }
 
-// ---------------------------------------------------------------------------
-// id_token decoding — pure (no atob/Buffer, so it runs identically on Hermes
-// and on Node under vitest).
-// ---------------------------------------------------------------------------
 
 const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-/** base64url → UTF-8 string. Returns null on malformed input. */
 export function base64UrlDecode(input: string): string | null {
   const b64 = input.replace(/-/g, '+').replace(/_/g, '/');
   const bytes: number[] = [];
@@ -294,14 +203,12 @@ export function base64UrlDecode(input: string): string | null {
     }
   }
   try {
-    // Percent-encoding trick = a correct UTF-8 decoder using only JS builtins.
     return decodeURIComponent(bytes.map((b) => `%${b.toString(16).padStart(2, '0')}`).join(''));
   } catch {
     return null;
   }
 }
 
-/** Extract display identity from an AAD id_token (JWT). Null when unparsable. */
 export function decodeIdToken(idToken: string): UserInfo | null {
   const parts = idToken.split('.');
   if (parts.length < 2) return null;

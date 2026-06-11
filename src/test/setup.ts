@@ -4,17 +4,6 @@ import { beforeEach, vi } from 'vitest';
 import type { ElectronAPI } from '../shared/ipc-types';
 import type { AppSettings, AuthResult, TokenResult, UserInfo } from '../shared/types';
 
-// ---------------------------------------------------------------------------
-// Default ElectronAPI mock
-// ---------------------------------------------------------------------------
-// Every method on the ElectronAPI surface is stubbed with vi.fn() so that
-// component tests never accidentally hit `undefined` on `window.electronAPI`.
-// Tests can override individual methods via:
-//   vi.mocked(window.electronAPI.auth.getUser).mockResolvedValueOnce(...)
-//
-// Anything returning IPCResponse<T> resolves to { success: true, data: <empty> }
-// by default — sensible for "happy path" rendering. Per-test overrides handle
-// failure paths.
 
 const defaultUser: UserInfo | null = null;
 
@@ -50,7 +39,6 @@ function createElectronAPIMock(): ElectronAPI {
       getAccessToken: vi.fn().mockResolvedValue({ success: true, data: defaultToken }),
       isAuthenticated: vi.fn().mockResolvedValue({ success: true, data: false }),
       validateToken: vi.fn().mockResolvedValue({ success: true, data: false }),
-      // Account switcher — same return shape as login().
       switchAccount: vi.fn().mockResolvedValue({ success: true, data: defaultAuthResult }),
     },
 
@@ -69,7 +57,6 @@ function createElectronAPIMock(): ElectronAPI {
       }),
       getAppReports: vi.fn().mockResolvedValue({ success: true, data: [] }),
       getAppDashboards: vi.fn().mockResolvedValue({ success: true, data: [] }),
-      // null = "no per-report target" — App view keeps its aggregate stamp.
       resolveAppReportDataset: vi.fn().mockResolvedValue({ success: true, data: null }),
       getEmbedToken: vi.fn().mockResolvedValue({
         success: true,
@@ -158,7 +145,6 @@ function createElectronAPIMock(): ElectronAPI {
       report: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     },
 
-    // Kiosk power-management mock.
     kiosk: {
       preventDisplaySleep: vi.fn().mockResolvedValue({ success: true, data: true }),
       allowDisplaySleep: vi.fn().mockResolvedValue({ success: true, data: false }),
@@ -166,11 +152,6 @@ function createElectronAPIMock(): ElectronAPI {
   } as ElectronAPI;
 }
 
-// ---------------------------------------------------------------------------
-// window.matchMedia stub
-// ---------------------------------------------------------------------------
-// jsdom does not implement matchMedia. Some Fluent UI components query it on
-// mount (e.g. theme detection), so install a minimal stub.
 function installMatchMediaStub(): void {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -179,8 +160,8 @@ function installMatchMediaStub(): void {
       matches: false,
       media: query,
       onchange: null,
-      addListener: vi.fn(), // deprecated, kept for compatibility
-      removeListener: vi.fn(), // deprecated, kept for compatibility
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
@@ -188,9 +169,6 @@ function installMatchMediaStub(): void {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Global setup — runs before every test
-// ---------------------------------------------------------------------------
 declare global {
   interface Window {
     electronAPI: ElectronAPI;

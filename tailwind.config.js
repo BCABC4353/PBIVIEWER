@@ -1,12 +1,9 @@
-/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/renderer/**/*.{js,ts,jsx,tsx,html}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // Using CSS custom properties that Fluent UI sets
-        // These will automatically respond to theme changes
         'neutral-foreground-1': 'var(--colorNeutralForeground1)',
         'neutral-foreground-2': 'var(--colorNeutralForeground2)',
         'neutral-foreground-3': 'var(--colorNeutralForeground3)',
@@ -18,16 +15,12 @@ module.exports = {
         'neutral-background-5': 'var(--colorNeutralBackground5)',
         'neutral-stroke-1': 'var(--colorNeutralStroke1)',
         'neutral-stroke-2': 'var(--colorNeutralStroke2)',
-        // Brand Colors (Safety Orange) — rgb() form enables /opacity utilities
         'brand-primary': 'rgb(var(--brand-rgb) / <alpha-value>)',
         'brand-secondary': '#E54D0A',
         'brand-background': '#FFF5F0',
-        // Accent (Fluent Brand — resolves to orange after brandRamp.ts is applied)
         'accent-primary': 'var(--colorBrandBackground)',
         'accent-hover': 'var(--colorBrandBackgroundHover)',
         'accent-pressed': 'var(--colorBrandBackgroundPressed)',
-        // Status Colors — rgb() form is required so bg-status-*/10 opacity utilities work.
-        // Matching --status-*-rgb variables are declared in globals.css :root.
         'status-success': 'rgb(var(--status-success-rgb) / <alpha-value>)',
         'status-warning': 'rgb(var(--status-warning-rgb) / <alpha-value>)',
         'status-error': 'rgb(var(--status-error-rgb) / <alpha-value>)',

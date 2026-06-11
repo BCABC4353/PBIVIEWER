@@ -4,11 +4,6 @@ import { powerbiApiService } from '../services/powerbi-api';
 import { validateUUID } from '../../shared/validation';
 import { isValidExportPath } from '../security';
 
-// Bound renderer-supplied export inputs before they
-// reach the request body. A compromised/buggy renderer could otherwise send an
-// arbitrarily large pageName/bookmarkState and bloat the outbound Power BI
-// request (memory + payload). pageNames are short identifiers; bookmark state
-// is base64 report state — 64KB is generous for legitimate use.
 const MAX_PAGE_NAME_LEN = 256;
 const MAX_BOOKMARK_STATE_LEN = 64 * 1024;
 
@@ -86,7 +81,6 @@ export function registerContentIpc(): void {
       const wId = validateUUID(workspaceId);
       if (!rId || !wId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
 
-      // Cap renderer-supplied export inputs to bound the request body.
       if (typeof pageName === 'string' && pageName.length > MAX_PAGE_NAME_LEN) {
         return { success: false, error: { code: 'INVALID_INPUT', message: 'pageName exceeds maximum length' } };
       }
@@ -108,9 +102,6 @@ export function registerContentIpc(): void {
         return exportResponse;
       }
 
-      // Write to a sibling temp file first, then rename into place. A crash or
-      // disk-full mid-write then corrupts only the throwaway temp, never the
-      // user's target path (a half-written .pdf opens as a corrupt file).
       const tmpPath = `${filePath}.${process.pid}.tmp`;
       try {
         await fs.writeFile(tmpPath, exportResponse.data);
@@ -149,10 +140,6 @@ export function registerContentIpc(): void {
     ) => {
       const wsId = validateUUID(workspaceId);
       if (!wsId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid workspace ID' } };
-      // Entries are either plain dataset ids (report/dashboard callers — all in
-      // wsId) or {datasetId, workspaceId} pairs (App caller — each dataset
-      // queried in its OWN home workspace). Both GUIDs are validated; invalid
-      // entries are dropped rather than failing the whole call.
       const ids: Array<string | { datasetId: string; workspaceId: string }> = [];
       if (Array.isArray(datasetIds)) {
         for (const entry of datasetIds) {
@@ -183,12 +170,8 @@ export function registerContentIpc(): void {
   });
 
   ipcMain.handle('content:get-admin-insights', async (_event, days?: number, force?: boolean) => {
-    // Default window = 2 days (matches the service default): the first unlock
-    // must come back quickly on a large tenant; the UI can ask for more later.
     const d = typeof days === 'number' && Number.isFinite(days) ? days : 2;
     return await powerbiApiService.getAdminInsights(d, force === true);
   });
 
-  // There is deliberately no 'content:get-recent' handler — the renderer reads
-  // recents via 'usage:get-recent' (usageTrackingService).
 }

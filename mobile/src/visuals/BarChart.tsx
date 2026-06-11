@@ -7,20 +7,11 @@ import { highlight, seriesRest } from './palette';
 import { barIndexForX } from './scrub-logic';
 
 const CHART_HEIGHT = 120;
-const TAP_SLOP = 4; // px of travel before a touch counts as a scrub, not a tap
+const TAP_SLOP = 4;
 
-/**
- * Vertical bar chart — history rests quiet, the latest bar carries the amber
- * accent. Hairline grid; touch is the entry: press a bar to read its exact
- * value (mono readout), DRAG to scrub — the nearest bar lights amber, the
- * readout follows live, and a detent ticks each time the index changes.
- * Release keeps the last selection; a plain tap clears it. Scrubbing is
- * interaction, not decoration — it ignores Reduce Motion.
- */
 export const BarChart: React.FC<{
   data: SeriesData;
   format?: ValueFormat;
-  /** Index of the accented bar; defaults to the latest. */
   highlightIndex?: number;
 }> = ({ data, format = 'number', highlightIndex }) => {
   const [selected, setSelected] = useState<number | null>(null);
@@ -31,8 +22,6 @@ export const BarChart: React.FC<{
   selectedRef.current = selected;
   const movedRef = useRef(false);
 
-  // Snap the scrub to the bar under the finger; detent ONLY on index change
-  // (detent() is internally rate-limited, so fast scrubs purr, never buzz).
   const scrubTo = useCallback((x: number) => {
     const idx = barIndexForX(x, widthRef.current, countRef.current);
     if (idx < 0 || idx === selectedRef.current) return;
@@ -42,7 +31,6 @@ export const BarChart: React.FC<{
   }, []);
 
   const endTouch = useCallback(() => {
-    // A drag keeps its last selection; a plain tap clears back to latest.
     if (!movedRef.current) {
       selectedRef.current = null;
       setSelected(null);
@@ -54,10 +42,6 @@ export const BarChart: React.FC<{
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        // Yield to the surrounding ScrollView only when the drag is clearly
-        // vertical — horizontal scrubs keep the chart. The second hook is the
-        // Android path: native scrolling bypasses termination requests and is
-        // blocked by default, so it must be released explicitly.
         onPanResponderTerminationRequest: (_e, g) => Math.abs(g.dy) > Math.abs(g.dx),
         onShouldBlockNativeResponder: (_e, g) => Math.abs(g.dx) >= Math.abs(g.dy),
         onPanResponderGrant: (e) => {
@@ -81,7 +65,6 @@ export const BarChart: React.FC<{
   const min = Math.min(...points.map((p) => p.value), 0);
   const range = max - min || 1;
   const hi = highlightIndex ?? points.length - 1;
-  // Guard against a stale selection if the data shrank under it.
   const sel = selected !== null && selected < points.length ? selected : null;
   const active = sel !== null ? points[sel] : undefined;
   const latest = points[hi]!;
@@ -98,15 +81,13 @@ export const BarChart: React.FC<{
       </View>
       <View
         style={styles.plot}
-        // box-only: the plot itself owns every touch, so locationX is always
-        // plot-relative and the scrub math stays honest.
         pointerEvents="box-only"
         onLayout={(e) => {
           widthRef.current = e.nativeEvent.layout.width;
         }}
         {...pan.panHandlers}
       >
-        {/* Quiet grid hairlines behind the bars. */}
+        {}
         {[0, 0.5, 1].map((t) => (
           <View key={t} style={[styles.grid, { top: t * (CHART_HEIGHT - 1) }]} />
         ))}

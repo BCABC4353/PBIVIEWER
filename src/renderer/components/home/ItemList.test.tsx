@@ -25,9 +25,7 @@ describe('ItemList — keyboard activation (A11Y-B5)', () => {
     const onOpen = vi.fn();
     render(<ItemList items={mockItems} onOpen={onOpen} />);
 
-    // The first data row contains the first item's name
     const rows = screen.getAllByRole('row');
-    // rows[0] is the header row; rows[1] is the first data row
     const firstDataRow = rows[1]!;
     fireEvent.keyDown(firstDataRow, { key: 'Enter', code: 'Enter' });
 
@@ -86,7 +84,6 @@ describe('ItemList — keyboard activation (A11Y-B5)', () => {
     const kebab = screen.getAllByRole('button', {
       name: `More options for ${firstItem.name}`,
     })[0]!;
-    // The inner div wrapping the kebab calls e.stopPropagation() on keydown
     fireEvent.keyDown(kebab, { key: 'Enter', code: 'Enter' });
 
     expect(onOpen).not.toHaveBeenCalled();
@@ -100,7 +97,6 @@ describe('ItemList — keyboard activation (A11Y-B5)', () => {
     const kebab = screen.getAllByRole('button', {
       name: `More options for ${firstItem.name}`,
     })[0]!;
-    // The inner div wrapping the kebab calls e.stopPropagation() on click
     fireEvent.click(kebab);
 
     expect(onOpen).not.toHaveBeenCalled();

@@ -1,6 +1,3 @@
-/**
- * Tests for the kiosk recovery-backoff constants + resolver.
- */
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -12,7 +9,6 @@ import {
 describe('PROD-S1 kiosk constants', () => {
   it('exposes the 5s → 30s → 60s backoff schedule', () => {
     expect(KIOSK_RECOVERY_BACKOFF_MS).toEqual([5000, 30000, 60000]);
-    // Top-level export mirrors the grouped constant.
     expect(KIOSK_RECOVERY_BACKOFF_MS).toBe(KIOSK.RECOVERY_BACKOFF_MS);
   });
 

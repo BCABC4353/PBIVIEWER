@@ -1,10 +1,3 @@
-/**
- * ensure-azure-config — writes an empty src/auth/azure-config.local.json stub
- * when missing. Metro resolves the require('./azure-config.local.json') in
- * azure-config.ts statically, so the (gitignored) file must EXIST for the
- * bundle to build; empty values simply leave the app in sample-data mode.
- * Wired as `prestart` so `npm start` always passes through here.
- */
 import { existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 

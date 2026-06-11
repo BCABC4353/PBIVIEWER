@@ -2,21 +2,10 @@ import { useCallback, useRef } from 'react';
 import type { EmbedContext } from './embedTypes';
 
 export interface UseEmbedWatchdogResult {
-  /** Clears any pending watchdog timer. Idempotent. */
   clearWatchdog: () => void;
-  /**
-   * Arms the watchdog for the given load generation. If neither 'loaded' nor a
-   * pre-load 'error' arrives within `watchdogMs`, surfaces a timeout message —
-   * but only while the captured generation is still current and the embed has
-   * not loaded.
-   */
   armWatchdog: (generation: number) => void;
 }
 
-/**
- * Watchdog timer for the embed load — fires a "taking too long" error if the
- * embed never reports loaded or a pre-load error.
- */
 export function useEmbedWatchdog(
   ctx: EmbedContext,
   watchdogMs: number

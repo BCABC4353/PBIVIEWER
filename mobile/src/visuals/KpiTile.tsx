@@ -3,15 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import { formatValue, type KpiData, type ValueFormat } from '../core/dax';
 
-/**
- * Hero number tile — ONE number that matters, tabular numerals, optional
- * delta. Positive delta is calm green, negative uses the sacred red (the only
- * "broken/negative" semantic), flat is quiet.
- */
 export const KpiTile: React.FC<{
   data: KpiData;
   format?: ValueFormat;
-  /** Fractional change vs the prior period (0.062 = +6.2%). */
   delta?: number;
 }> = ({ data, format = 'number', delta }) => {
   const value = formatValue(data.value, format);

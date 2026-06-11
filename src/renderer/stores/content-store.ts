@@ -10,15 +10,14 @@ import { useAuthStore } from './auth-store';
 
 interface ContentState {
   workspaces: Workspace[];
-  reports: Map<string, Report[]>; // keyed by workspaceId
-  dashboards: Map<string, Dashboard[]>; // keyed by workspaceId
+  reports: Map<string, Report[]>;
+  dashboards: Map<string, Dashboard[]>;
   apps: App[];
   recentItems: ContentItem[];
   frequentItems: ContentItem[];
   isLoading: boolean;
   error: string | null;
 
-  // Actions
   loadWorkspaces: () => Promise<void>;
   loadReports: (workspaceId: string) => Promise<void>;
   loadDashboards: (workspaceId: string) => Promise<void>;
@@ -26,12 +25,6 @@ interface ContentState {
   loadRecentItems: () => Promise<void>;
   loadFrequentItems: () => Promise<void>;
   recordItemOpened: (item: ContentItem) => void;
-  /**
-   * Targeted eviction of a single dead item (called when a viewer
-   * receives a 404 for an item). Updates the in-memory recent/frequent lists
-   * immediately AND removes it from the persistent usage store so it does not
-   * reappear on the next launch.
-   */
   evictDeadItem: (itemId: string) => void;
   clearError: () => void;
   reset: () => void;
@@ -109,14 +102,8 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadRecentItems: async () => {
     try {
-      // Scope the read to the signed-in user so accounts on a shared
-      // machine do not see each other's recent history.
       const accountId = useAuthStore.getState().user?.id;
       const response = await window.electronAPI.usage.getRecent(accountId);
-      // An account switch can land DURING this in-flight IPC.
-      // Re-check the active account after the await and discard the response if
-      // it changed, so the prior account's data is never written into the new
-      // account's store.
       if (useAuthStore.getState().user?.id !== accountId) return;
       if (response.success) {
         set({ recentItems: response.data });
@@ -128,11 +115,8 @@ export const useContentStore = create<ContentState>((set, get) => ({
 
   loadFrequentItems: async () => {
     try {
-      // Scope the read to the signed-in user (same rationale as above).
       const accountId = useAuthStore.getState().user?.id;
       const response = await window.electronAPI.usage.getFrequent(accountId);
-      // Discard a response that resolved after an account
-      // switch (same rationale as loadRecentItems above).
       if (useAuthStore.getState().user?.id !== accountId) return;
       if (response.success) {
         set({ frequentItems: response.data });
@@ -143,20 +127,10 @@ export const useContentStore = create<ContentState>((set, get) => ({
   },
 
   recordItemOpened: (item: ContentItem) => {
-    // Guard — do not emit usage IPC after the user has logged out.
-    // useAuthStore.getState() is synchronous so there is no race between the
-    // guard and the navigation that immediately follows this call.
     if (!useAuthStore.getState().isAuthenticated) return;
 
-    // Fire-and-forget: usage bookkeeping must NOT block the navigation
-    // hot path. Callers should call this and immediately navigate; the
-    // recent/frequent lists will reflect the open on the next paint cycle
-    // (or shortly after) once these awaits resolve.
     void (async () => {
       try {
-        // Pass the signed-in user's homeAccountId so the record is scoped to
-        // this account. UserInfo.id holds the homeAccountId as set by the
-        // auth service.
         const accountId = useAuthStore.getState().user?.id;
         await window.electronAPI.usage.recordOpen({
           id: item.id,
@@ -166,8 +140,6 @@ export const useContentStore = create<ContentState>((set, get) => ({
           workspaceName: item.workspaceName || 'Unknown',
           accountId,
         });
-        // Refresh recent and frequent lists in parallel — neither depends
-        // on the other and they can race the user's next click freely.
         await Promise.all([
           get().loadRecentItems(),
           get().loadFrequentItems(),
@@ -178,16 +150,11 @@ export const useContentStore = create<ContentState>((set, get) => ({
     })();
   },
 
-  // Targeted eviction — removes a single item from in-memory
-  // recent/frequent lists without discarding all usage history.  Callers
-  // (viewers) invoke this when the Power BI API returns a 404 for an item.
   evictDeadItem: (itemId: string) => {
     set((state) => ({
       recentItems: state.recentItems.filter((i) => i.id !== itemId),
       frequentItems: state.frequentItems.filter((i) => i.id !== itemId),
     }));
-    // Also drop it from the PERSISTENT store so the dead tile does
-    // not come back on next launch (fire-and-forget; UI already updated above).
     void window.electronAPI.usage.remove(itemId).catch(() => {});
   },
 
@@ -196,8 +163,6 @@ export const useContentStore = create<ContentState>((set, get) => ({
   },
 
   reset: () => {
-    // Wipe all cached content so a different signed-in user does not see
-    // the previous account's data. Mirrors the initial store state.
     set({
       workspaces: [],
       reports: new Map(),

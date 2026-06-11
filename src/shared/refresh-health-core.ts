@@ -1,25 +1,6 @@
-// ---------------------------------------------------------------------------
-// PURE refresh-health derivation: refresh/transaction history in, health
-// fields out. SINGLE SOURCE for BOTH apps — consumed by the desktop main
-// process (src/main/services/powerbi/insights.ts feeds these functions from
-// its fetching wrappers) and by the mobile app's thin adapter
-// (mobile/src/core/refresh-health.ts; Metro reaches this file through the
-// watchFolders entry in mobile/metro.config.js). This module must have NO
-// electron, node, or react-native imports and NO side effects — it compiles
-// under tsconfig.main.json (CommonJS), tsconfig.renderer.json (bundler), AND
-// the mobile Expo toolchain, so it must stay loadable in any JS runtime.
-// Keep imports relative; type-only imports from src/shared are fine (erased
-// at compile time).
-// ---------------------------------------------------------------------------
 
 import type { InsightsRefreshable } from './types';
 
-/**
- * Parse a dataset refresh entry's serviceExceptionJson into the error code
- * plus the richest human detail the payload carries: errorDescription when
- * present, and any pbi.error detail values. Returns {} for missing or
- * malformed payloads. (Dataflow transactions carry no such field.)
- */
 export function parseServiceException(json?: string): { errorCode?: string; errorDetail?: string } {
   if (!json) return {};
   try {
@@ -43,18 +24,10 @@ export function parseServiceException(json?: string): { errorCode?: string; erro
       errorDetail: detailParts.length > 0 ? detailParts.join(' · ') : undefined,
     };
   } catch {
-    return {}; // malformed exception payload — omit error info
+    return {};
   }
 }
 
-/**
- * Map a refresh/transaction history (newest first, as the API returns it)
- * to the `recentRuns` strip: OLDEST → NEWEST, terminal attempts only
- * (in-flight entries with no terminal status are skipped). `successLike`
- * decides which statuses count as ok for the given endpoint. Failed dataset
- * runs carry errorCode/errorDetail parsed from serviceExceptionJson so the
- * UI can explain each red dot; dataflows have no such payload.
- */
 export function deriveRecentRuns(
   entries: Array<{ status?: string; endTime?: string; serviceExceptionJson?: string }>,
   successLike: (s?: string) => boolean,
@@ -75,7 +48,6 @@ export function deriveRecentRuns(
     .reverse();
 }
 
-/** Derive refresh health from a dataset's recent refresh history. */
 export function deriveDatasetRefreshHealth(
   entries: Array<{
     status?: string;
@@ -90,9 +62,6 @@ export function deriveDatasetRefreshHealth(
 > {
   if (entries.length === 0) return { lastStatus: 'Never' };
 
-  // Newest first. 'Unknown' with no endTime is an in-flight refresh;
-  // 'Unknown' WITH an endTime is how the v1 endpoint reports a completed
-  // on-demand refresh (same convention as getDatasetRefreshInfo).
   const newest = entries[0]!;
   const successLike = (s?: string) => s === 'Completed' || s === 'Unknown';
   const lastSuccess = entries.find((e) => successLike(e.status) && e.endTime);
@@ -123,17 +92,6 @@ export function deriveDatasetRefreshHealth(
   };
 }
 
-/**
- * Pure overdue math for the schedule-vs-reality check (the fetching wrapper —
- * getDatasetScheduleInfo in powerbi/insights.ts — explains the policy): flag
- * an enabled schedule overdue when the last success is older than twice the
- * schedule's expected cadence (minimum 24h so a multi-daily schedule with
- * one missed slot doesn't immediately alarm). Datasets without a schedule
- * (live connections, push datasets) simply return no fields.
- *
- * `now` is injectable (epoch ms) so the mobile adapter and its tests can pass
- * a fixed clock; desktop callers omit it and get the real one.
- */
 export function deriveScheduleInfo(
   sched: { days?: string[]; times?: string[]; enabled?: boolean; localTimeZoneId?: string } | null | undefined,
   lastSuccessTime?: string,
@@ -154,13 +112,11 @@ export function deriveScheduleInfo(
     const overdueAfterMs = Math.max(24 * 60 * 60 * 1000, 2 * expectedGapMs);
     scheduleOverdue = now - Date.parse(lastSuccessTime) > overdueAfterMs;
   } else {
-    // Enabled schedule but no success ever recorded — that IS overdue.
     scheduleOverdue = true;
   }
   return { scheduleSummary, scheduleOverdue };
 }
 
-/** Derive refresh health from a dataflow's recent transactions. */
 export function deriveDataflowRefreshHealth(
   entries: Array<{ status?: string; startTime?: string; endTime?: string }>,
 ): Pick<InsightsRefreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime' | 'recentRuns'> {

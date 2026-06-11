@@ -9,8 +9,6 @@ import { registerLogIpc } from './log';
 import { registerKioskIpc } from './kiosk';
 import { registerBeaconIpc } from './beacon';
 
-// Registers every domain IPC module: window controls, auth, content, settings,
-// export, usage, app, log, kiosk.
 export function registerAllIpcHandlers(): void {
   registerWindowIpc();
   registerAuthIpc();

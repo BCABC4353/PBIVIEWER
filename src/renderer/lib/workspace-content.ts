@@ -1,10 +1,3 @@
-/**
- * fetchWorkspaceContent — shared helper for loading reports and
- * dashboards for a single workspace.
- *
- * WorkspacesPage's Retry action and initial expand both use this single code
- * path rather than duplicating the Promise.allSettled + loadWarning logic.
- */
 
 import type { Report, Dashboard } from '../../shared/types';
 
@@ -16,14 +9,6 @@ export interface WorkspaceContentResult {
   loadWarning: WorkspaceLoadWarning;
 }
 
-/**
- * Fetch reports and dashboards for the given workspace in parallel.
- *
- * Uses Promise.allSettled so a failure on one half does not erase what the
- * other half successfully returned. The caller receives a `loadWarning` value
- * that distinguishes total failure ('both') from partial failure ('reports' /
- * 'dashboards') from full success (null).
- */
 export async function fetchWorkspaceContent(
   workspaceId: string,
 ): Promise<WorkspaceContentResult> {
@@ -46,7 +31,6 @@ export async function fetchWorkspaceContent(
       ? dashboardsSettled.value.data
       : [];
 
-  // Log rejected reasons so they are not silently swallowed.
   if (reportsSettled.status === 'rejected') {
     console.warn('[fetchWorkspaceContent] getReports failed:', reportsSettled.reason);
   } else if (!reportsSettled.value.success) {

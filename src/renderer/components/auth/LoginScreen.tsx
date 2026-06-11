@@ -19,7 +19,6 @@ export const LoginScreen: React.FC = () => {
 
   useEffect(() => {
     window.electronAPI.app.getVersion().then(setVersion).catch(() => {
-      /* version footer is cosmetic — never let it reject unhandled */
     });
   }, []);
 
@@ -30,13 +29,13 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-neutral-background-2">
-      {/* Real title bar — unauthenticated variant: draggable shell only, no avatar/search/nav */}
+      {}
       <TitleBar variant="unauthenticated" />
 
-      {/* Main content */}
+      {}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="bg-neutral-background-1 rounded-xl shadow-fluent-8 p-8 max-w-md w-full">
-          {/* Logo/Icon */}
+          {}
           <div className="flex justify-center mb-6">
             <img
               src={logoUrl}
@@ -45,14 +44,14 @@ export const LoginScreen: React.FC = () => {
             />
           </div>
 
-          {/* Title */}
+          {}
           <div className="text-center mb-6">
             <Title1 className="text-neutral-foreground-1">
               Power BI Viewer
             </Title1>
           </div>
 
-          {/* Error message */}
+          {}
           {error && (
             <div role="alert" aria-live="assertive" className="mb-4">
               <MessageBar intent="error">
@@ -64,7 +63,7 @@ export const LoginScreen: React.FC = () => {
             </div>
           )}
 
-          {/* Sign in button — appearance="primary" uses brand orange from Foundation themes */}
+          {}
           <Button
             appearance="primary"
             size="large"
@@ -79,7 +78,7 @@ export const LoginScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer */}
+      {}
       <div className="h-8 flex items-center justify-center">
         <Text size={100} className="text-neutral-foreground-3">
           {version ? `Version ${version}` : ''}

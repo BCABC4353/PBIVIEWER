@@ -12,12 +12,6 @@ import { formatTime, relativeAge, triggerLabel, tabular } from './insights-share
 import { KindDot } from './KindDot';
 import { RunDotStrip } from './RunDotStrip';
 
-/**
- * Status as colored TEXT in the meta column (owner v3 #6) — the chips are
- * dead. Red `FAILED · down 1347d`, amber lowercase `stale`, amber
- * `OVERDUE · …`, gray `DORMANT · down 482d`, and the quieter states; a
- * healthy row says nothing (silence = health). Null = no status line.
- */
 function statusMetaLine(
   item: InsightsRefreshable,
   stale: boolean,
@@ -29,7 +23,7 @@ function statusMetaLine(
       color: luce.broken,
     };
   }
-  if (stale) return { text: 'FAILED · upstream', color: luce.broken }; // one vocabulary (owner v8)
+  if (stale) return { text: 'FAILED · upstream', color: luce.broken };
   if (item.scheduleOverdue) return { text: `OVERDUE${down ? ` · ${down}` : ''}`, color: luce.warn };
   if (isDormant(item)) {
     const d = dormantDownLabel(item);
@@ -41,14 +35,6 @@ function statusMetaLine(
   return null;
 }
 
-/**
- * Sheet row — owner punch list v3 #5/#6: the 88px status-chip column is dead.
- * Four tracks `[dot 16px] [name minmax(0,2fr)] [pulse 132px] [meta 240px]`,
- * gap 16 — the name owns the reclaimed width so "AUTO FINANCE REPORTING"
- * renders whole at the 880px sheet width. META is up to THREE stacked nowrap
- * 11px lines: the colored status text, relative time + trigger, timestamp.
- * Error code stays under the name (truncated, full text on title).
- */
 export const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> = ({
   item,
   stale = false,
@@ -67,10 +53,10 @@ export const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boole
         padding: '12px 0',
       }}
     >
-      {/* Kind dot (16px): violet dataflow / slate dataset — identity, not status. */}
+      {}
       <KindDot kind={item.kind} />
 
-      {/* Name (2fr, min-width 0, ellipsis) — no chips on the name line. */}
+      {}
       <div className="min-w-0">
         <div className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
           {item.name}
@@ -82,12 +68,12 @@ export const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boole
         )}
       </div>
 
-      {/* Pulse (132px): dots + caption stacked, never sharing the meta lines. */}
+      {}
       <div style={{ width: 132 }}>
         <RunDotStrip runs={item.recentRuns} kind={item.kind} />
       </div>
 
-      {/* Meta (240px, right-aligned): up to three 11px nowrap lines. */}
+      {}
       <div className="text-right min-w-0">
         {status && (
           <div
@@ -120,7 +106,7 @@ export const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boole
               }
               det = det.replace(/<\/?(pii|ccon)>/g, '');
               const first = det.split(/\.\.|\. /)[0] ?? det;
-              return first; // full width, fully readable (owner v8)
+              return first;
             })()}
           </div>
         )}

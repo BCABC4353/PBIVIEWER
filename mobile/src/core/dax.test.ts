@@ -189,7 +189,7 @@ describe('shapeForVisual', () => {
         ],
       },
     });
-    const line = shapeForVisual(spec({ kind: 'line' }), r); // auto field resolution
+    const line = shapeForVisual(spec({ kind: 'line' }), r);
     expect(line.kind === 'line' && line.data.points.map((p) => p.value)).toEqual([10, 30]);
   });
 

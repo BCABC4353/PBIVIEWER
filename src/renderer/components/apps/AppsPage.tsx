@@ -1,7 +1,3 @@
-/**
- * App tiles use the flat ContentCard style: bg-neutral-background-4 icon
- * container, shadow-fluent-4 on hover, text-accent-primary (orange brand) icon.
- */
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner, Text, Button, Card } from '@fluentui/react-components';

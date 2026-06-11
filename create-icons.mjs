@@ -12,7 +12,6 @@ const icnsPath = path.join(__dirname, 'assets', 'icons', 'icon.icns');
 
 async function createIcons() {
   try {
-    // First create a 512x512 PNG for best quality icons
     const pngBuffer = await sharp(inputPath)
       .resize(512, 512, {
         fit: 'contain',
@@ -21,7 +20,6 @@ async function createIcons() {
       .png()
       .toBuffer();
     
-    // Create ICO (256x256 for Windows)
     const ico256 = await sharp(pngBuffer)
       .resize(256, 256)
       .png()
@@ -36,7 +34,6 @@ async function createIcons() {
     
     fs.unlinkSync(tempPngPath);
     
-    // Create ICNS (for macOS)
     const icnsBuffer = png2icons.createICNS(pngBuffer, png2icons.BICUBIC, 0);
     if (icnsBuffer) {
       fs.writeFileSync(icnsPath, icnsBuffer);

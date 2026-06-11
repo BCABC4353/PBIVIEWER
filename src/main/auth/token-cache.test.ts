@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ---------------------------------------------------------------------------
-// In-memory electron-store stub. token-cache.ts relies on electron-store's
-// built-in encryptionKey (no Electron safeStorage), so only electron-store needs
-// mocking — the stub ignores the constructor options (name/encryptionKey/
-// clearInvalidConfig) and just backs get/set/delete with a Map.
-// ---------------------------------------------------------------------------
 const backing = new Map<string, string>();
 
 vi.mock('electron-store', () => {
@@ -48,7 +42,6 @@ describe('token-cache persistence (encryptionKey-backed, DPAPI-independent)', ()
       displayName: 'Tester',
       email: 'e@x.com',
     });
-    // A truncated/garbage value must not throw — it resolves to null.
     backing.set('userInfo', '{ not valid json');
     expect(await tokenCache.loadUserInfo()).toBeNull();
   });

@@ -1,9 +1,5 @@
 import React from 'react';
 
-/**
- * Shared helpers for the Insights board — split out of InsightsPage.tsx
- * verbatim so the per-component files can import them.
- */
 
 export function formatTime(iso?: string): string {
   if (!iso) return '—';
@@ -33,7 +29,7 @@ export function triggerLabel(refreshType?: string): string {
   if (!refreshType) return '—';
   if (refreshType === 'ViaApi') return 'Power Automate / API';
   if (refreshType === 'OnDemand') return 'Manual';
-  return refreshType; // 'Scheduled' and any future values render as-is
+  return refreshType;
 }
 
 export const tabular: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' };

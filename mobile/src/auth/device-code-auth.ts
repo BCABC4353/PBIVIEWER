@@ -1,20 +1,3 @@
-/**
- * AAD OAuth 2.0 DEVICE AUTHORIZATION GRANT (RFC 8628) — the zero-Entra-changes
- * path to live data. No redirect URI is involved at all, so nothing needs to
- * be added to the app registration's platform list: the phone shows a short
- * code, the owner types it at https://microsoft.com/devicelogin on ANY signed-
- * in browser, and the phone polls the token endpoint until AAD says yes.
- *
- * ONE Entra precondition (a toggle, not a platform/redirect change): the app
- * registration must have Authentication → "Allow public client flows" = Yes.
- * Without it the token endpoint answers `invalid_client` (AADSTS7000218) —
- * mapped below to guidance instead of OAuth jargon.
- *
- * PURE LOGIC, like token-manager.ts: no React Native / Expo imports, fetch,
- * sleep and clock are injected, so the whole state machine (pending →
- * slow_down → expired/denied/success) runs under vitest on Node. The Expo
- * wiring (msal-auth.ts adoptTokenSet + SettingsScreen UI) stays thin.
- */
 import { decodeIdToken, type TokenSet } from './token-manager';
 
 export interface DeviceCodeConfig {
@@ -23,23 +6,15 @@ export interface DeviceCodeConfig {
   scopes: string[];
 }
 
-/** What AAD's /devicecode endpoint hands back (camelCased). */
 export interface DeviceCodeChallenge {
-  /** The opaque code the CLIENT polls with (never shown to the user). */
   deviceCode: string;
-  /** The short code the USER types at the verification URI — show this BIG. */
   userCode: string;
-  /** Where the user goes (canonically https://microsoft.com/devicelogin). */
   verificationUri: string;
-  /** Lifetime of the codes, seconds. */
   expiresInSec: number;
-  /** Minimum seconds between polls (AAD default 5). */
   intervalSec: number;
-  /** AAD's ready-made human sentence, when present. */
   message?: string;
 }
 
-/** Minimal injected-fetch seam (global fetch satisfies it). */
 export interface DeviceCodeHttpResponse {
   status: number;
   json(): Promise<unknown>;
@@ -51,19 +26,15 @@ export type DeviceCodeFetch = (
 
 export interface DeviceCodeDeps {
   fetch: DeviceCodeFetch;
-  /** Injected for tests; defaults to real timers / Date.now. */
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
 }
 
 export interface DeviceCodePollHooks {
-  /** Streamed once per poll round so the UI can show a live status line. */
   onStatus?: (status: 'waiting' | 'slow_down') => void;
-  /** Return true to abort the poll loop (user cancelled, screen unmounted). */
   cancelled?: () => boolean;
 }
 
-/** Thrown when `cancelled()` flips — callers treat it as a quiet no-op. */
 export class DeviceCodeCancelledError extends Error {
   constructor() {
     super('Device code sign-in cancelled');
@@ -71,12 +42,6 @@ export class DeviceCodeCancelledError extends Error {
   }
 }
 
-/**
- * The friendly mapping for AAD's confidential-client rejection: this app's
- * registration was set up for the desktop's http://localhost native flow,
- * and the "Allow public client flows" toggle may well still be No — device
- * code flow is the one grant that REQUIRES it (AADSTS7000218).
- */
 export const PUBLIC_CLIENT_FLAG_GUIDANCE =
   'Microsoft rejected the sign-in because the app registration does not allow ' +
   'public client flows. One-time fix (no new redirect URIs needed): Entra portal → ' +
@@ -109,7 +74,6 @@ async function bodyOf(res: DeviceCodeHttpResponse): Promise<Record<string, unkno
   }
 }
 
-/** True for the AAD error codes meaning "this registration is confidential". */
 function isPublicClientRejection(error: string | undefined, description: string | undefined): boolean {
   return (
     error === 'invalid_client' ||
@@ -127,10 +91,6 @@ function errorFrom(body: Record<string, unknown>, fallback: string): Error {
   return new Error(description ?? error ?? fallback);
 }
 
-/**
- * Step 1 — ask AAD for a user code. POST
- * /{tenant}/oauth2/v2.0/devicecode with client_id + scope.
- */
 export async function requestDeviceCode(
   config: DeviceCodeConfig,
   deps: DeviceCodeDeps,
@@ -159,17 +119,6 @@ export async function requestDeviceCode(
   };
 }
 
-/**
- * Step 2 — poll the token endpoint until the user finishes (or the code
- * dies). Implements the RFC 8628 / AAD state machine:
- *   authorization_pending → keep polling at `interval`
- *   slow_down             → add 5 s to the interval, keep polling
- *   expired_token         → the code died unredeemed — friendly throw
- *   access_denied / authorization_declined → the user said no — friendly throw
- *   bad_verification_code → AAD didn't recognize the typed code — friendly throw
- *   invalid_client / unauthorized_client → "Allow public client flows" guidance
- *   access_token present  → TokenSet (refresh token + identity included)
- */
 export async function pollDeviceCode(
   config: DeviceCodeConfig,
   challenge: DeviceCodeChallenge,
@@ -220,19 +169,16 @@ export async function pollDeviceCode(
       continue;
     }
     if (error === 'slow_down') {
-      intervalSec += 5; // RFC 8628 §3.5: back off by 5 s and keep going
+      intervalSec += 5;
       hooks.onStatus?.('slow_down');
       continue;
     }
     if (error === 'expired_token') {
       throw new Error('The sign-in code expired before you finished — start again for a fresh code.');
     }
-    // RFC 8628 names the refusal `access_denied`; the Microsoft identity
-    // platform actually answers `authorization_declined`. Same meaning.
     if (error === 'access_denied' || error === 'authorization_declined') {
       throw new Error('Sign-in was declined on the Microsoft page.');
     }
-    // AAD-specific: the code entered on the Microsoft page was wrong or stale.
     if (error === 'bad_verification_code') {
       throw new Error(
         'Microsoft did not recognize the sign-in code — check it was typed exactly, or start again for a fresh code.',

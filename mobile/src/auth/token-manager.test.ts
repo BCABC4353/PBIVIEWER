@@ -1,9 +1,3 @@
-/**
- * TokenManager tests — pure TS with injected fakes (no react-native / expo
- * imports). Covers the single-flight refresh lock (desktop's
- * tokenAcquisitionInFlight pattern), expiry margin, persistence shape,
- * refresh-token rotation, and invalid_grant credential drop.
- */
 import { describe, it, expect, vi } from 'vitest';
 import {
   TokenManager,
@@ -13,7 +7,6 @@ import {
   type TokenStorage,
 } from './token-manager';
 
-/** In-memory TokenStorage fake. */
 function memoryStorage(initial: string | null = null) {
   let value = initial;
   return {
@@ -35,7 +28,7 @@ const NOW = Date.parse('2026-06-10T12:00:00Z');
 function freshSet(overrides: Partial<TokenSet> = {}): TokenSet {
   return {
     accessToken: 'AT-fresh',
-    expiresAt: NOW + 60 * 60 * 1000, // +1h
+    expiresAt: NOW + 60 * 60 * 1000,
     refreshToken: 'RT-1',
     user: { username: 'brendan@bc-abc.com', name: 'Brendan' },
     ...overrides,
@@ -75,14 +68,14 @@ describe('getAccessToken — expiry + refresh', () => {
     expect(await m.getAccessToken()).toBe('AT-2');
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledWith('RT-1');
-    expect(JSON.parse(read()!).refreshToken).toBe('RT-2'); // rotation persisted
+    expect(JSON.parse(read()!).refreshToken).toBe('RT-2');
   });
 
   it('refreshes INSIDE the expiry margin (token not yet expired but close)', async () => {
     const { m, refresh, seed } = manager({
       refresh: async () => freshSet({ accessToken: 'AT-2' }),
     });
-    await seed(freshSet({ expiresAt: NOW + 2 * 60 * 1000 })); // 2 min left < 5 min margin
+    await seed(freshSet({ expiresAt: NOW + 2 * 60 * 1000 }));
     expect(await m.getAccessToken()).toBe('AT-2');
     expect(refresh).toHaveBeenCalledTimes(1);
   });
@@ -134,10 +127,9 @@ describe('single-flight refresh lock (tokenAcquisitionInFlight pattern)', () => 
     await seed(freshSet({ expiresAt: 0 }));
 
     const first = m.getAccessToken();
-    const second = m.getAccessToken(); // coalesced onto the same attempt
+    const second = m.getAccessToken();
     await expect(first).rejects.toThrow('network down');
     await expect(second).rejects.toThrow('network down');
-    // Lock released — the next call retries instead of being wedged.
     expect(await m.getAccessToken()).toBe('AT-retry');
     expect(refresh).toHaveBeenCalledTimes(2);
   });
@@ -149,9 +141,9 @@ describe('single-flight refresh lock (tokenAcquisitionInFlight pattern)', () => 
     });
     await seed(freshSet({ expiresAt: 0 }));
     const a = m.getAccessToken();
-    await Promise.resolve(); // let the first caller reach the refresh fn
-    expect(release).not.toBeNull(); // refresh genuinely in flight
-    const b = m.getAccessToken(); // late joiner
+    await Promise.resolve();
+    expect(release).not.toBeNull();
+    const b = m.getAccessToken();
     release!(freshSet({ accessToken: 'AT-one' }));
     expect(await Promise.all([a, b])).toEqual(['AT-one', 'AT-one']);
     expect(refresh).toHaveBeenCalledTimes(1);
@@ -173,10 +165,6 @@ describe('invalid_grant handling', () => {
   });
 
   it("clears credentials for the REAL expo-auth-session error shape (code on `e.code`, prose-only message)", async () => {
-    // expo-auth-session's TokenError extends CodedError: the OAuth error code
-    // lands in `.code`, while `.message` is RFC 6749 human prose that never
-    // contains the literal string "invalid_grant" — a message-only regex
-    // would miss it entirely.
     class FakeTokenError extends Error {
       code = 'invalid_grant';
       constructor() {
@@ -208,7 +196,7 @@ describe('invalid_grant handling', () => {
     });
     await seed(freshSet({ expiresAt: 0 }));
     await expect(m.getAccessToken()).rejects.toThrow('offline');
-    expect(read()).not.toBeNull(); // refresh token survives for a later retry
+    expect(read()).not.toBeNull();
   });
 });
 
@@ -220,7 +208,6 @@ describe('persistence shape', () => {
     expect(persisted.accessToken).toBeUndefined();
     expect(persisted.refreshToken).toBe('RT-1');
     expect(persisted.user.username).toBe('brendan@bc-abc.com');
-    // …but the in-memory copy still serves reads while fresh.
     expect(await m.getAccessToken()).toBe('AT-fresh');
   });
 
@@ -240,7 +227,7 @@ describe('persistence shape', () => {
     const m = new TokenManager({ storage, refresh, now: () => NOW });
     expect(await m.isSignedIn()).toBe(true);
     expect((await m.getCurrentUser())?.username).toBe('brendan@bc-abc.com');
-    expect(await m.getAccessToken()).toBe('AT-cold'); // launch = silent refresh
+    expect(await m.getAccessToken()).toBe('AT-cold');
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledWith('RT-cold');
   });
@@ -267,7 +254,7 @@ describe('concurrent hydration (cold-start race)', () => {
     const storage: TokenStorage = {
       get: async () => {
         reads += 1;
-        await new Promise((r) => setTimeout(r, 0)); // storage read takes a tick
+        await new Promise((r) => setTimeout(r, 0));
         return JSON.stringify({ refreshToken: 'RT-race', user: { username: 'brendan@bc-abc.com' } });
       },
       set: async () => {},
@@ -275,8 +262,6 @@ describe('concurrent hydration (cold-start race)', () => {
     };
     const refresh = vi.fn(async () => freshSet({ accessToken: 'AT-race' }));
     const m = new TokenManager({ storage, refresh, now: () => NOW });
-    // Pre-fix: the second caller saw `loaded = true, tokens = null` while the
-    // first was still awaiting storage.get() → false / "Not signed in".
     const [signedIn, token] = await Promise.all([m.isSignedIn(), m.getAccessToken()]);
     expect(signedIn).toBe(true);
     expect(token).toBe('AT-race');
@@ -289,8 +274,8 @@ describe('concurrent hydration (cold-start race)', () => {
     let value: string | null = JSON.stringify({ refreshToken: 'RT-zombie' });
     const storage: TokenStorage = {
       get: async () => {
-        const snapshot = value; // read the pre-clear value…
-        await gate; // …but deliver it only after clear() has run
+        const snapshot = value;
+        await gate;
         return snapshot;
       },
       set: async (v) => {
@@ -301,11 +286,11 @@ describe('concurrent hydration (cold-start race)', () => {
       },
     };
     const m = new TokenManager({ storage, refresh: vi.fn(), now: () => NOW });
-    const pending = m.isSignedIn(); // hydration starts, suspended on get()
-    await m.clear(); // sign out while hydration is in flight
+    const pending = m.isSignedIn();
+    await m.clear();
     releaseGet();
-    expect(await pending).toBe(false); // stale read must not commit
-    expect(await m.isSignedIn()).toBe(false); // and a re-read sees the wipe
+    expect(await pending).toBe(false);
+    expect(await m.isSignedIn()).toBe(false);
   });
 
   it('a load() during a slow clear() (remove still pending) does not resurrect credentials', async () => {
@@ -318,29 +303,24 @@ describe('concurrent hydration (cold-start race)', () => {
         value = v;
       },
       remove: async () => {
-        await removeGate; // SecureStore delete still in flight…
+        await removeGate;
         value = null;
       },
     };
     const m = new TokenManager({ storage, refresh: vi.fn(), now: () => NOW });
-    expect(await m.isSignedIn()).toBe(true); // hydrated once, signed in
-    const clearing = m.clear(); // remove() now suspended on the gate
-    // Pre-fix: clear() reset `loaded` BEFORE the remove resolved, so this
-    // load() re-hydrated from the PRE-removal store value and committed it —
-    // zombie credentials after sign-out.
+    expect(await m.isSignedIn()).toBe(true);
+    const clearing = m.clear();
     const during = m.isSignedIn();
     releaseRemove();
     await clearing;
-    expect(await during).toBe(false); // the racing reader settles signed-out
-    expect(await m.isSignedIn()).toBe(false); // and stays out after clear()
-    expect(await m.getCurrentUser()).toBeNull(); // in-memory state wiped too
+    expect(await during).toBe(false);
+    expect(await m.isSignedIn()).toBe(false);
+    expect(await m.getCurrentUser()).toBeNull();
   });
 });
 
 describe('id_token decoding (pure base64url, no atob/Buffer)', () => {
   const payload = (claims: object) => {
-    // Node Buffer is fine IN THE TEST as the encoder; the decoder under test
-    // must not need it.
     const b64 = Buffer.from(JSON.stringify(claims), 'utf8')
       .toString('base64')
       .replace(/\+/g, '-')
@@ -381,7 +361,7 @@ describe('id_token decoding (pure base64url, no atob/Buffer)', () => {
   it('rejects malformed tokens without throwing', () => {
     expect(decodeIdToken('not-a-jwt')).toBeNull();
     expect(decodeIdToken('a.!!!.c')).toBeNull();
-    expect(decodeIdToken(`a.${'9'.repeat(8)}.c`)).toBeNull(); // valid b64, not JSON
+    expect(decodeIdToken(`a.${'9'.repeat(8)}.c`)).toBeNull();
   });
 
   it('base64UrlDecode round-trips url-safe input', () => {

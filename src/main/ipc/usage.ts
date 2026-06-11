@@ -13,9 +13,6 @@ export function registerUsageIpc(): void {
     workspaceName: string;
     accountId?: string;
   }) => {
-    // Validate every field; reject the whole payload on any invalid input so the
-    // usage-tracking-service can assume sanitized data. Strings are trimmed and
-    // length-capped (NAME_MAX) to prevent log/store bloat from a hostile renderer.
     if (typeof item !== 'object' || item === null) {
       return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid item payload' } };
     }
@@ -24,13 +21,9 @@ export function registerUsageIpc(): void {
     const type = (item as { type?: unknown }).type;
     const rawName = (item as { name?: unknown }).name;
     const rawWorkspaceName = (item as { workspaceName?: unknown }).workspaceName;
-    // AccountId is optional; validate it as a UUID when present, or allow
-    // undefined/null (renderer may not have it yet for legacy code paths).
     const rawAccountId = (item as { accountId?: unknown }).accountId;
     let accountId: string | undefined;
     if (rawAccountId !== undefined && rawAccountId !== null) {
-      // MSAL homeAccountId format is "<oid>.<tenantId>" — not a plain UUID.
-      // Accept any non-empty string; just guard against wrong type.
       if (typeof rawAccountId === 'string' && rawAccountId.trim().length > 0) {
         accountId = rawAccountId.trim().slice(0, USAGE.ACCOUNT_ID_MAX_LENGTH);
       } else {
@@ -46,8 +39,6 @@ export function registerUsageIpc(): void {
     if (typeof rawName !== 'string' || typeof rawWorkspaceName !== 'string') {
       return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid name or workspaceName' } };
     }
-    // Narrow `type` to the union explicitly — TS doesn't carry the narrowed
-    // literal through the object-shorthand destructure above.
     const itemType: 'report' | 'dashboard' = type;
     const sanitized = {
       id,
@@ -65,7 +56,6 @@ export function registerUsageIpc(): void {
     }
   });
 
-  // Accept optional accountId to scope results to the logged-in user.
   ipcMain.handle('usage:get-recent', async (_event, accountId?: string) => {
     try {
       const scopedId = typeof accountId === 'string' && accountId.trim().length > 0
@@ -90,7 +80,6 @@ export function registerUsageIpc(): void {
     }
   });
 
-  // Accept optional accountId to scope results to the logged-in user.
   ipcMain.handle('usage:get-frequent', async (_event, accountId?: string) => {
     try {
       const scopedId = typeof accountId === 'string' && accountId.trim().length > 0
@@ -124,8 +113,6 @@ export function registerUsageIpc(): void {
     }
   });
 
-  // Permanently drop a single dead item (a viewer got a 404 for it)
-  // so it doesn't reappear on next launch.
   ipcMain.handle('usage:remove', async (_event, itemId: unknown) => {
     const id = validateUUID(itemId);
     if (!id) {

@@ -1,23 +1,6 @@
-# diagnose-pbi.ps1 - run Power BI API diagnostics from THIS machine and put
-# the results on the clipboard, ready to paste back to the assistant.
-#
-# Usage:
-#   irm https://raw.githubusercontent.com/BCABC4353/PBIVIEWER/main/diagnose-pbi.ps1 | iex
-#
-# What it does (read-only, as YOU):
-#   1. Device-code sign-in (same short-code ritual as the phone app).
-#   2. Lists your Power BI Apps and the first app's reports.
-#   3. Picks a report whose name contains "Admin" when one exists (owner said
-#      those are safe), otherwise the first report, and runs the same dataset
-#      model query the mobile app's crosswalk runs (INFO.MEASURES()).
-#   4. Copies a compact JSON result (statuses + errors + names only, never
-#      row data) to the clipboard. Paste it into the chat.
-#
-# Windows PowerShell 5.1 compatible. ASCII only.
 
 $ErrorActionPreference = "Stop"
 
-# PS 5.1 defaults to old TLS, which Microsoft's login servers refuse.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $ClientId = "ee7edf76-d666-4e27-8ee7-fbc19648c4f4"
@@ -35,8 +18,6 @@ function Step {
         $entry.ok = $true
     } catch {
         $msg = $_.Exception.Message
-        # Pull the response body out of web exceptions when present - the
-        # Power BI error code lives there, not in the status line.
         try {
             $body = ""
             if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $body = $_.ErrorDetails.Message }
@@ -62,7 +43,6 @@ $TokenCache = Join-Path $env:TEMP "pbi-diag-token.json"
 Write-Host ""
 Write-Host "==> Power BI diagnostics - step 1: sign in" -ForegroundColor Cyan
 
-# Reuse a recent token so back-to-back runs skip the code ritual.
 $token = $null
 if (Test-Path $TokenCache) {
     try {
@@ -108,11 +88,6 @@ while ((Get-Date) -lt $deadline) {
         $token = $tk.access_token
         break
     } catch {
-        # PS 5.1: the JSON error body usually arrives via ErrorDetails; the
-        # raw stream is often already consumed and reads back EMPTY. An empty
-        # body means we could not read the reply - that is NOT a decline, so
-        # keep waiting. Only a body that explicitly names a terminal error
-        # stops the loop.
         $body = ""
         if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $body = $_.ErrorDetails.Message }
         if (-not $body) {
@@ -149,7 +124,6 @@ $apps = Step "list apps (GET /apps)" {
     @{ count = @($r.value).Count; names = @($r.value | Select-Object -First 10 -ExpandProperty name) }
 }
 
-# --- Probe A: what fields do APP reports actually carry on this tenant? ---
 $appsRaw = (Invoke-RestMethod -Headers $H -Uri "$Api/apps").value
 $firstApp = $appsRaw[0]
 Step ("raw fields of first report in app '" + $firstApp.name + "'") {
@@ -163,7 +137,6 @@ Step ("raw fields of first report in app '" + $firstApp.name + "'") {
     $fields
 }
 
-# --- Probe B: workspaces + their reports' datasetId presence ---
 $groups = $null
 Step "list workspaces (GET /groups)" {
     $g = (Invoke-RestMethod -Headers $H -Uri "$Api/groups").value
@@ -186,7 +159,6 @@ if ($groups) {
         $summary
     } | Out-Null
 
-    # --- Probe C: executeQueries against a dataset found the WORKSPACE way ---
     $ds = $null
     $dsWs = $null
     foreach ($g in $groups) {

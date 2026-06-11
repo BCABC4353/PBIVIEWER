@@ -1,8 +1,3 @@
-/**
- * ignition-logic.test — pure node tests for the Ignition ceremony brain.
- * No react-native, no expo, no mocks of either: if anything in here needs a
- * native import, the logic has leaked out of the pure layer.
- */
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   arcDashArray,
@@ -27,10 +22,6 @@ import {
   TICK_MAJOR_EVERY_NTH,
 } from './ignition-logic';
 
-// ---------------------------------------------------------------------------
-// Once-per-launch latch — THE rule: the ceremony plays exactly once per
-// JS bundle, surviving every unmount/remount in between.
-// ---------------------------------------------------------------------------
 
 describe('once-per-launch latch', () => {
   afterEach(() => resetIgnitionForTests());
@@ -51,10 +42,7 @@ describe('once-per-launch latch', () => {
   });
 
   it('survives across callers: a second mount of ANY component sees played=true', () => {
-    // Simulates: FleetHealthScreen unmounts (tab switch / back-nav /
-    // data-mode switch), something remounts and asks again — module state
-    // persists, so the ceremony can never replay within one bundle.
-    markIgnitionPlayed(); // first mount claimed the ceremony
+    markIgnitionPlayed();
     const secondMountSeesPlayed = ignitionHasPlayed();
     const thirdMountSeesPlayed = ignitionHasPlayed();
     expect(secondMountSeesPlayed).toBe(true);
@@ -68,9 +56,6 @@ describe('once-per-launch latch', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// clamp01
-// ---------------------------------------------------------------------------
 
 describe('clamp01', () => {
   it('passes in-range values through', () => {
@@ -91,9 +76,6 @@ describe('clamp01', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Arc math
-// ---------------------------------------------------------------------------
 
 describe('arcSpan', () => {
   it('covers exactly the 270° gauge throw', () => {
@@ -137,9 +119,6 @@ describe('dashOffsetForFraction', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Instrument geometry — needle + graduated ticks
-// ---------------------------------------------------------------------------
 
 describe('needleAngleDeg', () => {
   it('rests at the gauge start and lands at full throw', () => {
@@ -206,9 +185,6 @@ describe('polarPoint', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Ceremony choreography — the D6 contract, enforced
-// ---------------------------------------------------------------------------
 
 describe('ceremony timeline', () => {
   it('fits the D6 budget: the app is fully revealed within 1400 ms', () => {

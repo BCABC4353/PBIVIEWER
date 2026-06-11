@@ -2,8 +2,6 @@ import React from 'react';
 import { luce, ladder, type WorkspaceGroup } from './insights-luce';
 import { tabular } from './insights-shared';
 
-/** Damage summary chips (§A/§B): `N broken` red · `N overdue` amber · `N OK`
- *  low. Health is silent — no green, no "all good" substitute. */
 export const DamageCounts: React.FC<{ counts: WorkspaceGroup['counts']; size?: number; gap?: number }> = ({
   counts,
   size = 11,

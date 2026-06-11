@@ -19,29 +19,15 @@ export const ReportViewer: React.FC = () => {
 
   const embedContainerRef = useRef<HTMLDivElement>(null);
 
-  // Subscribe to the settings store so changes made in SettingsPage while
-  // this viewer is open take effect without a remount. Selectors return
-  // primitives so we re-render only when the relevant fields change.
-  // "Auto-refresh reports" is DATA-DRIVEN: a report re-refreshes the moment
-  // the freshness poll detects a new dataset refresh (no blind interval, no lag,
-  // no redundant pulls). The interval setting does not apply to reports — only
-  // the on/off toggle does.
   const autoRefreshEnabled = useSettingsStore((s) => s.settings.autoRefreshEnabled);
 
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Epoch-ms of the last refresh that actually completed (in-place
-  // report.refresh() resolved). Drives the toolbar's green "✓ Updated" flash —
-  // the visible confirmation that the screen really repainted.
   const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
   const datasetIdRef = useRef<string | null>(null);
 
-  // Report name visible while loading (breadcrumb)
   const [reportName, setReportName] = useState<string>('');
 
-  // Fullscreen page navigation (pages, current index, fullscreen flag,
-  // arrow-key nav + slicer-click focus reclamation) lives in useFullscreenPageNav.
-  // The embed handle is wired in lazily via setEmbedRef after usePowerBIEmbed.
   const {
     pages,
     setPages,
@@ -53,20 +39,12 @@ export const ReportViewer: React.FC = () => {
     setEmbedRef,
   } = useFullscreenPageNav({ containerRef: embedContainerRef });
 
-  // Defensive bootstrap: ensure the settings store has fetched once.
   useEffect(() => {
     void useSettingsStore.getState().loadSettings();
   }, []);
 
-  // Fetch report metadata (datasetId + name) — used by the loaded handler.
   useEffect(() => {
     if (!workspaceId || !reportId) return;
-    // Report→report navigation keeps this component MOUNTED (only the route
-    // params change), so the ref still holds the PREVIOUS report's dataset.
-    // Clear it before the fetch: the freshness fetcher resolves null until the
-    // new dataset is known, which reads as "no stamp yet" instead of polling
-    // the OLD report's dataset (wrong stamp for up to 5 minutes, and a
-    // mis-baselined newDataAvailable against the old dataset's refresh time).
     datasetIdRef.current = null;
     let cancelled = false;
     (async () => {
@@ -77,16 +55,8 @@ export const ReportViewer: React.FC = () => {
           const reportData = reportsResponse.data.find((r) => r.id === reportId);
           if (reportData?.datasetId) {
             datasetIdRef.current = reportData.datasetId;
-            // Kick a freshness re-poll NOW that the dataset id is known.
-            // The embed's `loaded` handler can fire before this fetch resolves,
-            // in which case its poll saw a null dataset id and did nothing —
-            // and the next scheduled poll is 5 minutes out. Setting lastLoadAt
-            // also (re)baselines newDataAvailable to the NEW report's data,
-            // which is correct: the on-screen content was loaded at essentially
-            // this moment (same pattern as AppViewer's dataset resolution).
             setLastLoadAt(Date.now());
           }
-          // Capture name so breadcrumb is visible while loading
           if (reportData?.name) {
             setReportName(reportData.name);
           }
@@ -100,7 +70,6 @@ export const ReportViewer: React.FC = () => {
     };
   }, [workspaceId, reportId]);
 
-  // Live dataset + upstream-dataflow freshness for this report's single dataset.
   const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
     useCallback(async () => {
       if (!datasetIdRef.current || !workspaceId) return null;
@@ -114,7 +83,6 @@ export const ReportViewer: React.FC = () => {
     lastLoadAt,
   );
 
-  // Build embed configuration. Stable per (workspaceId, reportId).
   const buildConfig = useCallback(
     (token: string): pbi.IReportEmbedConfiguration => ({
       type: 'report',
@@ -139,11 +107,8 @@ export const ReportViewer: React.FC = () => {
     [workspaceId, reportId]
   );
 
-  // Event handlers passed to the hook.
   const events = useMemo(
     () => ({
-      // Detect not-found/404 errors and evict the dead item from
-      // in-memory recent/frequent lists so the home page stops showing the tile.
       error: (event: pbi.service.ICustomEvent<unknown>) => {
         if (reportId && isNotFoundError(event?.detail)) {
           useContentStore.getState().evictDeadItem(reportId);
@@ -153,7 +118,6 @@ export const ReportViewer: React.FC = () => {
         const report = embedRef.current as pbi.Report | null;
         if (!report) return;
 
-        // Fetch pages for keyboard navigation in fullscreen
         try {
           const reportPages = await report.getPages();
           const visiblePages = reportPages.filter((p: pbi.Page) => p.visibility !== 1);
@@ -174,11 +138,8 @@ export const ReportViewer: React.FC = () => {
           console.warn('[ReportViewer] Page fetch failed:', error);
         }
 
-        // Mark when the on-screen content (re)loaded so the freshness hook can
-        // tell whether a later dataset refresh has left the visuals behind.
         setLastLoadAt(Date.now());
       },
-      // Track page changes to keep keyboard navigation in sync
       pageChanged: async () => {
         const report = embedRef.current as pbi.Report | null;
         if (!report) return;
@@ -196,10 +157,6 @@ export const ReportViewer: React.FC = () => {
         }
       },
     }),
-    // embedRef is a stable MutableRefObject — omitting it from deps is intentional.
-    // workspaceId is read inside loaded and reportId inside error (404 eviction);
-    // include both so a same-workspace report-to-report switch rebuilds the
-    // handlers and the error path evicts the CORRECT (current) item, not the prior one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId, reportId]
   );
@@ -215,53 +172,34 @@ export const ReportViewer: React.FC = () => {
     containerRef: embedContainerRef,
     buildConfig,
     events,
-    // Blind interval auto-refresh is OFF; we refresh data-driven instead (below).
     autoRefreshEnabled: false,
     errorFallback:
       'This report could not be loaded. You may not have access, or it may have been removed.',
     surfacePostLoadErrors: false,
   });
 
-  // Thread the live embed handle into the fullscreen-nav hook. The
-  // `events` object above is built before embedRef exists (forward reference);
-  // embedRef has stable identity, so wiring it in here is safe.
   setEmbedRef(embedRef);
 
-  // Report a load failure to the issue beacon (remote triage).
   useEffect(() => {
     if (error) reportIssue({ code: 'REPORT_EMBED_ERROR', itemName: reportName || undefined, context: error });
   }, [error, reportName]);
 
-  // Data-driven auto-refresh: when the freshness poll sees a dataset refresh
-  // newer than what's on screen, re-pull the report IN PLACE. report.refresh()
-  // preserves the current page/filters/slicers (a data refresh, not a reload),
-  // so this is invisible-and-current. Gated on the "Auto-refresh reports"
-  // toggle; when off, the toolbar's "New data" nudge lets the user refresh
-  // manually instead.
   useEffect(() => {
     if (!autoRefreshEnabled || !newDataAvailable) return;
-    // Skip while a load/reload is in flight: the embed may be mid-teardown, so
-    // refreshing it is wasted work on a dying handle and would stamp a lastLoadAt
-    // that doesn't match what's on screen. The next freshness poll re-evaluates.
     if (isLoading) return;
     const report = embedRef.current as pbi.Report | null;
     if (!report) return;
     void report
       .refresh()
       .then(() => {
-        // Stamp ONLY on success. Stamping before/despite failure would mark
-        // the screen as current when the repaint never happened, silently
-        // hiding the "new data" state behind stale visuals.
         const now = Date.now();
         setLastLoadAt(now);
-        setJustRefreshedAt(now); // toolbar flashes "✓ Updated"
+        setJustRefreshedAt(now);
       })
       .catch(() => {
-        /* non-fatal; the nudge + manual Refresh button remain */
       });
   }, [autoRefreshEnabled, newDataAvailable, isLoading, embedRef]);
 
-  // Export hook
   const { isExporting, exportStatus, handleExportPdf } = useViewerExport({
     containerRef: embedContainerRef,
     reportExportIds:
@@ -290,8 +228,6 @@ export const ReportViewer: React.FC = () => {
     },
   });
 
-  // Refresh with in-progress state. On success, re-baseline lastLoadAt so the
-  // "newer data" notice clears and flash the "✓ Updated" confirmation.
   const handleRefresh = useCallback(async () => {
     const report = embedRef.current as pbi.Report | null;
     setIsRefreshing(true);
@@ -305,8 +241,6 @@ export const ReportViewer: React.FC = () => {
         reload();
       }
     } catch {
-      // Refresh errors are non-fatal (e.g. Power BI throttles refreshes within
-      // 15s of each other); the screen keeps its previous state.
     } finally {
       setIsRefreshing(false);
     }
@@ -322,7 +256,6 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
-  // Back uses navigate(-1) with a history-length fallback
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
@@ -339,12 +272,12 @@ export const ReportViewer: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Sr-only heading for screen readers */}
+      {}
       <h1 className="sr-only">
         {reportName ? `Report: ${reportName}` : 'Report Viewer'}
       </h1>
 
-      {/* Shared toolbar */}
+      {}
       <ViewerToolbar
         onBack={handleBack}
         itemName={reportName || undefined}
@@ -363,7 +296,7 @@ export const ReportViewer: React.FC = () => {
         onFullScreen={handleFullScreen}
       />
 
-      {/* Embed container */}
+      {}
       <div className="flex-1 relative">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
@@ -391,7 +324,7 @@ export const ReportViewer: React.FC = () => {
           </div>
         )}
 
-        {/* Fullscreen keyboard hint */}
+        {}
         {isFullscreen && pages.length > 1 && showFullscreenHint && (
           <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-md text-sm z-20 pointer-events-none animate-fade-in">
             <div className="flex items-center gap-2">

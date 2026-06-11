@@ -1,8 +1,5 @@
 name: Visual Evidence
 
-# Every PR that touches the renderer gets PHOTOGRAPHS of the product attached
-# as artifacts: the Insights board, the blast-radius sheet open, and the
-# solo-client view. Logic gates prove it works; this proves what it LOOKS like.
 on:
   pull_request:
     paths:

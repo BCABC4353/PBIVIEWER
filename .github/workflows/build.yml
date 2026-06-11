@@ -1,18 +1,5 @@
 name: Build and Release
 
-# ----------------------------------------------------------------------------
-# ONE-CLICK BUILD - works from your desktop OR your phone, no terminal needed.
-#
-#   GitHub.com (or the GitHub mobile app)
-#     -> this repo -> "Actions" tab
-#     -> "Build and Release" (left side)
-#     -> "Run workflow" -> pick patch / minor / major -> Run
-#
-# GitHub bumps the version for you, builds the Windows + Mac installers, and
-# publishes a Release with both attached. No tags, no version editing, no CLI.
-# (The version bump + tag happen on GitHub's runner, so it works even when a
-# phone / cloud session can't push tags itself.)
-# ----------------------------------------------------------------------------
 on:
   workflow_dispatch:
     inputs:
@@ -25,7 +12,6 @@ on:
           - major
         default: patch
 
-# One build/release at a time; never silently cancel one that's mid-flight.
 concurrency:
   group: build-and-release
   cancel-in-progress: false
@@ -34,8 +20,6 @@ permissions:
   contents: write
 
 jobs:
-  # 1) Bump version in package.json, commit to main, and create the tag.
-  #    Runs on GitHub's runner (not your phone), so the tag push always works.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -103,8 +87,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: windows-installer
-          # latest.yml is the update metadata electron-updater reads from the
-          # release to detect + verify new versions. It MUST ship next to the .exe.
           path: |
             build-output/*.exe
             build-output/latest.yml
@@ -115,11 +97,6 @@ jobs:
     needs: version
     runs-on: macos-latest
     env:
-      # GitHub's release CDN intermittently 504s on the Electron darwin binary
-      # (it blocked the v2.0.7 AND v2.0.8 mac builds for minutes at a time). Pull
-      # Electron from the npmmirror mirror instead; @electron/get still verifies
-      # SHASUMS256, so binary integrity is preserved. ELECTRON_CUSTOM_DIR drops
-      # the leading "v" so the mirror's /mirrors/electron/<version>/ path resolves.
       ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
       ELECTRON_CUSTOM_DIR: "{{ version }}"
     steps:
@@ -184,9 +161,6 @@ jobs:
 
   release:
     needs: [version, build-windows, build-mac]
-    # Publish as long as the Windows build succeeded, even if the macOS job failed
-    # (e.g. a transient Electron-CDN 504). One platform's flake must never block
-    # the whole release. always() lets this run despite a failed or skipped need.
     if: ${{ always() && needs.build-windows.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
@@ -199,8 +173,6 @@ jobs:
           path: ./artifacts
       - name: Download macOS installer
         uses: actions/download-artifact@v8
-        # Tolerate a missing mac artifact so a failed mac build still lets the
-        # Windows installer publish rather than zeroing out the whole release.
         continue-on-error: true
         with:
           name: mac-installer
@@ -214,11 +186,6 @@ jobs:
           draft: false
           make_latest: true
 
-  # 6) Owner mandate (2026-06-10): EVERY release is a mandatory update.
-  #    After the release publishes, point the force lever at the new version so
-  #    every running Windows app below it downloads and auto-restarts into it
-  #    within ~10-15 minutes. The manual lever in update-policy.json still
-  #    works for emergencies; this job simply keeps it at "latest" forever.
   force-policy:
     needs: [version, release]
     if: ${{ always() && needs.release.result == 'success' }}
@@ -246,7 +213,6 @@ jobs:
           PY
           git add update-policy.json
           git commit -m "ops: force fleet to v${ver} (mandatory-update policy)"
-          # The version job may have pushed to main after our checkout; rebase-retry.
           for i in 1 2 3; do
             git push origin HEAD:main && exit 0
             git pull --rebase origin main

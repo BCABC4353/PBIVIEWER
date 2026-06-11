@@ -9,9 +9,6 @@ export function registerSettingsIpc(): void {
   });
 
   ipcMain.handle('settings:update', async (_event, updates: Partial<AppSettings>) => {
-    // Validate every known field before persisting; unknown keys are dropped
-    // silently. Reject the whole payload if any provided field has an invalid
-    // type/value, so the renderer can't poison the settings store.
     const { sanitized, rejected } = validateAppSettingsPatch(updates);
     if (rejected.length > 0) {
       return { success: false, error: { code: 'VALIDATION_FAILED', message: 'Invalid settings payload' } };

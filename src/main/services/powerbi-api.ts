@@ -1,12 +1,3 @@
-// ---------------------------------------------------------------------------
-// Power BI API facade. The seven concerns that used to be inlined here live
-// in focused modules under ./powerbi/ (http transport, error envelopes, pure
-// refresh-health derivation, catalog listings, freshness stamps, insights
-// snapshot, admin tier, export/embed). This file keeps the FROZEN public
-// surface: the PowerBIApiService class (now a thin orchestrator that owns the
-// auth/request plumbing and delegates to the modules), the DI factory, the
-// production deps builder, and the lazy proxy singleton.
-// ---------------------------------------------------------------------------
 
 import { POWERBI_API_BASE, fetchWithTimeout, throwForStatus, withRetry } from './powerbi/http';
 import { PowerBICatalogApi } from './powerbi/catalog';
@@ -29,16 +20,9 @@ import type {
   AdminInsights,
 } from '../../shared/types';
 
-// Dependency-injection seam: the token source is an injectable port (not a
-// direct import of the auth-service singleton, whose electron/MSAL module graph
-// cannot load under jsdom), so tests can drive the client with a fake token
-// provider and no electron at all.
 
-/** Minimal slice of the auth service the API client needs. */
 export interface ApiAuthPort {
   getAccessToken(): Promise<IPCResponse<TokenResult>>;
-  /** Admin-tier token (Tenant.Read.All) via incremental consent. Optional so
-   *  test fakes that never touch admin endpoints don't have to provide it. */
   getAdminAccessToken?(): Promise<IPCResponse<TokenResult>>;
 }
 
@@ -79,14 +63,6 @@ class PowerBIApiService {
     this.exporter = new PowerBIExportApi(deps.auth);
   }
 
-  /**
-   * Drop all cached data tied to the signed-in account. MUST be called on
-   * logout AND account-switch: these caches (instance-owned by the insights,
-   * admin, and freshness modules — including the lineage cache that used to
-   * be module-level here) are account-scoped data living on a process-wide
-   * singleton, so without this a second account on a shared machine could be
-   * served the first account's cached snapshot/lineage within the TTL window.
-   */
   clearCaches(): void {
     this.insights.clearCache();
     this.admin.clearCache();
@@ -94,14 +70,9 @@ class PowerBIApiService {
   }
 
   private async makeRequest<T>(endpoint: string): Promise<T> {
-    // Same token + retry plumbing as makeRequestWithUrl, in the
-    // endpoint-relative form every non-pagination caller uses.
     return this.makeRequestWithUrl<T>(`${POWERBI_API_BASE}${endpoint}`);
   }
 
-  /**
-   * Makes a request to a full URL (used for pagination with @odata.nextLink)
-   */
   private async makeRequestWithUrl<T>(fullUrl: string): Promise<T> {
     return withRetry(async () => {
       const tokenResponse = await this.deps.auth.getAccessToken();
@@ -125,7 +96,6 @@ class PowerBIApiService {
     });
   }
 
-  // --- Catalog tier (powerbi/catalog.ts) ------------------------------------
 
   getWorkspaces(): Promise<IPCResponse<Workspace[]>> {
     return this.catalog.getWorkspaces();
@@ -169,7 +139,6 @@ class PowerBIApiService {
     return this.catalog.getAllItems();
   }
 
-  // --- Freshness tier (powerbi/freshness.ts) --------------------------------
 
   resolveAppReportDataset(
     appId: string,
@@ -197,7 +166,6 @@ class PowerBIApiService {
     return this.freshness.getDataFreshness(workspaceId, datasetIds, dashboardId);
   }
 
-  // --- Insights + admin tiers (powerbi/insights.ts, powerbi/admin.ts) -------
 
   getInsightsSnapshot(force = false): Promise<IPCResponse<InsightsSnapshot>> {
     return this.insights.getInsightsSnapshot(force);
@@ -207,7 +175,6 @@ class PowerBIApiService {
     return this.admin.getAdminInsights(days, force);
   }
 
-  // --- Export tier (powerbi/export.ts) ---------------------------------------
 
   getEmbedToken(
     _reportId: string,
@@ -226,25 +193,15 @@ class PowerBIApiService {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Factory + production wiring
-// ---------------------------------------------------------------------------
 
 export type { PowerBIApiService };
 
-/**
- * Construct a PowerBIApiService from explicit dependencies. Tests inject a fake
- * ApiAuthPort; production injects the real auth service (built lazily).
- */
 export function createPowerBIApiService(deps: PowerBIApiDeps): PowerBIApiService {
   return new PowerBIApiService(deps);
 }
 
-/** Build the production dependency set (real auth service backed). */
 export function buildProductionApiDeps(): PowerBIApiDeps {
   return {
-    // Lazy require so importing this module does not eagerly pull in the
-    // electron/MSAL-backed auth singleton (keeps the module loadable in tests).
     auth: {
       getAccessToken: () => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -260,9 +217,6 @@ export function buildProductionApiDeps(): PowerBIApiDeps {
   };
 }
 
-// Lazy production singleton (see auth/singleton.ts). Exported as a proxy so the
-// existing `import { powerbiApiService }` call sites (ipc/content.ts) keep
-// working while construction stays deferred until first use.
 import { getPowerBIApiService } from '../auth/singleton';
 
 export const powerbiApiService: PowerBIApiService = new Proxy({} as PowerBIApiService, {

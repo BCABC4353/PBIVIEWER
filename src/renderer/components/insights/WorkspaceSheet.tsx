@@ -11,32 +11,14 @@ import { LineageDiagram } from './LineageDiagram';
 import { RefreshableRow } from './RefreshableRow';
 import { SheetLabel } from './SheetLabel';
 
-// ---------------------------------------------------------------------------
-// Blast-radius sheet (DESIGN-CONTRACT §C/§D/§E): the tile literally BECOMES
-// the sheet — a native View Transition morph. One view-transition-name
-// (`sheet-morph`) is carried by the clicked tile while the sheet is closed
-// and by the sheet panel while it is open; the engine's snapshots own the
-// whole flight (orchestrated in InsightsPage, durations/aspect handling in
-// insights-luce.css). Three waves of fill-in, machined-glass material with
-// the blur switched on at the morph's `finished` promise. Inside: dataflows
-// (upstream) with their damage cascades, datasets (suspects carry the STALE
-// DATA badge), then the people with access.
-// ---------------------------------------------------------------------------
 
 export const WorkspaceSheet: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
   reports: LineageReportInput[];
-  /** This workspace's slice of the locally-recorded opens (usage.getFrequent
-   *  filtered by workspaceId at the page level — owner: usage lives in the
-   *  same window as the tile, because it's about THIS workspace). */
   usage: ContentItem[];
-  /** This workspace's catalog slice (reports + dashboards the user can see),
-   *  used to derive the never-opened footnote. */
   catalog: Array<{ id: string; name: string }>;
-  /** §E: glass (backdrop blur) on — immediately when no morph ran, or at the
-   *  open morph's `finished` promise (InsightsPage decides). */
   settled: boolean;
   onClose: () => void;
 }> = ({ group, access, blast, reports, usage, catalog, settled, onClose }) => {
@@ -44,13 +26,6 @@ export const WorkspaceSheet: React.FC<{
   const panelRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Modal discipline (release-gate blocker): keyboard/AT users land INSIDE
-  // the dialog and can never wander the dimmed board behind it. A document
-  // focus guard is authoritative — it survives the focus eviction that
-  // applying `inert` to the board triggers, and it re-captures any stray
-  // focus (Tab off the last element, programmatic focus elsewhere). Close
-  // unmounts the sheet synchronously (inside the view-transition callback),
-  // so this guard is already gone when focus returns to the tile.
   useEffect(() => {
     let active = true;
     const pull = () => {
@@ -58,7 +33,6 @@ export const WorkspaceSheet: React.FC<{
       if (!panel || panel.contains(document.activeElement)) return;
       (closeBtnRef.current ?? panel).focus();
     };
-    // Land focus after the open paint + the board's inert eviction settle.
     const t = setTimeout(pull, 0);
     const onFocusIn = () => {
       if (active) pull();
@@ -101,11 +75,6 @@ export const WorkspaceSheet: React.FC<{
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Owner v3 #1: "it opens with a click it should close with a click" — a
-  // click anywhere on the sheet that is NOT an interactive element contracts
-  // it, same as the backdrop. Buttons/links/inputs keep working; selecting
-  // text in the technical-details block ([data-selectable], or any live
-  // selection) never closes.
   const onPanelClick = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -120,9 +89,6 @@ export const WorkspaceSheet: React.FC<{
   const dataflows = group.items.filter((i) => i.kind === 'dataflow');
   const datasets = group.items.filter((i) => i.kind === 'dataset');
 
-  // USAGE group (owner: one flow, no two columns). Each used item draws a
-  // horizontal bar scaled to the workspace MAX open count; everything the
-  // user can see but has never opened compresses into one footnote line.
   const used = [...usage].sort((a, b) => (b.openCount ?? 0) - (a.openCount ?? 0));
   const maxOpens = used.reduce((m, f) => Math.max(m, f.openCount ?? 0), 0);
   const openedIds = new Set(usage.map((f) => f.id));
@@ -136,8 +102,7 @@ export const WorkspaceSheet: React.FC<{
       aria-label={`${group.workspaceName} details`}
       onKeyDown={trapTab}
     >
-      {/* The board recedes behind one deep scrim; clicking it contracts. Its
-          fade rides the view transition's root cross-fade. */}
+      {}
       <button
         aria-label="Close"
         className="luce-scrim absolute inset-0 cursor-pointer border-0"
@@ -150,14 +115,11 @@ export const WorkspaceSheet: React.FC<{
         style={{
           width: 'min(880px, 100vw - 96px)',
           maxHeight: 'calc(100vh - 96px)',
-          // While open, ONLY the sheet panel carries the morph name — the
-          // engine pairs it with the tile that carried it in the old state.
           viewTransitionName: 'sheet-morph',
         }}
         onClick={onPanelClick}
       >
-        {/* Header (sticky over the scrolling body). A second click anywhere
-            non-interactive contracts the sheet (owner v3 #1). */}
+        {}
         <div
           className="relative z-[1] flex items-start justify-between gap-4 shrink-0 cursor-pointer"
           style={{ padding: '28px 32px 16px' }}
@@ -183,9 +145,7 @@ export const WorkspaceSheet: React.FC<{
             </button>
           </div>
         </div>
-        {/* Body scrolls under the header. Waves: 1 = the lineage diagram +
-            section headers + dataflow rows, 2 = dataset rows + meta, 3 =
-            people. The diagram IS the damage cascade now (owner v3 #3). */}
+        {}
         <div className="relative z-[1] overflow-y-auto" style={{ padding: '0 32px 28px' }}>
           <div className="space-y-6">
             <div className="">
@@ -251,8 +211,7 @@ export const WorkspaceSheet: React.FC<{
                 )}
               </div>
             </div>
-            {/* USAGE (owner): the user's opens for THIS workspace, in the same
-                window as the tile — one flow, total usage as a bar graph. */}
+            {}
             <div data-testid="sheet-usage">
               <SheetLabel>Usage</SheetLabel>
               <div className="mb-2" style={{ fontSize: 10, color: ladder.faint }}>
@@ -287,7 +246,7 @@ export const WorkspaceSheet: React.FC<{
                         <span className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
                           {f.name}
                         </span>
-                        {/* The bar: width ∝ openCount / workspace max. */}
+                        {}
                         <span aria-hidden="true" className="block min-w-0">
                           <span
                             data-testid="usage-bar"
@@ -295,7 +254,7 @@ export const WorkspaceSheet: React.FC<{
                             style={{
                               height: 6,
                               width: `${((f.openCount ?? 0) / Math.max(1, maxOpens)) * 100}%`,
-                              background: 'rgba(232,163,61,0.55)', // luce.accent at modest opacity
+                              background: 'rgba(232,163,61,0.55)',
                             }}
                           />
                         </span>

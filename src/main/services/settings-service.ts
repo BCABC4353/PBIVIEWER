@@ -7,16 +7,11 @@ interface SettingsStore {
   settings: AppSettings;
 }
 
-// Narrow store interface — only the get/set this module uses. Both the real
-// electron-store and the in-memory fallback satisfy it.
 interface SettingsStoreLike {
   get(key: 'settings', defaultValue: AppSettings): AppSettings;
   set(key: 'settings', value: AppSettings): void;
 }
 
-// In-memory fallback if the on-disk store cannot even be constructed (locked /
-// EPERM file on a roaming or VDI profile). Settings won't persist this session,
-// but the app launches and works rather than dying at module load with no window.
 function createMemorySettingsStore(): SettingsStoreLike {
   let current: AppSettings = DEFAULT_SETTINGS;
   return {
@@ -34,10 +29,6 @@ function createSettingsStore(): SettingsStoreLike {
       defaults: {
         settings: DEFAULT_SETTINGS,
       },
-      // A power-loss / AV-truncated settings.json must self-heal rather than throw
-      // a SyntaxError at main-process load. conf resets to defaults when it can't
-      // parse. (clearInvalidConfig only covers parse failures — a locked/EPERM
-      // file still throws from the constructor, which the catch below handles.)
       clearInvalidConfig: true,
     });
     return {
@@ -52,10 +43,6 @@ function createSettingsStore(): SettingsStoreLike {
 
 const store: SettingsStoreLike = createSettingsStore();
 
-// Belt-and-braces sanitizer: even if the IPC handler is bypassed (module-internal
-// callers, future code paths), make sure persisted values are within bounds and
-// of the right shape. Unknown/invalid fields are dropped from the partial update
-// rather than rejected, so legacy callers keep working.
 function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSettings> {
   const src = updates as Record<string, unknown>;
   const out: Partial<AppSettings> = {};
@@ -85,28 +72,20 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
     } else if (typeof v === 'string' && UUID_REGEX.test(v)) {
       out.autoStartReportId = v;
     }
-    // Invalid value: silently drop (don't poison the store).
   }
   if (typeof src.autoRefreshEnabled === 'boolean') {
     out.autoRefreshEnabled = src.autoRefreshEnabled;
   }
   if (typeof src.autoRefreshInterval === 'number' && Number.isFinite(src.autoRefreshInterval)) {
-    // Clamp to the SAME bounds as the shared validator — a tighter local clamp
-    // would re-clamp values it already accepted, silently discarding operator intent.
     out.autoRefreshInterval = Math.min(
       AUTH.AUTO_REFRESH_MAX_MINUTES,
       Math.max(AUTH.AUTO_REFRESH_MIN_MINUTES, src.autoRefreshInterval),
     );
   }
-  // Launch-time auto-start behavior.
   if ('autoStartMode' in src) {
     const v = src.autoStartMode;
     if (v === 'off' || v === 'report' || v === 'app') out.autoStartMode = v;
-    // Invalid value: silently drop.
   }
-  // Launch-time auto-start of a specific app (paired with autoStartMode 'app').
-  // Must be accepted here or the renderer's "open a specific app" choice is
-  // silently dropped at the persistence boundary and never sticks.
   if ('autoStartAppId' in src) {
     const v = src.autoStartAppId;
     if (v === undefined) {
@@ -114,7 +93,6 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
     } else if (typeof v === 'string' && UUID_REGEX.test(v)) {
       out.autoStartAppId = v;
     }
-    // Invalid value: silently drop.
   }
   if ('autoStartWorkspaceId' in src) {
     const v = src.autoStartWorkspaceId;
@@ -123,13 +101,10 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
     } else if (typeof v === 'string' && UUID_REGEX.test(v)) {
       out.autoStartWorkspaceId = v;
     }
-    // Invalid value: silently drop.
   }
-  // Usage-history retention policy on logout.
   if ('usageClearOnLogout' in src) {
     const v = src.usageClearOnLogout;
     if (v === 'always' || v === 'never' || v === 'on-shared-machine') out.usageClearOnLogout = v;
-    // Invalid value: silently drop.
   }
 
   return out;
@@ -152,8 +127,6 @@ export const settingsService = {
   updateSettings(updates: Partial<AppSettings>): IPCResponse<AppSettings> {
     try {
       const currentSettings = store.get('settings', DEFAULT_SETTINGS);
-      // Belt-and-braces: re-sanitize at the persistence boundary too. The IPC
-      // handler already validates, but other in-process callers might not.
       const sanitized = sanitizePartialSettings(updates);
       const newSettings = { ...currentSettings, ...sanitized };
       store.set('settings', newSettings);

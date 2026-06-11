@@ -2,12 +2,6 @@ import { ipcMain } from 'electron';
 import { getIssueBeacon } from '../services/issue-beacon-service';
 import { IPC_CHANNELS } from '../../shared/ipc-channels';
 
-/**
- * Beacon reporting channel: the renderer pushes user-visible failure moments
- * (an embed that wouldn't load, a page that errored, a React crash) so the
- * beacon can batch + post them. Fire-and-forget; recording is cheap and the
- * beacon is a no-op when disabled.
- */
 export function registerBeaconIpc(): void {
   ipcMain.handle(
     IPC_CHANNELS.beacon.report,

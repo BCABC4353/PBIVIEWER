@@ -39,7 +39,6 @@ export const SearchDialog: React.FC = () => {
 
   const { recordItemOpened } = useContentStore();
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       if (query.trim()) {
@@ -50,7 +49,6 @@ export const SearchDialog: React.FC = () => {
     return () => clearTimeout(timer);
   }, [query, search]);
 
-  // Focus input when opened
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
@@ -60,7 +58,6 @@ export const SearchDialog: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Reset selection when results change
   useEffect(() => {
     setSelectedIndex(0);
   }, [results]);
@@ -68,9 +65,6 @@ export const SearchDialog: React.FC = () => {
   const handleNavigate = useCallback((result: typeof results[0]) => {
     closeSearch();
 
-    // Record usage for reports and dashboards. recordItemOpened is
-    // fire-and-forget — do NOT await it; the navigate() below must fire
-    // synchronously so the user sees instant feedback.
     if ((result.type === 'report' || result.type === 'dashboard') && result.workspaceId) {
       recordItemOpened({
         id: result.id,
@@ -96,7 +90,6 @@ export const SearchDialog: React.FC = () => {
         navigate(`/app/${result.id}`);
         break;
       case 'workspace':
-        // Navigate to workspaces page with expand param to auto-open this workspace
         navigate(`/workspaces?expand=${result.id}`);
         break;
     }
@@ -160,13 +153,12 @@ export const SearchDialog: React.FC = () => {
   return (
     <Dialog open={isOpen} onOpenChange={(_, data) => !data.open && closeSearch()}>
       <DialogSurface className="p-0 max-w-2xl w-full">
-        {/* Screen-reader-only dialog title for accessibility */}
+        {}
         <DialogTitle>
           <span className="sr-only">Search Power BI content</span>
         </DialogTitle>
 
-        {/* Search input — ARIA combobox attributes land on the inner <input> via the
-            Fluent Input slot override so AT announces the correct role and state. */}
+        {}
         <div className="p-4 border-b border-neutral-stroke-2">
           <Input
             ref={inputRef}
@@ -200,7 +192,7 @@ export const SearchDialog: React.FC = () => {
           />
         </div>
 
-        {/* Partial-failure warning (non-blocking) */}
+        {}
         {partialFailureWarning && (
           <div
             role="status"
@@ -213,7 +205,7 @@ export const SearchDialog: React.FC = () => {
           </div>
         )}
 
-        {/* Results */}
+        {}
         <div className="max-h-96 overflow-auto">
           {isSearching && (
             <div className="flex items-center justify-center py-8">
@@ -295,7 +287,7 @@ export const SearchDialog: React.FC = () => {
           )}
         </div>
 
-        {/* Footer */}
+        {}
         <div className="px-4 py-2 border-t border-neutral-stroke-2 bg-neutral-background-2 flex items-center justify-between text-xs text-neutral-foreground-3">
           <div className="flex items-center gap-4">
             <span><kbd className="kbd-hint">↑↓</kbd> Navigate</span>

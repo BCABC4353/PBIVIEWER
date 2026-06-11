@@ -1,21 +1,7 @@
-/**
- * Luce helpers for the Insights board — pure functions + design tokens only
- * (no React) so they are unit-testable and the page component stays lean.
- *
- * Palette/semantics come from docs/design/IOS-CRAFT-SPEC.md and
- * APP-DESIGN-LANGUAGE.md: near-black canvas, surfaces lifted by light,
- * ONE amber accent, red strictly for broken, status = shape + color + label.
- * Scoped to the Insights page only — the rest of the desktop app keeps its
- * Fluent look.
- */
 import type { InsightsRefreshable } from '../../../shared/types';
 import type { BlastRadius } from '../../../shared/blast-radius';
 
-// ---------------------------------------------------------------------------
-// Tokens (mirrors mobile/src/design/tokens.ts)
-// ---------------------------------------------------------------------------
 
-// The white ladder — single source for every text/identity tier (D12).
 const TEXT_PRIMARY = 'rgba(255,255,255,0.92)';
 const TEXT_SECONDARY = 'rgba(255,255,255,0.64)';
 const TEXT_TERTIARY = 'rgba(255,255,255,0.40)';
@@ -29,25 +15,16 @@ export const luce = {
   textSecondary: TEXT_SECONDARY,
   textTertiary: TEXT_TERTIARY,
 
-  accent: '#E8A33D', // the ONLY chrome accent
-  // D12: healthy is the resting state — it reads by glyph + label in the
-  // grayscale ladder. A green hue restating "fine" was decoration (Pierre).
+  accent: '#E8A33D',
   ok: TEXT_SECONDARY,
   warn: '#E8A33D',
-  broken: '#E5484D', // sacred: failures only, never decoration
+  broken: '#E5484D',
 
-  // Owner punch list v3 #5: kind is a small identity DOT before the name —
-  // violet/slate identity tints, never a status hue (not red/amber/green).
   kindDataflow: '#A78BDB',
   kindDataset: '#7E9CC9',
-  dormant: TEXT_TERTIARY, // "abandoned, not on fire"
+  dormant: TEXT_TERTIARY,
 } as const;
 
-/**
- * DESIGN-CONTRACT §0 — the white-alpha ladder for the blast-radius surfaces
- * (hero tile, triage tiles, sheet rows/cascades). hi/mid/low/faint are text
- * tiers; hairline is the only row separator inside the sheet's lens.
- */
 export const ladder = {
   hi: 'rgba(255,255,255,0.95)',
   mid: 'rgba(255,255,255,0.70)',
@@ -57,14 +34,11 @@ export const ladder = {
   lip: 'rgba(255,255,255,0.05)',
 } as const;
 
-/** Kind → identity dot tint (owner v3 #5): the dot before every row name and
- *  the one-line key at the top of the sheet list. Identity, never status. */
 export const kindDot: Record<InsightsRefreshable['kind'], string> = {
   dataset: luce.kindDataset,
   dataflow: luce.kindDataflow,
 };
 
-/** Status → shape glyph (color-blind safe; never color alone). */
 export const statusGlyph: Record<InsightsRefreshable['lastStatus'], string> = {
   Completed: '●',
   Failed: '⬣',
@@ -77,7 +51,7 @@ export const statusGlyph: Record<InsightsRefreshable['lastStatus'], string> = {
 export const statusColor: Record<InsightsRefreshable['lastStatus'], string> = {
   Completed: luce.ok,
   Failed: luce.broken,
-  Cancelled: luce.broken, // counted in Broken — the color must agree with the count
+  Cancelled: luce.broken,
   Never: luce.warn,
   InProgress: luce.accent,
   Disabled: luce.textTertiary,
@@ -92,11 +66,7 @@ export const statusLabel: Record<InsightsRefreshable['lastStatus'], string> = {
   Disabled: 'Live',
 };
 
-// ---------------------------------------------------------------------------
-// "Down for X" + failure-rate derivations
-// ---------------------------------------------------------------------------
 
-/** True when the item is in a state the owner reads as "this client is down". */
 export function isDown(item: Pick<InsightsRefreshable, 'lastStatus' | 'scheduleOverdue'>): boolean {
   return (
     item.lastStatus === 'Failed' ||
@@ -105,7 +75,6 @@ export function isDown(item: Pick<InsightsRefreshable, 'lastStatus' | 'scheduleO
   );
 }
 
-/** Compact elapsed-time label: 45m / 26h / 3d. */
 export function formatElapsed(ms: number): string {
   const mins = Math.floor(ms / 60000);
   if (mins < 60) return `${Math.max(mins, 0)}m`;
@@ -114,10 +83,6 @@ export function formatElapsed(ms: number): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-/**
- * "down 26h" when the item is Failed/Cancelled/Overdue and has a prior
- * success; "down — never succeeded" when it never has. Null when healthy.
- */
 export function downForLabel(
   item: Pick<InsightsRefreshable, 'lastStatus' | 'scheduleOverdue' | 'lastSuccessTime'>,
   now: number = Date.now(),
@@ -129,18 +94,9 @@ export function downForLabel(
   return `down ${formatElapsed(ms)}`;
 }
 
-// ---------------------------------------------------------------------------
-// Dormant (Matt #4) — abandoned items, independent of lastStatus
-// ---------------------------------------------------------------------------
 
-/** An item is dormant when nothing has happened to it for over a year. */
 export const DORMANT_AFTER_MS = 365 * 24 * 60 * 60 * 1000;
 
-/**
- * True when the item's last refresh attempt (or last success, if no attempt
- * time is known) is more than 365 days old. Deliberately lastStatus-independent:
- * a dataset that "Completed" 700 days ago is abandoned, not healthy.
- */
 export function isDormant(
   item: Pick<InsightsRefreshable, 'lastAttemptTime' | 'lastSuccessTime'>,
   now: number = Date.now(),
@@ -151,11 +107,6 @@ export function isDormant(
   return Number.isFinite(ms) && ms > DORMANT_AFTER_MS;
 }
 
-/**
- * Down-for label for a dormant item, in the existing "down 657d" voice —
- * measured from the last success (the owner reads dormancy as downtime).
- * Null when the item is not dormant.
- */
 export function dormantDownLabel(
   item: Pick<InsightsRefreshable, 'lastAttemptTime' | 'lastSuccessTime'>,
   now: number = Date.now(),
@@ -167,13 +118,9 @@ export function dormantDownLabel(
   return `down ${formatElapsed(ms)}`;
 }
 
-// ---------------------------------------------------------------------------
-// Summary-tile filters (Matt #2)
-// ---------------------------------------------------------------------------
 
 export type TileFilter = 'broken' | 'overdue' | 'running' | 'healthy' | 'dormant';
 
-/** Predicate behind each clickable summary tile. */
 export function matchesTileFilter(
   item: InsightsRefreshable,
   filter: TileFilter,
@@ -193,7 +140,6 @@ export function matchesTileFilter(
   }
 }
 
-/** "3 of last 12 runs failed" when any run failed; null when quiet. */
 export function failureRateCaption(recentRuns?: InsightsRefreshable['recentRuns']): string | null {
   if (!recentRuns || recentRuns.length === 0) return null;
   const fails = recentRuns.filter((r) => !r.ok).length;
@@ -208,12 +154,6 @@ export interface DotStripCell {
   errorDetail?: string;
 }
 
-/**
- * Normalize a recentRuns history to exactly `size` cells for the dot strip.
- * Chronology is ALWAYS oldest → newest, left → right, and filled dots ALWAYS
- * start at the far LEFT: a partial history pads hollow placeholders on the
- * RIGHT (Matt #6 — left-padding made short strips read right→left).
- */
 export function dotStripCells(
   recentRuns: InsightsRefreshable['recentRuns'],
   size = 12,
@@ -231,17 +171,12 @@ export function dotStripCells(
   ];
 }
 
-// ---------------------------------------------------------------------------
-// Workspace grouping
-// ---------------------------------------------------------------------------
 
 export interface WorkspaceGroup {
   workspaceId: string;
   workspaceName: string;
   items: InsightsRefreshable[];
-  /** Counts feeding the mini health summary in the section header. */
   counts: { broken: number; overdue: number; dormant: number; never: number; running: number; ok: number; live: number };
-  /** Worst status across the group (drives the header glyph). */
   worst: InsightsRefreshable['lastStatus'];
 }
 
@@ -254,10 +189,6 @@ const severity: Record<InsightsRefreshable['lastStatus'], number> = {
   Disabled: 5,
 };
 
-/**
- * Item sort rank inside a group (Matt #4 order):
- * Failed, Cancelled, Overdue, Dormant, Never, Running, OK, Live.
- */
 function itemRank(item: InsightsRefreshable, now: number): number {
   if (item.lastStatus === 'Failed') return 0;
   if (item.lastStatus === 'Cancelled') return 1;
@@ -266,10 +197,9 @@ function itemRank(item: InsightsRefreshable, now: number): number {
   if (item.lastStatus === 'Never') return 4;
   if (item.lastStatus === 'InProgress') return 5;
   if (item.lastStatus === 'Completed') return 6;
-  return 7; // Disabled ("Live")
+  return 7;
 }
 
-/** Group rank: broken first, then overdue, dormant, never, running, quiet. */
 function groupRank(g: WorkspaceGroup): number {
   if (g.counts.broken > 0) return 0;
   if (g.counts.overdue > 0) return 1;
@@ -279,11 +209,6 @@ function groupRank(g: WorkspaceGroup): number {
   return 5;
 }
 
-/**
- * Group refreshables by workspace (client), worst-first inside each group,
- * troubled groups first overall. All groups start COLLAPSED (Matt #7) — the
- * worst-first sort and red header summaries surface trouble instead.
- */
 export function groupByWorkspace(
   refreshables: InsightsRefreshable[],
   now: number = Date.now(),
@@ -327,7 +252,6 @@ export function groupByWorkspace(
   return groups;
 }
 
-/** Mini health summary for a section header, e.g. "2 broken · 1 overdue · 14 OK". */
 export function groupSummaryLabel(g: WorkspaceGroup): string {
   const parts: string[] = [];
   if (g.counts.broken > 0) parts.push(`${g.counts.broken} broken`);
@@ -340,13 +264,7 @@ export function groupSummaryLabel(g: WorkspaceGroup): string {
   return parts.join(' · ');
 }
 
-// ---------------------------------------------------------------------------
-// Blast-radius derivations (DESIGN-CONTRACT §A/§B/§C) — pure joins between a
-// WorkspaceGroup and computeBlastRadius(snapshot)
-// ---------------------------------------------------------------------------
 
-/** How many of this workspace's datasets are suspects ("refreshed against
- *  stale data"). Drives the tile's STALE DATA hint and the triage sort. */
 export function workspaceSuspectCount(
   g: WorkspaceGroup,
   suspectDatasetIds: ReadonlySet<string>,
@@ -358,8 +276,6 @@ export function workspaceSuspectCount(
   return n;
 }
 
-/** Distinct reports bound to this workspace's suspect datasets — the "N
- *  reports may be reading stale data" figure on the hero tile (§A row 2). */
 export function workspaceAffectedReportCount(
   g: WorkspaceGroup,
   blast: Pick<BlastRadius, 'suspectDatasetIds' | 'reportsByDataset'>,
@@ -372,8 +288,6 @@ export function workspaceAffectedReportCount(
   return ids.size;
 }
 
-/** Distinct reports affected by ONE dataflow's suspects, in suspect order —
- *  the "→ M reports affected" list of the sheet cascade (§C). */
 export function cascadeReports(
   suspects: InsightsRefreshable[],
   reportsByDataset: ReadonlyMap<string, Array<{ id: string; name: string }>>,
@@ -390,12 +304,6 @@ export function cascadeReports(
   return out;
 }
 
-/**
- * DESIGN-CONTRACT §B — the triage sort for the tile grid (stable):
- * broken count desc → suspect-dataset count desc → overdue count desc →
- * running present → name A–Z. A workspace with NO broken flow but suspect
- * datasets still sorts into the damage band.
- */
 export function triageSortGroups(
   groups: WorkspaceGroup[],
   suspectDatasetIds: ReadonlySet<string>,
@@ -410,7 +318,6 @@ export function triageSortGroups(
   );
 }
 
-/** Oldest lastSuccessTime across a group's items (§A FRESHNESS column). */
 export function oldestSuccessIso(items: InsightsRefreshable[]): string | undefined {
   let oldest: string | undefined;
   for (const item of items) {
@@ -422,11 +329,7 @@ export function oldestSuccessIso(items: InsightsRefreshable[]): string | undefin
   return oldest;
 }
 
-// ---------------------------------------------------------------------------
-// Admin unlock — staged honest loading text
-// ---------------------------------------------------------------------------
 
-/** Honest, time-staged loading copy for the admin unlock wait. */
 export function unlockStageText(elapsedMs: number): string {
   if (elapsedMs < 10_000) return 'Opening Microsoft consent…';
   if (elapsedMs < 30_000) return 'Reading App audiences…';

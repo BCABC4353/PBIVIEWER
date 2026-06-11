@@ -1,21 +1,3 @@
-/**
- * Generates docs/testing/ANALYST-TEST-PLAN.pdf from the HTML source.
- *
- * Usage:  node scripts/generate-test-plan-pdf.mjs
- *
- * Same mechanism as scripts/generate-guide-pdf.mjs: uses the project's
- * existing `electron` devDependency (no puppeteer / extra Chrome download).
- * When invoked with plain node, the script re-executes itself under the
- * Electron binary; inside Electron it loads the HTML in a hidden
- * BrowserWindow, waits for images to decode, and calls
- * webContents.printToPDF with:
- *   - A4 + preferCSSPageSize (the HTML's @page rule carries margin: 14mm)
- *   - printBackground: true (preserves callout shading / accent colours)
- *
- * On a headless Linux box Electron still needs a display server — run it as
- * `xvfb-run node scripts/generate-test-plan-pdf.mjs` there. On Windows/macOS
- * desktops it runs as-is.
- */
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,13 +14,9 @@ if (!existsSync(HTML_PATH)) {
   process.exit(1);
 }
 
-// `import('electron')` resolves differently by runtime:
-//   - plain Node:  the package's default export is the PATH to the binary
-//   - Electron:    it is the Electron API object
 const electron = (await import('electron')).default;
 
 if (typeof electron === 'string') {
-  // ---- Plain node: re-exec this same script under the Electron binary ----
   const { spawnSync } = await import('child_process');
   console.log('Relaunching under Electron...');
   const result = spawnSync(electron, ['--no-sandbox', __filename], {
@@ -48,14 +26,10 @@ if (typeof electron === 'string') {
   process.exit(result.status ?? 1);
 }
 
-// ---- Electron main process from here on ----
 const { app, BrowserWindow } = electron;
 
 app.disableHardwareAcceleration();
 
-// NOTE: with an ESM entry point Electron does not emit 'ready' until the
-// module finishes evaluating, so a top-level `await app.whenReady()` would
-// deadlock. Run the async work without awaiting it at top level.
 async function main() {
   await app.whenReady();
 
@@ -75,8 +49,6 @@ async function main() {
   console.log('Loading HTML...');
   await win.loadFile(HTML_PATH);
 
-  // Wait for every image (the embedded logo) to finish decoding, then let
-  // layout settle briefly before printing.
   const imageReport = await win.webContents.executeJavaScript(`
     (async () => {
       const imgs = Array.from(document.images);
@@ -104,8 +76,6 @@ async function main() {
   const pdfBuffer = await win.webContents.printToPDF({
     pageSize: 'A4',
     printBackground: true,
-    // The HTML @page rule carries margin: 14mm; preferCSSPageSize lets the
-    // CSS declaration fully control the page box.
     preferCSSPageSize: true,
     margins: { top: 0, bottom: 0, left: 0, right: 0 },
   });

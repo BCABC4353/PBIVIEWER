@@ -1,7 +1,3 @@
-/**
- * Pure-logic tests for the feel layer. Runs in plain node — motionCore.ts
- * must never import react-native or expo modules.
- */
 import { describe, expect, it } from 'vitest';
 import {
   createRateLimiter,
@@ -12,16 +8,11 @@ import {
   staggerDelay,
 } from './motionCore';
 
-// ---------------------------------------------------------------------------
-// springFromResponse — SwiftUI (response, dampingFraction) → RN physics
-// ---------------------------------------------------------------------------
 
 describe('springFromResponse', () => {
   it('converts the spec nav spring (0.45 / 0.86) exactly', () => {
     const s = springFromResponse(0.45, 0.86);
-    // ω0 = 2π/0.45 ≈ 13.9626 → stiffness = ω0² ≈ 194.96
     expect(s.stiffness).toBeCloseTo(194.96, 1);
-    // damping = 0.86 · 2 · √stiffness ≈ 24.02
     expect(s.damping).toBeCloseTo(24.02, 1);
     expect(s.mass).toBe(1);
   });
@@ -53,9 +44,6 @@ describe('springFromResponse', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// staggerDelay
-// ---------------------------------------------------------------------------
 
 describe('staggerDelay', () => {
   it('is zero for the first item', () => {
@@ -83,9 +71,6 @@ describe('staggerDelay', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// createRateLimiter — the detent gate
-// ---------------------------------------------------------------------------
 
 describe('createRateLimiter', () => {
   function fakeClock(start = 0) {
@@ -101,11 +86,11 @@ describe('createRateLimiter', () => {
 
   it('blocks calls inside the minimum interval and reopens after it', () => {
     const clock = fakeClock();
-    const gate = createRateLimiter(30, clock.now); // min interval ≈ 33.33ms
+    const gate = createRateLimiter(30, clock.now);
     expect(gate()).toBe(true);
     clock.advance(20);
     expect(gate()).toBe(false);
-    clock.advance(14); // t = 34 > 33.33
+    clock.advance(14);
     expect(gate()).toBe(true);
   });
 
@@ -113,23 +98,22 @@ describe('createRateLimiter', () => {
     const clock = fakeClock();
     const gate = createRateLimiter(30, clock.now);
     let fired = 0;
-    // Simulate a 1-second scrub with a call every 2ms (500 attempts).
     for (let i = 0; i < 500; i++) {
       if (gate()) fired++;
       clock.advance(2);
     }
     expect(fired).toBeLessThanOrEqual(30);
-    expect(fired).toBeGreaterThanOrEqual(28); // still feels continuous
+    expect(fired).toBeGreaterThanOrEqual(28);
   });
 
   it('measures from the last ALLOWED call (leading edge), not the last attempt', () => {
     const clock = fakeClock();
-    const gate = createRateLimiter(10, clock.now); // 100ms interval
-    expect(gate()).toBe(true); // t=0
+    const gate = createRateLimiter(10, clock.now);
+    expect(gate()).toBe(true);
     clock.advance(90);
-    expect(gate()).toBe(false); // t=90, blocked attempt must not reset the window
+    expect(gate()).toBe(false);
     clock.advance(10);
-    expect(gate()).toBe(true); // t=100
+    expect(gate()).toBe(true);
   });
 
   it('rejects a non-positive rate', () => {
@@ -137,9 +121,6 @@ describe('createRateLimiter', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// createReduceMotionCache
-// ---------------------------------------------------------------------------
 
 describe('createReduceMotionCache', () => {
   function fakeSource(initial: boolean) {
@@ -169,7 +150,7 @@ describe('createReduceMotionCache', () => {
   });
 
   it('caches the initial OS value once it resolves', async () => {
-    const f = fakeSource(true); // Reduce Motion ON
+    const f = fakeSource(true);
     const cache = createReduceMotionCache(f.source);
     f.resolveInitial();
     await cache.ready;
@@ -182,7 +163,7 @@ describe('createReduceMotionCache', () => {
     f.resolveInitial();
     await cache.ready;
     expect(cache.motionEnabled()).toBe(true);
-    f.emit(true); // user toggles Reduce Motion ON
+    f.emit(true);
     expect(cache.motionEnabled()).toBe(false);
     f.emit(false);
     expect(cache.motionEnabled()).toBe(true);
@@ -195,7 +176,7 @@ describe('createReduceMotionCache', () => {
     expect(f.hasListener()).toBe(false);
     f.resolveInitial();
     await cache.ready;
-    expect(cache.motionEnabled()).toBe(true); // late read didn't flip a disposed cache
+    expect(cache.motionEnabled()).toBe(true);
   });
 
   it('keeps the optimistic default when the OS read fails', async () => {
@@ -203,14 +184,11 @@ describe('createReduceMotionCache', () => {
       getInitial: () => Promise.reject(new Error('no a11y bridge')),
       subscribe: () => () => {},
     });
-    await cache.ready; // must not reject
+    await cache.ready;
     expect(cache.motionEnabled()).toBe(true);
   });
 });
 
-// ---------------------------------------------------------------------------
-// Number formatting pipeline
-// ---------------------------------------------------------------------------
 
 describe('defaultNumberFormat', () => {
   it('rounds to integers', () => {
@@ -242,7 +220,7 @@ describe('formatAnimatedValue', () => {
 
   it('never prints past the destination (overshoot clamps to target)', () => {
     expect(formatAnimatedValue(2000.6, 0, 2000)).toBe('2,000');
-    expect(formatAnimatedValue(-0.4, 100, 0)).toBe('0'); // count-down undershoot
+    expect(formatAnimatedValue(-0.4, 100, 0)).toBe('0');
   });
 
   it('never prints before the origin', () => {

@@ -2,13 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-// Write to a real, platform-independent temp path. The handler calls
-// fs.writeFile(filePath, ...) for real; a hardcoded POSIX path like
-// /home/user/out.pdf only exists on Linux and ENOENTs on the Windows CI runner.
 const OUT_PATH = join(tmpdir(), 'pbiviewer-export-test.pdf');
 
-// The export-PDF IPC handler must cap renderer-supplied
-// pageName / bookmarkState before they reach the outbound Power BI request body.
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -20,7 +15,6 @@ vi.mock('electron', () => ({
   },
 }));
 
-// Always treat the path as valid + accept the UUIDs so we isolate the cap logic.
 vi.mock('../security', () => ({
   isValidExportPath: () => true,
 }));

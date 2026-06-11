@@ -1,13 +1,3 @@
-/**
- * Settings — account, data-source mode, feel diagnostics, about. Same "quiet
- * instrument cluster" language as the rest of the app: near-black canvas, one
- * amber accent, hairline separators, no third-party UI.
- *
- * Self-contained: talks to the auth module directly (signIn/signOut/
- * getCurrentUser, plus the device-code flow when the AuthSession redirect
- * isn't configured — i.e. Expo Go). The host only supplies the current mode
- * and listens for mode / data-source changes so it can rebuild its DataSource.
- */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Linking,
@@ -41,13 +31,10 @@ import {
 import { probeHaptics, type HapticProbeResult } from '../feel/haptics';
 import { setSavedMode, type DataMode } from '../core/data-source-factory';
 
-// Keep in sync with app.json "version" (no expo-constants dependency — this
-// screen stays importable anywhere).
 const APP_VERSION = '1.0.0';
 
 const DEVICE_LOGIN_URL = 'https://microsoft.com/devicelogin';
 
-/** Live device-code flow state, while a code is pending. */
 interface DeviceFlowState {
   userCode: string;
   status: string;
@@ -56,8 +43,6 @@ interface DeviceFlowState {
 export interface SettingsScreenProps {
   mode: DataMode;
   onModeChange: (mode: DataMode) => void;
-  /** Fired after anything that invalidates the current DataSource
-   *  (mode switch, sign-in, sign-out) so the host can rebuild it. */
   onDataSourceChange?: () => void;
   onBack?: () => void;
 }
@@ -75,7 +60,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [feelRunning, setFeelRunning] = useState(false);
   const [feelResults, setFeelResults] = useState<HapticProbeResult[]>([]);
 
-  // Cancellation for the device-code poll loop: user tap or unmount.
   const cancelPollRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(
@@ -102,12 +86,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     [onModeChange, onDataSourceChange],
   );
 
-  /**
-   * Device-code sign-in (RFC 8628): zero Entra redirect changes — show a
-   * short code, the owner enters it at microsoft.com/devicelogin on any
-   * browser, we poll until AAD hands over tokens, then TokenManager owns
-   * persistence/refresh exactly as for a browser sign-in.
-   */
   const connectViaDeviceCode = useCallback(async (): Promise<UserInfo | null> => {
     const cfg = {
       clientId: AZURE_CONFIG.clientId,
@@ -149,7 +127,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       return u;
     } catch (e) {
       if (mountedRef.current) setDeviceFlow(null);
-      if (e instanceof DeviceCodeCancelledError) return null; // quiet
+      if (e instanceof DeviceCodeCancelledError) return null;
       throw e;
     }
   }, [finishSignIn]);
@@ -159,8 +137,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setBusy(true);
     try {
       if (!authSessionRedirectConfigured) {
-        // Expo Go: the exp:// redirect can't be registered in Entra —
-        // device code is the path that needs zero portal redirect changes.
         return await connectViaDeviceCode();
       }
       const u = await signIn();
@@ -186,7 +162,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     try {
       await Clipboard.setStringAsync(code);
     } catch {
-      // clipboard unavailable — the code is on screen to type by hand
     }
     try {
       await Linking.openURL(DEVICE_LOGIN_URL);
@@ -201,7 +176,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setError(null);
     await signOut();
     setUser(null);
-    // Live mode without credentials is a dead end — drop back to sample data.
     await setSavedMode('mock');
     onModeChange('mock');
     onDataSourceChange?.();
@@ -212,8 +186,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       if (next === mode || busy) return;
       setError(null);
       if (next === 'live') {
-        // Live needs credentials: reuse the session if present, else sign in
-        // (connect() already flips mode to live on success).
         const existing = user ?? (await getCurrentUser());
         if (!existing) {
           await connect();
@@ -227,8 +199,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     [mode, busy, user, connect, onModeChange, onDataSourceChange],
   );
 
-  /** The LOUD haptic diagnostic — production verbs are fail-silent by design,
-   *  so this row fires each one raw and prints exactly what happened. */
   const runFeelTest = useCallback(async () => {
     if (feelRunning) return;
     setFeelRunning(true);
@@ -250,7 +220,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         ) : null}
         <Text style={styles.title}>Settings</Text>
 
-        {/* -- Account -------------------------------------------------------- */}
+        {}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.card}>
           <View style={styles.row}>
@@ -287,7 +257,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </View>
 
-        {/* -- Device-code sign-in in flight -------------------------------------------------------- */}
+        {}
         {deviceFlow ? (
           <View style={[styles.card, styles.deviceCard]}>
             <Text style={styles.deviceLead}>
@@ -329,7 +299,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         ) : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        {/* -- Data source -------------------------------------------------------- */}
+        {}
         <Text style={styles.sectionLabel}>DATA SOURCE</Text>
         <View style={styles.card}>
           <ModeRow
@@ -348,7 +318,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           />
         </View>
 
-        {/* -- Feel diagnostics -------------------------------------------------------- */}
+        {}
         <Text style={styles.sectionLabel}>FEEL</Text>
         <View style={styles.card}>
           <Pressable
@@ -386,7 +356,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           ) : null}
         </View>
 
-        {/* -- About -------------------------------------------------------- */}
+        {}
         <Text style={styles.sectionLabel}>ABOUT</Text>
         <View style={styles.card}>
           <View style={[styles.row, styles.rowBetween]}>
@@ -464,7 +434,6 @@ const styles = StyleSheet.create({
   radioOn: { color: color.accent },
   radioOff: { color: color.textTertiary },
 
-  // Device-code flow — the user code is the hero: BIG, amber, tabular.
   deviceCard: { marginTop: space.m, paddingVertical: space.m, alignItems: 'center' },
   deviceLead: {
     ...type.caption,

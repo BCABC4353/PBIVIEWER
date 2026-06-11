@@ -19,9 +19,6 @@ const r = (columns: string[], rows: Array<Record<string, unknown>>): QueryResult
   rows,
 });
 
-// ---------------------------------------------------------------------------
-// DAX identifier escaping — nothing reaches a query string unsanitized.
-// ---------------------------------------------------------------------------
 
 describe('DAX escaping', () => {
   it('quotes table names and doubles embedded single quotes', () => {
@@ -58,9 +55,6 @@ describe('guessFormat', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Spec derivation from fake INFO payloads.
-// ---------------------------------------------------------------------------
 
 const INFO_TABLES = r(
   ['ID', 'Name', 'IsHidden'],
@@ -97,7 +91,6 @@ const INFO_MEASURES = r(
   ],
 );
 
-/** Fake dataset that answers INFO queries and the cardinality probe. */
 const infoRunner =
   (regionCardinality: number, opts: { failProbe?: boolean } = {}): DaxRunner =>
   async (dax) => {
@@ -106,7 +99,6 @@ const infoRunner =
     if (dax.includes('INFO.MEASURES')) return INFO_MEASURES;
     if (dax.includes('DISTINCTCOUNT')) {
       if (opts.failProbe) throw new Error('probe refused');
-      // Candidates in model order: Region (c0), Product (c1).
       return r(['c0', 'c1'], [{ c0: regionCardinality, c1: 50 }]);
     }
     throw new Error(`unexpected query: ${dax}`);
@@ -118,28 +110,23 @@ describe('deriveCanvasSpec — INFO rung', () => {
     expect(spec.title).toBe('Exec Pulse');
     expect(spec.visuals.length).toBeLessThanOrEqual(8);
 
-    // Visible measures in model (ID) order → KPI tiles with guessed formats.
     const kpis = spec.visuals.filter((v) => v.kind === 'kpi');
     expect(kpis.map((k) => k.title)).toEqual(['Order Count', 'Total Revenue', 'Margin %']);
     expect(kpis.map((k) => k.format)).toEqual(['number', 'currency', 'percent']);
     expect(kpis[0]!.dax).toBe('EVALUATE ROW("Value", [Order Count])');
 
-    // First date-typed column (visible tables only) + primary measure → line.
     const line = spec.visuals.find((v) => v.kind === 'line');
     expect(line?.title).toBe('Order Count by Date');
     expect(line?.dax).toContain("'Calendar'[Date]");
     expect(line?.dax).toContain('[Order Count]');
 
-    // Region has 4 categories → donut (≤6). Key-shaped OrderKey never charted.
     const donut = spec.visuals.find((v) => v.kind === 'donut');
     expect(donut?.title).toBe('Order Count by Region');
     expect(donut?.dax).toContain("'Sales'[Region]");
-    // Key-shaped columns are never charted as categories (tables may show them).
     expect(donut?.dax).not.toContain('OrderKey');
     expect(spec.visuals.filter((v) => v.kind === 'bar' || v.kind === 'donut')
       .every((v) => !v.dax.includes('OrderKey'))).toBe(true);
 
-    // Widest visible table → top rows; hidden tables/columns never leak.
     const table = spec.visuals.find((v) => v.kind === 'table');
     expect(table?.title).toBe('Sales — top rows');
     expect(table?.dax).toContain("TOPN(10, SELECTCOLUMNS('Sales'");
@@ -189,7 +176,6 @@ describe('deriveCanvasSpec — INFO rung', () => {
     const all = spec.visuals.map((v) => v.dax).join('\n');
     expect(all).toContain("'Bob''s Data'[Weird]]Name]");
     expect(all).toContain('[Total [net]]]');
-    // The raw, unescaped forms must never appear.
     expect(all).not.toMatch(/[^']'Bob's Data'/);
   });
 });
@@ -204,9 +190,6 @@ describe('discoverModel', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fallback ladder
-// ---------------------------------------------------------------------------
 
 const STATS = r(
   ['Table Name', 'Column Name', 'Min', 'Max', 'Cardinality', 'Max Length'],
@@ -229,7 +212,7 @@ describe('deriveCanvasSpec — fallback ladder', () => {
     const kinds = spec.visuals.map((v) => v.kind);
     expect(kinds).toContain('kpi');
     expect(kinds).toContain('line');
-    expect(kinds).toContain('donut'); // Status has 4 categories
+    expect(kinds).toContain('donut');
     expect(kinds).toContain('table');
     expect(spec.visuals.find((v) => v.kind === 'line')?.dax).toContain("'Orders'[OrderDate]");
   });
@@ -253,15 +236,12 @@ describe('deriveCanvasSpec — fallback ladder', () => {
   it('is honest when the model is reachable but has nothing chartable', async () => {
     const run: DaxRunner = async (dax) => {
       if (dax.includes('COLUMNSTATISTICS')) return r([], []);
-      return r([], []); // INFO answers, but empty
+      return r([], []);
     };
     await expect(deriveCanvasSpec(run, 'R')).rejects.toThrow(/nothing the app can chart/);
   });
 });
 
-// ---------------------------------------------------------------------------
-// Hard timeouts + step reporting — the ladder must ALWAYS settle, loudly.
-// ---------------------------------------------------------------------------
 
 describe('deriveCanvasSpec — hard timeouts', () => {
   const hangForever: DaxRunner = () => new Promise<never>(() => {});
@@ -284,8 +264,8 @@ describe('deriveCanvasSpec — hard timeouts', () => {
       return new Promise<never>(() => {});
     };
     await deriveCanvasSpec(run, 'R', { rungTimeoutMs: 15, totalTimeoutMs: 80 }).catch(() => {});
-    expect(signals.length).toBeGreaterThan(0); // live runners receive the handle
-    expect(signals.every((s) => s.aborted)).toBe(true); // …and it fired
+    expect(signals.length).toBeGreaterThan(0);
+    expect(signals.every((s) => s.aborted)).toBe(true);
   });
 
   it('caps the WHOLE walk at totalTimeoutMs even with a generous per-rung cap', async () => {
@@ -294,13 +274,13 @@ describe('deriveCanvasSpec — hard timeouts', () => {
       rungTimeoutMs: 10_000,
       totalTimeoutMs: 60,
     }).catch(() => {});
-    expect(Date.now() - t0).toBeLessThan(2_000); // nowhere near 2×10 s
+    expect(Date.now() - t0).toBeLessThan(2_000);
   });
 
   it('a hung dataset still resolves the stats rung if it answers in time', async () => {
     const run: DaxRunner = async (dax) => {
       if (dax.includes('COLUMNSTATISTICS')) return STATS;
-      return new Promise<never>(() => {}); // INFO hangs
+      return new Promise<never>(() => {});
     };
     const spec = await deriveCanvasSpec(run, 'Slow', { rungTimeoutMs: 20, totalTimeoutMs: 500 });
     expect(spec.visuals.length).toBeGreaterThan(0);
@@ -327,7 +307,7 @@ describe('deriveCanvasSpec — step reporting + defensive INFO parsing', () => {
   it('an INFO response with zero rows falls to the stats rung, never a blank canvas', async () => {
     const run: DaxRunner = async (dax) => {
       if (dax.includes('COLUMNSTATISTICS')) return STATS;
-      return r([], []); // 200 OK but empty — must NOT count as a usable model
+      return r([], []);
     };
     const spec = await deriveCanvasSpec(run, 'Empty INFO');
     expect(spec.visuals.length).toBeGreaterThan(0);
@@ -337,7 +317,7 @@ describe('deriveCanvasSpec — step reporting + defensive INFO parsing', () => {
   it('unexpected INFO shapes (rows without the known columns) also fall through', async () => {
     const run: DaxRunner = async (dax) => {
       if (dax.includes('COLUMNSTATISTICS')) return STATS;
-      return r(['Bogus'], [{ Bogus: 1 }]); // shape the crosswalk cannot read
+      return r(['Bogus'], [{ Bogus: 1 }]);
     };
     const spec = await deriveCanvasSpec(run, 'Weird INFO');
     expect(spec.visuals.length).toBeGreaterThan(0);

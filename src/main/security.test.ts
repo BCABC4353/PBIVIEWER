@@ -2,8 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Real temp directories stand in for the user's well-known folders so the
-// symlink/realpath behavior under test runs against the actual filesystem.
 const dirs = vi.hoisted(() => {
   const fsh = require('fs') as typeof import('fs');
   const osh = require('os') as typeof import('os');
@@ -35,7 +33,7 @@ describe('isValidExportPath', () => {
   it('accepts a .pdf in an allowed root', () => {
     expect(isValidExportPath(path.join(dirs.downloads, 'report.pdf'))).toBe(true);
     expect(isValidExportPath(path.join(dirs.desktop, 'report.PDF'))).toBe(true);
-    expect(isValidExportPath(path.join(dirs.documents, 'sub-less', 'r.pdf'))).toBe(false); // parent must exist
+    expect(isValidExportPath(path.join(dirs.documents, 'sub-less', 'r.pdf'))).toBe(false);
   });
 
   it('accepts a .pdf in an existing subdirectory of an allowed root', () => {
@@ -67,7 +65,7 @@ describe('isValidExportPath', () => {
     try {
       fs.symlinkSync(dirs.outside, link, 'dir');
     } catch {
-      return; // symlinks unavailable (e.g. Windows without privilege) — skip
+      return;
     }
     expect(isValidExportPath(path.join(link, 'report.pdf'))).toBe(false);
   });
@@ -79,7 +77,7 @@ describe('isValidExportPath', () => {
     try {
       fs.symlinkSync(target, link, 'file');
     } catch {
-      return; // symlinks unavailable — skip
+      return;
     }
     expect(isValidExportPath(link)).toBe(false);
   });

@@ -22,30 +22,17 @@ import {
   type ReportRef,
 } from '../core/report-catalog';
 
-/**
- * Reports — the signed-in user's REAL Power BI reports, apps first, then
- * workspaces. There is no sample data here: signed out, the tab holds one
- * quiet card with the sign-in action; signed in, every row is a live report
- * whose canvas is derived from its dataset. The list is quiet; the canvases
- * carry the show.
- */
 export const ReportsScreen: React.FC<{
-  /** Null = not signed in (mock mode) — show only the sign-in card. */
   model: ReportsModel | null;
   onOpen: (report: ReportRef) => void;
-  /** Takes the user to the Settings sign-in flow. */
   onSignIn: () => void;
 }> = ({ model, onOpen, onSignIn }) =>
   model ? <LiveReportList model={model} onOpen={onOpen} /> : <SignedOutCard onSignIn={onSignIn} />;
 
-/** Signed out: one quiet card, sign-in right there. Nothing fake to browse.
- *  Exported — the Fleet and Alerts tabs show the same card (with their own
- *  copy) so no tab ever lands on fictional data. */
 export const SignedOutCard: React.FC<{
   onSignIn: () => void;
   title?: string;
   body?: string;
-  /** Tab name for the screen header (the card is shared across tabs). */
   screenTitle?: string;
   screenSubtitle?: string;
 }> = ({
@@ -79,7 +66,6 @@ type Row =
   | {
       kind: 'header';
       key: string;
-      /** Section identity passed back on toggle (groupKey of the section). */
       sectionKey: string;
       name: string;
       sourceKind: 'app' | 'workspace';
@@ -88,8 +74,6 @@ type Row =
     }
   | { kind: 'report'; key: string; report: ReportRef };
 
-/** Sections → rows: headers always, reports only when their section is open
- *  (every matching section is auto-open while a search filter is active). */
 function flatten(groups: ReportGroup[], expanded: ReadonlySet<string>, filtering: boolean): Row[] {
   const rows: Row[] = [];
   for (const g of groups) {
@@ -129,8 +113,6 @@ const LiveReportList: React.FC<{
       try {
         const r = await model.catalog.listReports(force);
         setResult(r);
-        // Collapsed by default; a small catalog (≤3 sections) opens fully.
-        // Seeded once per catalog — pull-to-refresh keeps the user's folds.
         if (!expandedSeededRef.current) {
           expandedSeededRef.current = true;
           setExpanded(defaultExpandedKeys(r.groups));
@@ -322,7 +304,6 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: color.textPrimary },
   subtitle: { ...type.caption, color: color.textTertiary, marginTop: 4 },
 
-  // Signed-out card
   signInWrap: { flex: 1, justifyContent: 'center', paddingHorizontal: space.l, paddingBottom: space.xxl },
   signInCard: {
     backgroundColor: color.surface1,
@@ -344,7 +325,6 @@ const styles = StyleSheet.create({
   signInButtonText: { ...type.body, color: color.accent },
   pressed: { opacity: 0.7 },
 
-  // Live list
   searchWrap: {
     marginHorizontal: space.l,
     marginBottom: space.s,
@@ -357,7 +337,7 @@ const styles = StyleSheet.create({
     ...type.body,
     color: color.textPrimary,
     flex: 1,
-    minHeight: 44, // §thorough: hit targets ≥ 44pt
+    minHeight: 44,
     paddingHorizontal: space.m,
     paddingVertical: 0,
   },
@@ -386,7 +366,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.s,
     paddingHorizontal: space.l,
-    minHeight: 44, // tap target — the whole header row toggles
+    minHeight: 44,
     marginTop: space.s,
   },
   groupChevron: { ...type.caption, color: color.textTertiary, width: 14, textAlign: 'center' },

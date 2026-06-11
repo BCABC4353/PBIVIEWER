@@ -1,13 +1,6 @@
 import React from 'react';
 import { luce } from './insights-luce';
 
-// ---------------------------------------------------------------------------
-// The hero INSTRUMENT (D11) — a real gauge, not a numeral on a card.
-// Geometry ported from the eye-tuned mobile dial (IgnitionSweep): 270° throw
-// from 135°, graduated tick ring, unlit groove, a lit arc built from three
-// stops of one light (breath / bloom / filament), tapered needle blade with
-// counterweight, machined hub. Tuned by rendered screenshot, not by intent.
-// ---------------------------------------------------------------------------
 const DIAL_SWEEP = 270;
 const DIAL_START = 135;
 

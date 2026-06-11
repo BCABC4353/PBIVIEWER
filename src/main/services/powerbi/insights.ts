@@ -1,9 +1,3 @@
-// ---------------------------------------------------------------------------
-// Insights tier: the one-pager snapshot of refresh health, workspace access,
-// and catalog counts. The fetching wrappers here feed the PURE derivation
-// functions in src/shared/refresh-health-core.ts (the single source shared
-// with the mobile app).
-// ---------------------------------------------------------------------------
 
 import { mapWithConcurrency, type PowerBIApiResponse } from './http';
 import { buildErrorEnvelope, withErrorEnvelope } from './envelope';
@@ -22,8 +16,6 @@ import type {
   InsightsWorkspaceAccess,
 } from '../../../shared/types';
 
-/** What the insights tier needs from the facade: the authenticated request
- *  function plus the catalog listings the snapshot fans out over. */
 export interface InsightsPort {
   request<T>(endpoint: string): Promise<T>;
   getWorkspaces(): Promise<IPCResponse<Workspace[]>>;
@@ -34,9 +26,6 @@ export interface InsightsPort {
 export class PowerBIInsightsApi {
   private readonly port: InsightsPort;
 
-  // Insights snapshot cache. Building a snapshot fans out to every workspace,
-  // dataset, and dataflow the user can see; serving repeat page visits from a
-  // short-lived cache keeps us far away from the API throttling limits.
   private insightsCache: { value: InsightsSnapshot; expires: number } | null = null;
   private static readonly INSIGHTS_TTL_MS = 5 * 60 * 1000;
 
@@ -44,21 +33,10 @@ export class PowerBIInsightsApi {
     this.port = port;
   }
 
-  /** Drop the cached snapshot. Account-scoped — see the facade's clearCaches(). */
   clearCache(): void {
     this.insightsCache = null;
   }
 
-  /**
-   * Insights one-pager: refresh health of every dataset + dataflow the
-   * signed-in user can see, plus per-workspace access lists and catalog
-   * counts. Access scoping is inherent — the API only returns what this
-   * user's token can reach, so a client sees exactly their slice.
-   *
-   * Built entirely from the scopes the app already requests (Workspace/
-   * Dataset/Dataflow/Report/Dashboard Read.All) — no new consent required.
-   * Results are cached for 5 minutes; pass force=true to rebuild.
-   */
   async getInsightsSnapshot(force = false): Promise<IPCResponse<InsightsSnapshot>> {
     return withErrorEnvelope('INSIGHTS_FETCH_FAILED', async () => {
       if (!force && this.insightsCache && this.insightsCache.expires > Date.now()) {
@@ -78,11 +56,6 @@ export class PowerBIInsightsApi {
       let reportCount = 0;
       let dashboardCount = 0;
 
-      // Bound concurrency on two axes: process workspaces in batches of 3, and
-      // within each workspace resolve per-dataset/dataflow refresh health at most
-      // DATASET_CONCURRENCY at a time. Worst-case in-flight requests stay ~12,
-      // far under the per-user throttling ceiling, while a workspace with many
-      // datasets no longer resolves them one-at-a-time (the slow path).
       const BATCH_SIZE = 3;
       const DATASET_CONCURRENCY = 4;
       for (let i = 0; i < workspaces.length; i += BATCH_SIZE) {
@@ -101,8 +74,6 @@ export class PowerBIInsightsApi {
 
             if (reports.success) {
               reportCount += reports.data.length;
-              // Blast radius: keep the dataset→report edge from the listing we
-              // already fetched for the count — no extra request.
               for (const r of reports.data) {
                 snapshotReports.push({
                   id: r.id,
@@ -128,9 +99,6 @@ export class PowerBIInsightsApi {
               datasets ?? [],
               DATASET_CONCURRENCY,
               async (ds): Promise<InsightsRefreshable> => {
-                // Lineage edge for the blast-radius cascade. null map = the
-                // workspace lineage call failed → OMIT the field (unknown),
-                // never fail the snapshot.
                 const lineage = upstreamByDataset
                   ? { upstreamDataflowIds: upstreamByDataset.get(ds.id.toLowerCase()) ?? [] }
                   : {};
@@ -183,9 +151,6 @@ export class PowerBIInsightsApi {
         );
       }
 
-      // If EVERY workspace failed to read, this is a hard failure (auth/network),
-      // not an empty catalog — surface it so the page shows a retry instead of a
-      // misleading "0 datasets" board (mirrors getAllItems).
       if (workspaces.length > 0 && failedWorkspaces.length === workspaces.length) {
         return {
           success: false,
@@ -213,7 +178,6 @@ export class PowerBIInsightsApi {
     });
   }
 
-  /** Datasets in a workspace, or null when the list call fails. */
   private async getWorkspaceDatasets(
     workspaceId: string,
   ): Promise<Array<{ id: string; name: string; configuredBy?: string; isRefreshable?: boolean }> | null> {
@@ -231,7 +195,6 @@ export class PowerBIInsightsApi {
     }
   }
 
-  /** Dataflows in a workspace, or null when the list call fails. */
   private async getWorkspaceDataflows(
     workspaceId: string,
   ): Promise<Array<{ objectId: string; name: string }> | null> {
@@ -247,15 +210,6 @@ export class PowerBIInsightsApi {
     }
   }
 
-  /**
-   * Full upstream-dataflow lineage for a workspace, keyed by LOWERCASED
-   * dataset id → dataflow ids feeding it. ONE call per workspace
-   * (GET /groups/{ws}/datasets/upstreamDataflows — the same endpoint
-   * resolveUpstreamDataflowsUncached in powerbi/freshness.ts uses for
-   * freshness, but unfiltered: the snapshot needs every dataset's edges, not
-   * a specific id set). Returns null when the call fails so callers can OMIT
-   * the field (unknown lineage) instead of failing the snapshot.
-   */
   private async getWorkspaceUpstreamDataflowLinks(
     workspaceId: string,
   ): Promise<Map<string, string[]> | null> {
@@ -280,11 +234,6 @@ export class PowerBIInsightsApi {
     }
   }
 
-  /**
-   * Users with access to a workspace, or null when the caller is not allowed
-   * to list them (e.g. viewer-only role). Null means "not visible to you",
-   * which the UI must distinguish from an empty workspace.
-   */
   private async getWorkspaceUsers(
     workspaceId: string,
   ): Promise<InsightsWorkspaceAccess['users']> {
@@ -307,8 +256,6 @@ export class PowerBIInsightsApi {
     }
   }
 
-  /** Fetch a dataset's recent refresh history and derive health from it
-   *  (the pure derivation lives in src/shared/refresh-health-core.ts). */
   private async getDatasetRefreshHealth(
     workspaceId: string,
     datasetId: string,
@@ -333,13 +280,6 @@ export class PowerBIInsightsApi {
     }
   }
 
-  /**
-   * Schedule-vs-reality: read the dataset's configured refresh schedule and
-   * flag it overdue when enabled but the last success is older than twice the
-   * schedule's expected cadence (minimum 24h so a multi-daily schedule with
-   * one missed slot doesn't immediately alarm). Datasets without a schedule
-   * (live connections, push datasets) simply return no fields.
-   */
   private async getDatasetScheduleInfo(
     workspaceId: string,
     datasetId: string,
@@ -354,13 +294,10 @@ export class PowerBIInsightsApi {
       }>(`/groups/${workspaceId}/datasets/${datasetId}/refreshSchedule`);
       return deriveScheduleInfo(sched, lastSuccessTime);
     } catch {
-      // No schedule endpoint for this dataset (live/push) or no permission.
       return {};
     }
   }
 
-  /** Fetch a dataflow's recent transactions and derive health from them
-   *  (the pure derivation lives in src/shared/refresh-health-core.ts). */
   private async getDataflowRefreshHealth(
     workspaceId: string,
     dataflowId: string,

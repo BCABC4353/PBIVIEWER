@@ -18,12 +18,6 @@ interface WorkspaceWithContent extends Workspace {
   dashboards: Dashboard[];
   isExpanded: boolean;
   isLoading: boolean;
-  // Per-workspace error surfacing for partial failures during expand.
-  // null when both halves loaded (or neither has been attempted yet);
-  // 'reports' or 'dashboards' when only that half failed; 'both' when
-  // the whole expand failed. Every non-null state renders an inline warning
-  // with a Retry button (a 'both' failure must not be mistaken for an empty
-  // workspace — the empty-state branch defers when loadWarning is set).
   loadWarning?: 'reports' | 'dashboards' | 'both' | null;
 }
 
@@ -35,31 +29,19 @@ export const WorkspacesPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastExpandedId, setLastExpandedId] = useState<string | null>(null);
-  // Track which workspaces have already had their content fetched (success
-  // OR failure). Prevents re-fetching every time the user collapses and
-  // re-expands a workspace — especially important for empty workspaces
-  // that would otherwise round-trip on each toggle.
   const contentLoadedRef = useRef<Set<string>>(new Set());
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
     setError(null);
-    // Refreshing the workspace list invalidates per-workspace content
-    // bookkeeping — a previously-loaded workspace may now have new items.
     contentLoadedRef.current = new Set();
 
-    // Drop only the search-store's module-level cache so the next search
-    // re-fetches; do NOT clear the search dialog's current query/results,
-    // because the user may have it open. Full invalidateAll is reserved
-    // for logout.
     useSearchStore.getState().invalidateCache();
 
     try {
       const response = await window.electronAPI.content.getWorkspaces();
 
       if (!response.success) {
-        // Prefer the friendly, status-derived userMessage over the raw
-        // upstream body in error.message — that's what reaches the user.
         throw new Error(response.error.userMessage || response.error.message || 'Failed to load workspaces');
       }
 
@@ -80,10 +62,6 @@ export const WorkspacesPage: React.FC = () => {
   };
 
   const toggleWorkspace = useCallback(async (workspaceId: string) => {
-    // Decide whether this toggle needs a content fetch. We gate on a
-    // per-workspace contentLoaded set rather than checking reports.length /
-    // dashboards.length, because a truly-empty workspace would otherwise
-    // re-fetch on every expand.
     const needsFetch = !contentLoadedRef.current.has(workspaceId);
 
     setWorkspaces((prevWorkspaces) => {
@@ -91,13 +69,11 @@ export const WorkspacesPage: React.FC = () => {
       if (!workspace) return prevWorkspaces;
 
       if (workspace.isExpanded) {
-        // Collapse
         return prevWorkspaces.map((ws) =>
           ws.id === workspaceId ? { ...ws, isExpanded: false } : ws
         );
       }
 
-      // Expand — show the spinner only if we actually need to fetch.
       if (needsFetch) {
         return prevWorkspaces.map((ws) =>
           ws.id === workspaceId
@@ -112,13 +88,8 @@ export const WorkspacesPage: React.FC = () => {
 
     if (!needsFetch) return;
 
-    // Mark as in-flight up front so re-entrant toggles don't fire a
-    // second request. We add to the set BEFORE the await — even on failure we
-    // don't want a re-expand to keep retrying automatically.
     contentLoadedRef.current.add(workspaceId);
 
-    // Delegate to the shared fetchWorkspaceContent helper which owns
-    // the Promise.allSettled + loadWarning derivation logic.
     const { reports, dashboards, loadWarning } =
       await fetchWorkspaceContent(workspaceId);
 
@@ -137,10 +108,6 @@ export const WorkspacesPage: React.FC = () => {
     );
   }, []);
 
-  // Re-fetch a single workspace's content after a partial or total load
-  // failure. Clears the contentLoaded mark so the slot is eligible again, shows
-  // the spinner, then calls the shared helper. Used by the Retry button for
-  // every loadWarning state ('reports', 'dashboards', or 'both').
   const retryWorkspaceContent = useCallback(async (workspaceId: string) => {
     contentLoadedRef.current.delete(workspaceId);
     setWorkspaces((prev) =>
@@ -169,10 +136,8 @@ export const WorkspacesPage: React.FC = () => {
     loadWorkspaces();
   }, []);
 
-  // Handle expand query param from search navigation
   useEffect(() => {
     const expandId = searchParams.get('expand');
-    // Only expand if we have a new expandId that differs from the last one we handled
     if (expandId && workspaces.length > 0 && expandId !== lastExpandedId) {
       const workspace = workspaces.find((ws) => ws.id === expandId);
       if (workspace && !workspace.isExpanded) {
@@ -183,8 +148,6 @@ export const WorkspacesPage: React.FC = () => {
   }, [workspaces, searchParams, lastExpandedId, toggleWorkspace]);
 
   const openReport = (workspace: WorkspaceWithContent, report: Report) => {
-    // recordItemOpened is fire-and-forget; navigate must fire on the same
-    // tick so the user doesn't perceive lag while usage bookkeeping awaits.
     recordItemOpened({
       id: report.id,
       name: report.name,
@@ -258,7 +221,7 @@ export const WorkspacesPage: React.FC = () => {
           <div className="space-y-2">
             {workspaces.map((workspace) => (
               <div key={workspace.id} className="border border-neutral-stroke-2 rounded-lg overflow-hidden">
-                {/* Workspace header */}
+                {}
                 <button
                   className="w-full flex items-center gap-3 p-4 hover:bg-neutral-background-3 transition-colors text-left"
                   onClick={() => toggleWorkspace(workspace.id)}
@@ -281,7 +244,7 @@ export const WorkspacesPage: React.FC = () => {
                   )}
                 </button>
 
-                {/* Workspace content */}
+                {}
                 {workspace.isExpanded && (
                   <div className="border-t border-neutral-stroke-2 bg-neutral-background-2">
                     {workspace.isLoading ? (
@@ -299,10 +262,7 @@ export const WorkspacesPage: React.FC = () => {
                       </div>
                     ) : (
                       <div className="divide-y divide-neutral-stroke-2">
-                        {/* Partial / total failure warning + Retry. The empty-
-                            state branch above now defers to this whenever a
-                            loadWarning is set, so a both-halves-failed workspace
-                            shows an actionable error instead of looking empty. */}
+                        {}
                         {workspace.loadWarning && (
                           <div
                             role="status"
@@ -325,7 +285,7 @@ export const WorkspacesPage: React.FC = () => {
                             </Button>
                           </div>
                         )}
-                        {/* Reports */}
+                        {}
                         {workspace.reports.map((report) => (
                           <button
                             key={report.id}
@@ -344,7 +304,7 @@ export const WorkspacesPage: React.FC = () => {
                           </button>
                         ))}
 
-                        {/* Dashboards */}
+                        {}
                         {workspace.dashboards.map((dashboard) => (
                           <button
                             key={dashboard.id}

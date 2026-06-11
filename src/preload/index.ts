@@ -2,9 +2,6 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ElectronAPI } from '../shared/ipc-types';
 import type { AppSettings } from '../shared/types';
 
-// Type-safe API exposed to renderer.
-// The return type annotations reference ElectronAPI so that `ipcRenderer.invoke`
-// (which returns Promise<any>) is narrowed to the correct typed response.
 const electronAPI: ElectronAPI = {
   auth: {
     login: () => ipcRenderer.invoke('auth:login'),
@@ -13,7 +10,6 @@ const electronAPI: ElectronAPI = {
     getAccessToken: () => ipcRenderer.invoke('auth:get-token'),
     isAuthenticated: () => ipcRenderer.invoke('auth:is-authenticated'),
     validateToken: () => ipcRenderer.invoke('auth:validate-token'),
-    // Account switcher bridge — logout-then-login(select_account).
     switchAccount: () => ipcRenderer.invoke('auth:switch-account'),
   },
 
@@ -31,7 +27,6 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('content:get-app-reports', appId),
     getAppDashboards: (appId: string) =>
       ipcRenderer.invoke('content:get-app-dashboards', appId),
-    // App view per-report freshness — direct lookup when list-matching failed.
     resolveAppReportDataset: (appId: string, reportId: string) =>
       ipcRenderer.invoke('content:resolve-app-report-dataset', appId, reportId),
     getEmbedToken: (reportId: string, workspaceId: string) =>
@@ -45,21 +40,15 @@ const electronAPI: ElectronAPI = {
     ) => ipcRenderer.invoke('content:export-report-pdf', reportId, workspaceId, pageName, bookmarkState, filePath),
     getDatasetRefreshInfo: (datasetId: string, workspaceId?: string) =>
       ipcRenderer.invoke('content:get-dataset-refresh-info', datasetId, workspaceId),
-    // Dashboard freshness bridge — stalest tile-dataset refresh time.
     getDashboardDataFreshness: (dashboardId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-dashboard-data-freshness', dashboardId, workspaceId),
-    // Dataset + upstream-dataflow freshness for the viewer "Data refreshed / Dataflow" stamps.
-    // Entries are plain dataset ids (report/dashboard) or {datasetId, workspaceId}
-    // pairs (App — each dataset queried in its own home workspace).
     getDataFreshness: (
       workspaceId: string,
       datasetIds: Array<string | { datasetId: string; workspaceId: string }>,
       dashboardId?: string,
     ) => ipcRenderer.invoke('content:get-data-freshness', workspaceId, datasetIds, dashboardId),
     getAllItems: () => ipcRenderer.invoke('content:get-all-items'),
-    // Insights one-pager snapshot; force=true bypasses the 5-minute cache.
     getInsights: (force?: boolean) => ipcRenderer.invoke('content:get-insights', force),
-    // Admin tier (Fabric admin only): App audiences + who-uses-what activity.
     getAdminInsights: (days?: number, force?: boolean) =>
       ipcRenderer.invoke('content:get-admin-insights', days, force),
   },
@@ -69,9 +58,6 @@ const electronAPI: ElectronAPI = {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
-    // Fire-and-forget — send (no reply channel) matches ipcMain.on.
-    // Returns a resolved Promise<void> to satisfy the ElectronAPI interface
-    // without awaiting a response from the main process.
     setTitleBarOverlay: (options: { color: string; symbolColor: string }) => {
       ipcRenderer.send('window:set-title-bar-overlay', options);
       return Promise.resolve();
@@ -94,12 +80,9 @@ const electronAPI: ElectronAPI = {
       workspaceName: string;
       accountId?: string;
     }) => ipcRenderer.invoke('usage:record-open', item),
-    // Forward optional accountId so the main-process handler can scope
-    // results to the signed-in user; undefined omits the arg (backward-compat).
     getRecent: (accountId?: string) => ipcRenderer.invoke('usage:get-recent', accountId),
     getFrequent: (accountId?: string) => ipcRenderer.invoke('usage:get-frequent', accountId),
     clear: () => ipcRenderer.invoke('usage:clear'),
-    // Persistently remove a single dead item.
     remove: (itemId: string) => ipcRenderer.invoke('usage:remove', itemId),
   },
 
@@ -124,12 +107,9 @@ const electronAPI: ElectronAPI = {
   app: {
     getAppWebviewConfig: () => ipcRenderer.invoke('app:get-app-webview-config'),
     getVersion: () => ipcRenderer.invoke('app:get-version'),
-    // Opens the bundled offline user guide (HTML) in the default browser.
     openUserGuide: () => ipcRenderer.invoke('app:open-user-guide'),
   },
 
-  // Kiosk power management — presentation/slideshow keeps the display
-  // awake for unattended wall-display use.
   kiosk: {
     preventDisplaySleep: () => ipcRenderer.invoke('kiosk:prevent-display-sleep'),
     allowDisplaySleep: () => ipcRenderer.invoke('kiosk:allow-display-sleep'),

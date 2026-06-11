@@ -7,7 +7,7 @@ import { highlight, legendGlyph, seriesShade } from './palette';
 
 const SIZE = 148;
 const STROKE = 16;
-const GAP = 0.05; // radians between slices — machined, not touching
+const GAP = 0.05;
 
 const polar = (cx: number, cy: number, r: number, a: number) => ({
   x: cx + r * Math.cos(a),
@@ -21,11 +21,6 @@ function arcPath(cx: number, cy: number, r: number, a0: number, a1: number): str
   return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
 }
 
-/**
- * Donut — svg arcs in opacity steps of white, the largest slice in amber, a
- * center KPI, and a legend whose glyph SHAPES (not just shades) tell slices
- * apart. No rainbow palettes, ever.
- */
 export const DonutChart: React.FC<{
   data: DonutData;
   format?: ValueFormat;
@@ -41,7 +36,7 @@ export const DonutChart: React.FC<{
   const cx = SIZE / 2;
   const cy = SIZE / 2;
   const r = (SIZE - STROKE) / 2;
-  let angle = -Math.PI / 2; // start at 12 o'clock
+  let angle = -Math.PI / 2;
 
   return (
     <View
@@ -60,7 +55,7 @@ export const DonutChart: React.FC<{
                 const a0 = angle + GAP / 2;
                 const a1 = angle + sweep - GAP / 2;
                 angle += sweep;
-                if (a1 <= a0) return null; // sliver thinner than the gap
+                if (a1 <= a0) return null;
                 return (
                   <Path
                     key={`${s.label}-${i}`}

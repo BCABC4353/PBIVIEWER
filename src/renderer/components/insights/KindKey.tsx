@@ -1,8 +1,6 @@
 import React from 'react';
 import { kindDot } from './insights-luce';
 
-/** One-line key for the dots, in the engraved legend style (owner v3 #5) —
- *  styled in the engraved uppercase voice like every other label. */
 export const KindKey: React.FC = () => (
   <div
     className="luce-legend flex items-center"

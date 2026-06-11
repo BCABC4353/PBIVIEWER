@@ -13,7 +13,6 @@ import { color, space, statusColor, statusGlyph, statusLabel, type } from '../de
 import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
 import { itemRank, relativeAge } from '../core/refresh-health';
 
-/** Why an item is in the feed — one quiet sentence per alert. */
 function alertReason(r: Refreshable): string {
   if (r.lastStatus === 'Failed') return r.errorCode ?? 'Refresh failed';
   if (r.lastStatus === 'Cancelled') return 'Refresh cancelled';
@@ -28,8 +27,6 @@ const isAlert = (r: Refreshable): boolean =>
   r.lastStatus === 'Never' ||
   r.scheduleOverdue === true;
 
-/** Worst first (the board's Matt #4 itemRank — overdue is its own band above
- *  Never), newest first within the same severity band. */
 function sortAlerts(items: Refreshable[]): Refreshable[] {
   return [...items].sort((a, b) => {
     const s = itemRank(a) - itemRank(b);
@@ -41,11 +38,6 @@ function sortAlerts(items: Refreshable[]): Refreshable[] {
   });
 }
 
-/**
- * Alert feed derived from the fleet snapshot — Failed / Cancelled / Overdue /
- * Never-run items, worst and newest first. The empty state is the point:
- * quiet means healthy.
- */
 export const AlertsScreen: React.FC<{
   source: DataSource;
   onOpen?: (item: Refreshable) => void;

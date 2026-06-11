@@ -1,17 +1,9 @@
-/**
- * Pure-logic tests for chart scrub geometry. Plain node — scrub-logic.ts
- * must never import react-native.
- */
 import { describe, expect, it } from 'vitest';
 import { barIndexForX, lineIndexForX } from './scrub-logic';
 
-// ---------------------------------------------------------------------------
-// barIndexForX — equal-width slots, floor semantics
-// ---------------------------------------------------------------------------
 
 describe('barIndexForX', () => {
   it('maps each slot to its own index across the width', () => {
-    // 4 bars across 100px → slots [0,25) [25,50) [50,75) [75,100)
     expect(barIndexForX(0, 100, 4)).toBe(0);
     expect(barIndexForX(24.9, 100, 4)).toBe(0);
     expect(barIndexForX(25, 100, 4)).toBe(1);
@@ -42,16 +34,12 @@ describe('barIndexForX', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// lineIndexForX — evenly spread points, round-to-nearest semantics
-// ---------------------------------------------------------------------------
 
 describe('lineIndexForX', () => {
   it('snaps to the nearest point (round, not floor)', () => {
-    // 5 points across 100px → points at x = 0, 25, 50, 75, 100
     expect(lineIndexForX(0, 100, 5)).toBe(0);
-    expect(lineIndexForX(12, 100, 5)).toBe(0); // closer to 0 than 25
-    expect(lineIndexForX(13, 100, 5)).toBe(1); // tips over the midpoint
+    expect(lineIndexForX(12, 100, 5)).toBe(0);
+    expect(lineIndexForX(13, 100, 5)).toBe(1);
     expect(lineIndexForX(50, 100, 5)).toBe(2);
     expect(lineIndexForX(88, 100, 5)).toBe(4);
     expect(lineIndexForX(100, 100, 5)).toBe(4);

@@ -2,11 +2,6 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { color, radius, space, type } from '../design/tokens';
 
-/**
- * Native bar sparkline — the first of the app's OWN visuals. Data comes from
- * Power BI; pixels come from us. Pure Views (no chart lib, no webview), so it
- * inherits the app's type, spacing, and accent like every other component.
- */
 export const Sparkline: React.FC<{
   values: number[];
   label: string;
@@ -15,7 +10,6 @@ export const Sparkline: React.FC<{
   if (values.length === 0) return null;
   const max = Math.max(...values, 1);
   const latest = values[values.length - 1]!;
-  // The newest bar gets the accent; history stays quiet.
   return (
     <View style={styles.card} accessibilityLabel={`${label}: latest ${latest} ${unit}`}>
       <View style={styles.headerRow}>

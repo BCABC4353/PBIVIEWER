@@ -1,15 +1,3 @@
-/**
- * Embed core behavioral coverage — watchdog.
- *
- * The watchdog surfaces a "taking too long" error if neither 'loaded' nor a
- * pre-load 'error' arrives within watchdogMs. These tests drive the hook with a
- * real EmbedContext ref-bag and fake timers and assert:
- *   - a load that never completes fires the timeout error path
- *   - a successful load (clearWatchdog) prevents the timeout
- *   - a stale generation (newer load started) suppresses the timeout
- *   - an already-loaded embed suppresses the timeout
- *   - re-arming cancels the prior timer (no double-fire)
- */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -65,7 +53,6 @@ describe('#7 useEmbedWatchdog', () => {
     const { result } = renderHook(() => useEmbedWatchdog(ctx, WATCHDOG_MS));
 
     act(() => result.current.armWatchdog(ctx.generationRef.current));
-    // Simulate the 'loaded' handler: flag + clearWatchdog.
     ctx.hasLoadedRef.current = true;
     act(() => result.current.clearWatchdog());
 
@@ -78,7 +65,6 @@ describe('#7 useEmbedWatchdog', () => {
     const { result } = renderHook(() => useEmbedWatchdog(ctx, WATCHDOG_MS));
 
     act(() => result.current.armWatchdog(ctx.generationRef.current));
-    // A rapid report switch bumps the generation while the timer is pending.
     ctx.generationRef.current += 1;
 
     act(() => vi.advanceTimersByTime(WATCHDOG_MS));
@@ -90,8 +76,6 @@ describe('#7 useEmbedWatchdog', () => {
     const { result } = renderHook(() => useEmbedWatchdog(ctx, WATCHDOG_MS));
 
     act(() => result.current.armWatchdog(ctx.generationRef.current));
-    // loaded fired but clearWatchdog was somehow missed — the gen-guarded
-    // hasLoaded check is the second line of defense.
     ctx.hasLoadedRef.current = true;
 
     act(() => vi.advanceTimersByTime(WATCHDOG_MS));
@@ -104,11 +88,8 @@ describe('#7 useEmbedWatchdog', () => {
 
     act(() => result.current.armWatchdog(ctx.generationRef.current));
     act(() => vi.advanceTimersByTime(WATCHDOG_MS / 2));
-    // Re-arm (e.g. a reload) — the first timer must be cleared.
     act(() => result.current.armWatchdog(ctx.generationRef.current));
     act(() => vi.advanceTimersByTime(WATCHDOG_MS / 2));
-    // Only the first timer's window has elapsed in total; the re-armed timer
-    // has not yet reached its full duration.
     expect(setError).not.toHaveBeenCalled();
 
     act(() => vi.advanceTimersByTime(WATCHDOG_MS / 2));

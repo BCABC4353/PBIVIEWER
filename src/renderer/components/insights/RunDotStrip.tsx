@@ -3,7 +3,6 @@ import type { InsightsRefreshable } from '../../../shared/types';
 import { luce, ladder, dotStripCells, failureRateCaption } from './insights-luce';
 import { formatTime, tabular } from './insights-shared';
 
-/** Tooltip for one dot: failed dataset dots explain themselves (Matt #5). */
 function dotTitle(
   cell: ReturnType<typeof dotStripCells>[number],
   kind: InsightsRefreshable['kind'],
@@ -18,21 +17,11 @@ function dotTitle(
   return `Failed · ${time}`;
 }
 
-/**
- * 12 dots, oldest → newest, filled from the LEFT. One pulse grammar everywhere
- * (DESIGN-CONTRACT §A): fail = red, ok = white-alpha .25, unused slots are
- * unlit lamps. The caption lives UNDER the dots, 10px/faint (§C).
- */
 export const RunDotStrip: React.FC<{
   runs?: InsightsRefreshable['recentRuns'];
   kind: InsightsRefreshable['kind'];
-  /** Decorative copy on a tile face: no tooltips, no testid — the sheet-row
-   *  strips stay the single interactive source of truth (Matt #5). */
   quiet?: boolean;
-  /** Dot diameter: 7px in the sheet/hero, 6px on the n=20 tiles (§A/§B). */
   size?: number;
-  /** Force the failure-rate caption even when quiet (the hero asset strips
-   *  stay non-interactive but must still show "5 of 8 runs failed" — Matt). */
   caption?: boolean;
 }> = ({ runs, kind, quiet = false, size = 7, caption = false }) => {
   const cells = dotStripCells(runs);

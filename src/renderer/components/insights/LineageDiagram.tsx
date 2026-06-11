@@ -8,15 +8,6 @@ import {
 } from './lineage-diagram';
 import type { BlastRadius } from '../../../shared/blast-radius';
 
-/**
- * Lineage diagram (owner v3 #3) — the sheet's PRIMARY visual: the workspace's
- * blast radius drawn as a process diagram. Three columns (DATAFLOWS →
- * DATASETS → REPORTS), rounded-rect nodes, smooth bezier edges. Green is the
- * happy path (owner-authorized here, and here only), red the fails and the
- * edges leaving them, amber the stale/suspect path into reports, ash the
- * dormant fleet. All placement logic lives in lineage-diagram.ts (pure,
- * tested); this component only paints the result.
- */
 export const LineageDiagram: React.FC<{
   group: WorkspaceGroup;
   blast: BlastRadius;
@@ -35,11 +26,9 @@ export const LineageDiagram: React.FC<{
       role="img"
       aria-label={`${group.workspaceName} lineage — dataflows to datasets to reports`}
       data-testid="lineage-diagram"
-      // Natural height — every node at full size; the SHEET scrolls, the
-      // diagram never compresses the owner's data (owner v4).
       style={{ display: 'block', height: layout.height }}
     >
-      {/* Column headers in the engraved legend style. */}
+      {}
       {(['DATAFLOWS', 'DATASETS', 'REPORTS'] as const).map((label, i) => (
         <text key={label} x={layout.columnX[i]! + 2} y={12} className="luce-lineage-header">
           {label}
@@ -53,7 +42,7 @@ export const LineageDiagram: React.FC<{
           data-to={e.to}
           data-health={e.health}
         >
-          {/* Damage edges carry a soft under-glow. */}
+          {}
           {damage(e.health) && (
             <path d={e.path} fill="none" stroke={lineageColor[e.health]} strokeWidth={6} strokeOpacity={0.16} />
           )}

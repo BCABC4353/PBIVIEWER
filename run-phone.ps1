@@ -1,12 +1,3 @@
-# run-phone.ps1 - one-command bootstrap for the PBIVIEWER mobile dev server.
-#
-# Usage (first time, from any PowerShell window):
-#   irm https://raw.githubusercontent.com/BCABC4353/PBIVIEWER/main/run-phone.ps1 | iex
-# Usage (after that):
-#   powershell -ExecutionPolicy Bypass -File "$HOME\Desktop\PBIVIEWER\run-phone.ps1"
-#
-# Compatible with Windows PowerShell 5.1. ASCII only. No external tools
-# beyond git, node and npm.
 
 $ErrorActionPreference = "Stop"
 
@@ -24,9 +15,6 @@ function Step {
     Write-Host "==> $Message" -ForegroundColor Cyan
 }
 
-# ---------------------------------------------------------------------------
-# Step 1: find the repo on the Desktop, or clone it there.
-# ---------------------------------------------------------------------------
 $RepoUrl = "https://github.com/BCABC4353/PBIVIEWER.git"
 $RepoDir = Join-Path "$HOME" "Desktop\PBIVIEWER"
 
@@ -50,9 +38,6 @@ if (Test-Path (Join-Path "$RepoDir" ".git")) {
 
 Set-Location "$RepoDir"
 
-# ---------------------------------------------------------------------------
-# Step 2: make this copy exactly match the latest published version.
-# ---------------------------------------------------------------------------
 Step "Step 2 of 6: updating to the latest version"
 
 git fetch origin
@@ -87,9 +72,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "    VERSION PROOF: running commit $Version" -ForegroundColor Green
 
-# ---------------------------------------------------------------------------
-# Step 3: free up the ports the dev server needs (8081 / 8082).
-# ---------------------------------------------------------------------------
 Step "Step 3 of 6: making sure ports 8081 and 8082 are free"
 
 try {
@@ -113,9 +95,6 @@ try {
     Write-Host "    Could not inspect ports (this is OK; continuing): $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
-# ---------------------------------------------------------------------------
-# Step 4: install the app's dependencies.
-# ---------------------------------------------------------------------------
 Step "Step 4 of 6: installing dependencies (first run can take a few minutes)"
 
 $MobileDir = Join-Path "$RepoDir" "mobile"
@@ -139,15 +118,6 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "    Dependencies installed." -ForegroundColor Green
 
-# ---------------------------------------------------------------------------
-# Step 5: enable LIVE data by borrowing the sign-in config from the
-# installed desktop app (no Azure portal visit needed). The mobile app reads
-# clientId/tenantId from src\auth\azure-config.local.json (gitignored). If
-# that file is missing or empty, this step extracts the same two GUIDs the
-# desktop app was shipped with and writes them there. Falls back to
-# sample-data mode (with a clear message) if the desktop app is not
-# installed on this machine.
-# ---------------------------------------------------------------------------
 Step "Step 5 of 6: configuring live Power BI sign-in"
 
 $LocalCfg = Join-Path "$MobileDir" "src\auth\azure-config.local.json"
@@ -161,7 +131,6 @@ if (Test-Path "$LocalCfg") {
             $HaveCfg = $true
         }
     } catch {
-        # Unreadable/garbled file - treat as missing and rewrite below.
     }
 }
 
@@ -191,8 +160,6 @@ if ($HaveCfg) {
         }
     }
     if (-not $Extracted) {
-        # Metro requires the file to exist to bundle; write the empty stub so
-        # the app still runs (in sample-data mode) either way.
         if (-not (Test-Path "$LocalCfg")) {
             Set-Content -Path "$LocalCfg" -Value "{`r`n  `"clientId`": `"`",`r`n  `"tenantId`": `"`"`r`n}`r`n" -Encoding Ascii
         }
@@ -202,9 +169,6 @@ if ($HaveCfg) {
     }
 }
 
-# ---------------------------------------------------------------------------
-# Step 6: prove which Expo SDK is installed, then start the dev server.
-# ---------------------------------------------------------------------------
 Step "Step 6 of 6: starting the phone dev server"
 
 $ExpoPkgPath = Join-Path "$MobileDir" "node_modules\expo\package.json"
@@ -219,11 +183,6 @@ if (Test-Path "$ExpoPkgPath") {
     Fail "Expo is not installed at `"$ExpoPkgPath`" even after installing dependencies."
 }
 
-# The dev server is a small web server on THIS computer. The QR code just
-# points the phone at it. If the phone cannot reach this computer directly
-# (separate office Wi-Fi, guest network, client isolation), tunnel mode
-# routes the connection through the internet instead - works from anywhere,
-# even cellular, but needs a free Expo account (expo.dev) on first use.
 Write-Host ""
 Write-Host "    How do you want to view the app?" -ForegroundColor Cyan
 Write-Host "      [Enter] = on your phone, same network (scan the QR code)" -ForegroundColor Cyan

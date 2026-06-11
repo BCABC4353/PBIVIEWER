@@ -1,17 +1,8 @@
-/**
- * Tests for the kiosk power-management IPC handlers.
- *
- * Mocks electron's ipcMain + powerSaveBlocker so the start/stop idempotency and
- * leak-guard logic can be exercised without a real Electron runtime.
- */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { IPC_CHANNELS } from '../../shared/ipc-channels';
 import type { IPCResponse } from '../../shared/ipc-types';
 
-// ---------------------------------------------------------------------------
-// In-memory electron stub
-// ---------------------------------------------------------------------------
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
 let nextBlockerId = 1;
@@ -104,11 +95,9 @@ describe('PROD-S1 kiosk IPC handlers', () => {
 
   it('recovers from a stale id released out-of-band (starts a fresh blocker)', async () => {
     await invoke(PREVENT);
-    // Simulate the OS releasing the blocker without going through our stop path.
     activeBlockers.clear();
     const res = await invoke<boolean>(PREVENT);
     expect(res).toEqual({ success: true, data: true });
-    // Stale id detected → a new blocker started.
     expect(startSpy).toHaveBeenCalledTimes(2);
     expect(activeBlockers.size).toBe(1);
   });

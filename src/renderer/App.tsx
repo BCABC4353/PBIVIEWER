@@ -17,7 +17,6 @@ import { SearchDialog } from './components/search/SearchDialog';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Loading screen
 const LoadingScreen: React.FC = () => (
   <div className="h-screen flex items-center justify-center bg-neutral-background-2">
     <div className="text-center">
@@ -27,7 +26,6 @@ const LoadingScreen: React.FC = () => (
   </div>
 );
 
-/** Map pathname to a human-readable route title for the aria-live announcer. */
 function getRouteTitle(pathname: string): string {
   if (pathname === '/') return 'Home';
   if (pathname === '/workspaces') return 'Workspaces';
@@ -42,15 +40,6 @@ function getRouteTitle(pathname: string): string {
   return 'Power BI Viewer';
 }
 
-/**
- * On every route change —
- *   1. Move focus to the main content region (id="main-content") so keyboard
- *      users are not stranded at whatever element triggered navigation.
- *   2. Announce the new page title via a visually-hidden aria-live="polite" region.
- *
- * Mounted once inside HashRouter so useLocation() works correctly.
- * A guard ref prevents running on the initial render (no focus-steal on load).
- */
 const RouteAnnouncer: React.FC = () => {
   const location = useLocation();
   const announcerRef = useRef<HTMLSpanElement>(null);
@@ -64,20 +53,14 @@ const RouteAnnouncer: React.FC = () => {
 
     const title = getRouteTitle(location.pathname);
 
-    // Update the live region text — screen readers announce when it changes.
-    // Clear first so repeated navigation to the same route still fires an event.
     if (announcerRef.current) {
       announcerRef.current.textContent = '';
     }
 
-    // Defer both the re-announcement and focus shift by one frame so the new
-    // page's DOM (including #main-content) is mounted before we target it.
     const raf = requestAnimationFrame(() => {
       if (announcerRef.current) {
         announcerRef.current.textContent = `Navigated to ${title}`;
       }
-      // Move focus to the main content region — avoids focus-steal on initial load
-      // because isFirstRender guard already returned early above.
       const main = document.getElementById('main-content');
       if (main) {
         main.focus({ preventScroll: true });
@@ -92,13 +75,11 @@ const RouteAnnouncer: React.FC = () => {
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      /* Visually hidden but accessible to screen readers */
       className="sr-only"
     />
   );
 };
 
-// Protected route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthStore();
 
@@ -113,17 +94,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <AppShell>{children}</AppShell>;
 };
 
-/**
- * Boot auto-start router.
- *
- * Runs once after checkAuth succeeds. If `autoStartMode === 'report'` and
- * both autoStartReportId + autoStartWorkspaceId are set, attempts to resolve
- * the item by loading the workspace's reports. On success it deep-links to the
- * report viewer; on any failure (missing ids, item 404, API error) it falls
- * back gracefully to the Home page — no error banner, no blank screen.
- *
- * Must be mounted inside HashRouter so useNavigate() works.
- */
 const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const navigate = useNavigate();
   const hasRun = useRef(false);
@@ -146,7 +116,6 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           autoStartAppId,
         } = settingsResp.data;
 
-        // 'report' — resolve the report so we know it still exists, then deep-link.
         if (autoStartMode === 'report' && autoStartReportId && autoStartWorkspaceId) {
           const reportsResp = await window.electronAPI.content.getReports(autoStartWorkspaceId);
           if (
@@ -155,12 +124,10 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           ) {
             navigate(`/report/${autoStartWorkspaceId}/${autoStartReportId}`, { replace: true });
           }
-          // Found -> deep-linked above; not found / API error -> fall through to Home.
           onDone();
           return;
         }
 
-        // 'app' — verify the app still exists (and is installed) before deep-linking.
         if (autoStartMode === 'app' && autoStartAppId) {
           const appResp = await window.electronAPI.content.getApp(autoStartAppId);
           if (appResp.success && appResp.data) {
@@ -170,10 +137,8 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           return;
         }
 
-        // 'off' or misconfigured — fall back to Home gracefully.
         onDone();
       } catch {
-        // Defensive: any unexpected throw falls back to Home.
         onDone();
       }
     })();
@@ -184,15 +149,12 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
 
 const App: React.FC = () => {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore();
-  // Tracks whether the auto-start routing check has completed.
   const [autoStartDone, setAutoStartDone] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // Wire the evict-on-logout subscription once at app mount.
-  // Returns an unsubscribe function so StrictMode double-invoke is clean.
   useEffect(() => {
     const unsubscribe = initEvictOnLogout();
     return unsubscribe;
@@ -202,19 +164,14 @@ const App: React.FC = () => {
     return <LoadingScreen />;
   }
 
-  // After auth resolves to authenticated, run the auto-start check
-  // exactly once before handing off to the normal route tree. We render
-  // AutoStartRouter (inside HashRouter) so it can call useNavigate().
   const needsAutoStartCheck = isAuthenticated && !autoStartDone;
 
   return (
     <ErrorBoundary>
       <HashRouter>
-        {/* Route announcer lives inside HashRouter so useLocation works */}
+        {}
         <RouteAnnouncer />
-        {/* If authenticated and the auto-start check hasn't run yet,
-            render AutoStartRouter which either deep-links or calls setAutoStartDone.
-            Once done (or unauthenticated), fall through to the normal route tree. */}
+        {}
         {needsAutoStartCheck && (
           <AutoStartRouter onDone={() => setAutoStartDone(true)} />
         )}
@@ -224,7 +181,7 @@ const App: React.FC = () => {
         >
           <SearchDialog />
           <Routes>
-          {/* Public route */}
+          {}
           <Route
             path="/login"
             element={
@@ -232,7 +189,7 @@ const App: React.FC = () => {
             }
           />
 
-          {/* Protected routes */}
+          {}
           <Route
             path="/"
             element={
@@ -257,7 +214,7 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          {/* App viewer - loads full Power BI App experience */}
+          {}
           <Route
             path="/app/:appId"
             element={
@@ -307,7 +264,7 @@ const App: React.FC = () => {
             }
           />
 
-          {/* Fallback */}
+          {}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </div>

@@ -1,9 +1,3 @@
-/**
- * Pure-function coverage for the Luce Insights helpers: down-for elapsed
- * labels, failure-rate captions, dot-strip chronology, dormant detection,
- * tile filters, workspace grouping (broken first, everything collapsed),
- * and the staged unlock copy.
- */
 import { describe, it, expect } from 'vitest';
 import type { InsightsRefreshable } from '../../../shared/types';
 import {
@@ -105,7 +99,6 @@ describe('dotStripCells', () => {
   it('PARTIAL strips fill from the far LEFT, oldest→newest, hollow pads on the RIGHT (Matt #6)', () => {
     const cells = dotStripCells([{ ok: true, endTime: 't1' }, { ok: false, endTime: 't2' }]);
     expect(cells).toHaveLength(12);
-    // Oldest run is the leftmost dot, newest follows it — never right-aligned.
     expect(cells[0]).toEqual({ state: 'ok', endTime: 't1' });
     expect(cells[1]).toEqual({ state: 'fail', endTime: 't2' });
     expect(cells.slice(2).every((c) => c.state === 'none')).toBe(true);
@@ -116,7 +109,6 @@ describe('dotStripCells', () => {
     const cells = dotStripCells(runs);
     expect(cells).toHaveLength(12);
     expect(cells.every((c) => c.state !== 'none')).toBe(true);
-    // Oldest surviving run (index 3) leftmost; the newest (failed) run rightmost.
     expect(cells[0]).toEqual({ state: 'ok', endTime: 't3' });
     expect(cells[11]).toEqual({ state: 'fail', endTime: 't14' });
   });
@@ -180,10 +172,7 @@ describe('kind dot tints (owner v3 #5: color-coded identity, no chips)', () => {
   it('uses violet for dataflows and slate for datasets — identity tints, never status hues', () => {
     expect(kindDot.dataflow).toBe('#A78BDB');
     expect(kindDot.dataset).toBe('#7E9CC9');
-    // The two kinds must be distinguishable from each other…
     expect(kindDot.dataflow).not.toBe(kindDot.dataset);
-    // …and may NOT borrow red/amber/green (or the chrome accent): identity
-    // is not status.
     const statusHues = [luce.warn, luce.broken, luce.accent, '#3FB68B', '#E5484D', '#E8A33D'];
     expect(statusHues).not.toContain(kindDot.dataset);
     expect(statusHues).not.toContain(kindDot.dataflow);
@@ -280,7 +269,6 @@ describe('groupByWorkspace', () => {
     expect(overdue.items[0]?.name).toBe('Stale model');
 
     const healthy = groups.find((g) => g.workspaceId === 'ws-healthy')!;
-    // Equal rank → alphabetical.
     expect(healthy.items.map((i) => i.name)).toEqual(['Alpha OK', 'Zeta OK']);
     expect(healthy.worst).toBe('Completed');
   });
@@ -343,8 +331,6 @@ describe('blast-radius derivations (DESIGN-CONTRACT §A/§B/§C)', () => {
 
   it('triage-sorts: broken desc → suspects desc → overdue desc → running → A–Z (§B)', () => {
     const order = triageSortGroups(groups, suspects).map((g) => g.workspaceName);
-    // Bravo is broken; Charlie has NO broken flow but suspect datasets and
-    // still sorts into the damage band; Echo overdue; Delta running; Alpha quiet.
     expect(order).toEqual(['Bravo', 'Charlie', 'Echo', 'Delta', 'Alpha']);
   });
 
@@ -358,7 +344,7 @@ describe('blast-radius derivations (DESIGN-CONTRACT §A/§B/§C)', () => {
     const charlie = groups.find((g) => g.workspaceId === 'ws-c')!;
     const reportsByDataset = new Map([
       ['c-sus', [{ id: 'r1', name: 'Exec Daily' }, { id: 'r2', name: 'Claims' }]],
-      ['c-ok', [{ id: 'r3', name: 'Unrelated' }]], // not a suspect — never counted
+      ['c-ok', [{ id: 'r3', name: 'Unrelated' }]],
     ]);
     expect(workspaceAffectedReportCount(charlie, { suspectDatasetIds: suspects, reportsByDataset })).toBe(2);
     expect(

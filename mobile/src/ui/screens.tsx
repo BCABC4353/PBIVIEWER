@@ -21,8 +21,6 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [progress, setProgress] = useState<{ pct: number; items: number } | null>(null);
-  // Blast radius: the tile being expanded into a sheet, with its measured
-  // origin frame and the overlay host's size (both host-relative).
   const [expanded, setExpanded] = useState<{
     tile: WorkspaceTile;
     origin: FrameRect;
@@ -36,9 +34,6 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
       setError(null);
       setProgress(null);
       try {
-        // Live mode walks workspaces×datasets×refreshes — a long fetch on a
-        // real tenant. The source reports each workspace as it lands so the
-        // skeleton can say how far along it is instead of sitting mute.
         setSnapshot(
           await source.getFleetSnapshot(force, (pct, items) => setProgress({ pct, items })),
         );
@@ -52,10 +47,6 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   );
 
   useEffect(() => {
-    // First mount or data source changed: the old rows would be the wrong
-    // data, so drop to quiet skeletons while the snapshot is in flight.
-    // No ceremony here, ever — the ignition sweep plays once per app launch
-    // (IgnitionOverlay in Root), never per screen, never per data source.
     setSnapshot(null);
     void load(false);
   }, [load]);
@@ -65,20 +56,15 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
     (r) => r.lastStatus === 'Failed' || r.lastStatus === 'Cancelled' || r.scheduleOverdue,
   ).length;
 
-  // Workspace tiles, worst workspace first — works on whatever the snapshot
-  // carries (mock or live); pure grouping, unit-tested in core/workspace-tiles.
   const tiles = useMemo(
     () => (snapshot ? groupFleetByWorkspace(snapshot.refreshables) : []),
     [snapshot],
   );
 
-  // A reload means the expanded tile's data is gone — drop the sheet rather
-  // than show a sheet of stale facts (no contraction; the data changed).
   useEffect(() => {
     setExpanded(null);
   }, [snapshot]);
 
-  /** Tile tapped: translate its window frame into host coordinates, open. */
   const expandTile = useCallback((tile: WorkspaceTile, windowFrame: FrameRect) => {
     const host = hostRef.current;
     if (!host) return;
@@ -108,13 +94,8 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
           </Pressable>
         </View>
       ) : !snapshot ? (
-        // Loading never blocks: quiet dim blocks mirroring the hero + rows,
-        // shimmering as one cheap opacity loop. Never a dial, never a wall.
-        // The caption beneath reports REAL progress on long live fetches.
         <FleetSkeleton progress={progress} />
       ) : (
-        // The host view is what the sheet must cover and what frames are
-        // measured against — the BlastSheet overlay is its absolute child.
         <View ref={hostRef} collapsable={false} style={styles.host}>
           <FlatList
             data={tiles}
@@ -144,7 +125,7 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
                 refreshing={refreshing}
                 tintColor={color.accent}
                 onRefresh={() => {
-                  thunk(); // the catch — pull-to-refresh engages with weight
+                  thunk();
                   setRefreshing(true);
                   void load(true).finally(() => setRefreshing(false));
                 }}
@@ -168,11 +149,6 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   );
 };
 
-/**
- * The fleet's loading face: dim surface blocks in the exact shape of the
- * content (hero number, hero label, rows), pulsed by ONE animated node.
- * Reduce Motion → the same blocks, perfectly still.
- */
 const FleetSkeleton: React.FC<{ progress: { pct: number; items: number } | null }> = ({
   progress,
 }) => (
@@ -230,8 +206,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: color.canvas,
-    // SafeAreaView is iOS-only; on Android the first render would slide
-    // under the status bar without this.
     paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
   },
   host: { flex: 1 },
@@ -243,7 +217,6 @@ const styles = StyleSheet.create({
   retry: { borderWidth: 1, borderColor: color.accent, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s },
   retryText: { ...type.body, color: color.accent },
 
-  // Skeletons mirror the real layout: centered hero block, then row blocks.
   skeleton: { flex: 1, paddingHorizontal: space.l },
   skeletonHero: {
     alignSelf: 'center', width: 96, height: 56, borderRadius: 12,

@@ -1,14 +1,3 @@
-/**
- * Data-source factory + persisted mode switch.
- *
- * 'mock' = sample fleet (no sign-in, default — the app must render
- *          end-to-end in Expo Go out of the box).
- * 'live' = real Power BI REST via LiveFleetClient + the MSAL-style auth
- *          module (sign in once, silent refresh thereafter).
- *
- * The saved mode lives in SecureStore alongside the tokens — tiny value,
- * and it keeps all persistence behind one well-understood API.
- */
 import * as safeStore from './safe-store';
 import type { DataSource } from './types';
 import { MockDataSource } from './mock-data';
@@ -38,18 +27,9 @@ export function createDataSource(mode: DataMode): DataSource {
     : new MockDataSource();
 }
 
-/**
- * Everything the Reports tab needs in live mode, behind one seam: list the
- * real reports, derive a canvas from a report's dataset, run its visuals'
- * DAX, and read refresh status for the honest "can't query" card.
- * There is NO mock counterpart — signed out, the Reports tab shows only a
- * sign-in card. Real data or an honest explanation, nothing fake.
- */
 export interface ReportsModel {
   catalog: ReportCatalog;
   deriveCanvas(report: ReportRef, opts?: DeriveOptions): Promise<CanvasSpec>;
-  /** Recover the dataset behind an app report (datasetId="" quirk). Null =
-   *  genuinely no queryable dataset; throws = source workspace unreachable. */
   resolveDatasetId(report: ReportRef): Promise<string | null>;
   makeRunner(datasetId: string): (dax: string) => Promise<QueryResult>;
   fetchRefresh(report: ReportRef): Promise<LatestRefresh | null>;
@@ -57,7 +37,6 @@ export interface ReportsModel {
 
 export function createReportsModel(mode: DataMode): ReportsModel | null {
   if (mode !== 'live') {
-    // Leaving live (sign-out / mode switch) — derived canvases die with it.
     clearCanvasSpecCache();
     return null;
   }
@@ -77,8 +56,6 @@ export function createReportsModel(mode: DataMode): ReportsModel | null {
   };
 }
 
-/** Persisted mode; defaults to 'mock' (first run, unknown value, or an
- *  unreadable store must never strand the app on a sign-in wall). */
 export async function getSavedMode(): Promise<DataMode> {
   try {
     const v = await safeStore.getItem(MODE_KEY);
