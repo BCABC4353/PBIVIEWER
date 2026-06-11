@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataSource, Refreshable } from '../core/types';
-import type { ReportsModel } from '../core/data-source-factory';
+import type { DataMode, ReportsModel } from '../core/data-source-factory';
 import type { ReportRef } from '../core/report-catalog';
 import { FleetHealthScreen, RefreshDetailScreen } from './screens';
-import { ReportsScreen, SignedOutCard } from './ReportsScreen';
+import { ReportsScreen } from './ReportsScreen';
 import { LiveReportScreen } from './LiveReportScreen';
 import { AlertsScreen } from './AlertsScreen';
 import { tap } from '../feel/haptics';
@@ -22,10 +22,11 @@ const TABS: ReadonlyArray<{ key: TabKey; glyph: string; label: string }> = [
 ];
 
 export const Root: React.FC<{
+  mode: DataMode;
   source: DataSource;
   reports: ReportsModel | null;
   settings: React.ReactNode;
-}> = ({ source, reports, settings }) => {
+}> = ({ mode, source, reports, settings }) => {
   const [tab, setTab] = useState<TabKey>('fleet');
   const [fleetDetail, setFleetDetail] = useState<Refreshable | null>(null);
   const [alertDetail, setAlertDetail] = useState<Refreshable | null>(null);
@@ -35,23 +36,19 @@ export const Root: React.FC<{
     setOpenReport(null);
   }, [reports]);
 
+  useEffect(() => {
+    setFleetDetail(null);
+    setAlertDetail(null);
+  }, [source]);
+
   let body: React.ReactNode;
   switch (tab) {
     case 'fleet':
-      body =
-        reports === null ? (
-          <SignedOutCard
-            onSignIn={() => setTab('settings')}
-            screenTitle="Fleet"
-            screenSubtitle="Refresh health across your tenant"
-            title="Connect to Power BI"
-            body="Sign in once and this page shows the live health of your datasets and dataflows — what refreshed, what's late, what's broken."
-          />
-        ) : fleetDetail ? (
-          <RefreshDetailScreen item={fleetDetail} onBack={() => setFleetDetail(null)} />
-        ) : (
-          <FleetHealthScreen source={source} onOpen={setFleetDetail} />
-        );
+      body = fleetDetail ? (
+        <RefreshDetailScreen item={fleetDetail} onBack={() => setFleetDetail(null)} />
+      ) : (
+        <FleetHealthScreen source={source} sample={mode === 'mock'} onOpen={setFleetDetail} />
+      );
       break;
     case 'reports':
       body =
@@ -61,6 +58,7 @@ export const Root: React.FC<{
           <View style={styles.edge}>
             <ReportsScreen
               model={reports}
+              mode={mode}
               onOpen={setOpenReport}
               onSignIn={() => setTab('settings')}
             />
@@ -68,22 +66,13 @@ export const Root: React.FC<{
         );
       break;
     case 'alerts':
-      body =
-        reports === null ? (
-          <SignedOutCard
-            onSignIn={() => setTab('settings')}
-            screenTitle="Alerts"
-            screenSubtitle="Broken and overdue, nothing else"
-            title="Connect to Power BI"
-            body="Alerts come from your real refresh history — sign in and anything broken or overdue lands here."
-          />
-        ) : alertDetail ? (
-          <RefreshDetailScreen item={alertDetail} onBack={() => setAlertDetail(null)} />
-        ) : (
-          <View style={styles.edge}>
-            <AlertsScreen source={source} onOpen={setAlertDetail} />
-          </View>
-        );
+      body = alertDetail ? (
+        <RefreshDetailScreen item={alertDetail} onBack={() => setAlertDetail(null)} />
+      ) : (
+        <View style={styles.edge}>
+          <AlertsScreen source={source} onOpen={setAlertDetail} />
+        </View>
+      );
       break;
     case 'settings':
       body = <View style={styles.settingsHost}>{settings}</View>;

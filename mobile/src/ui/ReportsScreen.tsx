@@ -11,7 +11,8 @@ import {
   View,
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
-import type { ReportsModel } from '../core/data-source-factory';
+import type { DataMode, ReportsModel } from '../core/data-source-factory';
+import { gateTabBody } from './tab-gate';
 import {
   defaultExpandedKeys,
   filterCatalogGroups,
@@ -24,10 +25,25 @@ import {
 
 export const ReportsScreen: React.FC<{
   model: ReportsModel | null;
+  mode: DataMode;
   onOpen: (report: ReportRef) => void;
   onSignIn: () => void;
-}> = ({ model, onOpen, onSignIn }) =>
-  model ? <LiveReportList model={model} onOpen={onOpen} /> : <SignedOutCard onSignIn={onSignIn} />;
+}> = ({ model, mode, onOpen, onSignIn }) => {
+  const gate = gateTabBody('reports', mode, model !== null);
+  if (gate === 'data' && model) {
+    return <LiveReportList model={model} onOpen={onOpen} />;
+  }
+  if (gate === 'sample-reports-card') {
+    return (
+      <SignedOutCard
+        onSignIn={onSignIn}
+        title="Sample data has no live reports"
+        body="The built-in sample fleet only covers the Fleet and Alerts tabs. Your Power BI apps and workspaces appear here once you're connected."
+      />
+    );
+  }
+  return <SignedOutCard onSignIn={onSignIn} />;
+};
 
 export const SignedOutCard: React.FC<{
   onSignIn: () => void;

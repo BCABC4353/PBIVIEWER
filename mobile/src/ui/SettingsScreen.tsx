@@ -12,61 +12,51 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { color, space, type } from '../design/tokens';
 import {
-  adoptTokenSet,
   authSessionRedirectConfigured,
   azureConfigValid,
   getCurrentUser,
-  SCOPES,
   signIn,
   signOut,
   type UserInfo,
 } from '../auth/msal-auth';
-import { AZURE_CONFIG } from '../auth/azure-config';
-import {
-  DeviceCodeCancelledError,
-  pollDeviceCode,
-  requestDeviceCode,
-  type DeviceCodeFetch,
-} from '../auth/device-code-auth';
+import { deviceCodeController } from '../auth/device-code-controller-instance';
+import type { DeviceCodeFlowState } from '../auth/device-code-controller';
 import { probeHaptics, type HapticProbeResult } from '../feel/haptics';
-import { setSavedMode, type DataMode } from '../core/data-source-factory';
+import type { DataMode } from '../core/data-source-factory';
 
 const APP_VERSION = '1.0.0';
 
 const DEVICE_LOGIN_URL = 'https://microsoft.com/devicelogin';
 
-interface DeviceFlowState {
-  userCode: string;
-  status: string;
-}
-
 export interface SettingsScreenProps {
   mode: DataMode;
   onModeChange: (mode: DataMode) => void;
-  onDataSourceChange?: () => void;
   onBack?: () => void;
 }
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({
-  mode,
-  onModeChange,
-  onDataSourceChange,
-  onBack,
-}) => {
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({ mode, onModeChange, onBack }) => {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState | null>(null);
+  const [flow, setFlow] = useState<DeviceCodeFlowState>(() => deviceCodeController.getState());
   const [feelRunning, setFeelRunning] = useState(false);
   const [feelResults, setFeelResults] = useState<HapticProbeResult[]>([]);
 
-  const cancelPollRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(
     () => () => {
       mountedRef.current = false;
-      cancelPollRef.current = true;
     },
+    [],
+  );
+
+  useEffect(() => deviceCodeController.subscribe(setFlow), []);
+
+  useEffect(
+    () =>
+      deviceCodeController.onSignedIn((u) => {
+        if (mountedRef.current) setUser(u);
+      }),
     [],
   );
 
@@ -76,86 +66,39 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     });
   }, []);
 
+  const flowBusy = flow.phase === 'requesting' || flow.phase === 'polling';
+  const anyBusy = busy || flowBusy;
+  const errorText = error ?? (flow.phase === 'error' ? flow.message : null);
+
   const finishSignIn = useCallback(
-    async (u: UserInfo | null) => {
+    (u: UserInfo | null) => {
       setUser(u);
-      await setSavedMode('live');
       onModeChange('live');
-      onDataSourceChange?.();
     },
-    [onModeChange, onDataSourceChange],
+    [onModeChange],
   );
 
-  const connectViaDeviceCode = useCallback(async (): Promise<UserInfo | null> => {
-    const cfg = {
-      clientId: AZURE_CONFIG.clientId,
-      tenantId: AZURE_CONFIG.tenantId,
-      scopes: SCOPES,
-    };
-    const deps = { fetch: fetch as unknown as DeviceCodeFetch };
-    cancelPollRef.current = false;
-    const challenge = await requestDeviceCode(cfg, deps);
-    if (!mountedRef.current) return null;
-    setDeviceFlow({
-      userCode: challenge.userCode,
-      status: 'Waiting for you to enter the code…',
-    });
-    try {
-      const tokens = await pollDeviceCode(cfg, challenge, deps, {
-        cancelled: () => cancelPollRef.current,
-        onStatus: (s) => {
-          if (mountedRef.current) {
-            setDeviceFlow((d) =>
-              d
-                ? {
-                    ...d,
-                    status:
-                      s === 'slow_down'
-                        ? 'Microsoft asked us to poll slower — still waiting…'
-                        : 'Waiting for you to enter the code…',
-                  }
-                : d,
-            );
-          }
-        },
-      });
-      const u = await adoptTokenSet(tokens);
-      if (mountedRef.current) {
-        setDeviceFlow(null);
-        await finishSignIn(u);
-      }
-      return u;
-    } catch (e) {
-      if (mountedRef.current) setDeviceFlow(null);
-      if (e instanceof DeviceCodeCancelledError) return null;
-      throw e;
-    }
-  }, [finishSignIn]);
-
-  const connect = useCallback(async (): Promise<UserInfo | null> => {
+  const connect = useCallback(async (): Promise<void> => {
     setError(null);
+    if (!authSessionRedirectConfigured) {
+      await deviceCodeController.start();
+      return;
+    }
     setBusy(true);
     try {
-      if (!authSessionRedirectConfigured) {
-        return await connectViaDeviceCode();
-      }
       const u = await signIn();
-      if (u) await finishSignIn(u);
-      return u;
+      if (u) finishSignIn(u);
     } catch (e) {
       if (mountedRef.current) {
         setError(e instanceof Error ? e.message : 'Sign-in failed');
       }
-      return null;
     } finally {
       if (mountedRef.current) setBusy(false);
     }
-  }, [connectViaDeviceCode, finishSignIn]);
+  }, [finishSignIn]);
 
   const cancelDeviceFlow = useCallback(() => {
-    cancelPollRef.current = true;
-    setDeviceFlow(null);
-    setBusy(false);
+    deviceCodeController.cancel();
   }, []);
 
   const copyAndOpen = useCallback(async (code: string) => {
@@ -174,17 +117,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const disconnect = useCallback(async () => {
     setError(null);
+    deviceCodeController.clearError();
     await signOut();
     setUser(null);
-    await setSavedMode('mock');
     onModeChange('mock');
-    onDataSourceChange?.();
-  }, [onModeChange, onDataSourceChange]);
+  }, [onModeChange]);
 
   const selectMode = useCallback(
     async (next: DataMode) => {
-      if (next === mode || busy) return;
+      if (next === mode || anyBusy) return;
       setError(null);
+      deviceCodeController.clearError();
       if (next === 'live') {
         const existing = user ?? (await getCurrentUser());
         if (!existing) {
@@ -192,11 +135,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           return;
         }
       }
-      await setSavedMode(next);
       onModeChange(next);
-      onDataSourceChange?.();
     },
-    [mode, busy, user, connect, onModeChange, onDataSourceChange],
+    [mode, anyBusy, user, connect, onModeChange],
   );
 
   const runFeelTest = useCallback(async () => {
@@ -238,7 +179,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Pressable
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={() => void disconnect()}
-              disabled={busy}
+              disabled={anyBusy}
               accessibilityRole="button"
             >
               <Text style={styles.rowAction}>Sign out</Text>
@@ -247,38 +188,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <Pressable
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={() => void connect()}
-              disabled={busy || !azureConfigValid}
+              disabled={anyBusy || !azureConfigValid}
               accessibilityRole="button"
             >
               <Text style={[styles.rowAction, !azureConfigValid && styles.rowDisabled]}>
-                {busy ? 'Connecting…' : 'Connect to Power BI'}
+                {anyBusy ? 'Connecting…' : 'Connect to Power BI'}
               </Text>
             </Pressable>
           )}
         </View>
 
         {}
-        {deviceFlow ? (
+        {flow.phase === 'polling' ? (
           <View style={[styles.card, styles.deviceCard]}>
             <Text style={styles.deviceLead}>
               On any computer or phone, go to microsoft.com/devicelogin and enter:
             </Text>
             <Text
               style={styles.deviceCode}
-              accessibilityLabel={`Sign-in code ${deviceFlow.userCode.split('').join(' ')}`}
+              accessibilityLabel={`Sign-in code ${flow.userCode.split('').join(' ')}`}
             >
-              {deviceFlow.userCode}
+              {flow.userCode}
             </Text>
             <Pressable
               style={({ pressed }) => [styles.deviceButton, pressed && styles.rowPressed]}
-              onPress={() => void copyAndOpen(deviceFlow.userCode)}
+              onPress={() => void copyAndOpen(flow.userCode)}
               accessibilityRole="button"
             >
               <Text style={styles.deviceButtonText}>
                 Copy code & open microsoft.com/devicelogin
               </Text>
             </Pressable>
-            <Text style={styles.deviceStatus}>{deviceFlow.status}</Text>
+            <Text style={styles.deviceStatus}>
+              {flow.pollStatus === 'slow_down'
+                ? 'Microsoft asked us to poll slower — still waiting…'
+                : 'Waiting for you to enter the code…'}
+            </Text>
             <Pressable
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={cancelDeviceFlow}
@@ -297,7 +242,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             needed: sign-in uses a device code at microsoft.com/devicelogin.
           </Text>
         ) : null}
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
         {}
         <Text style={styles.sectionLabel}>DATA SOURCE</Text>

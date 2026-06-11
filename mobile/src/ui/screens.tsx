@@ -13,10 +13,11 @@ import { SkeletonPulse } from '../feel/primitives';
 import { thunk } from '../feel/haptics';
 import { relativeAge } from '../core/refresh-health';
 
-export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refreshable) => void }> = ({
-  source,
-  onOpen,
-}) => {
+export const FleetHealthScreen: React.FC<{
+  source: DataSource;
+  sample?: boolean;
+  onOpen: (r: Refreshable) => void;
+}> = ({ source, sample, onOpen }) => {
   const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,20 +28,24 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
     host: { width: number; height: number };
   } | null>(null);
   const hostRef = useRef<View>(null);
+  const runIdRef = useRef(0);
   const now = Date.now();
 
   const load = useCallback(
     async (force: boolean) => {
+      const runId = ++runIdRef.current;
+      const live = () => runIdRef.current === runId;
       setError(null);
       setProgress(null);
       try {
-        setSnapshot(
-          await source.getFleetSnapshot(force, (pct, items) => setProgress({ pct, items })),
-        );
+        const snap = await source.getFleetSnapshot(force, (pct, items) => {
+          if (live()) setProgress({ pct, items });
+        });
+        if (live()) setSnapshot(snap);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not load fleet status');
+        if (live()) setError(e instanceof Error ? e.message : 'Could not load fleet status');
       } finally {
-        setProgress(null);
+        if (live()) setProgress(null);
       }
     },
     [source],
@@ -102,7 +107,13 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
             keyExtractor={(t) => t.workspaceId}
             ListHeaderComponent={
               <>
-                <FleetHero broken={broken} total={sorted.length} generatedAt={snapshot.generatedAt} now={now} />
+                <FleetHero
+                  broken={broken}
+                  total={sorted.length}
+                  generatedAt={snapshot.generatedAt}
+                  now={now}
+                  sample={sample}
+                />
                 {snapshot.partialFailure ? (
                   <Text style={styles.partial}>
                     {snapshot.failedWorkspaces.length}{' '}

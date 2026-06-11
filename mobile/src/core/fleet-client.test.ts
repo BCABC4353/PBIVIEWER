@@ -183,6 +183,25 @@ describe('getFleetSnapshot — partial failure and progress', () => {
     expect(seen.every((s, i) => i === 0 || s.pct >= seen[i - 1]!.pct)).toBe(true);
   });
 
+  it('fetches 12 runs of refresh and transaction history, matching desktop depth', async () => {
+    const fetchMock = routedFetch({
+      '/groups': { value: [{ id: 'g1', name: 'WS' }] },
+      '/groups/g1/datasets': { value: [{ id: 'd1', name: 'DS' }] },
+      '/groups/g1/dataflows': { value: [{ objectId: 'f1', name: 'Flow' }] },
+      '/groups/g1/datasets/d1/refreshes?$top=12': { value: [] },
+      '/groups/g1/datasets/d1/refreshSchedule': {},
+      '/groups/g1/dataflows/f1/transactions?$top=12': { value: [] },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await new LiveFleetClient(tokens).getFleetSnapshot();
+
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes('/datasets/d1/refreshes?$top=12'))).toBe(true);
+    expect(urls.some((u) => u.includes('/dataflows/f1/transactions?$top=12'))).toBe(true);
+    expect(urls.some((u) => u.includes('$top=5'))).toBe(false);
+  });
+
   it('caps simultaneous requests so big tenants are not stampeded', async () => {
     const routes: Record<string, unknown> = {
       '/groups': {

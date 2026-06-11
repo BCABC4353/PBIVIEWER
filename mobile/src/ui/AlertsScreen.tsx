@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -45,21 +45,26 @@ export const AlertsScreen: React.FC<{
   const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const runIdRef = useRef(0);
   const now = Date.now();
 
   const load = useCallback(
     async (force: boolean) => {
+      const runId = ++runIdRef.current;
+      const live = () => runIdRef.current === runId;
       setError(null);
       try {
-        setSnapshot(await source.getFleetSnapshot(force));
+        const snap = await source.getFleetSnapshot(force);
+        if (live()) setSnapshot(snap);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not load alerts');
+        if (live()) setError(e instanceof Error ? e.message : 'Could not load alerts');
       }
     },
     [source],
   );
 
   useEffect(() => {
+    setSnapshot(null);
     void load(false);
   }, [load]);
 

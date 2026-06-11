@@ -140,7 +140,7 @@ export class LiveFleetClient implements DataSource {
             };
             if (ds.isRefreshable === false) return { ...base, lastStatus: 'Disabled' };
             const hist =
-              (await this.tryList<RawRefreshEntry>(`/groups/${ws.id}/datasets/${ds.id}/refreshes?$top=5`)) ?? [];
+              (await this.tryList<RawRefreshEntry>(`/groups/${ws.id}/datasets/${ds.id}/refreshes?$top=12`)) ?? [];
             const health = deriveDatasetHealth(hist);
             let sched: RawSchedule | null = null;
             try {
@@ -153,7 +153,7 @@ export class LiveFleetClient implements DataSource {
 
           const dfRows = await mapWithConcurrency(dataflows ?? [], ITEM_CONCURRENCY, async (df): Promise<Refreshable> => {
             const hist =
-              (await this.tryList<RawTransaction>(`/groups/${ws.id}/dataflows/${df.objectId}/transactions?$top=5`)) ?? [];
+              (await this.tryList<RawTransaction>(`/groups/${ws.id}/dataflows/${df.objectId}/transactions?$top=12`)) ?? [];
             return {
               kind: 'dataflow',
               id: df.objectId,

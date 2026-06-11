@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Root } from './src/ui/Root';
 import { SettingsScreen } from './src/ui/SettingsScreen';
@@ -10,6 +10,7 @@ import {
   type DataMode,
   type ReportsModel,
 } from './src/core/data-source-factory';
+import { deviceCodeController } from './src/auth/device-code-controller-instance';
 import type { DataSource } from './src/core/types';
 import { color } from './src/design/tokens';
 
@@ -17,12 +18,10 @@ export default function App() {
   const [mode, setMode] = useState<DataMode>('mock');
   const [source, setSource] = useState<DataSource>(() => createDataSource('mock'));
   const [reports, setReports] = useState<ReportsModel | null>(null);
-  const modeRef = useRef<DataMode>(mode);
 
   useEffect(() => {
     void getSavedMode().then((saved) => {
       if (saved !== 'mock') {
-        modeRef.current = saved;
         setMode(saved);
         setSource(createDataSource(saved));
         setReports(createReportsModel(saved));
@@ -31,28 +30,24 @@ export default function App() {
   }, []);
 
   const handleModeChange = useCallback((next: DataMode) => {
-    modeRef.current = next;
     setMode(next);
     void setSavedMode(next);
     setSource(createDataSource(next));
     setReports(createReportsModel(next));
   }, []);
 
+  useEffect(
+    () => deviceCodeController.onSignedIn(() => handleModeChange('live')),
+    [handleModeChange],
+  );
+
   return (
     <View style={styles.root}>
       <Root
+        mode={mode}
         source={source}
         reports={reports}
-        settings={
-          <SettingsScreen
-            mode={mode}
-            onModeChange={handleModeChange}
-            onDataSourceChange={() => {
-              setSource(createDataSource(modeRef.current));
-              setReports(createReportsModel(modeRef.current));
-            }}
-          />
-        }
+        settings={<SettingsScreen mode={mode} onModeChange={handleModeChange} />}
       />
     </View>
   );

@@ -21,15 +21,17 @@ export const StatusChip: React.FC<{ status: Refreshable['lastStatus']; overdue?:
   </View>
 );
 
-export const FleetHero: React.FC<{ broken: number; total: number; generatedAt: string; now: number }> = ({
-  broken,
-  total,
-  generatedAt,
-  now,
-}) => {
+export const FleetHero: React.FC<{
+  broken: number;
+  total: number;
+  generatedAt: string;
+  now: number;
+  sample?: boolean;
+}> = ({ broken, total, generatedAt, now, sample }) => {
   const healthy = broken === 0;
   return (
     <View style={styles.hero}>
+      {sample ? <Text style={styles.heroSample}>SAMPLE DATA</Text> : null}
       <Text style={[styles.heroNumber, { color: healthy ? color.textPrimary : color.broken }]}>
         {healthy ? '0' : String(broken)}
       </Text>
@@ -134,6 +136,7 @@ const styles = StyleSheet.create({
   chipText: { ...type.micro },
 
   hero: { alignItems: 'center', paddingVertical: space.xl },
+  heroSample: { ...type.micro, color: color.textTertiary, marginBottom: space.s },
   heroNumber: { ...type.hero },
   heroLabel: { ...type.body, color: color.textSecondary, marginTop: space.xs },
   heroMeta: { ...type.caption, color: color.textTertiary, marginTop: space.s },
