@@ -142,8 +142,22 @@ export const usageTrackingService = {
     const cappedName = capName(item.name);
     const cappedWorkspaceName = capName(item.workspaceName);
 
-    // Find existing record
-    const existingIndex = records.findIndex((r) => r.id === item.id);
+    // Find existing record — matched on id AND account. An id-only match would
+    // let account B "steal" (and re-scope, via the accountId merge below)
+    // account A's record when both open the same item on a shared machine.
+    // Two passes: prefer the exact same-account record; only when none exists
+    // may a legacy record (no accountId, written before v1.7.0) be claimed by
+    // the first account that touches it — the `item.accountId ??
+    // existingRecord.accountId` merge below then stamps it, preserving the
+    // migration intent of adopting old history rather than stranding it.
+    let existingIndex = records.findIndex(
+      (r) => r.id === item.id && r.accountId === item.accountId,
+    );
+    if (existingIndex < 0) {
+      existingIndex = records.findIndex(
+        (r) => r.id === item.id && r.accountId === undefined,
+      );
+    }
 
     if (existingIndex >= 0) {
       // Update existing record - remove from current position and add to front

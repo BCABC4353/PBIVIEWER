@@ -61,6 +61,13 @@ export const ReportViewer: React.FC = () => {
   // Fetch report metadata (datasetId + name) — used by the loaded handler.
   useEffect(() => {
     if (!workspaceId || !reportId) return;
+    // Report→report navigation keeps this component MOUNTED (only the route
+    // params change), so the ref still holds the PREVIOUS report's dataset.
+    // Clear it before the fetch: the freshness fetcher resolves null until the
+    // new dataset is known, which reads as "no stamp yet" instead of polling
+    // the OLD report's dataset (wrong stamp for up to 5 minutes, and a
+    // mis-baselined newDataAvailable against the old dataset's refresh time).
+    datasetIdRef.current = null;
     let cancelled = false;
     (async () => {
       try {
@@ -70,6 +77,14 @@ export const ReportViewer: React.FC = () => {
           const reportData = reportsResponse.data.find((r) => r.id === reportId);
           if (reportData?.datasetId) {
             datasetIdRef.current = reportData.datasetId;
+            // Kick a freshness re-poll NOW that the dataset id is known.
+            // The embed's `loaded` handler can fire before this fetch resolves,
+            // in which case its poll saw a null dataset id and did nothing —
+            // and the next scheduled poll is 5 minutes out. Setting lastLoadAt
+            // also (re)baselines newDataAvailable to the NEW report's data,
+            // which is correct: the on-screen content was loaded at essentially
+            // this moment (same pattern as AppViewer's dataset resolution).
+            setLastLoadAt(Date.now());
           }
           // Capture name so breadcrumb is visible while loading
           if (reportData?.name) {

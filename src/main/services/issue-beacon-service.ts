@@ -50,6 +50,8 @@ export interface BeaconEvent {
 
 interface BeaconStoreSchema {
   installId?: string;
+  /** GitHub issue number of this install's beacon thread, once created. */
+  issueNumber?: number;
 }
 
 /** Minimal slice of the dependencies the service needs, so it is unit-testable. */
@@ -63,8 +65,18 @@ export interface IssueBeaconDeps {
   appVersion: string;
   platform: string;
   installId: string;
-  /** Injected so tests don't hit the network. Resolves to the HTTP status. */
-  postJson: (url: string, token: string, body: unknown) => Promise<number>;
+  /**
+   * Injected so tests don't hit the network. Resolves to the HTTP status plus
+   * the parsed JSON response body — the issue-create response carries the new
+   * issue's `number`, which later flushes need to thread comments under.
+   */
+  postJson: (url: string, token: string, body: unknown) => Promise<{ status: number; body?: unknown }>;
+  /**
+   * Issue number persisted by a previous session, or null. Threads survive
+   * restarts: without this, every launch would open a fresh issue.
+   */
+  loadIssueNumber: () => number | null;
+  saveIssueNumber: (issueNumber: number) => void;
   /** Wall clock, injectable for tests. */
   now: () => number;
   logger: Pick<typeof console, 'warn' | 'info'>;
@@ -79,10 +91,13 @@ export class IssueBeaconService {
   private buffer: Array<BeaconEvent & { at: number }> = [];
   private lastPostAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private issueNumber: number | null = null;
+  private issueNumber: number | null;
 
   constructor(deps: IssueBeaconDeps) {
     this.deps = deps;
+    // Resume the install's existing issue thread (if a prior session created
+    // one) so a restart appends comments instead of opening a duplicate issue.
+    this.issueNumber = deps.loadIssueNumber();
   }
 
   /** Begin periodic flushing. No-op when disabled. Idempotent. */
@@ -136,9 +151,9 @@ export class IssueBeaconService {
         lines.join('\n');
 
       if (this.issueNumber === null) {
-        // First post this session: open one issue for this install.
+        // First post for this install: open one issue, then thread under it.
         const title = `beacon: install ${this.deps.installId} (${this.deps.appVersion})`;
-        const status = await this.deps.postJson(
+        const { status, body: responseBody } = await this.deps.postJson(
           `https://api.github.com/repos/${this.deps.repo}/issues`,
           this.deps.token,
           { title, body },
@@ -147,10 +162,24 @@ export class IssueBeaconService {
           this.deps.logger.warn('[beacon] issue create failed:', status);
           // Re-queue so we retry next flush rather than silently lose the batch.
           this.buffer.unshift(...batch);
+          return;
+        }
+        // Capture the created issue's number so every later flush appends a
+        // comment to THIS thread instead of opening a new issue per flush, and
+        // persist it so the next session resumes the same thread.
+        const issueNumber = (responseBody as { number?: unknown } | undefined)?.number;
+        if (typeof issueNumber === 'number') {
+          this.issueNumber = issueNumber;
+          this.deps.saveIssueNumber(issueNumber);
+        } else {
+          // 2xx but no issue number in the body (proxy rewrote the response?).
+          // The batch was delivered; warn so the operator can see why a later
+          // flush had to open another issue.
+          this.deps.logger.warn('[beacon] issue created but response carried no issue number');
         }
         return;
       }
-      const status = await this.deps.postJson(
+      const { status } = await this.deps.postJson(
         `https://api.github.com/repos/${this.deps.repo}/issues/${this.issueNumber}/comments`,
         this.deps.token,
         { body },
@@ -166,23 +195,42 @@ export class IssueBeaconService {
   }
 }
 
-/** Stable anonymous per-install id, persisted in userData (no PII). */
-function getOrCreateInstallId(): string {
+/**
+ * Open the beacon's persistence store (install id + issue thread number), or
+ * null when userData is unusable — the beacon then degrades to ephemeral ids
+ * and a session-only thread rather than failing.
+ */
+function openBeaconStore(): Store<BeaconStoreSchema> | null {
   try {
-    const store = new Store<BeaconStoreSchema>({ name: 'beacon' });
-    let id = store.get('installId');
-    if (!id) {
-      id = randomUUID().slice(0, 8);
-      store.set('installId', id);
-    }
-    return id;
+    return new Store<BeaconStoreSchema>({ name: 'beacon' });
   } catch {
-    // Ephemeral fallback — still anonymous, just not stable across restarts.
-    return randomUUID().slice(0, 8);
+    return null;
   }
 }
 
-async function postJsonReal(url: string, token: string, body: unknown): Promise<number> {
+/** Stable anonymous per-install id, persisted in userData (no PII). */
+function getOrCreateInstallId(store: Store<BeaconStoreSchema> | null): string {
+  try {
+    if (store) {
+      let id = store.get('installId');
+      if (!id) {
+        id = randomUUID().slice(0, 8);
+        store.set('installId', id);
+      }
+      return id;
+    }
+  } catch {
+    // fall through to the ephemeral id
+  }
+  // Ephemeral fallback — still anonymous, just not stable across restarts.
+  return randomUUID().slice(0, 8);
+}
+
+async function postJsonReal(
+  url: string,
+  token: string,
+  body: unknown,
+): Promise<{ status: number; body?: unknown }> {
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -193,7 +241,17 @@ async function postJsonReal(url: string, token: string, body: unknown): Promise<
     },
     body: JSON.stringify(body),
   });
-  return res.status;
+  // Parse the body best-effort: the issue-create response carries the `number`
+  // the service threads later comments under. A non-JSON body (proxy error
+  // page) must not turn a delivered post into a thrown flush — fall back to
+  // status-only and let the service handle the missing number.
+  let responseBody: unknown;
+  try {
+    responseBody = await res.json();
+  } catch {
+    responseBody = undefined;
+  }
+  return { status: res.status, body: responseBody };
 }
 
 let singleton: IssueBeaconService | null = null;
@@ -205,6 +263,7 @@ export function getIssueBeacon(): IssueBeaconService {
   if (enabled) {
     log.info('[beacon] enabled →', beaconConfig.repo);
   }
+  const store = openBeaconStore();
   singleton = new IssueBeaconService({
     enabled,
     includeNames: beaconConfig.includeNames,
@@ -212,8 +271,27 @@ export function getIssueBeacon(): IssueBeaconService {
     token: beaconConfig.token,
     appVersion: app.getVersion(),
     platform: process.platform,
-    installId: getOrCreateInstallId(),
+    installId: getOrCreateInstallId(store),
     postJson: postJsonReal,
+    // The same store that already persists installId also persists the issue
+    // thread number, so the thread — like the install identity — survives
+    // restarts. With no store the number is session-only, which only costs
+    // one extra issue per launch (not one per flush).
+    loadIssueNumber: () => {
+      try {
+        const n = store?.get('issueNumber');
+        return typeof n === 'number' ? n : null;
+      } catch {
+        return null;
+      }
+    },
+    saveIssueNumber: (issueNumber) => {
+      try {
+        store?.set('issueNumber', issueNumber);
+      } catch {
+        // Non-fatal: thread persistence is best-effort.
+      }
+    },
     now: () => Date.now(),
     logger: console,
   });

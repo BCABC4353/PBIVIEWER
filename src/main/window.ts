@@ -91,6 +91,9 @@ export function createWindow(): void {
   // does not spin in an infinite reload loop.
   let crashReloads = 0;
   let crashWindowStart = Date.now();
+  // Backoff timer armed when the fast-crash budget is exhausted. Tracked so
+  // closing the window cancels it (reloading a destroyed window would throw).
+  let crashBackoffTimer: ReturnType<typeof setTimeout> | null = null;
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     if (details.reason === 'clean-exit') return;
     const now = Date.now();
@@ -98,7 +101,22 @@ export function createWindow(): void {
       crashReloads = 0;
       crashWindowStart = now;
     }
-    if (crashReloads >= 3) return;
+    if (crashReloads >= 3) {
+      // Budget exhausted — but do NOT give up forever: with no reload, no
+      // further crash events ever fire, so the wall display would stay blank
+      // until someone walks over. Back off 60 s, then reload once; if that
+      // reload crashes again, the elapsed time resets the fast budget above
+      // and the cycle repeats at ~1 attempt/minute instead of spinning.
+      if (!crashBackoffTimer) {
+        crashBackoffTimer = setTimeout(() => {
+          crashBackoffTimer = null;
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.reload();
+          }
+        }, 60_000);
+      }
+      return;
+    }
     crashReloads++;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.reload();
@@ -106,6 +124,10 @@ export function createWindow(): void {
   });
 
   mainWindow.on('closed', () => {
+    if (crashBackoffTimer) {
+      clearTimeout(crashBackoffTimer);
+      crashBackoffTimer = null;
+    }
     mainWindow = null;
   });
 }

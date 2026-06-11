@@ -24,6 +24,7 @@ import {
 import { useAuthStore } from '../../stores/auth-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useContentStore } from '../../stores/content-store';
+import { useDebouncedSettings } from '../../hooks/presentation/useDebouncedSettings';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 import type { ContentItem } from '../../../shared/types';
 
@@ -53,12 +54,18 @@ export const SettingsPage: React.FC = () => {
     });
   }, [loadSettings, loadRecentItems, loadFrequentItems, loadApps]);
 
+  // Fluent's Slider fires onChange on EVERY drag step; persisting each step
+  // would flood the settings IPC + disk-write path. The two sliders route
+  // through the shared debounced-persist hook (optimistic store write now,
+  // one IPC per drag, pending value flushed on unmount).
+  const { onDebouncedUpdate } = useDebouncedSettings();
+
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
     updateSettings({ theme });
   };
 
   const handleSlideshowIntervalChange = (value: number) => {
-    updateSettings({ slideshowInterval: value });
+    onDebouncedUpdate({ slideshowInterval: value });
   };
 
   const handleSlideshowModeChange = (mode: 'pages' | 'bookmarks' | 'both') => {
@@ -74,7 +81,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleAutoRefreshIntervalChange = (value: number) => {
-    updateSettings({ autoRefreshInterval: value });
+    onDebouncedUpdate({ autoRefreshInterval: value });
   };
 
   const handleAutoStartModeChange = (mode: 'off' | 'report' | 'app') => {
