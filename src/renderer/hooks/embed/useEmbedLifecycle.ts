@@ -218,7 +218,11 @@ export function useEmbedLifecycle(
           console.error('[usePowerBIEmbed] embed error:', detail);
 
           if (isTokenExpiredError(detail)) {
-            void refreshEmbedToken();
+            if (hasLoadedRef.current) {
+              void refreshEmbedToken();
+            } else {
+              setReloadNonce((n) => n + 1);
+            }
             return;
           }
 

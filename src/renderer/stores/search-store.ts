@@ -68,7 +68,7 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
     // Bump the generation so any in-flight search() whose results would
     // otherwise stream back into a now-closed dialog discards itself.
     currentSearchId++;
-    set({ isOpen: false, query: '', results: [], isSearching: false });
+    set({ isOpen: false, query: '', results: [], isSearching: false, error: null });
   },
 
   setQuery: (query: string) => {
@@ -77,7 +77,7 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
     // results would repopulate the now-empty list.
     if (!query) {
       currentSearchId++;
-      set({ query, results: [], isSearching: false });
+      set({ query, results: [], isSearching: false, error: null });
       return;
     }
     set({ query });
@@ -117,7 +117,7 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
     // Increment search ID to track this request
     const thisSearchId = ++currentSearchId;
 
-    set({ isSearching: true });
+    set({ isSearching: true, error: null });
 
     try {
       const searchLower = query.toLowerCase();
@@ -145,6 +145,17 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
         // Check if this search is still current
         if (thisSearchId !== currentSearchId) {
           return; // Stale search, abort
+        }
+
+        if (!workspacesResponse.success && !appsResponse.success && !allItemsResponse.success) {
+          set({
+            results: [],
+            isSearching: false,
+            error:
+              workspacesResponse.error.userMessage ||
+              'Search failed. Check your connection and try again.',
+          });
+          return;
         }
 
         workspaces = workspacesResponse.success ? workspacesResponse.data : [];
@@ -267,11 +278,15 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
       }
 
       // Limit results
-      set({ results: results.slice(0, 30), isSearching: false });
+      set({ results: results.slice(0, 30), isSearching: false, error: null });
     } catch (error) {
       console.error('Search error:', error);
       if (thisSearchId === currentSearchId) {
-        set({ results: [], isSearching: false });
+        set({
+          results: [],
+          isSearching: false,
+          error: 'Search failed. Check your connection and try again.',
+        });
       }
     }
   },
@@ -280,6 +295,6 @@ export const useSearchStore = create<SearchState>((set, _get) => ({
     // Bump generation so a search() still in flight cannot repopulate the
     // list after we've intentionally cleared it.
     currentSearchId++;
-    set({ results: [], query: '', isSearching: false });
+    set({ results: [], query: '', isSearching: false, error: null });
   },
 }));

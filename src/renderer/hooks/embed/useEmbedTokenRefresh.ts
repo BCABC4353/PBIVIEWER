@@ -140,7 +140,9 @@ export function useEmbedTokenRefresh(
       );
       setIsLoading(false);
     } finally {
-      tokenRefreshInProgressRef.current = false;
+      if (myGen === generationRef.current) {
+        tokenRefreshInProgressRef.current = false;
+      }
     }
   }, [
     workspaceId,
