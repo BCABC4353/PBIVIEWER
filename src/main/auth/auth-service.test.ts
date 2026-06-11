@@ -685,6 +685,130 @@ describe('getAdminAccessToken (incremental consent, admin tier)', () => {
   });
 });
 
+describe('login single-flight guard (double-click race)', () => {
+  it('rejects a second login() while the first is mid-flight and opens only one auth window', async () => {
+    const h = createHarness();
+    const openAuth = h.deps.openAuthWindow as ReturnType<typeof vi.fn>;
+    let releaseAuthWindow!: () => void;
+    openAuth.mockImplementation(
+      (_url: string, state: string) =>
+        new Promise<{ code: string; state: string } | null>((resolve) => {
+          releaseAuthWindow = () => resolve({ code: 'authcode', state });
+        }),
+    );
+    const svc = createAuthService(h.deps);
+
+    const first = svc.login();
+    const second = svc.login();
+
+    const secondResult = await second;
+    expect(secondResult.success).toBe(false);
+    if (!secondResult.success) expect(secondResult.error.code).toBe('LOGIN_IN_PROGRESS');
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(openAuth).toHaveBeenCalledTimes(1);
+
+    releaseAuthWindow();
+    const firstResult = await first;
+    expect(firstResult.success && firstResult.data.success).toBe(true);
+    expect(openAuth).toHaveBeenCalledTimes(1);
+
+    openAuth.mockImplementation(async (_url: string, state: string) => ({ code: 'authcode', state }));
+    const again = await svc.login();
+    expect(again.success && again.data.success).toBe(true);
+  });
+
+  it('releases the guard when login throws (no permanent lockout)', async () => {
+    const h = createHarness();
+    const getUrl = h.deps.msalClient.getAuthCodeUrl as ReturnType<typeof vi.fn>;
+    getUrl.mockRejectedValueOnce(new Error('boom'));
+    const svc = createAuthService(h.deps);
+
+    const failed = await svc.login();
+    expect(failed.success).toBe(false);
+    if (!failed.success) expect(failed.error.code).toBe('LOGIN_FAILED');
+
+    const retry = await svc.login();
+    expect(retry.success && retry.data.success).toBe(true);
+  });
+
+  it('rejects a concurrent interactive admin consent while one is mid-flight (single window)', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    h.setSilentResult(new InteractionRequiredAuthError('interaction_required'));
+    const openAuth = h.deps.openAuthWindow as ReturnType<typeof vi.fn>;
+    let releaseAuthWindow!: () => void;
+    openAuth.mockImplementation(
+      (_url: string, state: string) =>
+        new Promise<{ code: string; state: string } | null>((resolve) => {
+          releaseAuthWindow = () => resolve({ code: 'authcode', state });
+        }),
+    );
+    const svc = createAuthService(h.deps);
+
+    const pair = [svc.getAdminAccessToken(), svc.getAdminAccessToken()];
+    await new Promise((r) => setTimeout(r, 0));
+    expect(openAuth).toHaveBeenCalledTimes(1);
+
+    releaseAuthWindow();
+    const results = await Promise.all(pair);
+    const codes = results.map((r) => (r.success ? 'OK' : r.error.code)).sort();
+    expect(codes).toEqual(['LOGIN_IN_PROGRESS', 'OK']);
+  });
+});
+
+describe('token acquire+persist critical section is serialized', () => {
+  function instrument(h: Harness): string[] {
+    const events: string[] = [];
+    const silent = h.deps.msalClient.acquireTokenSilent as ReturnType<typeof vi.fn>;
+    silent.mockImplementation(async () => {
+      events.push('acquire:enter');
+      await new Promise((r) => setTimeout(r, 0));
+      events.push('acquire:exit');
+      return { accessToken: 'at', expiresOn: new Date(Date.now() + 3_600_000) };
+    });
+    const save = h.deps.persistentCache.saveCache as ReturnType<typeof vi.fn>;
+    save.mockImplementation(async () => {
+      events.push('persist:enter');
+      await new Promise((r) => setTimeout(r, 0));
+      events.push('persist:exit');
+    });
+    return events;
+  }
+
+  const TWO_SERIALIZED_SECTIONS = [
+    'acquire:enter',
+    'acquire:exit',
+    'persist:enter',
+    'persist:exit',
+    'acquire:enter',
+    'acquire:exit',
+    'persist:enter',
+    'persist:exit',
+  ];
+
+  it('concurrent getAccessToken + getAdminAccessToken never interleave acquire/persist', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const events = instrument(h);
+    const svc = createAuthService(h.deps);
+
+    const [user, admin] = await Promise.all([svc.getAccessToken(), svc.getAdminAccessToken()]);
+    expect(user.success).toBe(true);
+    expect(admin.success).toBe(true);
+    expect(events).toEqual(TWO_SERIALIZED_SECTIONS);
+  });
+
+  it('two concurrent getAdminAccessToken calls never interleave acquire/persist', async () => {
+    const h = createHarness({ accounts: [makeAccount('acct-1')] });
+    const events = instrument(h);
+    const svc = createAuthService(h.deps);
+
+    const [a, b] = await Promise.all([svc.getAdminAccessToken(), svc.getAdminAccessToken()]);
+    expect(a.success).toBe(true);
+    expect(b.success).toBe(true);
+    expect(events).toEqual(TWO_SERIALIZED_SECTIONS);
+  });
+});
+
 describe('getAdminAccessToken — account-mismatch guard', () => {
   it('rejects when the consented account differs from the signed-in account', async () => {
     const h = createHarness({ accounts: [makeAccount('acct-1')] });
