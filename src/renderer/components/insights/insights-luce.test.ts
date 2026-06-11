@@ -14,6 +14,11 @@ import {
   dotStripCells,
   groupByWorkspace,
   groupSummaryLabel,
+  triageSortGroups,
+  workspaceSuspectCount,
+  workspaceAffectedReportCount,
+  cascadeReports,
+  oldestSuccessIso,
   unlockStageText,
   isDown,
   isDormant,
@@ -306,5 +311,82 @@ describe('unlockStageText', () => {
     expect(unlockStageText(30_000)).toBe(
       'Crunching activity log — large tenants can take a couple minutes…',
     );
+  });
+});
+
+describe('blast-radius derivations (DESIGN-CONTRACT §A/§B/§C)', () => {
+  const groups = groupByWorkspace(
+    [
+      item({ id: 'a-ok', name: 'Alpha Model', workspaceId: 'ws-a', workspaceName: 'Alpha' }),
+      item({ id: 'b-bad', name: 'Bravo Model', workspaceId: 'ws-b', workspaceName: 'Bravo', lastStatus: 'Failed' }),
+      item({ id: 'c-sus', name: 'Charlie Model', workspaceId: 'ws-c', workspaceName: 'Charlie' }),
+      item({ id: 'c-ok', name: 'Charlie Clean', workspaceId: 'ws-c', workspaceName: 'Charlie' }),
+      item({ id: 'd-run', name: 'Delta Model', workspaceId: 'ws-d', workspaceName: 'Delta', lastStatus: 'InProgress' }),
+      item({ id: 'e-due', name: 'Echo Model', workspaceId: 'ws-e', workspaceName: 'Echo', scheduleOverdue: true }),
+    ],
+    NOW,
+  );
+  const suspects = new Set(['c-sus']);
+
+  it('counts a workspace\'s suspect datasets (and never dataflows)', () => {
+    const charlie = groups.find((g) => g.workspaceId === 'ws-c')!;
+    expect(workspaceSuspectCount(charlie, suspects)).toBe(1);
+    const flowGroup = groupByWorkspace(
+      [item({ id: 'c-sus', kind: 'dataflow', name: 'Flow', workspaceId: 'ws-c', workspaceName: 'Charlie' })],
+      NOW,
+    )[0]!;
+    expect(workspaceSuspectCount(flowGroup, suspects)).toBe(0);
+    expect(workspaceSuspectCount(groups.find((g) => g.workspaceId === 'ws-a')!, suspects)).toBe(0);
+  });
+
+  it('triage-sorts: broken desc → suspects desc → overdue desc → running → A–Z (§B)', () => {
+    const order = triageSortGroups(groups, suspects).map((g) => g.workspaceName);
+    // Bravo is broken; Charlie has NO broken flow but suspect datasets and
+    // still sorts into the damage band; Echo overdue; Delta running; Alpha quiet.
+    expect(order).toEqual(['Bravo', 'Charlie', 'Echo', 'Delta', 'Alpha']);
+  });
+
+  it('does not mutate the incoming group order (stable copy)', () => {
+    const before = groups.map((g) => g.workspaceId);
+    triageSortGroups(groups, suspects);
+    expect(groups.map((g) => g.workspaceId)).toEqual(before);
+  });
+
+  it('counts DISTINCT affected reports for a workspace (§A blast line)', () => {
+    const charlie = groups.find((g) => g.workspaceId === 'ws-c')!;
+    const reportsByDataset = new Map([
+      ['c-sus', [{ id: 'r1', name: 'Exec Daily' }, { id: 'r2', name: 'Claims' }]],
+      ['c-ok', [{ id: 'r3', name: 'Unrelated' }]], // not a suspect — never counted
+    ]);
+    expect(workspaceAffectedReportCount(charlie, { suspectDatasetIds: suspects, reportsByDataset })).toBe(2);
+    expect(
+      workspaceAffectedReportCount(groups.find((g) => g.workspaceId === 'ws-a')!, {
+        suspectDatasetIds: suspects,
+        reportsByDataset,
+      }),
+    ).toBe(0);
+  });
+
+  it('dedupes cascade reports across a flow\'s suspects, preserving order (§C)', () => {
+    const ds1 = item({ id: 'ds-1', name: 'One' });
+    const ds2 = item({ id: 'ds-2', name: 'Two' });
+    const reportsByDataset = new Map([
+      ['ds-1', [{ id: 'r1', name: 'Shared' }, { id: 'r2', name: 'First Only' }]],
+      ['ds-2', [{ id: 'r1', name: 'Shared' }, { id: 'r3', name: 'Second Only' }]],
+    ]);
+    expect(cascadeReports([ds1, ds2], reportsByDataset).map((r) => r.id)).toEqual(['r1', 'r2', 'r3']);
+    expect(cascadeReports([ds1], new Map())).toEqual([]);
+  });
+
+  it('finds the OLDEST success for the hero freshness column (§A)', () => {
+    expect(
+      oldestSuccessIso([
+        item({ lastSuccessTime: '2026-06-09T00:00:00.000Z' }),
+        item({ lastSuccessTime: '2026-06-01T00:00:00.000Z' }),
+        item({ lastSuccessTime: 'not-a-date' }),
+        item({}),
+      ]),
+    ).toBe('2026-06-01T00:00:00.000Z');
+    expect(oldestSuccessIso([item({})])).toBeUndefined();
   });
 });

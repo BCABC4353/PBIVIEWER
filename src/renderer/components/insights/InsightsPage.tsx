@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/types';
 import {
   luce,
+  ladder,
   kindColor,
   statusGlyph,
   statusColor,
@@ -24,10 +25,16 @@ import {
   dotStripCells,
   groupByWorkspace,
   groupSummaryLabel,
+  triageSortGroups,
+  workspaceSuspectCount,
+  workspaceAffectedReportCount,
+  cascadeReports,
+  oldestSuccessIso,
   unlockStageText,
   type TileFilter,
   type WorkspaceGroup,
 } from './insights-luce';
+import { computeBlastRadius, type BlastRadius } from '../../../shared/blast-radius';
 import { prefersReducedMotion, SPRING_SETTLE, useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
 import './insights-luce.css';
 
@@ -48,11 +55,12 @@ import './insights-luce.css';
  * Sections:
  *   1. Hero gauge (D11) + summary tiles — ONE dominant data-health figure;
  *      the status tiles are clickable filters (Matt #2).
- *   2. Health board — items grouped by workspace (client), worst first,
- *      with down-for durations and 12-run history dot strips. Every group
- *      starts collapsed (Matt #7); a sticky section nav aids wayfinding.
- *   3. Workspace access — who can see what.
- *   4. Your usage + the admin tier (App audiences, tenant activity).
+ *   2. Health board — one TILE per workspace (client), triaged damage-first
+ *      (DESIGN-CONTRACT §B); a solo client gets the hero tile (§A). A tile
+ *      expands (FLIP, §D) into the blast-radius sheet (§C): dataflows with
+ *      damage cascades, datasets (suspects badged STALE DATA), and the
+ *      people with access, folded in.
+ *   3. Your usage + the admin tier (owner-only; App audiences, activity).
  */
 
 function formatTime(iso?: string): string {
@@ -174,17 +182,19 @@ function dotTitle(
 }
 
 /**
- * 12 dots, oldest → newest, filled from the LEFT. Quiet success is quiet
- * (dim-lit discs); failure alone is red and slightly larger, so the strip
- * still reads in grayscale (D12). Unused slots are unlit lamps, not outlines.
+ * 12 dots, oldest → newest, filled from the LEFT. One pulse grammar everywhere
+ * (DESIGN-CONTRACT §A): fail = red, ok = white-alpha .25, unused slots are
+ * unlit lamps. The caption lives UNDER the dots, 10px/faint (§C).
  */
 const RunDotStrip: React.FC<{
   runs?: InsightsRefreshable['recentRuns'];
   kind: InsightsRefreshable['kind'];
-  /** Decorative copy on a group header: no tooltips, no testid — the row-level
+  /** Decorative copy on a tile face: no tooltips, no testid — the sheet-row
    *  strips stay the single interactive source of truth (Matt #5). */
   quiet?: boolean;
-}> = ({ runs, kind, quiet = false }) => {
+  /** Dot diameter: 7px in the sheet/hero, 6px on the n=20 tiles (§A/§B). */
+  size?: number;
+}> = ({ runs, kind, quiet = false, size = 7 }) => {
   const cells = dotStripCells(runs);
   const label = failureRateCaption(runs);
   return (
@@ -192,28 +202,28 @@ const RunDotStrip: React.FC<{
       className="flex flex-col items-start gap-1"
       {...(quiet ? {} : { 'data-testid': 'run-dot-strip' })}
     >
-      <div className="flex items-center gap-[3px]" aria-hidden="true">
+      <div className="flex items-center" style={{ gap: 4 }} aria-hidden="true">
         {cells.map((c, i) => (
           <span
             key={i}
             title={quiet ? undefined : dotTitle(c, kind)}
-            className="inline-block w-[7px] h-[7px] rounded-full"
-            style={
-              c.state === 'ok'
-                ? { background: 'rgba(235,235,245,0.45)' }
+            className="inline-block rounded-full"
+            style={{
+              width: size,
+              height: size,
+              ...(c.state === 'ok'
+                ? { background: 'rgba(255,255,255,0.25)' }
                 : c.state === 'fail'
                   ? { background: luce.broken, transform: 'scale(1.25)' }
-                  : { background: 'rgba(255,255,255,0.07)' }
-            }
+                  : { background: 'rgba(255,255,255,0.07)' }),
+            }}
           />
         ))}
       </div>
       {quiet ? null : label ? (
-        <span className="text-[11px]" style={{ color: luce.broken, ...tabular }}>
-          {label}
-        </span>
+        <span style={{ fontSize: 10, color: ladder.faint, ...tabular }}>{label}</span>
       ) : (
-        <span className="text-[11px]" style={{ color: luce.textTertiary }}>
+        <span style={{ fontSize: 10, color: ladder.faint }}>
           last {Math.min(runs?.length ?? 0, 12) || '—'} runs
         </span>
       )}
@@ -221,58 +231,117 @@ const RunDotStrip: React.FC<{
   );
 };
 
-const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
+/** STALE DATA badge (§C): the amber mark a suspect dataset carries wherever it
+ *  renders — never an OK/green chip anywhere a suspect appears. */
+const StaleBadge: React.FC = () => (
+  <span
+    className="whitespace-nowrap shrink-0"
+    style={{
+      fontSize: 10,
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      color: luce.warn,
+      background: 'rgba(232,163,61,0.12)',
+      borderRadius: 4,
+      padding: '2px 6px',
+    }}
+  >
+    STALE DATA
+  </span>
+);
+
+/** Damage summary chips (§A/§B): `N broken` red · `N overdue` amber · `N OK`
+ *  low. Health is silent — no green, no "all good" substitute. */
+const DamageCounts: React.FC<{ counts: WorkspaceGroup['counts']; size?: number; gap?: number }> = ({
+  counts,
+  size = 11,
+  gap = 10,
+}) => {
+  const quiet = counts.ok + counts.live;
+  return (
+    <span className="flex items-center shrink-0 whitespace-nowrap" style={{ fontSize: size, gap, ...tabular }}>
+      {counts.broken > 0 && <span style={{ color: luce.broken }}>{counts.broken} broken</span>}
+      {counts.overdue > 0 && <span style={{ color: luce.warn }}>{counts.overdue} overdue</span>}
+      <span style={{ color: ladder.low }}>{quiet} OK</span>
+    </span>
+  );
+};
+
+/**
+ * Sheet row — DESIGN-CONTRACT §C row grid (kills the meta collisions): four
+ * fixed tracks `[status 88px] [name 1fr] [pulse 132px] [meta 224px]`, gap 16.
+ * META is exactly two stacked nowrap 11px lines: relative time + trigger (low)
+ * over the absolute timestamp (faint). The pulse caption lives under the dots
+ * inside the 132px track — trigger text never shares its line.
+ */
+const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> = ({
+  item,
+  stale = false,
+}) => {
   const down = downForLabel(item);
   const dormant = isDormant(item);
+  const anchor = item.lastAttemptTime || item.lastSuccessTime;
+  const rel = relativeAge(anchor);
   return (
     <div
       role="row"
-      className="grid items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03]"
-      style={{ gridTemplateColumns: 'minmax(220px, 2fr) minmax(120px, 1fr) minmax(150px, 1fr) minmax(160px, 1fr)' }}
+      className="grid items-center transition-colors hover:bg-white/[0.03]"
+      style={{
+        gridTemplateColumns: '88px minmax(0, 1fr) 132px 224px',
+        columnGap: 16,
+        padding: '12px 0',
+      }}
     >
-      {/* Name + status */}
+      {/* Status (88px): a suspect dataset NEVER shows OK — it carries the badge. */}
+      <div className="min-w-0">{stale ? <StaleBadge /> : <StatusChip status={item.lastStatus} />}</div>
+
+      {/* Name (1fr, min-width 0, ellipsis) */}
       <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <StatusChip status={item.lastStatus} />
-          {item.scheduleOverdue && <OverdueChip scheduleSummary={item.scheduleSummary} />}
-          {dormant && <DormantChip item={item} />}
+        <div className="flex items-center gap-2 min-w-0">
           <span className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
             {item.name}
           </span>
           <KindChip kind={item.kind} />
+          {item.scheduleOverdue && <OverdueChip scheduleSummary={item.scheduleSummary} />}
+          {dormant && <DormantChip item={item} />}
         </div>
-        <div className="mt-1 flex items-center gap-3 text-[12px]" style={{ color: luce.textTertiary }}>
-          {down && (
-            <span className="font-semibold" style={{ color: luce.broken, ...tabular }}>
-              {down}
-            </span>
-          )}
-          {item.errorCode && (
-            <span title={`Power BI error: ${item.errorCode}`} className="truncate" style={{ color: luce.textTertiary }}>
-              {item.errorCode}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Run history */}
-      <RunDotStrip runs={item.recentRuns} kind={item.kind} />
-
-      {/* Last success */}
-      <div className="text-xs whitespace-nowrap" style={{ color: luce.textSecondary, ...tabular }}>
-        {formatTime(item.lastSuccessTime)}
-        {item.lastSuccessTime && (
-          <span style={{ color: luce.textTertiary }}> · {relativeAge(item.lastSuccessTime)}</span>
+        {(down || item.errorCode || item.configuredBy) && (
+          <div className="mt-1 flex items-center gap-3 text-[12px] min-w-0" style={{ color: luce.textTertiary }}>
+            {down && (
+              <span className="font-semibold whitespace-nowrap" style={{ color: luce.broken, ...tabular }}>
+                {down}
+              </span>
+            )}
+            {item.errorCode && (
+              <span title={`Power BI error: ${item.errorCode}`} className="truncate">
+                {item.errorCode}
+              </span>
+            )}
+            {item.configuredBy && <span className="truncate">{item.configuredBy}</span>}
+          </div>
         )}
-        <div style={{ color: luce.textTertiary }}>last success</div>
       </div>
 
-      {/* Trigger + owner */}
-      <div className="text-xs min-w-0" style={{ color: luce.textTertiary }}>
-        <div className="truncate" style={{ color: luce.textSecondary }}>
-          {item.kind === 'dataset' ? triggerLabel(item.lastRefreshType) : '—'}
+      {/* Pulse (132px): dots + caption stacked, never sharing the meta lines. */}
+      <div style={{ width: 132 }}>
+        <RunDotStrip runs={item.recentRuns} kind={item.kind} />
+      </div>
+
+      {/* Meta (224px, right-aligned): exactly two 11px nowrap lines. */}
+      <div className="text-right min-w-0">
+        <div
+          className="overflow-hidden text-ellipsis whitespace-nowrap"
+          style={{ fontSize: 11, color: ladder.low }}
+        >
+          {rel || '—'} · {item.kind === 'dataset' ? triggerLabel(item.lastRefreshType) : '—'}
         </div>
-        <div className="truncate">{item.configuredBy || '—'}</div>
+        <div
+          className="overflow-hidden text-ellipsis whitespace-nowrap"
+          style={{ fontSize: 11, color: ladder.faint, ...tabular }}
+        >
+          {formatTime(anchor)}
+        </div>
       </div>
     </div>
   );
@@ -281,53 +350,156 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
 
 
 // ---------------------------------------------------------------------------
-// Blast-radius sheet (owner-designed): a workspace TILE expands elegantly
-// into an overlay that blurs the board behind it; a second click contracts
-// it. FLIP — the sheet literally grows out of the tile's own rectangle on
-// the settle spring. Items inside are organized by TYPE (Dataflows first:
-// they are upstream), then the people with access.
+// Blast-radius sheet (DESIGN-CONTRACT §C/§D/§E): the tile literally BECOMES
+// the sheet — FLIP on the settle spring, shared elements riding the flight,
+// three waves of fill-in, machined-glass material with the blur deferred to
+// settle. Inside: dataflows (upstream) with their damage cascades, datasets
+// (suspects carry the STALE DATA badge), then the people with access.
 // ---------------------------------------------------------------------------
-const SheetGroup: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div>
-    <div className="luce-legend mb-1.5">{title}</div>
-    <div className="luce-groove rounded-xl overflow-hidden">{children}</div>
+
+/** Section label — 11px caps, tracking 0.08em, faint (§C). */
+const SheetLabel: React.FC<{ children: React.ReactNode; wave?: 1 | 2 | 3 }> = ({ children, wave }) => (
+  <div
+    className={`mb-1${wave ? ` luce-wave luce-wave--${wave}` : ''}`}
+    style={{
+      fontSize: 11,
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      color: ladder.faint,
+    }}
+  >
+    {children}
   </div>
 );
+
+/** Cascade lists cap at 4 named items; "+N more" expands in place (§C). */
+const CASCADE_CAP = 4;
+
+/**
+ * Downstream damage under a failed/stale dataflow: an indented cascade block
+ * — amber connector, suspect datasets with STALE DATA badges, then the
+ * reports affected. Red never appears here: red is the root cause's alone.
+ */
+const DamageCascade: React.FC<{
+  suspects: InsightsRefreshable[];
+  reportsByDataset: BlastRadius['reportsByDataset'];
+}> = ({ suspects, reportsByDataset }) => {
+  const [allSets, setAllSets] = useState(false);
+  const [allReports, setAllReports] = useState(false);
+  const reports = cascadeReports(suspects, reportsByDataset);
+  const shownSets = allSets ? suspects : suspects.slice(0, CASCADE_CAP);
+  const shownReports = allReports ? reports : reports.slice(0, CASCADE_CAP);
+  const moreBtn: React.CSSProperties = { fontSize: 12, color: ladder.low };
+  return (
+    <div className="relative" style={{ paddingLeft: 36, paddingBottom: 12 }} data-testid="damage-cascade">
+      <span
+        aria-hidden="true"
+        className="absolute"
+        style={{ left: 18, top: 0, bottom: 12, width: 1, background: 'rgba(232,163,61,0.35)' }}
+      />
+      <div style={{ fontSize: 12, fontWeight: 500, color: luce.warn }}>
+        → {suspects.length} dataset{suspects.length === 1 ? '' : 's'} refreshed against stale data
+      </div>
+      <div className="mt-1 space-y-1">
+        {shownSets.map((ds) => (
+          <div key={ds.id} className="flex items-center gap-2 min-w-0">
+            <span className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
+              {ds.name}
+            </span>
+            <StaleBadge />
+          </div>
+        ))}
+        {!allSets && suspects.length > CASCADE_CAP && (
+          <button
+            className="block cursor-pointer border-0 bg-transparent p-0 text-left"
+            style={moreBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              setAllSets(true);
+            }}
+          >
+            +{suspects.length - CASCADE_CAP} more
+          </button>
+        )}
+      </div>
+      {reports.length === 0 ? (
+        <div className="mt-2" style={{ fontSize: 12, fontWeight: 500, color: ladder.low }}>
+          → no bound reports
+        </div>
+      ) : (
+        <>
+          <div className="mt-2" style={{ fontSize: 12, fontWeight: 500, color: luce.warn }}>
+            → {reports.length} report{reports.length === 1 ? '' : 's'} affected
+          </div>
+          <div className="mt-1 space-y-1">
+            {shownReports.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 min-w-0">
+                <span
+                  aria-hidden="true"
+                  className="inline-block rounded-full shrink-0"
+                  style={{ width: 6, height: 6, background: luce.warn }}
+                />
+                <span className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
+                  {r.name}
+                </span>
+              </div>
+            ))}
+            {!allReports && reports.length > CASCADE_CAP && (
+              <button
+                className="block cursor-pointer border-0 bg-transparent p-0 text-left"
+                style={moreBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAllReports(true);
+                }}
+              >
+                +{reports.length - CASCADE_CAP} more
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const canAnimate = (el: Element | null): el is HTMLElement & { animate: Element['animate'] } =>
+  !!el && typeof el.animate === 'function';
 
 const WorkspaceSheet: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
+  blast: BlastRadius;
   fromRect: DOMRect | null;
   onClose: () => void;
-}> = ({ group, access, fromRect, onClose }) => {
+}> = ({ group, access, blast, fromRect, onClose }) => {
   const panelRef = useRef<HTMLDivElement>(null);
+  const scrimRef = useRef<HTMLButtonElement>(null);
+  const nameRef = useRef<HTMLHeadingElement>(null);
   const closingRef = useRef(false);
+  // §E resolution: the sheet's own backdrop blur is OFF during the flight —
+  // the gradient ramp alone carries the material — and switches on at settle.
+  const [settled, setSettled] = useState(false);
 
-  // FLIP in: from the tile's rectangle to the sheet's natural rectangle.
+  // §D expansion — FLIP from the tile's rect to the sheet's natural rect over
+  // 400ms on the settle spring; transform + opacity (+ radius 12→16) only.
+  // The shared client name counter-scales so it reads 15px at takeoff and
+  // snaps to real 28px text at settle. Scrim fades 0→1 over 250ms linear.
   useEffect(() => {
     const el = panelRef.current;
-    if (!el || !fromRect || prefersReducedMotion()) return;
-    const to = el.getBoundingClientRect();
-    const sx = fromRect.width / to.width;
-    const sy = fromRect.height / to.height;
-    const dx = fromRect.left - to.left;
-    const dy = fromRect.top - to.top;
-    el.animate(
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.6 },
-        { transform: 'none', opacity: 1 },
-      ],
-      { duration: 400, easing: SPRING_SETTLE, fill: 'both' },
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const close = useCallback(() => {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    const el = panelRef.current;
-    if (!el || !fromRect || prefersReducedMotion()) {
-      onClose();
+    if (!canAnimate(el)) {
+      setSettled(true);
+      return;
+    }
+    if (prefersReducedMotion() || !fromRect || fromRect.width === 0) {
+      // Reduced motion: no FLIP, no stagger — 150ms linear opacity at final
+      // geometry, blur applied statically.
+      setSettled(true);
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'linear' });
+      if (canAnimate(scrimRef.current)) {
+        scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'linear' });
+      }
       return;
     }
     const to = el.getBoundingClientRect();
@@ -335,13 +507,94 @@ const WorkspaceSheet: React.FC<{
     const sy = fromRect.height / to.height;
     const dx = fromRect.left - to.left;
     const dy = fromRect.top - to.top;
+    const flight = el.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 1 },
+        { transform: 'none', borderRadius: '16px', opacity: 1 },
+      ],
+      { duration: 400, easing: SPRING_SETTLE, fill: 'both' },
+    );
+    flight.onfinish = () => setSettled(true);
+    const nameEl = nameRef.current;
+    if (canAnimate(nameEl) && sx > 0) {
+      // 15px on the tile → 28px in the sheet: under the panel's sx the name
+      // needs scale 15/(28·sx) at t=0 to read tile-sized for the whole flight.
+      nameEl.style.transformOrigin = 'left center';
+      nameEl.animate([{ transform: `scale(${15 / (28 * sx)})` }, { transform: 'none' }], {
+        duration: 400,
+        easing: SPRING_SETTLE,
+        fill: 'both',
+      });
+    }
+    if (canAnimate(scrimRef.current)) {
+      scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 250,
+        easing: 'linear',
+        fill: 'both',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // §D contraction — waves out in reverse (opacity only), panel FLIPs back
+  // over 400ms settle, scrim fades 250ms. A close mid-flight retargets from
+  // the CURRENT transform; it never restarts from 0.
+  const close = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    const el = panelRef.current;
+    if (!canAnimate(el) || !fromRect || fromRect.width === 0 || prefersReducedMotion()) {
+      if (canAnimate(el) && prefersReducedMotion()) {
+        const fade = el.animate([{ opacity: 1 }, { opacity: 0 }], {
+          duration: 150,
+          easing: 'linear',
+          fill: 'forwards',
+        });
+        fade.onfinish = onClose;
+      } else {
+        onClose();
+      }
+      return;
+    }
+    // Retarget: sample the in-flight transform, cancel the open animation,
+    // and fly from exactly there back to the tile's rectangle.
+    const cs = getComputedStyle(el);
+    const fromTransform = cs.transform && cs.transform !== 'none' ? cs.transform : 'none';
+    if (typeof el.getAnimations === 'function') {
+      for (const a of el.getAnimations()) a.cancel();
+    }
+    setSettled(false); // blur off for the return flight
+    const to = el.getBoundingClientRect();
+    const sx = fromRect.width / to.width;
+    const sy = fromRect.height / to.height;
+    const dx = fromRect.left - to.left;
+    const dy = fromRect.top - to.top;
+    // Waves out in reverse: damage/people first, then the rest — opacity only.
+    const wavesOut = el.querySelectorAll<HTMLElement>('.luce-wave');
+    wavesOut.forEach((node) => {
+      if (!canAnimate(node)) return;
+      const last = node.classList.contains('luce-wave--3');
+      node.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 150,
+        delay: last ? 0 : 60,
+        easing: 'linear',
+        fill: 'forwards',
+      });
+    });
     const anim = el.animate(
       [
-        { transform: 'none', opacity: 1 },
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0 },
+        { transform: fromTransform, borderRadius: '16px', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 0 },
       ],
-      { duration: 250, easing: 'ease-in', fill: 'forwards' },
+      { duration: 400, easing: SPRING_SETTLE, fill: 'forwards' },
     );
+    if (canAnimate(scrimRef.current)) {
+      scrimRef.current.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 250,
+        easing: 'linear',
+        fill: 'forwards',
+      });
+    }
     anim.onfinish = onClose;
   }, [fromRect, onClose]);
 
@@ -355,150 +608,363 @@ const WorkspaceSheet: React.FC<{
 
   const dataflows = group.items.filter((i) => i.kind === 'dataflow');
   const datasets = group.items.filter((i) => i.kind === 'dataset');
+  const pulseItem =
+    group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
+    group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ pointerEvents: 'auto' }}
       role="dialog"
       aria-modal="true"
       aria-label={`${group.workspaceName} details`}
     >
-      {/* The board recedes: dim + blur. Click anywhere on it to contract. */}
+      {/* The board recedes behind one deep scrim; clicking it contracts. */}
       <button
+        ref={scrimRef}
         aria-label="Close"
-        className="absolute inset-0 cursor-pointer"
-        style={{ background: 'rgba(5,5,7,0.55)', backdropFilter: 'blur(10px)' }}
+        className="luce-scrim absolute inset-0 cursor-pointer border-0"
         onClick={close}
       />
       <div
         ref={panelRef}
-        className="luce-panel luce-panel--raised relative w-full max-w-[880px] max-h-[86vh] overflow-y-auto p-6 flex flex-col gap-5"
-        style={{ borderRadius: 20 }}
+        className={`luce-sheet relative flex flex-col${settled ? ' luce-sheet--settled' : ''}`}
+        style={{ width: 'min(880px, 100vw - 96px)', maxHeight: 'calc(100vh - 96px)' }}
       >
-        <div className="luce-lens" aria-hidden="true" />
-        <div className="relative z-[1] flex items-start justify-between gap-4">
-          <div>
-            <div className="luce-legend">Client</div>
-            <h3 className="text-2xl font-semibold" style={{ color: luce.textPrimary }}>
+        <div className="luce-sheet-vignette" aria-hidden="true" />
+        {/* Header (sticky over the scrolling body). Shared elements that rode
+            the FLIP: name, damage chips, worst-asset pulse strip. A second
+            click anywhere on it contracts the sheet (§D). */}
+        <div
+          className="relative z-[1] flex items-start justify-between gap-4 shrink-0 cursor-pointer"
+          style={{ padding: '28px 32px 16px' }}
+          onClick={close}
+        >
+          <div className="min-w-0">
+            <h3
+              ref={nameRef}
+              className="truncate"
+              style={{ fontSize: 28, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
+            >
               {group.workspaceName}
             </h3>
-            <div className="text-xs mt-1" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
+            <div
+              className="text-xs mt-1"
+              style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}
+            >
               {groupSummaryLabel(group)}
             </div>
-          </div>
-          <button
-            className="luce-chip luce-press px-3 py-1.5 text-xs font-semibold cursor-pointer border-0"
-            style={{ color: luce.textSecondary }}
-            onClick={close}
-            aria-label="Close details"
-          >
-            ✕ Close
-          </button>
-        </div>
-        {dataflows.length > 0 && (
-          <SheetGroup title={`Dataflows — upstream (${dataflows.length})`}>
-            {dataflows.map((r) => (
-              <RefreshableRow key={`${r.kind}-${r.id}`} item={r} />
-            ))}
-          </SheetGroup>
-        )}
-        <SheetGroup title={`Datasets (${datasets.length})`}>
-          {datasets.length === 0 ? (
-            <p className="text-xs p-3" style={{ color: luce.textTertiary }}>
-              No datasets visible in this workspace.
-            </p>
-          ) : (
-            datasets.map((r) => <RefreshableRow key={`${r.kind}-${r.id}`} item={r} />)
-          )}
-        </SheetGroup>
-        <SheetGroup title="People with access">
-          {!access || access.users === null ? (
-            <p className="text-xs p-3" style={{ color: luce.textTertiary }}>
-              The member list is not visible to your account. People reaching this content
-              through a published Power BI App are only listed for tenant admins.
-            </p>
-          ) : access.users.length === 0 ? (
-            <p className="text-xs p-3" style={{ color: luce.textTertiary }}>No members.</p>
-          ) : (
-            access.users.map((u, i) => (
-              <div
-                key={`${u.email || u.name}-${i}`}
-                className="flex items-center justify-between px-4 py-2 transition-colors hover:bg-white/[0.03]"
-              >
-                <div>
-                  <div className="text-sm" style={{ color: luce.textPrimary }}>{u.name}</div>
-                  {u.email && <div className="text-xs" style={{ color: luce.textTertiary }}>{u.email}</div>}
-                </div>
-                <span className="luce-chip px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: luce.textSecondary }}>
-                  {u.role}
-                </span>
+            {pulseItem && (
+              <div className="mt-2">
+                <RunDotStrip quiet runs={pulseItem.recentRuns} kind={pulseItem.kind} />
               </div>
-            ))
-          )}
-        </SheetGroup>
+            )}
+          </div>
+          <div className="flex items-center gap-4 shrink-0">
+            <DamageCounts counts={group.counts} size={13} gap={16} />
+            <button
+              className="cursor-pointer border-0 bg-transparent inline-flex items-center justify-center"
+              style={{ fontSize: 12, color: ladder.low, minWidth: 32, minHeight: 32 }}
+              onClick={close}
+              aria-label="Close details"
+            >
+              × Close
+            </button>
+          </div>
+        </div>
+        {/* Body scrolls under the header. Waves: 1 = section headers +
+            dataflow rows, 2 = dataset rows + meta, 3 = cascades + people. */}
+        <div className="relative z-[1] overflow-y-auto" style={{ padding: '0 32px 28px' }}>
+          <div className="space-y-6">
+            {dataflows.length > 0 && (
+              <div>
+                <SheetLabel wave={1}>Dataflows — upstream ({dataflows.length})</SheetLabel>
+                <div className="luce-hairline-rows">
+                  {dataflows.map((r) => {
+                    const suspects = blast.suspectsByDataflow.get(r.id);
+                    return (
+                      <div key={`${r.kind}-${r.id}`}>
+                        <div className="luce-wave luce-wave--1">
+                          <RefreshableRow item={r} />
+                        </div>
+                        {suspects && suspects.length > 0 && (
+                          <div className="luce-wave luce-wave--3">
+                            <DamageCascade suspects={suspects} reportsByDataset={blast.reportsByDataset} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div>
+              <SheetLabel wave={1}>Datasets ({datasets.length})</SheetLabel>
+              {datasets.length === 0 ? (
+                <p className="text-xs luce-wave luce-wave--2" style={{ color: luce.textTertiary }}>
+                  No datasets visible in this workspace.
+                </p>
+              ) : (
+                <div className="luce-hairline-rows">
+                  {datasets.map((r) => (
+                    <div key={`${r.kind}-${r.id}`} className="luce-wave luce-wave--2">
+                      <RefreshableRow item={r} stale={blast.suspectDatasetIds.has(r.id)} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <SheetLabel wave={1}>People with access</SheetLabel>
+              <div className="luce-wave luce-wave--3">
+                {!access || access.users === null ? (
+                  <p className="text-xs" style={{ color: ladder.low, maxWidth: 560, fontSize: 12 }}>
+                    The member list is not visible to your account. People reaching this content
+                    through a published Power BI App are only listed for tenant admins.
+                  </p>
+                ) : access.users.length === 0 ? (
+                  <p style={{ fontSize: 12, color: ladder.low }}>No members.</p>
+                ) : (
+                  <div
+                    className="grid grid-cols-2"
+                    style={{ columnGap: 32, rowGap: 8 }}
+                  >
+                    {access.users.map((u, i) => (
+                      <div
+                        key={`${u.email || u.name}-${i}`}
+                        className="truncate"
+                        style={{ fontSize: 13, color: ladder.mid }}
+                        title={u.email ? `${u.email} · ${u.role}` : u.role}
+                      >
+                        {u.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
+/** Meta pill — 10px caps faint on a .04 well, radius 4 (§B row 3). */
+const MetaPill: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span
+    className="whitespace-nowrap"
+    style={{
+      fontSize: 10,
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      color: ladder.faint,
+      background: 'rgba(255,255,255,0.04)',
+      borderRadius: 4,
+      padding: '2px 8px',
+      ...tabular,
+    }}
+  >
+    {children}
+  </span>
+);
+
 /**
- * One client, one tile (owner spec): summary data on the face — status edge,
- * pulse dots, counts, members — and the whole story behind a click. Most
- * clients see exactly ONE of these; it has to carry the room alone.
+ * One client, one tile (DESIGN-CONTRACT §B): uniform 124px, status edge,
+ * name + damage chips, worst-asset pulse, meta pills. Broken tiles sit
+ * higher (s3 + shadow-2) over a red under-glow; workspaces with suspect
+ * datasets carry the STALE DATA hint. While its sheet is open the tile is a
+ * 124px ghost so the grid never reflows (§D).
  */
 const WorkspaceTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
-  solo: boolean;
-  onOpen: (rect: DOMRect) => void;
-}> = ({ group, access, solo, onOpen }) => {
+  suspectCount: number;
+  ghost: boolean;
+  onOpen: (rect: DOMRect, el: HTMLElement) => void;
+}> = ({ group, access, suspectCount, ghost, onOpen }) => {
   const pulseItem =
     group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
     group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
-  const edge =
-    group.counts.broken > 0 ? luce.broken : group.counts.overdue > 0 ? luce.warn : 'rgba(255,255,255,0.10)';
+  const broken = group.counts.broken > 0;
+  const edge = broken ? luce.broken : group.counts.overdue > 0 ? luce.warn : ladder.hairline;
   const flows = group.items.filter((i) => i.kind === 'dataflow').length;
   const sets = group.items.length - flows;
-  const members =
-    !access || access.users === null ? null : access.users.length;
+  const members = !access || access.users === null ? null : access.users.length;
+  return (
+    <div className="relative">
+      {broken && <span aria-hidden="true" className="luce-tile-underglow" />}
+      <button
+        className={`luce-tile${broken ? ' luce-tile--broken' : ''}`}
+        style={ghost ? { opacity: 0 } : undefined}
+        onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
+        aria-haspopup="dialog"
+        aria-label={`Open ${group.workspaceName} details`}
+      >
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-0 bottom-0"
+          style={{ width: 3, background: edge }}
+        />
+        <div className="flex items-center justify-between gap-3 min-w-0">
+          <span className="truncate" style={{ fontSize: 15, fontWeight: 600, color: ladder.hi }}>
+            {group.workspaceName}
+          </span>
+          <DamageCounts counts={group.counts} />
+        </div>
+        <div className="mt-3 flex items-center gap-3 min-w-0">
+          {pulseItem && <RunDotStrip quiet size={6} runs={pulseItem.recentRuns} kind={pulseItem.kind} />}
+          {pulseItem && (
+            <span className="truncate" style={{ fontSize: 12, color: ladder.low }}>
+              {pulseItem.name}
+            </span>
+          )}
+          {suspectCount > 0 && <StaleBadge />}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <MetaPill>
+            {sets} dataset{sets === 1 ? '' : 's'}
+          </MetaPill>
+          <MetaPill>
+            {flows} dataflow{flows === 1 ? '' : 's'}
+          </MetaPill>
+          <MetaPill>
+            {members === null ? 'members not visible' : `${members} member${members === 1 ? '' : 's'}`}
+          </MetaPill>
+        </div>
+      </button>
+    </div>
+  );
+};
+
+/** Column label on the hero tile — 10px caps, tracking 0.08em, faint (§A). */
+const HeroLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div
+    style={{
+      fontSize: 10,
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      color: ladder.faint,
+    }}
+  >
+    {children}
+  </div>
+);
+
+/**
+ * The solo-client hero tile (DESIGN-CONTRACT §A): when a client sees exactly
+ * one workspace, that single tile folds in named assets with pulse strips,
+ * members, and freshness — the n=20 tile grown up, same edge/chips/pulse
+ * grammar. The amber blast line appears only when suspects exist; health
+ * stays silent (no green substitute, ever).
+ */
+const HeroTile: React.FC<{
+  group: WorkspaceGroup;
+  access?: InsightsWorkspaceAccess;
+  blast: BlastRadius;
+  ghost: boolean;
+  onOpen: (rect: DOMRect, el: HTMLElement) => void;
+}> = ({ group, access, blast, ghost, onOpen }) => {
+  const broken = group.counts.broken > 0;
+  const edge = broken ? luce.broken : group.counts.overdue > 0 ? luce.warn : ladder.hairline;
+  const suspectCount = workspaceSuspectCount(group, blast.suspectDatasetIds);
+  const affected = workspaceAffectedReportCount(group, blast);
+  const assets = group.items;
+  const shownAssets = assets.slice(0, 5);
+  const members = !access || access.users === null ? null : access.users;
+  const oldest = oldestSuccessIso(group.items);
+  const schedule = group.items.find((i) => i.scheduleSummary)?.scheduleSummary;
+  const nowrap: React.CSSProperties = {
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  };
   return (
     <button
-      className={`luce-panel luce-panel--raised luce-press luce-rise relative text-left cursor-pointer overflow-hidden ${
-        solo ? 'p-7' : 'p-5'
-      }`}
-      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
+      className="luce-tile luce-hero-tile"
+      data-testid="luce-hero-tile"
+      style={ghost ? { opacity: 0 } : undefined}
+      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
       aria-haspopup="dialog"
       aria-label={`Open ${group.workspaceName} details`}
     >
       <span
         aria-hidden="true"
-        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
-        style={{ background: edge, boxShadow: group.counts.broken > 0 ? `0 0 8px ${luce.broken}` : 'none' }}
+        className="absolute left-0 top-0 bottom-0"
+        style={{ width: 4, borderRadius: '4px 0 0 4px', background: edge }}
       />
-      <div className="luce-lens" aria-hidden="true" />
-      <div className="relative z-[1] flex items-center justify-between gap-3">
-        <span className={`truncate font-semibold ${solo ? 'text-2xl' : 'text-base'}`} style={{ color: luce.textPrimary }}>
-          <span aria-hidden="true" className="mr-2 text-sm" style={{ color: statusColor[group.worst] }}>
-            {statusGlyph[group.worst]}
-          </span>
+      {/* Row 1 — name + damage summary */}
+      <div className="flex items-start justify-between gap-4 min-w-0">
+        <span
+          className="truncate"
+          style={{ fontSize: 28, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
+        >
           {group.workspaceName}
         </span>
-        <span className="text-xs shrink-0" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
-          {groupSummaryLabel(group)}
-        </span>
+        <DamageCounts counts={group.counts} size={13} gap={16} />
       </div>
-      <div className={`relative z-[1] flex items-center gap-4 ${solo ? 'mt-6' : 'mt-4'}`}>
-        {pulseItem && <RunDotStrip quiet runs={pulseItem.recentRuns} kind={pulseItem.kind} />}
-      </div>
-      <div className={`relative z-[1] flex items-center gap-2 flex-wrap ${solo ? 'mt-6' : 'mt-4'}`}>
-        <span className="luce-chip px-2 py-0.5 text-[11px]" style={{ color: luce.textTertiary, ...tabular }}>
-          {sets} dataset{sets === 1 ? '' : 's'}
-        </span>
-        <span className="luce-chip px-2 py-0.5 text-[11px]" style={{ color: luce.textTertiary, ...tabular }}>
-          {flows} dataflow{flows === 1 ? '' : 's'}
-        </span>
-        <span className="luce-chip px-2 py-0.5 text-[11px]" style={{ color: luce.textTertiary, ...tabular }}>
-          {members === null ? 'members not visible' : `${members} member${members === 1 ? '' : 's'}`}
-        </span>
+      {/* Row 2 — the blast line, only when suspects exist (silence = health) */}
+      {suspectCount > 0 && (
+        <div className="mt-2" style={{ fontSize: 14, fontWeight: 500, color: luce.warn }}>
+          {affected} report{affected === 1 ? '' : 's'} may be reading stale data — open to trace
+        </div>
+      )}
+      {/* Row 3 — ASSETS / MEMBERS / FRESHNESS */}
+      <div className="mt-6 grid grid-cols-3" style={{ gap: 32 }}>
+        <div className="min-w-0">
+          <HeroLabel>Assets</HeroLabel>
+          {shownAssets.map((item) => (
+            <div key={`${item.kind}-${item.id}`} className="mt-2 min-w-0">
+              <div className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
+                {item.name}
+              </div>
+              <div className="mt-1">
+                <RunDotStrip quiet runs={item.recentRuns} kind={item.kind} />
+              </div>
+            </div>
+          ))}
+          {assets.length > 5 && (
+            <div className="mt-2" style={{ fontSize: 11, color: ladder.low }}>
+              +{assets.length - 5} more
+            </div>
+          )}
+        </div>
+        <div className="min-w-0">
+          <HeroLabel>Members</HeroLabel>
+          {members === null ? (
+            <div className="mt-2" style={{ fontSize: 12, color: ladder.low, ...nowrap }}>
+              not visible to your account
+            </div>
+          ) : (
+            <>
+              <div className="mt-2" style={{ fontSize: 20, fontWeight: 600, color: ladder.hi, ...tabular }}>
+                {members.length}
+              </div>
+              {members.slice(0, 5).map((u, i) => (
+                <div key={`${u.email || u.name}-${i}`} className="mt-1 truncate" style={{ fontSize: 12, color: ladder.mid }}>
+                  {u.name}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+        <div className="min-w-0">
+          <HeroLabel>Freshness</HeroLabel>
+          <div className="mt-2" style={{ fontSize: 12, ...nowrap }}>
+            <span style={{ color: ladder.low }}>Oldest success: </span>
+            <span style={{ color: ladder.mid }}>{oldest ? relativeAge(oldest) || 'just now' : '—'}</span>
+          </div>
+          {oldest && (
+            <div style={{ fontSize: 11, color: ladder.faint, ...tabular, ...nowrap }}>
+              {formatTime(oldest)}
+            </div>
+          )}
+          <div className="mt-2" style={{ fontSize: 12, ...nowrap }}>
+            <span style={{ color: ladder.low }}>Next scheduled: </span>
+            <span style={{ color: ladder.mid }}>{schedule ?? '—'}</span>
+          </div>
+        </div>
       </div>
     </button>
   );
@@ -680,8 +1146,13 @@ export const InsightsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Active summary-tile filter (Matt #2), null = show everything.
   const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
-  // Blast-radius sheet: the open workspace + the tile rect it grows from.
-  const [sheet, setSheet] = useState<{ workspaceId: string; rect: DOMRect | null } | null>(null);
+  // Blast-radius sheet: the open workspace + the tile rect it grows from +
+  // the originating tile element (focus returns to it on contraction, §D).
+  const [sheet, setSheet] = useState<{
+    workspaceId: string;
+    rect: DOMRect | null;
+    el: HTMLElement | null;
+  } | null>(null);
 
   // D6: ignition ceremony — once per session, skipped under reduced motion,
   // never gating the content (it only stages the arrival of what is already
@@ -800,13 +1271,26 @@ export const InsightsPage: React.FC = () => {
     };
   }, [user?.id]);
 
+  // The damage path — computed ONCE per snapshot (DESIGN-CONTRACT): the
+  // sheet's cascades, the tiles' STALE DATA hints, and the hero's blast line
+  // all read from this single result.
+  const blast = useMemo<BlastRadius>(
+    () =>
+      snapshot
+        ? computeBlastRadius(snapshot)
+        : { suspectsByDataflow: new Map(), reportsByDataset: new Map(), suspectDatasetIds: new Set() },
+    [snapshot],
+  );
+
   // The board shows everything, or — with an active tile filter — only the
-  // matching items, regrouped so empty workspaces drop out entirely.
+  // matching items, regrouped so empty workspaces drop out entirely. Tiles
+  // triage themselves (§B): broken desc → suspects desc → overdue desc →
+  // running present → name A–Z.
   const groups = useMemo(() => {
     const all = snapshot?.refreshables ?? [];
     const visible = activeFilter ? all.filter((r) => matchesTileFilter(r, activeFilter)) : all;
-    return groupByWorkspace(visible);
-  }, [snapshot, activeFilter]);
+    return triageSortGroups(groupByWorkspace(visible), blast.suspectDatasetIds);
+  }, [snapshot, activeFilter, blast]);
 
   const counts = useMemo(() => {
     const c = { ok: 0, broken: 0, overdue: 0, running: 0, dormant: 0 };
@@ -902,7 +1386,12 @@ export const InsightsPage: React.FC = () => {
       className={`luce-board h-full overflow-y-auto${igniting ? ' luce-ignite' : ''}${docHidden ? ' luce-asleep' : ''}`}
       style={{ color: luce.textSecondary }}
     >
-      <div className="max-w-6xl mx-auto p-6 space-y-8">
+      {/* §D: while the sheet is open the board beneath takes no input — the
+          dialog re-enables pointer events on itself. */}
+      <div
+        className="max-w-6xl mx-auto p-6 space-y-8"
+        style={sheet ? { pointerEvents: 'none' } : undefined}
+      >
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -1041,24 +1530,28 @@ export const InsightsPage: React.FC = () => {
                 : 'No datasets or dataflows are visible to your account.'}
             </p>
           ) : groups.length === 1 ? (
-            /* Most clients see exactly ONE tile — their own. It gets the room. */
-            <div className="max-w-[780px]">
-              <WorkspaceTile
-                group={groups[0]!}
-                access={accessByWs.get(groups[0]!.workspaceId)}
-                solo
-                onOpen={(rect) => setSheet({ workspaceId: groups[0]!.workspaceId, rect })}
-              />
-            </div>
+            /* Most clients see exactly ONE workspace — the hero tile (§A). */
+            <HeroTile
+              group={groups[0]!}
+              access={accessByWs.get(groups[0]!.workspaceId)}
+              blast={blast}
+              ghost={sheet?.workspaceId === groups[0]!.workspaceId}
+              onOpen={(rect, el) => setSheet({ workspaceId: groups[0]!.workspaceId, rect, el })}
+            />
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            /* The n=20 triage grid (§B): damage findable across the room. */
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}
+            >
               {groups.map((g) => (
                 <WorkspaceTile
                   key={g.workspaceId}
                   group={g}
                   access={accessByWs.get(g.workspaceId)}
-                  solo={false}
-                  onOpen={(rect) => setSheet({ workspaceId: g.workspaceId, rect })}
+                  suspectCount={workspaceSuspectCount(g, blast.suspectDatasetIds)}
+                  ghost={sheet?.workspaceId === g.workspaceId}
+                  onOpen={(rect, el) => setSheet({ workspaceId: g.workspaceId, rect, el })}
                 />
               ))}
             </div>
@@ -1331,8 +1824,14 @@ export const InsightsPage: React.FC = () => {
           <WorkspaceSheet
             group={sheetGroup}
             access={accessByWs.get(sheetGroup.workspaceId)}
+            blast={blast}
             fromRect={sheet?.rect ?? null}
-            onClose={() => setSheet(null)}
+            onClose={() => {
+              // §D: focus returns to the originating tile on contraction.
+              const opener = sheet?.el;
+              setSheet(null);
+              opener?.focus?.();
+            }}
           />
         )}
       </div>

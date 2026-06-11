@@ -9,6 +9,7 @@
  * Fluent look.
  */
 import type { InsightsRefreshable } from '../../../shared/types';
+import type { BlastRadius } from '../../../shared/blast-radius';
 
 // ---------------------------------------------------------------------------
 // Tokens (mirrors mobile/src/design/tokens.ts)
@@ -40,6 +41,20 @@ export const luce = {
   kindDataset: TEXT_TERTIARY,
   kindDataflow: TEXT_TERTIARY,
   dormant: TEXT_TERTIARY, // "abandoned, not on fire"
+} as const;
+
+/**
+ * DESIGN-CONTRACT §0 — the white-alpha ladder for the blast-radius surfaces
+ * (hero tile, triage tiles, sheet rows/cascades). hi/mid/low/faint are text
+ * tiers; hairline is the only row separator inside the sheet's lens.
+ */
+export const ladder = {
+  hi: 'rgba(255,255,255,0.95)',
+  mid: 'rgba(255,255,255,0.70)',
+  low: 'rgba(255,255,255,0.50)',
+  faint: 'rgba(255,255,255,0.35)',
+  hairline: 'rgba(255,255,255,0.08)',
+  lip: 'rgba(255,255,255,0.05)',
 } as const;
 
 /** Kind → identity tint, used for every DATASET/DATAFLOW chip on the page. */
@@ -322,6 +337,88 @@ export function groupSummaryLabel(g: WorkspaceGroup): string {
   const quiet = g.counts.ok + g.counts.live;
   if (quiet > 0 || parts.length === 0) parts.push(`${quiet} OK`);
   return parts.join(' · ');
+}
+
+// ---------------------------------------------------------------------------
+// Blast-radius derivations (DESIGN-CONTRACT §A/§B/§C) — pure joins between a
+// WorkspaceGroup and computeBlastRadius(snapshot)
+// ---------------------------------------------------------------------------
+
+/** How many of this workspace's datasets are suspects ("refreshed against
+ *  stale data"). Drives the tile's STALE DATA hint and the triage sort. */
+export function workspaceSuspectCount(
+  g: WorkspaceGroup,
+  suspectDatasetIds: ReadonlySet<string>,
+): number {
+  let n = 0;
+  for (const item of g.items) {
+    if (item.kind === 'dataset' && suspectDatasetIds.has(item.id)) n++;
+  }
+  return n;
+}
+
+/** Distinct reports bound to this workspace's suspect datasets — the "N
+ *  reports may be reading stale data" figure on the hero tile (§A row 2). */
+export function workspaceAffectedReportCount(
+  g: WorkspaceGroup,
+  blast: Pick<BlastRadius, 'suspectDatasetIds' | 'reportsByDataset'>,
+): number {
+  const ids = new Set<string>();
+  for (const item of g.items) {
+    if (item.kind !== 'dataset' || !blast.suspectDatasetIds.has(item.id)) continue;
+    for (const r of blast.reportsByDataset.get(item.id) ?? []) ids.add(r.id);
+  }
+  return ids.size;
+}
+
+/** Distinct reports affected by ONE dataflow's suspects, in suspect order —
+ *  the "→ M reports affected" list of the sheet cascade (§C). */
+export function cascadeReports(
+  suspects: InsightsRefreshable[],
+  reportsByDataset: ReadonlyMap<string, Array<{ id: string; name: string }>>,
+): Array<{ id: string; name: string }> {
+  const seen = new Set<string>();
+  const out: Array<{ id: string; name: string }> = [];
+  for (const ds of suspects) {
+    for (const r of reportsByDataset.get(ds.id) ?? []) {
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      out.push(r);
+    }
+  }
+  return out;
+}
+
+/**
+ * DESIGN-CONTRACT §B — the triage sort for the tile grid (stable):
+ * broken count desc → suspect-dataset count desc → overdue count desc →
+ * running present → name A–Z. A workspace with NO broken flow but suspect
+ * datasets still sorts into the damage band.
+ */
+export function triageSortGroups(
+  groups: WorkspaceGroup[],
+  suspectDatasetIds: ReadonlySet<string>,
+): WorkspaceGroup[] {
+  return [...groups].sort(
+    (a, b) =>
+      b.counts.broken - a.counts.broken ||
+      workspaceSuspectCount(b, suspectDatasetIds) - workspaceSuspectCount(a, suspectDatasetIds) ||
+      b.counts.overdue - a.counts.overdue ||
+      Number(b.counts.running > 0) - Number(a.counts.running > 0) ||
+      a.workspaceName.localeCompare(b.workspaceName),
+  );
+}
+
+/** Oldest lastSuccessTime across a group's items (§A FRESHNESS column). */
+export function oldestSuccessIso(items: InsightsRefreshable[]): string | undefined {
+  let oldest: string | undefined;
+  for (const item of items) {
+    if (!item.lastSuccessTime) continue;
+    const t = Date.parse(item.lastSuccessTime);
+    if (!Number.isFinite(t)) continue;
+    if (oldest === undefined || t < Date.parse(oldest)) oldest = item.lastSuccessTime;
+  }
+  return oldest;
 }
 
 // ---------------------------------------------------------------------------
