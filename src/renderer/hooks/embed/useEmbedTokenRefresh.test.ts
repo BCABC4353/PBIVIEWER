@@ -156,6 +156,71 @@ describe('#7 useEmbedTokenRefresh', () => {
     expect(setError).not.toHaveBeenCalled();
   });
 
+  it("a stale generation's finally does not clear a newer refresh's in-flight flag", async () => {
+    const embed = makeFakeEmbed();
+    const { ctx } = makeCtx(embed, true);
+    const resolvers: Array<(v: unknown) => void> = [];
+    vi.mocked(window.electronAPI.content.getEmbedToken).mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolvers.push(res as (v: unknown) => void);
+        }) as ReturnType<typeof window.electronAPI.content.getEmbedToken>,
+    );
+
+    const { result } = renderHook(() => useEmbedTokenRefresh(ctx, OPTS));
+
+    let stale!: Promise<void>;
+    act(() => {
+      stale = result.current.refreshEmbedToken();
+    });
+    expect(ctx.tokenRefreshInProgressRef.current).toBe(true);
+
+    ctx.generationRef.current += 1;
+    ctx.tokenRefreshInProgressRef.current = false;
+
+    let fresh!: Promise<void>;
+    act(() => {
+      fresh = result.current.refreshEmbedToken();
+    });
+    expect(window.electronAPI.content.getEmbedToken).toHaveBeenCalledTimes(2);
+    expect(ctx.tokenRefreshInProgressRef.current).toBe(true);
+
+    await act(async () => {
+      resolvers[0]!({
+        success: true,
+        data: {
+          token: 'stale-token',
+          tokenId: 'tid',
+          expiration: new Date(Date.now() + 3600000).toISOString(),
+        },
+      });
+      await stale;
+    });
+
+    expect(ctx.tokenRefreshInProgressRef.current).toBe(true);
+
+    await act(async () => {
+      await result.current.refreshEmbedToken();
+    });
+    expect(window.electronAPI.content.getEmbedToken).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolvers[1]!({
+        success: true,
+        data: {
+          token: 'fresh-token',
+          tokenId: 'tid',
+          expiration: new Date(Date.now() + 3600000).toISOString(),
+        },
+      });
+      await fresh;
+    });
+
+    expect(embed.setAccessToken).toHaveBeenCalledTimes(1);
+    expect(embed.setAccessToken).toHaveBeenCalledWith('fresh-token');
+    expect(ctx.tokenRefreshInProgressRef.current).toBe(false);
+  });
+
   it('refreshes on visibilitychange when the token is expiring soon', async () => {
     const embed = makeFakeEmbed();
     const { ctx } = makeCtx(embed, true);

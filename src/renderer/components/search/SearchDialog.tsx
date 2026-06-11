@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Button,
   Dialog,
   DialogSurface,
   DialogTitle,
@@ -31,6 +32,7 @@ export const SearchDialog: React.FC = () => {
     query,
     results,
     isSearching,
+    error,
     partialFailureWarning,
     closeSearch,
     setQuery,
@@ -214,7 +216,26 @@ export const SearchDialog: React.FC = () => {
             </div>
           )}
 
-          {!isSearching && query && results.length === 0 && (
+          {!isSearching && error && (
+            <div role="alert" className="py-8 px-4 text-center">
+              <Text className="text-status-error block">{error}</Text>
+              <Text size={200} className="text-neutral-foreground-3 block mt-1">
+                Results could not be loaded, so nothing was searched.
+              </Text>
+              {query && (
+                <Button
+                  appearance="secondary"
+                  size="small"
+                  className="mt-3"
+                  onClick={() => search(query)}
+                >
+                  Try again
+                </Button>
+              )}
+            </div>
+          )}
+
+          {!isSearching && !error && query && results.length === 0 && (
             <div
               role="status"
               aria-live="polite"

@@ -176,6 +176,30 @@ describe('#7 usePowerBIEmbed lifecycle', () => {
     expect(view.result.current.error).toBeNull();
   });
 
+  it('a pre-load token-expiry error reloads the embed instead of dead-ending', async () => {
+    const view = await renderEmbed(baseOptions());
+    expect(h.service.embed).toHaveBeenCalledTimes(1);
+    const firstEmbed = lastEmbed();
+    tokenResolves('tok-2');
+
+    await act(async () => {
+      firstEmbed.fire('error', { message: 'TokenExpired' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(firstEmbed.setAccessToken).not.toHaveBeenCalled();
+    expect(h.service.embed).toHaveBeenCalledTimes(2);
+    expect(window.electronAPI.content.getEmbedToken).toHaveBeenCalledTimes(2);
+    expect(view.result.current.error).toBeNull();
+    expect(view.result.current.isLoading).toBe(true);
+
+    act(() => lastEmbed().fire('loaded'));
+    expect(view.result.current.isLoading).toBe(false);
+    expect(view.result.current.error).toBeNull();
+  });
+
   it('routes a not-found error to the caller handler (eviction path) without throwing', async () => {
     const onError = vi.fn();
     const view = await renderEmbed(

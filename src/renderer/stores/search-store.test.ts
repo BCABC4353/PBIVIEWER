@@ -1,6 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useSearchStore } from './search-store';
 
+// Snapshot the initial slice we care about so each test starts clean.
+// Zustand's `create` doesn't expose getInitialState in v4, so we reset by
+// hand to the documented defaults from search-store.ts.
 const INITIAL_STATE = {
   isOpen: false,
   query: '',
@@ -11,11 +14,13 @@ const INITIAL_STATE = {
 };
 
 beforeEach(() => {
+  // Preserve action references — merge our defaults on top of current state.
   useSearchStore.setState(INITIAL_STATE);
 });
 
 describe('useSearchStore — closeSearch', () => {
-  it('clears results, query, and isOpen', () => {
+  it('clears results, query, error, and isOpen', () => {
+    // Seed the store with some non-default state.
     useSearchStore.setState({
       isOpen: true,
       query: 'foo',
@@ -23,6 +28,7 @@ describe('useSearchStore — closeSearch', () => {
         { id: '1', name: 'Foo Report', type: 'report' },
       ],
       isSearching: true,
+      error: 'Search failed. Check your connection and try again.',
     });
 
     useSearchStore.getState().closeSearch();
@@ -32,6 +38,7 @@ describe('useSearchStore — closeSearch', () => {
     expect(state.query).toBe('');
     expect(state.results).toEqual([]);
     expect(state.isSearching).toBe(false);
+    expect(state.error).toBeNull();
   });
 
   it('does not throw when called repeatedly (multiple generation bumps)', () => {
@@ -58,6 +65,7 @@ describe('useSearchStore — clearResults', () => {
     const state = useSearchStore.getState();
     expect(state.results).toEqual([]);
     expect(state.query).toBe('');
+    // closeSearch flips isOpen, clearResults does not.
     expect(state.isOpen).toBe(true);
   });
 });
@@ -95,11 +103,84 @@ describe('useSearchStore — open/close cycle smoke test', () => {
       query: 'previous',
       results: [{ id: '4', name: 'Stale', type: 'app' }],
       isSearching: true,
+      error: 'Search failed. Check your connection and try again.',
     });
     useSearchStore.getState().setQuery('');
     const state = useSearchStore.getState();
     expect(state.query).toBe('');
     expect(state.results).toEqual([]);
     expect(state.isSearching).toBe(false);
+    expect(state.error).toBeNull();
+  });
+});
+
+describe('useSearchStore — search failure handling', () => {
+  beforeEach(() => {
+    useSearchStore.getState().invalidateCache();
+  });
+
+  it('surfaces a user-presentable error when the search fetch rejects', async () => {
+    vi.mocked(window.electronAPI.content.getWorkspaces).mockRejectedValue(
+      new Error('network down'),
+    );
+
+    await useSearchStore.getState().search('sales');
+
+    const state = useSearchStore.getState();
+    expect(state.error).toBe('Search failed. Check your connection and try again.');
+    expect(state.results).toEqual([]);
+    expect(state.isSearching).toBe(false);
+  });
+
+  it('surfaces the IPC userMessage when every endpoint reports failure', async () => {
+    const failure = {
+      success: false as const,
+      error: { code: 'AUTH', message: 'raw detail', userMessage: 'Please sign in again.' },
+    };
+    vi.mocked(window.electronAPI.content.getWorkspaces).mockResolvedValue(failure);
+    vi.mocked(window.electronAPI.content.getApps).mockResolvedValue(failure);
+    vi.mocked(window.electronAPI.content.getAllItems).mockResolvedValue(failure);
+
+    await useSearchStore.getState().search('sales');
+
+    const state = useSearchStore.getState();
+    expect(state.error).toBe('Please sign in again.');
+    expect(state.results).toEqual([]);
+    expect(state.isSearching).toBe(false);
+  });
+
+  it('does not cache a failure — a retry re-fetches and a success clears the error', async () => {
+    vi.mocked(window.electronAPI.content.getWorkspaces).mockRejectedValueOnce(
+      new Error('network down'),
+    );
+
+    await useSearchStore.getState().search('sales');
+
+    expect(useSearchStore.getState().error).toBe(
+      'Search failed. Check your connection and try again.',
+    );
+    expect(window.electronAPI.content.getWorkspaces).toHaveBeenCalledTimes(1);
+
+    vi.mocked(window.electronAPI.content.getWorkspaces).mockResolvedValueOnce({
+      success: true,
+      data: [{ id: 'ws-1', name: 'Sales Workspace', isReadOnly: false, type: 'Workspace' }],
+    });
+
+    await useSearchStore.getState().search('sales');
+
+    const state = useSearchStore.getState();
+    expect(window.electronAPI.content.getWorkspaces).toHaveBeenCalledTimes(2);
+    expect(state.error).toBeNull();
+    expect(state.results).toEqual([
+      { id: 'ws-1', name: 'Sales Workspace', type: 'workspace' },
+    ]);
+  });
+
+  it('starting a new search clears a previously surfaced error', async () => {
+    useSearchStore.setState({ error: 'Search failed. Check your connection and try again.' });
+
+    await useSearchStore.getState().search('sales');
+
+    expect(useSearchStore.getState().error).toBeNull();
   });
 });
