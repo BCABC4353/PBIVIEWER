@@ -905,7 +905,7 @@ const WorkspaceTile: React.FC<{
         style={
           ghost
             ? { opacity: 0, transition: 'opacity 60ms linear 100ms' } // hide AFTER the sheet covers it
-            : { transition: 'opacity 140ms linear 500ms' } // reappear only AFTER the 480ms contraction lands
+            : { transition: 'opacity 120ms linear 40ms' } // ghost releases at landing; return immediately
         }
         onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
         aria-haspopup="dialog"
@@ -1251,15 +1251,9 @@ const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, i
           </div>
         </div>
       </div>
-      <div className="relative z-[1] flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <span className="luce-live-dot" aria-hidden="true" />
-          <span className="luce-legend">Data health</span>
-        </div>
-        <div className="text-[12px] leading-relaxed max-w-[200px]" style={{ color: luce.textTertiary }}>
-          datasets &amp; dataflows neither broken nor overdue
-        </div>
-      </div>
+      {/* The instrument needs no caption (owner v7): the live-dot idle mover
+          rides invisibly small next to the dial so D7's three movers hold. */}
+      <span className="luce-live-dot relative z-[1] self-start" aria-hidden="true" style={{ opacity: 0.5 }} />
       <div className="luce-lens" aria-hidden="true" />
     </div>
   );
@@ -1579,14 +1573,6 @@ export const InsightsPage: React.FC = () => {
                     {tile.value}
                   </div>
                   <div className="mt-2 luce-legend">{tile.label}</div>
-                  <span
-                    className="luce-tile-lamp"
-                    aria-hidden="true"
-                    style={{
-                      background: tile.loud ? tile.color : 'rgba(255,255,255,0.10)',
-                      boxShadow: tile.loud ? `0 0 8px ${tile.color}` : 'none',
-                    }}
-                  />
                 </>
               );
               const entrance = { '--luce-i': idx + 1 } as React.CSSProperties;
