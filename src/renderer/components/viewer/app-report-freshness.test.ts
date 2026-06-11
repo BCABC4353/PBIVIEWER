@@ -76,6 +76,25 @@ describe('parseReportIdFromUrl', () => {
       ),
     ).toBeNull();
   });
+
+  it('extracts the reportId from a paginated /rdlreports/ app URL', () => {
+    expect(
+      parseReportIdFromUrl(
+        `https://app.powerbi.com/groups/me/apps/${APP_ID}/rdlreports/${REPORT_A}?experience=power-bi`,
+      ),
+    ).toBe(REPORT_A);
+  });
+
+  it('extracts the reportId from a ?reportId= query form (reportEmbed-style routes)', () => {
+    expect(
+      parseReportIdFromUrl(
+        `https://app.powerbi.com/reportEmbed?reportId=${REPORT_B}&appId=${APP_ID}`,
+      ),
+    ).toBe(REPORT_B);
+    expect(
+      parseReportIdFromUrl(`https://app.powerbi.com/view?x=1&reportId=${REPORT_B.toUpperCase()}`),
+    ).toBe(REPORT_B);
+  });
 });
 
 describe('selectFreshnessTarget', () => {
@@ -101,6 +120,22 @@ describe('selectFreshnessTarget', () => {
       mode: 'report',
       datasets: [{ datasetId: 'ds-billing', workspaceId: 'ws-2' }],
     });
+  });
+
+  it('matches by originalReportObjectId too — app URLs can name the source-workspace twin', () => {
+    const original = 'feedfeed-0000-4444-8888-deadbeef0001';
+    const withOriginal: AppReportFreshnessInfo[] = [
+      { ...reports[0]!, originalReportObjectId: original },
+      reports[1]!,
+    ];
+    expect(selectFreshnessTarget(original, withOriginal, aggregate)).toEqual({
+      mode: 'report',
+      datasets: [{ datasetId: 'ds-workflows', workspaceId: 'ws-1' }],
+    });
+    // case-insensitive on the original id as well
+    expect(selectFreshnessTarget(original.toUpperCase(), withOriginal, aggregate).mode).toBe(
+      'report',
+    );
   });
 
   it('matches report ids case-insensitively', () => {

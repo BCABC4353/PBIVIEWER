@@ -21,6 +21,9 @@ export interface AppReportFreshnessInfo {
   /** Empty string when the apps API (and the workspace backfill) had no dataset. */
   datasetId?: string;
   workspaceId?: string;
+  /** The SAME report's id in the app's source workspace — app URLs can name
+   *  a report by either GUID, so matching accepts both. */
+  originalReportObjectId?: string;
 }
 
 export interface FreshnessTarget {
@@ -34,9 +37,15 @@ export interface FreshnessTarget {
   datasets: DatasetWorkspacePair[];
 }
 
-// A reportId is a GUID path segment right after /reports/. The negative
-// lookahead stops a 36-char prefix of a longer hex-ish token from matching.
-const REPORT_ID_RE = /\/reports\/([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/;
+// A reportId is a GUID path segment right after /reports/ (interactive) or
+// /rdlreports/ (paginated); some Power BI routes carry it as a ?reportId=
+// query param instead. The negative lookahead stops a 36-char prefix of a
+// longer hex-ish token from matching.
+const REPORT_ID_RES = [
+  /\/reports\/([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/,
+  /\/rdlreports\/([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/,
+  /[?&]reportId=([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/,
+];
 
 /**
  * Extract the viewed report's id from a Power BI app URL.
@@ -45,8 +54,11 @@ const REPORT_ID_RE = /\/reports\/([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/;
  */
 export function parseReportIdFromUrl(url: string | null | undefined): string | null {
   if (!url) return null;
-  const id = REPORT_ID_RE.exec(url)?.[1];
-  return id ? id.toLowerCase() : null;
+  for (const re of REPORT_ID_RES) {
+    const id = re.exec(url)?.[1];
+    if (id) return id.toLowerCase();
+  }
+  return null;
 }
 
 /**
@@ -64,7 +76,13 @@ export function selectFreshnessTarget(
 ): FreshnessTarget {
   if (currentReportId) {
     const wanted = currentReportId.toLowerCase();
-    const report = reports.find((r) => r.id.toLowerCase() === wanted);
+    // The URL can name the report by its app-scoped id OR by its source-
+    // workspace original (Power BI routes both forms) — accept either.
+    const report = reports.find(
+      (r) =>
+        r.id.toLowerCase() === wanted ||
+        (r.originalReportObjectId && r.originalReportObjectId.toLowerCase() === wanted),
+    );
     if (report?.datasetId && report.workspaceId) {
       return {
         mode: 'report',

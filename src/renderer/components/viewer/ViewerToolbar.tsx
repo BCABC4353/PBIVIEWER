@@ -108,6 +108,13 @@ export interface ViewerToolbarProps {
    * few seconds — the explicit "yes, the screen really did repaint" signal.
    */
   justRefreshedAt?: number | null;
+  /**
+   * Extra text appended to the dataset stamp's hover tooltip. The App view
+   * passes an owner-only targeting trace (which report the webview URL named
+   * and which mode the poll used) so a screenshot of a wrong stamp also says
+   * WHY it was wrong.
+   */
+  freshnessDiagnostic?: string | null;
 }
 
 /**
@@ -170,6 +177,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   freshnessLabel = 'Data refreshed',
   showFreshness = false,
   justRefreshedAt = null,
+  freshnessDiagnostic = null,
 }) => {
   const hasBreadcrumb = Boolean(itemName);
 
@@ -191,13 +199,16 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     label: string,
     iso?: string | null,
     placeholder = false,
+    extraTitle?: string | null,
   ): React.ReactNode => {
+    const withExtra = (base?: string) =>
+      [base, extraTitle].filter(Boolean).join(' · ') || undefined;
     if (!iso) {
       if (!placeholder) return null;
       return (
         <Text
           className="text-neutral-foreground-3 text-xs whitespace-nowrap"
-          title={`${label}: not yet known`}
+          title={withExtra(`${label}: not yet known`)}
         >
           {label}: —
         </Text>
@@ -219,7 +230,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     return (
       <Text
         className={`${tone} text-xs whitespace-nowrap`}
-        title={isStale ? `${label} is more than a day old` : undefined}
+        title={withExtra(isStale ? `${label} is more than a day old` : undefined)}
       >
         {isStale && !flashActive ? '⚠ ' : ''}
         {label}: {formatted}
@@ -316,7 +327,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
               </span>
             ) : null}
             <div className="flex flex-col items-end leading-tight">
-              {renderStamp(freshnessLabel, lastDataRefresh, showFreshness)}
+              {renderStamp(freshnessLabel, lastDataRefresh, showFreshness, freshnessDiagnostic)}
               {renderStamp('Dataflow', dataflowRefresh, showFreshness)}
             </div>
           </div>

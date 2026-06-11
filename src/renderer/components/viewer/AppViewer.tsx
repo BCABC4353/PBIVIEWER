@@ -11,6 +11,7 @@ import {
   type AppReportFreshnessInfo,
 } from './app-report-freshness';
 import { reportIssue } from '../../lib/report-issue';
+import { useAuthStore } from '../../stores/auth-store';
 
 // Type definition for Electron webview element
 interface ElectronWebView extends HTMLElement {
@@ -109,6 +110,7 @@ export const AppViewer: React.FC = () => {
           name: r.name,
           datasetId: r.datasetId,
           workspaceId: r.workspaceId,
+          originalReportObjectId: r.originalReportObjectId,
         }));
         const seen = new Set<string>();
         const datasets: Array<{ datasetId: string; workspaceId: string }> = [];
@@ -169,10 +171,21 @@ export const AppViewer: React.FC = () => {
   // Single-dataset mode (a known report is on screen) shows its exact stamp;
   // the aggregate fallback keeps the v2.2.10 "Oldest data" wording when the
   // stalest-of-many timestamp is what's displayed.
-  const isReportTargeted =
-    selectFreshnessTarget(currentReportId, appReportsRef.current, datasetsRef.current).mode ===
-    'report';
+  const headerTarget = selectFreshnessTarget(
+    currentReportId,
+    appReportsRef.current,
+    datasetsRef.current,
+  );
+  const isReportTargeted = headerTarget.mode === 'report';
   const freshnessLabel = isReportTargeted || datasetCount <= 1 ? 'Data refreshed' : 'Oldest data';
+  // Owner-only targeting trace in the stamp's hover tooltip: when a stamp is
+  // wrong, the same screenshot that reports it also says WHY (which report id
+  // the webview URL named, which mode the poll used, what the map knew).
+  const ownerEmail = useAuthStore((s) => s.user?.email);
+  const freshnessDiagnostic =
+    (ownerEmail ?? '').toLowerCase() === 'brendan@bc-abc.com'
+      ? `url report: ${currentReportId ?? 'none (app home)'} · mode: ${headerTarget.mode} · app reports known: ${appReportsRef.current.length}`
+      : null;
 
   useEffect(() => {
     if (error) reportIssue({ code: 'APP_WEBVIEW_ERROR', itemName: appName, context: error });
@@ -356,6 +369,7 @@ export const AppViewer: React.FC = () => {
         lastDataRefresh={datasetRefreshTime}
         dataflowRefresh={dataflowRefreshTime}
         freshnessLabel={freshnessLabel}
+        freshnessDiagnostic={freshnessDiagnostic}
         showRelativeAge
         showFreshness
         justRefreshedAt={justRefreshedAt}
