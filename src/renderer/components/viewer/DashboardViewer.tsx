@@ -40,7 +40,13 @@ export const DashboardViewer: React.FC = () => {
     loadDashboardDetails();
   }, [workspaceId, dashboardId]);
 
-  const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
+  const {
+    datasetRefreshTime,
+    dataflowRefreshTime,
+    scheduleOverdue,
+    scheduleSummary,
+    newDataAvailable,
+  } = useLiveFreshness(
     useCallback(async () => {
       if (!dashboardId || !workspaceId) return null;
       const r = await window.electronAPI.content.getDataFreshness(workspaceId, [], dashboardId);
@@ -48,6 +54,8 @@ export const DashboardViewer: React.FC = () => {
       return {
         datasetRefreshTime: r.data.datasetRefreshTime,
         dataflowRefreshTime: r.data.dataflowRefreshTime,
+        scheduleOverdue: r.data.scheduleOverdue,
+        scheduleSummary: r.data.scheduleSummary,
       };
     }, [dashboardId, workspaceId]),
     lastLoadAt,
@@ -154,6 +162,8 @@ export const DashboardViewer: React.FC = () => {
         itemName={dashboardName}
         lastDataRefresh={datasetRefreshTime}
         dataflowRefresh={dataflowRefreshTime}
+        scheduleOverdue={scheduleOverdue}
+        scheduleSummary={scheduleSummary}
         freshnessLabel="Oldest data"
         showRelativeAge
         showFreshness

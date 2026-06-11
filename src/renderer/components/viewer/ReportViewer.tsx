@@ -70,7 +70,13 @@ export const ReportViewer: React.FC = () => {
     };
   }, [workspaceId, reportId]);
 
-  const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
+  const {
+    datasetRefreshTime,
+    dataflowRefreshTime,
+    scheduleOverdue,
+    scheduleSummary,
+    newDataAvailable,
+  } = useLiveFreshness(
     useCallback(async () => {
       if (!datasetIdRef.current || !workspaceId) return null;
       const r = await window.electronAPI.content.getDataFreshness(workspaceId, [datasetIdRef.current]);
@@ -78,6 +84,8 @@ export const ReportViewer: React.FC = () => {
       return {
         datasetRefreshTime: r.data.datasetRefreshTime,
         dataflowRefreshTime: r.data.dataflowRefreshTime,
+        scheduleOverdue: r.data.scheduleOverdue,
+        scheduleSummary: r.data.scheduleSummary,
       };
     }, [workspaceId]),
     lastLoadAt,
@@ -283,6 +291,8 @@ export const ReportViewer: React.FC = () => {
         itemName={reportName || undefined}
         lastDataRefresh={datasetRefreshTime}
         dataflowRefresh={dataflowRefreshTime}
+        scheduleOverdue={scheduleOverdue}
+        scheduleSummary={scheduleSummary}
         showRelativeAge
         showFreshness
         justRefreshedAt={justRefreshedAt}

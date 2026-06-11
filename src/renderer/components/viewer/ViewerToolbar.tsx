@@ -15,6 +15,7 @@ import {
   HomeRegular,
   CheckmarkCircleRegular,
 } from '@fluentui/react-icons';
+import { formatAgeNoun, formatRelativeAge, STALE_AFTER_MS } from '../../lib/freshness-format';
 
 const REFRESH_FLASH_MS = 5000;
 
@@ -38,16 +39,8 @@ export interface ViewerToolbarProps {
   showFreshness?: boolean;
   justRefreshedAt?: number | null;
   freshnessDiagnostic?: string | null;
-}
-
-function formatRelativeAge(ageMs: number): string {
-  const mins = Math.max(0, Math.floor(ageMs / 60000));
-  if (mins < 1) return 'just now';
-  if (mins < 60) return mins === 1 ? '1 min ago' : `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 48) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} days ago`;
+  scheduleOverdue?: boolean;
+  scheduleSummary?: string;
 }
 
 function formatRefreshTime(isoString: string): string {
@@ -90,6 +83,8 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   showFreshness = false,
   justRefreshedAt = null,
   freshnessDiagnostic = null,
+  scheduleOverdue = false,
+  scheduleSummary,
 }) => {
   const hasBreadcrumb = Boolean(itemName);
 
@@ -121,27 +116,103 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
       );
     }
     const ageMs = Date.now() - new Date(iso).getTime();
-    const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
+    const isStale = Number.isFinite(ageMs) && ageMs > STALE_AFTER_MS;
     let relative = '';
     if (showRelativeAge && Number.isFinite(ageMs)) {
       relative = ` (${formatRelativeAge(ageMs)})`;
     }
     const formatted = formatRefreshTime(iso);
     if (!formatted) return null;
-    const tone = flashActive
-      ? 'text-status-success'
-      : isStale
-        ? 'text-status-warning'
-        : 'text-neutral-foreground-3';
+    const tone = isStale ? 'text-status-warning' : 'text-neutral-foreground-3';
     return (
       <Text
         className={`${tone} text-xs whitespace-nowrap`}
         title={withExtra(isStale ? `${label} is more than a day old` : undefined)}
       >
-        {isStale && !flashActive ? '⚠ ' : ''}
+        {isStale ? '⚠ ' : ''}
         {label}: {formatted}
         {relative}
       </Text>
+    );
+  };
+
+  const renderDatasetChip = (): React.ReactNode => {
+    const iso = lastDataRefresh;
+    const ageMs = iso ? Date.now() - new Date(iso).getTime() : NaN;
+    const hasAge = Number.isFinite(ageMs);
+    const isStale = hasAge && ageMs > STALE_AFTER_MS;
+    const isOverdue = scheduleOverdue === true;
+    const formatted = iso ? formatRefreshTime(iso) : '';
+
+    const tooltipParts = [
+      formatted ? `${freshnessLabel}: ${formatted}` : `${freshnessLabel}: not yet known`,
+      isOverdue
+        ? `Behind its refresh schedule${scheduleSummary ? ` (${scheduleSummary})` : ''}`
+        : isStale
+          ? `${freshnessLabel} is more than a day old`
+          : undefined,
+      freshnessDiagnostic,
+    ];
+    const tooltip = tooltipParts.filter(Boolean).join(' · ') || undefined;
+
+    if (!hasAge && !isOverdue) {
+      if (!showFreshness) return null;
+      return (
+        <Text
+          className="text-neutral-foreground-3 text-xs whitespace-nowrap"
+          title={tooltip}
+        >
+          {freshnessLabel}: —
+        </Text>
+      );
+    }
+
+    const chipBase =
+      'inline-flex items-center gap-1.5 px-2.5 h-6 rounded-full text-xs whitespace-nowrap max-w-xs';
+
+    if (flashActive) {
+      return (
+        <span
+          className={`${chipBase} bg-status-success text-white`}
+          title={tooltip}
+          data-freshness-chip
+        >
+          <CheckmarkCircleRegular aria-hidden="true" />
+          <span className="truncate">Updated</span>
+        </span>
+      );
+    }
+
+    if (isOverdue || isStale) {
+      const warnText = isOverdue
+        ? `Behind schedule${scheduleSummary ? ` (${scheduleSummary})` : ''}`
+        : `Stale — ${formatAgeNoun(ageMs)} old`;
+      return (
+        <span
+          className={`${chipBase} bg-status-warning text-ink`}
+          title={tooltip}
+          data-freshness-chip
+        >
+          <span aria-hidden="true">▲</span>
+          <span className="truncate">{warnText}</span>
+        </span>
+      );
+    }
+
+    const verb = freshnessLabel === 'Data refreshed' ? 'Updated' : freshnessLabel;
+    return (
+      <span
+        className={`${chipBase} bg-neutral-background-3 text-neutral-foreground-2`}
+        title={tooltip}
+        data-freshness-chip
+      >
+        <span aria-hidden="true" className="text-status-success">
+          ●
+        </span>
+        <span className="truncate">
+          {verb} {formatRelativeAge(ageMs)}
+        </span>
+      </span>
     );
   };
 
@@ -202,28 +273,23 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
       {}
       <div className="flex items-center gap-2 shrink-0">
         {}
-        {(showFreshness || lastDataRefresh || dataflowRefresh) && (
+        {(showFreshness || lastDataRefresh || dataflowRefresh || scheduleOverdue) && (
           <div
             className="flex items-center gap-2 mr-2"
             role="status"
             aria-live="polite"
             data-freshness-strip
           >
-            {flashActive ? (
-              <span className="flex items-center gap-1 text-status-success text-xs whitespace-nowrap">
-                <CheckmarkCircleRegular aria-hidden="true" />
-                Updated
-              </span>
-            ) : newDataAvailable && !isRefreshing ? (
+            {!flashActive && newDataAvailable && !isRefreshing && (
               <span
                 className="text-accent-primary text-xs whitespace-nowrap"
                 title="The dataset has refreshed since this screen loaded — click Refresh to update"
               >
                 ● Newer data available
               </span>
-            ) : null}
+            )}
+            {renderDatasetChip()}
             <div className="flex flex-col items-end leading-tight">
-              {renderStamp(freshnessLabel, lastDataRefresh, showFreshness, freshnessDiagnostic)}
               {renderStamp('Dataflow', dataflowRefresh, showFreshness)}
             </div>
           </div>

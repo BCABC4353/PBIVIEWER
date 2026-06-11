@@ -1,3 +1,5 @@
+const tokens = require('./src/renderer/theme/tokens.json');
+
 module.exports = {
   content: ['./src/renderer/**/*.{js,ts,jsx,tsx,html}'],
   darkMode: 'class',
@@ -15,17 +17,18 @@ module.exports = {
         'neutral-background-5': 'var(--colorNeutralBackground5)',
         'neutral-stroke-1': 'var(--colorNeutralStroke1)',
         'neutral-stroke-2': 'var(--colorNeutralStroke2)',
-        'brand-primary': 'rgb(var(--brand-rgb) / <alpha-value>)',
-        'brand-secondary': '#E54D0A',
-        'brand-background': '#FFF5F0',
+        'brand-primary': tokens.color.brand['80'],
+        ink: tokens.color.ink,
         'accent-primary': 'var(--colorBrandBackground)',
         'accent-hover': 'var(--colorBrandBackgroundHover)',
         'accent-pressed': 'var(--colorBrandBackgroundPressed)',
-        'status-success': 'rgb(var(--status-success-rgb) / <alpha-value>)',
-        'status-warning': 'rgb(var(--status-warning-rgb) / <alpha-value>)',
-        'status-error': 'rgb(var(--status-error-rgb) / <alpha-value>)',
-        'status-info': 'rgb(var(--status-info-rgb) / <alpha-value>)',
+        'status-success': tokens.color.status.success,
+        'status-warning': tokens.color.status.warning,
+        'status-error': tokens.color.status.error,
+        'status-info': tokens.color.status.info,
       },
+      spacing: tokens.spacing,
+      borderRadius: tokens.radius,
       fontFamily: {
         sans: ['"Segoe UI"', 'system-ui', 'sans-serif'],
       },

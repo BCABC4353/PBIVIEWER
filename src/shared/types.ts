@@ -82,6 +82,8 @@ export interface DataFreshness {
   datasetRefreshTime: string | null;
   dataflowRefreshTime: string | null;
   datasetCount: number;
+  scheduleSummary?: string;
+  scheduleOverdue?: boolean;
 }
 
 

@@ -2,6 +2,7 @@
 import { useAuthStore } from '../stores/auth-store';
 import { useContentStore } from '../stores/content-store';
 import { useSearchStore } from '../stores/search-store';
+import { clearDatasetFreshnessCache } from './dataset-freshness';
 
 export function initEvictOnLogout(): () => void {
   const initial = useAuthStore.getState();
@@ -24,6 +25,7 @@ export function initEvictOnLogout(): () => void {
     if (loggedOut || identitySwitched) {
       useContentStore.getState().reset();
       useSearchStore.getState().invalidateAll();
+      clearDatasetFreshnessCache();
     }
 
     prevAuthenticated = nowAuthenticated;

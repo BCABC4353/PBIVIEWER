@@ -11,7 +11,8 @@ import {
 import { useContentStore } from '../../stores/content-store';
 import { useSearchStore } from '../../stores/search-store';
 import { fetchWorkspaceContent } from '../../lib/workspace-content';
-import type { Workspace, Report, Dashboard } from '../../../shared/types';
+import { describeFreshness, getDatasetFreshness } from '../../lib/dataset-freshness';
+import type { Workspace, Report, Dashboard, DatasetRefreshInfo } from '../../../shared/types';
 
 interface WorkspaceWithContent extends Workspace {
   reports: Report[];
@@ -21,6 +22,26 @@ interface WorkspaceWithContent extends Workspace {
   loadWarning?: 'reports' | 'dashboards' | 'both' | null;
 }
 
+const ReportFreshnessHint: React.FC<{ info?: DatasetRefreshInfo | null }> = ({ info }) => {
+  const desc = describeFreshness(info?.lastRefreshTime);
+  if (!desc) return null;
+  return (
+    <span
+      className="flex items-center gap-1 shrink-0"
+      title={desc.isStale ? 'Data is more than a day old' : undefined}
+    >
+      {desc.isStale && (
+        <span aria-hidden="true" className="text-status-warning text-xs leading-none">
+          ▲
+        </span>
+      )}
+      <Text size={200} className="text-neutral-foreground-3 whitespace-nowrap">
+        updated {desc.ageLabel} ago
+      </Text>
+    </span>
+  );
+};
+
 export const WorkspacesPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -29,7 +50,24 @@ export const WorkspacesPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastExpandedId, setLastExpandedId] = useState<string | null>(null);
+  const [datasetFreshness, setDatasetFreshness] = useState<ReadonlyMap<string, DatasetRefreshInfo | null>>(
+    () => new Map(),
+  );
   const contentLoadedRef = useRef<Set<string>>(new Set());
+
+  const loadReportFreshness = useCallback((workspaceId: string, reports: Report[]) => {
+    for (const report of reports) {
+      if (!report.datasetId) continue;
+      const datasetId = report.datasetId;
+      void getDatasetFreshness(datasetId, workspaceId).then((info) => {
+        setDatasetFreshness((prev) => {
+          const next = new Map(prev);
+          next.set(datasetId, info);
+          return next;
+        });
+      });
+    }
+  }, []);
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -106,7 +144,8 @@ export const WorkspacesPage: React.FC = () => {
           : ws
       )
     );
-  }, []);
+    loadReportFreshness(workspaceId, reports);
+  }, [loadReportFreshness]);
 
   const retryWorkspaceContent = useCallback(async (workspaceId: string) => {
     contentLoadedRef.current.delete(workspaceId);
@@ -130,7 +169,8 @@ export const WorkspacesPage: React.FC = () => {
           : ws,
       ),
     );
-  }, []);
+    loadReportFreshness(workspaceId, result.reports);
+  }, [loadReportFreshness]);
 
   useEffect(() => {
     loadWorkspaces();
@@ -238,7 +278,7 @@ export const WorkspacesPage: React.FC = () => {
                     </Text>
                   </div>
                   {workspace.isExpanded && !workspace.isLoading && (
-                    <Badge appearance="outline" size="small">
+                    <Badge appearance="outline" size="small" color="informative">
                       {workspace.reports.length + workspace.dashboards.length} items
                     </Badge>
                   )}
@@ -292,12 +332,15 @@ export const WorkspacesPage: React.FC = () => {
                             className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
                             onClick={() => openReport(workspace, report)}
                           >
-                            <DocumentRegular className="text-accent-primary" />
+                            <DocumentRegular className="text-neutral-foreground-2" />
                             <div className="flex-1 min-w-0">
                               <Text className="text-neutral-foreground-1 block truncate">
                                 {report.name}
                               </Text>
                             </div>
+                            {report.datasetId && (
+                              <ReportFreshnessHint info={datasetFreshness.get(report.datasetId)} />
+                            )}
                             <Badge appearance="outline" size="small" color="informative">
                               Report
                             </Badge>
@@ -311,13 +354,13 @@ export const WorkspacesPage: React.FC = () => {
                             className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
                             onClick={() => openDashboard(workspace, dashboard)}
                           >
-                            <BoardRegular className="text-status-success" />
+                            <BoardRegular className="text-neutral-foreground-2" />
                             <div className="flex-1 min-w-0">
                               <Text className="text-neutral-foreground-1 block truncate">
                                 {dashboard.name}
                               </Text>
                             </div>
-                            <Badge appearance="outline" size="small" color="success">
+                            <Badge appearance="outline" size="small" color="informative">
                               Dashboard
                             </Badge>
                           </button>

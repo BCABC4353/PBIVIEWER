@@ -2,14 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --status-error-rgb:   209, 52, 56;
-  --status-warning-rgb: 255, 185, 0;
-  --status-success-rgb: 16, 124, 16;
-  --status-info-rgb:    0, 120, 212;
-  --brand-rgb:          255, 95, 21;
-}
-
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

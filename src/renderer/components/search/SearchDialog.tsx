@@ -123,15 +123,15 @@ export const SearchDialog: React.FC = () => {
   const getIcon = (type: string) => {
     switch (type) {
       case 'report':
-        return <DocumentRegular className="text-brand-primary" />;
+        return <DocumentRegular className="text-neutral-foreground-2" />;
       case 'dashboard':
-        return <BoardRegular className="text-status-success" />;
+        return <BoardRegular className="text-neutral-foreground-2" />;
       case 'app':
-        return <AppsRegular className="text-purple-600" />;
+        return <AppsRegular className="text-neutral-foreground-2" />;
       case 'workspace':
-        return <FolderRegular className="text-amber-600" />;
+        return <FolderRegular className="text-neutral-foreground-2" />;
       default:
-        return <DocumentRegular />;
+        return <DocumentRegular className="text-neutral-foreground-2" />;
     }
   };
 

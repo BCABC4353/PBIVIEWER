@@ -60,7 +60,7 @@ describe('AppViewer smoke', () => {
     vi.mocked(window.electronAPI.content.getDataFreshness).mockResolvedValue({
       success: true,
       data: {
-        datasetRefreshTime: '2026-06-10T12:00:00Z',
+        datasetRefreshTime: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
         dataflowRefreshTime: null,
         datasetCount: 1,
       },
@@ -91,7 +91,7 @@ describe('AppViewer smoke', () => {
     );
   });
 
-  it('labels the freshness stamp "Data refreshed" for a single-dataset app', async () => {
+  it('presents the freshness chip as "Updated" for a single-dataset app', async () => {
     vi.mocked(window.electronAPI.content.getAppReports).mockResolvedValue({
       success: true,
       data: [makeReport('r-1', 'ds-1')],
@@ -100,13 +100,14 @@ describe('AppViewer smoke', () => {
     const { container } = await renderAppViewer();
 
     await waitFor(() => {
-      const strip = container.querySelector('[data-freshness-strip]');
-      expect(strip?.textContent).toMatch(/Data refreshed: \d{2}\/\d{2}\/2026/);
+      const chip = container.querySelector('[data-freshness-chip]');
+      expect(chip?.textContent).toMatch(/Updated \d+ min ago/);
+      expect(chip?.getAttribute('title')).toMatch(/Data refreshed: \d{2}\/\d{2}\/2026/);
     });
     expect(screen.queryByText(/Oldest data/)).toBeNull();
   });
 
-  it('labels the freshness stamp "Oldest data" when the aggregate spans multiple datasets', async () => {
+  it('presents the freshness chip as "Oldest data" when the aggregate spans multiple datasets', async () => {
     vi.mocked(window.electronAPI.content.getAppReports).mockResolvedValue({
       success: true,
       data: [makeReport('r-1', 'ds-1'), makeReport('r-2', 'ds-2')],
@@ -115,8 +116,9 @@ describe('AppViewer smoke', () => {
     const { container } = await renderAppViewer();
 
     await waitFor(() => {
-      const strip = container.querySelector('[data-freshness-strip]');
-      expect(strip?.textContent).toMatch(/Oldest data: \d{2}\/\d{2}\/2026/);
+      const chip = container.querySelector('[data-freshness-chip]');
+      expect(chip?.textContent).toMatch(/Oldest data \d+ min ago/);
+      expect(chip?.getAttribute('title')).toMatch(/Oldest data: \d{2}\/\d{2}\/2026/);
     });
     expect(window.electronAPI.content.getDataFreshness).toHaveBeenCalledWith('ws-1', [
       { datasetId: 'ds-1', workspaceId: 'ws-1' },

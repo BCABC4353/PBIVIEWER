@@ -71,9 +71,9 @@ export const ItemList: React.FC<ItemListProps> = ({
               <TableCellLayout
                 media={
                   item.type === 'report' ? (
-                    <DocumentRegular className="text-accent-primary" />
+                    <DocumentRegular className="text-neutral-foreground-2" />
                   ) : (
-                    <BoardRegular className="text-brand-primary" />
+                    <BoardRegular className="text-neutral-foreground-2" />
                   )
                 }
               >
@@ -84,7 +84,7 @@ export const ItemList: React.FC<ItemListProps> = ({
               <Badge
                 appearance="outline"
                 size="small"
-                color={item.type === 'report' ? 'informative' : 'brand'}
+                color="informative"
               >
                 {item.type === 'report' ? 'Report' : 'Dashboard'}
               </Badge>

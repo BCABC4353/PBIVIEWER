@@ -1,6 +1,7 @@
 
 import { HttpError, type PowerBIApiResponse } from './http';
 import { buildErrorEnvelope } from './envelope';
+import { deriveScheduleInfo } from '../../../shared/refresh-health-core';
 import type {
   App,
   DatasetRefreshInfo,
@@ -10,6 +11,14 @@ import type {
 } from '../../../shared/types';
 
 const LINEAGE_TTL_MS = 30 * 60 * 1000;
+const SCHEDULE_OVERDUE_FLOOR_MS = 2 * 60 * 60 * 1000;
+
+interface RefreshScheduleRaw {
+  days?: string[];
+  times?: string[];
+  enabled?: boolean;
+  localTimeZoneId?: string;
+}
 
 export interface FreshnessPort {
   request<T>(endpoint: string): Promise<T>;
@@ -27,6 +36,8 @@ export class PowerBIFreshnessApi {
 
   private appReportTargetCache = new Map<string, { value: DatasetWorkspaceRef | null; expires: number }>();
 
+  private readonly scheduleCache = new Map<string, { value: RefreshScheduleRaw | null; expires: number }>();
+
   constructor(port: FreshnessPort) {
     this.port = port;
   }
@@ -34,6 +45,33 @@ export class PowerBIFreshnessApi {
   clearCaches(): void {
     this.appReportTargetCache.clear();
     this.lineageCache.clear();
+    this.scheduleCache.clear();
+  }
+
+  private async getDatasetSchedule(
+    workspaceId: string,
+    datasetId: string,
+  ): Promise<RefreshScheduleRaw | null> {
+    const cacheKey = `${workspaceId}|${datasetId}`.toLowerCase();
+    const cached = this.scheduleCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return cached.value;
+    const epochAtStart = this.port.getCacheEpoch();
+    try {
+      const sched = await this.port.request<RefreshScheduleRaw>(
+        `/groups/${workspaceId}/datasets/${datasetId}/refreshSchedule`,
+      );
+      if (this.port.getCacheEpoch() === epochAtStart) {
+        this.scheduleCache.set(cacheKey, { value: sched, expires: Date.now() + LINEAGE_TTL_MS });
+      }
+      return sched;
+    } catch (error) {
+      const status = error instanceof HttpError ? error.status : undefined;
+      if (status === 404 && this.port.getCacheEpoch() === epochAtStart) {
+        this.scheduleCache.set(cacheKey, { value: null, expires: Date.now() + LINEAGE_TTL_MS });
+      }
+      console.warn('[PowerBI] Refresh schedule unavailable (degrading):', error);
+      return null;
+    }
   }
 
   async resolveAppReportDataset(
@@ -385,9 +423,28 @@ export class PowerBIFreshnessApi {
         }
       }
 
+      let scheduleInfo: Pick<DataFreshness, 'scheduleSummary' | 'scheduleOverdue'> = {};
+      const onlyRef = refs.length === 1 ? refs[0] : undefined;
+      if (onlyRef) {
+        const sched = await this.getDatasetSchedule(onlyRef.workspaceId, onlyRef.datasetId);
+        if (sched) {
+          scheduleInfo = deriveScheduleInfo(
+            sched,
+            datasetRefreshTime ?? undefined,
+            Date.now(),
+            SCHEDULE_OVERDUE_FLOOR_MS,
+          );
+        }
+      }
+
       return {
         success: true,
-        data: { datasetRefreshTime, dataflowRefreshTime, datasetCount: refs.length },
+        data: {
+          datasetRefreshTime,
+          dataflowRefreshTime,
+          datasetCount: refs.length,
+          ...scheduleInfo,
+        },
       };
     } catch (error) {
       console.warn('[PowerBI] Data freshness unavailable:', error);

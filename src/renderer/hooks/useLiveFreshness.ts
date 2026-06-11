@@ -3,12 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export interface FreshnessSnapshot {
   datasetRefreshTime: string | null;
   dataflowRefreshTime: string | null;
+  scheduleOverdue?: boolean;
+  scheduleSummary?: string;
 }
 
 export function useLiveFreshness(
   fetcher: () => Promise<FreshnessSnapshot | null>,
   loadedAt: number | null,
-): { datasetRefreshTime: string | null; dataflowRefreshTime: string | null; newDataAvailable: boolean } {
+): FreshnessSnapshot & { newDataAvailable: boolean } {
   const [snap, setSnap] = useState<FreshnessSnapshot>({
     datasetRefreshTime: null,
     dataflowRefreshTime: null,

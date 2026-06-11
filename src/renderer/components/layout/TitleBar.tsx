@@ -29,27 +29,6 @@ export interface TitleBarProps {
 }
 
 
-const BADGE_COLORS = [
-  'brand',
-  'danger',
-  'important',
-  'informative',
-  'severe',
-  'subtle',
-  'success',
-  'warning',
-] as const;
-
-type BadgeColor = (typeof BADGE_COLORS)[number];
-
-function tenantBadgeColor(tenant: string): BadgeColor {
-  let hash = 5381;
-  for (let i = 0; i < tenant.length; i++) {
-    hash = ((hash << 5) + hash) ^ tenant.charCodeAt(i);
-  }
-  return BADGE_COLORS[Math.abs(hash) % BADGE_COLORS.length] ?? 'brand';
-}
-
 function emailToDomain(email: string): string {
   const at = email.lastIndexOf('@');
   return at >= 0 ? email.slice(at + 1) : email;
@@ -98,7 +77,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
   }, [openSearch, variant]);
 
   const tenantDomain = user ? emailToDomain(user.email) : '';
-  const badgeColor: BadgeColor = tenantDomain ? tenantBadgeColor(tenantDomain) : 'brand';
 
   return (
     <>
@@ -163,8 +141,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                         />
                         {tenantDomain && (
                           <Badge
-                            appearance="filled"
-                            color={badgeColor}
+                            appearance="outline"
+                            color="informative"
                             size="small"
                             className="hidden md:inline-flex max-w-[120px] truncate"
                             title={tenantDomain}

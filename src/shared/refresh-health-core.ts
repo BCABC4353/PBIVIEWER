@@ -96,6 +96,7 @@ export function deriveScheduleInfo(
   sched: { days?: string[]; times?: string[]; enabled?: boolean; localTimeZoneId?: string } | null | undefined,
   lastSuccessTime?: string,
   now: number = Date.now(),
+  overdueFloorMs: number = 24 * 60 * 60 * 1000,
 ): Pick<InsightsRefreshable, 'scheduleSummary' | 'scheduleOverdue'> {
   if (!sched || sched.enabled !== true) return {};
 
@@ -109,7 +110,7 @@ export function deriveScheduleInfo(
   if (lastSuccessTime) {
     const slotsPerWeek = Math.max(1, (days.length || 7) * (times.length || 1));
     const expectedGapMs = (7 * 24 * 60 * 60 * 1000) / slotsPerWeek;
-    const overdueAfterMs = Math.max(24 * 60 * 60 * 1000, 2 * expectedGapMs);
+    const overdueAfterMs = Math.max(overdueFloorMs, 2 * expectedGapMs);
     scheduleOverdue = now - Date.parse(lastSuccessTime) > overdueAfterMs;
   } else {
     scheduleOverdue = true;

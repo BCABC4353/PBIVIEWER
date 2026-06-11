@@ -125,7 +125,13 @@ export const AppViewer: React.FC = () => {
     };
   }, [appId]);
 
-  const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
+  const {
+    datasetRefreshTime,
+    dataflowRefreshTime,
+    scheduleOverdue,
+    scheduleSummary,
+    newDataAvailable,
+  } = useLiveFreshness(
     useCallback(async () => {
       let target = selectFreshnessTarget(
         currentReportIdRef.current,
@@ -152,6 +158,8 @@ export const AppViewer: React.FC = () => {
       return {
         datasetRefreshTime: r.data.datasetRefreshTime,
         dataflowRefreshTime: r.data.dataflowRefreshTime,
+        scheduleOverdue: r.data.scheduleOverdue,
+        scheduleSummary: r.data.scheduleSummary,
       };
     }, [appId]),
     lastLoadAt,
@@ -310,6 +318,8 @@ export const AppViewer: React.FC = () => {
         isRefreshing={isRefreshing}
         lastDataRefresh={datasetRefreshTime}
         dataflowRefresh={dataflowRefreshTime}
+        scheduleOverdue={scheduleOverdue}
+        scheduleSummary={scheduleSummary}
         freshnessLabel={freshnessLabel}
         freshnessDiagnostic={freshnessDiagnostic}
         showRelativeAge
