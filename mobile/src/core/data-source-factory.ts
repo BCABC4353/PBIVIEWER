@@ -20,7 +20,7 @@ import {
   type LatestRefresh,
   type ReportCatalog,
   type ReportRef,
-} from './report-catalog';
+ resolveReportDatasetId } from './report-catalog';
 import {
   clearCanvasSpecCache,
   deriveCanvasForDataset,
@@ -48,6 +48,9 @@ export function createDataSource(mode: DataMode): DataSource {
 export interface ReportsModel {
   catalog: ReportCatalog;
   deriveCanvas(report: ReportRef, opts?: DeriveOptions): Promise<CanvasSpec>;
+  /** Recover the dataset behind an app report (datasetId="" quirk). Null =
+   *  genuinely no queryable dataset; throws = source workspace unreachable. */
+  resolveDatasetId(report: ReportRef): Promise<string | null>;
   makeRunner(datasetId: string): (dax: string) => Promise<QueryResult>;
   fetchRefresh(report: ReportRef): Promise<LatestRefresh | null>;
 }
@@ -65,6 +68,7 @@ export function createReportsModel(mode: DataMode): ReportsModel | null {
       report.datasetId
         ? deriveCanvasForDataset(tokens, report.datasetId, report.name, opts)
         : Promise.reject(new Error('Report has no dataset')),
+    resolveDatasetId: (report) => resolveReportDatasetId(tokens, report),
     makeRunner: (datasetId) => (dax) => executeDax(tokens, datasetId, dax),
     fetchRefresh: (report) =>
       report.datasetId

@@ -31,7 +31,8 @@ export const LiveReportScreen: React.FC<{
 }> = ({ report, model, onBack }) => {
   const [spec, setSpec] = useState<CanvasSpec | null>(null);
   const [error, setError] = useState<{ message: string; apiError: string | null } | null>(null);
-  const [step, setStep] = useState<DeriveStep>('model');
+  const [step, setStep] = useState<DeriveStep | 'locate'>('model');
+  const [dsId, setDsId] = useState<string | undefined>(report.datasetId);
   const [refresh, setRefresh] = useState<LatestRefresh | null | 'pending'>('pending');
   const mountedRef = useRef(true);
   const runIdRef = useRef(0);
@@ -51,17 +52,36 @@ export const LiveReportScreen: React.FC<{
     const live = () => mountedRef.current && runIdRef.current === runId;
     setSpec(null);
     setError(null);
-    setStep('model');
-    if (!report.datasetId) {
-      setError({
-        message:
-          "This report doesn't expose a dataset the app can query (it may be a paginated report), so it can't be rendered natively.",
-        apiError: null,
-      });
-      return;
+    // App reports arrive with datasetId="" on this tenant; hop to the source
+    // workspace (originalReportObjectId) to recover the dataset first.
+    let datasetId = report.datasetId;
+    if (!datasetId) {
+      setStep('locate');
+      try {
+        datasetId = (await model.resolveDatasetId(report)) ?? undefined;
+      } catch (e) {
+        if (!live()) return;
+        setError({
+          message: "Couldn't reach this report's source workspace to locate its dataset.",
+          apiError: e instanceof Error ? e.message : String(e),
+        });
+        return;
+      }
+      if (!live()) return;
+      if (!datasetId) {
+        setError({
+          message:
+            "This report doesn't expose a dataset the app can query (it may be a paginated report), so it can't be rendered natively.",
+          apiError: null,
+        });
+        return;
+      }
+      setDsId(datasetId);
     }
+    setStep('model');
+    const effective = datasetId === report.datasetId ? report : { ...report, datasetId };
     try {
-      const s = await model.deriveCanvas(report, {
+      const s = await model.deriveCanvas(effective, {
         onStep: (st) => {
           if (live()) setStep(st);
         },
@@ -94,7 +114,7 @@ export const LiveReportScreen: React.FC<{
     let alive = true;
     setRefresh('pending');
     void model
-      .fetchRefresh(report)
+      .fetchRefresh(dsId ? { ...report, datasetId: dsId } : report)
       .then((r) => {
         if (alive && mountedRef.current) setRefresh(r);
       })
@@ -104,12 +124,9 @@ export const LiveReportScreen: React.FC<{
     return () => {
       alive = false;
     };
-  }, [error, model, report]);
+  }, [error, model, report, dsId]);
 
-  const runQuery = useMemo(
-    () => (report.datasetId ? model.makeRunner(report.datasetId) : null),
-    [model, report.datasetId],
-  );
+  const runQuery = useMemo(() => (dsId ? model.makeRunner(dsId) : null), [model, dsId]);
 
   if (spec && runQuery) {
     return <ReportCanvasScreen spec={spec} runQuery={runQuery} onBack={onBack} />;
@@ -120,7 +137,7 @@ export const LiveReportScreen: React.FC<{
         <ErrorCard
           error={error}
           refresh={refresh}
-          onRetry={report.datasetId ? () => void derive() : undefined}
+          onRetry={() => void derive()}
         />
       </Shell>
     );
@@ -205,7 +222,8 @@ const Shell: React.FC<{ onBack: () => void; title: string; children: React.React
   </SafeAreaView>
 );
 
-const STEP_LINE: Record<DeriveStep, string> = {
+const STEP_LINE: Record<DeriveStep | 'locate', string> = {
+  locate: 'Locating dataset\u2026',
   model: 'Reading model…',
   visuals: 'Building visuals…',
   stats: 'Reading column statistics…',
@@ -218,7 +236,7 @@ const STEP_LINE: Record<DeriveStep, string> = {
  * Motion — static blocks, the step text still changes. Once the spec lands,
  * each visual shows its own per-visual loading state on the canvas.
  */
-const Deriving: React.FC<{ step: DeriveStep }> = ({ step }) => (
+const Deriving: React.FC<{ step: DeriveStep | 'locate' }> = ({ step }) => (
   <View accessibilityLabel={`Loading report: ${STEP_LINE[step]}`}>
     <Text style={styles.stepLine} accessibilityLiveRegion="polite">
       {STEP_LINE[step]}

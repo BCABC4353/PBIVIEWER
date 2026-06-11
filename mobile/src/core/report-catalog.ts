@@ -25,8 +25,13 @@ export interface ReportRef {
   sourceKind: 'app' | 'workspace';
   sourceId: string;
   sourceName: string;
-  /** Workspace that owns the dataset, when known (workspace reports). */
+  /** Workspace that owns the dataset, when known (workspace reports, and
+   *  app reports via the app's source workspace). */
   workspaceId?: string;
+  /** App reports: the same report's id in the source workspace. Used to hop
+   *  to the dataset when the app listing returns datasetId="" (tenant-verified
+   *  quirk, diagnose-pbi 2026-06-10). */
+  originalReportId?: string;
 }
 
 /** Reports grouped by where they came from; apps always sort before workspaces. */
@@ -140,6 +145,8 @@ export async function listAllPages<T>(
 interface RawApp {
   id: string;
   name: string;
+  /** The app's source workspace — where its reports' datasets live. */
+  workspaceId?: string;
 }
 interface RawGroup {
   id: string;
@@ -150,6 +157,8 @@ interface RawReport {
   name: string;
   datasetId?: string;
   reportType?: string;
+  /** App reports only: the SAME report's id in the source workspace. */
+  originalReportObjectId?: string;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -231,7 +240,7 @@ export class LiveReportCatalog implements ReportCatalog {
         failedSources.push(app.name);
         return null;
       }
-      return this.toGroup('app', app.id, app.name, reports);
+      return this.toGroup('app', app.id, app.name, reports, app.workspaceId);
     });
     const wsGroups = await mapWithConcurrency(workspaces ?? [], SOURCE_CONCURRENCY, async (ws) => {
       const reports = await this.tryListAll<RawReport>(`/groups/${ws.id}/reports`);
@@ -239,7 +248,7 @@ export class LiveReportCatalog implements ReportCatalog {
         failedSources.push(ws.name);
         return null;
       }
-      return this.toGroup('workspace', ws.id, ws.name, reports);
+      return this.toGroup('workspace', ws.id, ws.name, reports, ws.id);
     });
 
     // Apps first, then workspaces; empty sources stay out of the list.
@@ -257,6 +266,7 @@ export class LiveReportCatalog implements ReportCatalog {
     id: string,
     name: string,
     reports: RawReport[],
+    datasetWorkspaceId?: string,
   ): ReportGroup {
     return {
       kind,
@@ -271,7 +281,11 @@ export class LiveReportCatalog implements ReportCatalog {
           sourceKind: kind,
           sourceId: id,
           sourceName: name,
-          workspaceId: kind === 'workspace' ? id : undefined,
+          workspaceId: datasetWorkspaceId,
+          originalReportId:
+            typeof r.originalReportObjectId === 'string' && r.originalReportObjectId
+              ? r.originalReportObjectId
+              : undefined,
         })),
     };
   }
@@ -311,4 +325,62 @@ export async function fetchLatestRefresh(
     }
   }
   return null;
+}
+
+/**
+ * Pick a dataset id from a workspace's report listing: exact original-id
+ * match first, then case-insensitive name match. Pure - unit-tested.
+ */
+export function pickDatasetIdFromReports(
+  reports: ReadonlyArray<{ id?: string; name?: string; datasetId?: string }>,
+  originalReportId?: string,
+  reportName?: string,
+): string | undefined {
+  const byId = originalReportId ? reports.find((r) => r.id === originalReportId) : undefined;
+  if (byId && typeof byId.datasetId === 'string' && byId.datasetId) return byId.datasetId;
+  const lower = reportName ? reportName.toLowerCase() : undefined;
+  const byName = lower ? reports.find((r) => r.name && r.name.toLowerCase() === lower) : undefined;
+  return byName && typeof byName.datasetId === 'string' && byName.datasetId
+    ? byName.datasetId
+    : undefined;
+}
+
+/**
+ * Resolve the dataset behind an APP report. Tenant-verified quirk
+ * (diagnose-pbi, 2026-06-10): /apps/{id}/reports returns datasetId as ""
+ * but carries originalReportObjectId - the same report in the app's source
+ * workspace, where datasetId IS populated. One hop recovers it.
+ *
+ * Returns the datasetId, or null when the source workspace genuinely has no
+ * queryable dataset for this report (paginated etc.). THROWS when the source
+ * workspace cannot be read at all (network/permission), so callers can show
+ * the real failure instead of mislabeling it "paginated".
+ */
+export async function resolveReportDatasetId(
+  tokens: TokenProvider,
+  report: ReportRef,
+): Promise<string | null> {
+  if (report.datasetId) return report.datasetId;
+  const ws = report.workspaceId;
+  if (!ws) return null;
+  const getJson = async (path: string): Promise<unknown> => {
+    const token = await tokens.getAccessToken();
+    const res = await fetch(`${BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`Power BI API ${res.status} on ${path}`);
+    return (await res.json()) as unknown;
+  };
+  // Cheap path: fetch the single source-workspace report by its original id.
+  if (report.originalReportId) {
+    try {
+      const r = (await getJson(`/groups/${ws}/reports/${report.originalReportId}`)) as {
+        datasetId?: string;
+      };
+      if (typeof r.datasetId === 'string' && r.datasetId) return r.datasetId;
+    } catch {
+      /* fall through to the listing path */
+    }
+  }
+  // Listing path: id match first, then name match. Failures here propagate.
+  const page = (await getJson(`/groups/${ws}/reports`)) as { value?: RawReport[] };
+  return pickDatasetIdFromReports(page.value ?? [], report.originalReportId, report.name) ?? null;
 }

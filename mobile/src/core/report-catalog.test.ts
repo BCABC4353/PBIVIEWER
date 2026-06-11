@@ -268,3 +268,35 @@ describe('fetchLatestRefresh', () => {
     expect(await fetchLatestRefresh(tokens, 'd1', 'ws1')).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Dataset hop (app reports arrive with datasetId="" — tenant-verified quirk)
+// ---------------------------------------------------------------------------
+import { pickDatasetIdFromReports } from './report-catalog';
+
+describe('pickDatasetIdFromReports', () => {
+  const reports = [
+    { id: 'r-1', name: 'BELL - DASHBOARD', datasetId: 'ds-1' },
+    { id: 'r-2', name: 'BELL - KPI', datasetId: 'ds-2' },
+    { id: 'r-3', name: 'BELL - PAGINATED' }, // no dataset (paginated)
+  ];
+
+  it('matches by original report id first', () => {
+    expect(pickDatasetIdFromReports(reports, 'r-2', 'WRONG NAME')).toBe('ds-2');
+  });
+
+  it('falls back to a case-insensitive name match', () => {
+    expect(pickDatasetIdFromReports(reports, 'missing-id', 'bell - dashboard')).toBe('ds-1');
+    expect(pickDatasetIdFromReports(reports, undefined, 'BELL - kpi')).toBe('ds-2');
+  });
+
+  it('id match without a datasetId still falls through to the name match', () => {
+    expect(pickDatasetIdFromReports(reports, 'r-3', 'BELL - KPI')).toBe('ds-2');
+  });
+
+  it('returns undefined when nothing matches or the match has no dataset', () => {
+    expect(pickDatasetIdFromReports(reports, 'nope', 'ALSO NOPE')).toBeUndefined();
+    expect(pickDatasetIdFromReports(reports, 'r-3', 'BELL - PAGINATED')).toBeUndefined();
+    expect(pickDatasetIdFromReports([], 'r-1', 'BELL - DASHBOARD')).toBeUndefined();
+  });
+});
