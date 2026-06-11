@@ -281,7 +281,7 @@ describe('InsightsPage — Luce board', () => {
     expect(within(ops).getAllByText(/DORMANT · down/).length).toBeGreaterThan(0);
   });
 
-  it('shows the down-for label, failure-rate caption, dot strip, trigger, owner, and error code', async () => {
+  it('shows the down-for label, failure-rate caption, dot strip, trigger, and error code — owner email never shown (owner v8)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -298,7 +298,7 @@ describe('InsightsPage — Luce board', () => {
     // Trigger (now on the meta line with the relative time), owner, and error
     // code survive the redesign.
     expect(within(sales).getByText(/· Power Automate \/ API$/)).toBeInTheDocument();
-    expect(within(sales).getByText('owner@bc-abc.com')).toBeInTheDocument();
+    expect(within(sales).queryByText('owner@bc-abc.com')).not.toBeInTheDocument(); // identity isn't insight (owner v8)
     expect(within(sales).getByText('ModelRefreshFailed_CredentialsNotSpecified')).toBeInTheDocument();
   });
 
@@ -586,7 +586,7 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     const edge = (from: string, to: string) =>
       diagram.querySelector(`[data-testid="lineage-edge"][data-from="${from}"][data-to="${to}"]`)!;
     expect(edge('df-root', 'ds-sus').getAttribute('data-health')).toBe('failed');
-    expect(edge('ds-sus', 'r-1').getAttribute('data-health')).toBe('stale');
+    expect(edge('ds-sus', 'r-1').getAttribute('data-health')).toBe('failed'); // contiguous damage
     expect(edge('ds-clean', 'r-2').getAttribute('data-health')).toBe('healthy');
 
     // Owner v3 #4: the STALE DATA chip is dead. The suspect row carries the

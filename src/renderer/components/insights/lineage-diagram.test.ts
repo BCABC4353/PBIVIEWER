@@ -49,11 +49,11 @@ function blastOf(
 }
 
 describe('itemHealth — the diagram color language', () => {
-  it('reads failed/cancelled as red, suspects and overdue as amber', () => {
+  it('reads failed/cancelled as red; suspects keep the internal stale token (rendered red, owner v8)', () => {
     expect(itemHealth(item({ lastStatus: 'Failed' }), new Set(), NOW)).toBe('failed');
     expect(itemHealth(item({ lastStatus: 'Cancelled' }), new Set(), NOW)).toBe('failed');
-    expect(itemHealth(item({ id: 'sus' }), new Set(['sus']), NOW)).toBe('stale');
-    expect(itemHealth(item({ scheduleOverdue: true }), new Set(), NOW)).toBe('stale');
+    expect(itemHealth(item({ id: 'sus' }), new Set(['sus']), NOW)).toBe('stale'); // token; renders red
+    expect(itemHealth(item({ scheduleOverdue: true }), new Set(), NOW)).toBe('stale'); // overdue token
   });
 
   it('reads dormant and never-run as ash (isDormant helper), healthy as green', () => {
@@ -103,23 +103,23 @@ describe('deriveLineage — column assignment + edge derivation', () => {
     expect(g.reports.map((n) => n.id)).toEqual(['r-1', 'r-2']);
   });
 
-  it('colors nodes: failed flow red, suspect amber, clean dataset green, suspect-bound report amber', () => {
+  it('colors nodes: failed flow red, suspect tokenized stale (renders red), clean dataset green', () => {
     const g = deriveLineage([flow, sus, clean], blastOf(['ds-sus'], [['df-1', [sus]]]), reports, NOW);
     expect(g.dataflows[0]?.health).toBe('failed');
-    expect(g.datasets.find((n) => n.id === 'ds-sus')?.health).toBe('stale');
+    expect(g.datasets.find((n) => n.id === 'ds-sus')?.health).toBe('stale'); // token; renders red
     expect(g.datasets.find((n) => n.id === 'ds-clean')?.health).toBe('healthy');
-    expect(g.reports.find((n) => n.id === 'r-1')?.health).toBe('stale');
+    expect(g.reports.find((n) => n.id === 'r-1')?.health).toBe('stale'); // token; renders red
     expect(g.reports.find((n) => n.id === 'r-2')?.health).toBe('healthy');
   });
 
-  it('derives edges: red leaving the failed flow, amber from suspect to report, green happy path', () => {
+  it('derives edges: red leaving the failed flow, red from suspect to report (contiguous damage, owner v8), green happy path', () => {
     const g = deriveLineage([flow, sus, clean], blastOf(['ds-sus'], [['df-1', [sus]]]), reports, NOW);
     expect(g.links).toContainEqual({ from: 'df-1', to: 'ds-sus', health: 'failed' });
-    expect(g.links).toContainEqual({ from: 'ds-sus', to: 'r-1', health: 'stale' });
+    expect(g.links).toContainEqual({ from: 'ds-sus', to: 'r-1', health: 'failed' });
     expect(g.links).toContainEqual({ from: 'ds-clean', to: 'r-2', health: 'healthy' });
   });
 
-  it('marks a timing-skew implication amber even when the flow itself is green', () => {
+  it("owner v8 — an implicated dataset edge is RED (contiguous damage), never amber", () => {
     const lateFlow = item({ kind: 'dataflow', id: 'df-late', name: 'Late Flow' });
     const skewed = item({ id: 'ds-skew', name: 'Skewed Model', upstreamDataflowIds: ['df-late'] });
     const g = deriveLineage(
@@ -129,7 +129,7 @@ describe('deriveLineage — column assignment + edge derivation', () => {
       NOW,
     );
     expect(g.dataflows[0]?.health).toBe('healthy');
-    expect(g.links).toContainEqual({ from: 'df-late', to: 'ds-skew', health: 'stale' });
+    expect(g.links).toContainEqual({ from: 'df-late', to: 'ds-skew', health: 'failed' });
   });
 
   it('routes ash edges out of dormant flows and skips lineage to invisible flows', () => {
@@ -140,10 +140,10 @@ describe('deriveLineage — column assignment + edge derivation', () => {
     expect(g.links).toEqual([{ from: 'df-dusty', to: 'ds-x', health: 'dormant' }]);
   });
 
-  it('inherits report health from a FAILED dataset as amber (may be reading stale data)', () => {
+  it('inherits report health from a FAILED dataset (renders red, owner v8)', () => {
     const dead = item({ id: 'ds-dead', name: 'Dead Model', lastStatus: 'Failed' });
     const g = deriveLineage([dead], blastOf(), [{ id: 'r-x', name: 'Bound', datasetId: 'ds-dead' }], NOW);
-    expect(g.reports[0]?.health).toBe('stale');
+    expect(g.reports[0]?.health).toBe('stale'); // internal token; renders red
     expect(g.links).toContainEqual({ from: 'ds-dead', to: 'r-x', health: 'failed' });
   });
 });
@@ -241,7 +241,7 @@ describe('layoutLineage — placement, +N more node, edge remapping', () => {
     const red = layout.edges.find((e) => e.from === 'df-1' && e.to === 'ds-sus')!;
     const amber = layout.edges.find((e) => e.from === 'ds-sus' && e.to === 'r-1')!;
     expect(red.health).toBe('failed');
-    expect(amber.health).toBe('stale');
+    expect(amber.health).toBe('failed');
     expect(red.path).toMatch(/^M [\d.]+ [\d.]+ C /);
   });
 
@@ -270,12 +270,12 @@ describe('layoutLineage — placement, +N more node, edge remapping', () => {
     const g = deriveLineage([...hidden], blastOf(), [], NOW);
     // Manufacture two parallel links between the same drawn pair.
     g.links.push({ from: 'ds-h7', to: 'ds-h8', health: 'healthy' });
-    g.links.push({ from: 'ds-h7', to: 'ds-h8', health: 'stale' });
+    g.links.push({ from: 'ds-h7', to: 'ds-h8', health: 'failed' });
     const layout = layoutLineage(g, { cap: 8 });
     const moreId = overflowNodeId('dataset');
     const selfEdges = layout.edges.filter((e) => e.from === moreId && e.to === moreId);
     expect(selfEdges).toHaveLength(1);
-    expect(selfEdges[0]?.health).toBe('stale');
+    expect(selfEdges[0]?.health).toBe('failed');
   });
 
   it('returns an empty layout for an empty graph', () => {

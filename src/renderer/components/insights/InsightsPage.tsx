@@ -288,6 +288,7 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
   const rel = relativeAge(anchor);
   const status = statusMetaLine(item, stale);
   return (
+  <>
     <div
       role="row"
       className="grid items-center transition-colors hover:bg-white/[0.03]"
@@ -305,38 +306,9 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
         <div className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
           {item.name}
         </div>
-        {item.recentRuns?.some((r) => !r.ok && r.errorDetail) && (
-          <div
-            data-selectable
-            className="mt-1 text-[12px]"
-            style={{ color: luce.textTertiary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-          >
-            {(() => {
-              let det = [...(item.recentRuns ?? [])].reverse().find((r) => !r.ok && r.errorDetail)?.errorDetail ?? '';
-              if (det.startsWith('{')) {
-                const m = /"code"\s*:\s*"([^"]+)"/.exec(det);
-                det = m?.[1] ?? '';
-              }
-              det = det.replace(/<\/?(pii|ccon)>/g, '');
-              const first = det.split(/\.\.|\. /)[0] ?? det;
-              return first.length > 220 ? `${first.slice(0, 220)}…` : first;
-            })()}
-          </div>
-        )}
-        {(item.errorCode || item.configuredBy) && (
-          <div className="mt-1 flex items-center gap-3 text-[12px] min-w-0" style={{ color: luce.textTertiary }}>
-            {item.errorCode && (
-              <span data-selectable className="truncate">
-                {item.errorCode}
-              </span>
-            )}
-            {item.configuredBy && (
-              <span className="truncate" title={item.configuredBy}>
-                {/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.configuredBy)
-                  ? 'service account'
-                  : item.configuredBy}
-              </span>
-            )}
+        {item.errorCode && (
+          <div data-selectable className="mt-1 text-[12px] truncate" style={{ color: luce.textTertiary }}>
+            {item.errorCode}
           </div>
         )}
       </div>
@@ -365,6 +337,25 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
         </div>
       </div>
     </div>
+        {item.recentRuns?.some((r) => !r.ok && r.errorDetail) && (
+          <div
+            data-selectable
+            className="pb-3 text-[12px]"
+            style={{ color: luce.textTertiary, paddingLeft: 32, paddingRight: 12 }}
+          >
+            {(() => {
+              let det = [...(item.recentRuns ?? [])].reverse().find((r) => !r.ok && r.errorDetail)?.errorDetail ?? '';
+              if (det.startsWith('{')) {
+                const m = /"code"\s*:\s*"([^"]+)"/.exec(det);
+                det = m?.[1] ?? '';
+              }
+              det = det.replace(/<\/?(pii|ccon)>/g, '');
+              const first = det.split(/\.\.|\. /)[0] ?? det;
+              return first; // full width, fully readable (owner v8)
+            })()}
+          </div>
+        )}
+  </>
   );
 };
 
@@ -379,9 +370,9 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
 // ---------------------------------------------------------------------------
 
 /** Section label — 11px caps, tracking 0.08em, faint (§C). */
-const SheetLabel: React.FC<{ children: React.ReactNode; wave?: 1 | 2 | 3 }> = ({ children, wave }) => (
+const SheetLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div
-    className={`mb-1${wave ? ` luce-wave luce-wave--${wave}` : ''}`}
+    className="mb-1"
     style={{
       fontSize: 11,
       fontWeight: 600,
@@ -611,17 +602,6 @@ const WorkspaceSheet: React.FC<{
       { duration: SHEET_OPEN_MS, easing: SHEET_FLIGHT_EASE, fill: 'both' },
     );
     flight.onfinish = () => setSettled(true);
-    const nameEl = nameRef.current;
-    if (canAnimate(nameEl) && sx > 0) {
-      // 15px on the tile → 28px in the sheet: under the panel's sx the name
-      // needs scale 15/(28·sx) at t=0 to read tile-sized for the whole flight.
-      nameEl.style.transformOrigin = 'left center';
-      nameEl.animate([{ transform: `scale(${15 / (28 * sx)})` }, { transform: 'none' }], {
-        duration: SHEET_OPEN_MS,
-        easing: SHEET_FLIGHT_EASE, // must match the panel or the name drifts
-        fill: 'both',
-      });
-    }
     if (canAnimate(scrimRef.current)) {
       scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], {
         duration: 250,
@@ -778,18 +758,18 @@ const WorkspaceSheet: React.FC<{
             people. The diagram IS the damage cascade now (owner v3 #3). */}
         <div className="relative z-[1] overflow-y-auto" style={{ padding: '0 32px 28px' }}>
           <div className="space-y-6">
-            <div className="luce-wave luce-wave--1">
+            <div className="">
               <LineageDiagram group={group} blast={blast} reports={reports} />
             </div>
-            <div className="luce-wave luce-wave--1">
+            <div className="">
               <KindKey />
             </div>
             {dataflows.length > 0 && (
               <div>
-                <SheetLabel wave={1}>Dataflows — upstream ({dataflows.length})</SheetLabel>
+                <SheetLabel>Dataflows — upstream ({dataflows.length})</SheetLabel>
                 <div className="luce-hairline-rows">
                   {dataflows.map((r) => (
-                    <div key={`${r.kind}-${r.id}`} className="luce-wave luce-wave--1">
+                    <div key={`${r.kind}-${r.id}`} className="">
                       <RefreshableRow item={r} />
                     </div>
                   ))}
@@ -797,9 +777,9 @@ const WorkspaceSheet: React.FC<{
               </div>
             )}
             <div>
-              <SheetLabel wave={1}>Datasets ({datasets.length})</SheetLabel>
+              <SheetLabel>Datasets ({datasets.length})</SheetLabel>
               {datasets.length === 0 ? (
-                <p className="text-xs luce-wave luce-wave--2" style={{ color: luce.textTertiary }}>
+                <p className="text-xs" style={{ color: luce.textTertiary }}>
                   No datasets visible in this workspace.
                 </p>
               ) : (
@@ -813,7 +793,7 @@ const WorkspaceSheet: React.FC<{
               )}
             </div>
             <div>
-              <SheetLabel wave={1}>People with access</SheetLabel>
+              <SheetLabel>People with access</SheetLabel>
               <div className="luce-wave luce-wave--3">
                 {!access || access.users === null ? (
                   <p className="text-xs" style={{ color: ladder.low, maxWidth: 560, fontSize: 12 }}>
