@@ -28,7 +28,7 @@ export const lineageColor: Record<LineageHealth, string> = {
   healthy: '#3FB68B',
   failed: '#E5484D',
   stale: '#E8A33D',
-  dormant: 'rgba(255,255,255,0.30)', // ash, not failure
+  dormant: 'rgba(255,255,255,0.45)', // ash, not failure — must still READ as a node
 } as const;
 
 /** Damage-first order for prioritization and edge dedupe (worst wins). */

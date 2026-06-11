@@ -22,7 +22,6 @@ import {
   failureRateCaption,
   dotStripCells,
   groupByWorkspace,
-  groupSummaryLabel,
   triageSortGroups,
   workspaceSuspectCount,
   workspaceAffectedReportCount,
@@ -139,11 +138,11 @@ const KindDot: React.FC<{ kind: InsightsRefreshable['kind'] }> = ({ kind }) => (
 );
 
 /** One-line key for the dots, in the engraved legend style (owner v3 #5) —
- *  the words stay lowercase ("● dataflow ● dataset", his exact ask). */
+ *  styled in the engraved uppercase voice like every other label. */
 const KindKey: React.FC = () => (
   <div
     className="luce-legend flex items-center"
-    style={{ gap: 16, textTransform: 'none' }}
+    style={{ gap: 16 }}
     data-testid="kind-key"
   >
     {(['dataflow', 'dataset'] as const).map((kind) => (
@@ -170,7 +169,7 @@ function dotTitle(
   if (kind === 'dataflow') {
     return `Failed · ${time} (no detail provided by Power BI for dataflows)`;
   }
-  if (cell.errorCode) return `Failed · ${time} · ${cell.errorCode}: ${cell.errorDetail ?? ''}`;
+  if (cell.errorCode) return `Failed · ${time} · ${cell.errorCode}`;
   return `Failed · ${time}`;
 }
 
@@ -306,14 +305,33 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
         <div className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
           {item.name}
         </div>
+        {item.recentRuns?.some((r) => !r.ok && r.errorDetail) && (
+          <div
+            data-selectable
+            className="mt-1 text-[12px]"
+            style={{ color: luce.textTertiary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          >
+            {(() => {
+              const det = [...(item.recentRuns ?? [])].reverse().find((r) => !r.ok && r.errorDetail)?.errorDetail ?? '';
+              const first = det.split(/\.\.|\. /)[0] ?? det;
+              return first.length > 220 ? `${first.slice(0, 220)}…` : first;
+            })()}
+          </div>
+        )}
         {(item.errorCode || item.configuredBy) && (
           <div className="mt-1 flex items-center gap-3 text-[12px] min-w-0" style={{ color: luce.textTertiary }}>
             {item.errorCode && (
-              <span data-selectable title={`Power BI error: ${item.errorCode}`} className="truncate">
+              <span data-selectable className="truncate">
                 {item.errorCode}
               </span>
             )}
-            {item.configuredBy && <span className="truncate">{item.configuredBy}</span>}
+            {item.configuredBy && (
+              <span className="truncate" title={item.configuredBy}>
+                {/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.configuredBy)
+                  ? 'service account'
+                  : item.configuredBy}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -338,7 +356,7 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
           style={{ fontSize: 11, color: ladder.low }}
           title={formatTime(anchor)}
         >
-          {rel || '—'} · {item.kind === 'dataset' ? triggerLabel(item.lastRefreshType) : '—'}
+          {[rel || '—', item.kind === 'dataset' ? triggerLabel(item.lastRefreshType) : null].filter(Boolean).join(' · ')}
         </div>
       </div>
     </div>
@@ -698,9 +716,6 @@ const WorkspaceSheet: React.FC<{
 
   const dataflows = group.items.filter((i) => i.kind === 'dataflow');
   const datasets = group.items.filter((i) => i.kind === 'dataset');
-  const pulseItem =
-    group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
-    group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -739,17 +754,6 @@ const WorkspaceSheet: React.FC<{
             >
               {group.workspaceName}
             </h3>
-            <div
-              className="text-xs mt-1"
-              style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}
-            >
-              {groupSummaryLabel(group)}
-            </div>
-            {pulseItem && (
-              <div className="mt-2">
-                <RunDotStrip quiet runs={pulseItem.recentRuns} kind={pulseItem.kind} />
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <DamageCounts counts={group.counts} size={13} gap={16} />

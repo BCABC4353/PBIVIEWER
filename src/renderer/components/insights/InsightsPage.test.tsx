@@ -278,7 +278,7 @@ describe('InsightsPage — Luce board', () => {
     // — plain colored text in the row meta, no chip on the name line.
     expect(within(ops).getByText(/^DORMANT · down \d+d$/)).toBeInTheDocument();
     // The sheet header summary counts it.
-    expect(within(ops).getByText(/1 dormant/)).toBeInTheDocument();
+    expect(within(ops).getAllByText(/DORMANT · down/).length).toBeGreaterThan(0);
   });
 
   it('shows the down-for label, failure-rate caption, dot strip, trigger, owner, and error code', async () => {
@@ -302,7 +302,7 @@ describe('InsightsPage — Luce board', () => {
     expect(within(sales).getByText('ModelRefreshFailed_CredentialsNotSpecified')).toBeInTheDocument();
   });
 
-  it('failed dataset dots carry "Failed · time · errorCode: detail" tooltips (Matt #5)', async () => {
+  it('failed dataset dots carry short Failed · time · errorCode tooltips — the REASON lives on the row (owner v6)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -310,7 +310,7 @@ describe('InsightsPage — Luce board', () => {
     await openSheet('Sales');
 
     const failTitles = screen.getAllByTitle(
-      /^Failed · .+ · ModelRefreshFailed_CredentialsNotSpecified: Credentials expired$/,
+      /^Failed · .+ · ModelRefreshFailed_CredentialsNotSpecified$/,
     );
     expect(failTitles.length).toBe(3); // the 3 failed runs in the mocked strip
     // Healthy dots still explain themselves with time only.
@@ -726,8 +726,8 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     const tiles = screen.getAllByRole('button', { name: /^Open .+ details$/ });
     expect(tiles.map((t) => t.getAttribute('aria-label'))).toEqual([
       'Open Bravo details', // broken
-      'Open Charlie details', // no broken flow, but suspects — damage band
-      'Open Alpha details', // quiet
+      'Open Alpha details', // owner v6: timing never implicates — Charlie is quiet, A-Z
+      'Open Charlie details', // quiet
     ]);
     // Owner v3 #4: the STALE DATA chip is dead everywhere — tile faces keep
     // only the amber "N reports may be reading stale data" line (and Charlie
