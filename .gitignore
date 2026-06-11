@@ -36,3 +36,6 @@ coverage/
 
 # Generated issue-beacon config (optional, may hold a token)
 src/main/services/beacon-config.generated.ts
+
+# Agent worktrees (temporary isolated checkouts; never repo content)
+.claude/worktrees/
