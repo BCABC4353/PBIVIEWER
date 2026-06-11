@@ -706,6 +706,77 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     ).toBeInTheDocument();
   });
 
+  it('names a hard failure on the HERO asset face — "FAILED · down …", not just red dots (Matt)', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero-tile');
+    // Root Flow is Failed with a prior success → the asset face says the word.
+    expect(within(hero).getByText(/FAILED · down/)).toBeInTheDocument();
+  });
+
+  it('shows the failure-rate caption on the HERO asset pulse strips (Matt)', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero-tile');
+    // The quiet hero strips still surface the pattern, not just the dots.
+    expect(within(hero).getByText('1 of last 1 runs failed')).toBeInTheDocument();
+  });
+
+  it('puts the affected-report COUNT on the n=20 tile, not only the solo hero (Matt)', async () => {
+    mockGetInsights({
+      success: true,
+      data: snapshot({
+        workspaceCount: 2,
+        refreshables: [
+          {
+            kind: 'dataflow',
+            id: 'df-a',
+            name: 'A Flow',
+            workspaceId: 'ws-a',
+            workspaceName: 'Alpha',
+            lastStatus: 'Failed',
+            lastAttemptTime: '2026-06-10T02:00:00.000Z',
+            lastSuccessTime: '2026-06-08T02:00:00.000Z',
+            recentRuns: [{ ok: false, endTime: '2026-06-10T02:00:00.000Z' }],
+          },
+          {
+            kind: 'dataset',
+            id: 'ds-a',
+            name: 'A Model',
+            workspaceId: 'ws-a',
+            workspaceName: 'Alpha',
+            lastStatus: 'Completed',
+            lastAttemptTime: '2026-06-10T03:00:00.000Z',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+            upstreamDataflowIds: ['df-a'],
+            recentRuns: [{ ok: true, endTime: '2026-06-10T03:00:00.000Z' }],
+          },
+          {
+            kind: 'dataset',
+            id: 'ds-b',
+            name: 'B Model',
+            workspaceId: 'ws-b',
+            workspaceName: 'Beta',
+            lastStatus: 'Completed',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+            recentRuns: [{ ok: true, endTime: '2026-06-10T03:00:00.000Z' }],
+          },
+        ],
+        reports: [{ id: 'r-a', name: 'Alpha Daily', workspaceId: 'ws-a', datasetId: 'ds-a' }],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    // Two workspaces → n=20 grid (no hero). Alpha's tile carries the count.
+    expect(screen.queryByTestId('luce-hero-tile')).not.toBeInTheDocument();
+    expect(screen.getByText('1 report may be reading stale data')).toBeInTheDocument();
+  });
+
   it('keeps the hero quiet when healthy: no blast line, no green substitute; hides hidden member lists honestly', async () => {
     mockGetInsights({
       success: true,

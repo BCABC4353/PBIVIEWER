@@ -194,7 +194,10 @@ const RunDotStrip: React.FC<{
   quiet?: boolean;
   /** Dot diameter: 7px in the sheet/hero, 6px on the n=20 tiles (§A/§B). */
   size?: number;
-}> = ({ runs, kind, quiet = false, size = 7 }) => {
+  /** Force the failure-rate caption even when quiet (the hero asset strips
+   *  stay non-interactive but must still show "5 of 8 runs failed" — Matt). */
+  caption?: boolean;
+}> = ({ runs, kind, quiet = false, size = 7, caption = false }) => {
   const cells = dotStripCells(runs);
   const label = failureRateCaption(runs);
   return (
@@ -220,7 +223,7 @@ const RunDotStrip: React.FC<{
           />
         ))}
       </div>
-      {quiet ? null : label ? (
+      {quiet && !caption ? null : label ? (
         <span style={{ fontSize: 10, color: ladder.faint, ...tabular }}>{label}</span>
       ) : (
         <span style={{ fontSize: 10, color: ladder.faint }}>
@@ -834,9 +837,10 @@ const WorkspaceTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   suspectCount: number;
+  affectedCount: number;
   ghost: boolean;
   onOpen: (rect: DOMRect, el: HTMLElement) => void;
-}> = ({ group, access, suspectCount, ghost, onOpen }) => {
+}> = ({ group, access, suspectCount, affectedCount, ghost, onOpen }) => {
   const pulseItem =
     group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
     group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
@@ -875,6 +879,11 @@ const WorkspaceTile: React.FC<{
           )}
           {suspectCount > 0 && <StaleBadge />}
         </div>
+        {affectedCount > 0 && (
+          <div className="mt-2" style={{ fontSize: 12, fontWeight: 500, color: luce.warn, ...tabular }}>
+            {affectedCount} report{affectedCount === 1 ? '' : 's'} may be reading stale data
+          </div>
+        )}
         <div className="mt-3 flex items-center gap-2">
           <MetaPill>
             {sets} dataset{sets === 1 ? '' : 's'}
@@ -973,8 +982,17 @@ const HeroTile: React.FC<{
               <div className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
                 {item.name}
               </div>
+              {isDown(item) && (
+                <div
+                  className="mt-0.5 font-semibold whitespace-nowrap"
+                  style={{ fontSize: 11, color: luce.broken, ...tabular }}
+                >
+                  {statusLabel[item.lastStatus].toUpperCase()}
+                  {downForLabel(item) ? ` · ${downForLabel(item)}` : ''}
+                </div>
+              )}
               <div className="mt-1">
-                <RunDotStrip quiet runs={item.recentRuns} kind={item.kind} />
+                <RunDotStrip quiet caption runs={item.recentRuns} kind={item.kind} />
               </div>
             </div>
           ))}
@@ -1604,6 +1622,7 @@ export const InsightsPage: React.FC = () => {
                   group={g}
                   access={accessByWs.get(g.workspaceId)}
                   suspectCount={workspaceSuspectCount(g, blast.suspectDatasetIds)}
+                  affectedCount={workspaceAffectedReportCount(g, blast)}
                   ghost={sheet?.workspaceId === g.workspaceId}
                   onOpen={(rect, el) => setSheet({ workspaceId: g.workspaceId, rect, el })}
                 />
