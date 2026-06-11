@@ -830,6 +830,7 @@ const WorkspaceTile: React.FC<{
       <button
         className={`luce-tile${broken ? ' luce-tile--broken' : ''}`}
         style={morphSource ? { viewTransitionName: 'sheet-morph' } : undefined}
+        data-workspace-tile={group.workspaceId}
         onClick={(e) => onOpen(e.currentTarget)}
         aria-haspopup="dialog"
         aria-label={`Open ${group.workspaceName} details`}
@@ -920,6 +921,7 @@ const HeroTile: React.FC<{
     <button
       className="luce-tile luce-hero-tile"
       data-testid="luce-hero-tile"
+      data-workspace-tile={group.workspaceId}
       style={morphSource ? { viewTransitionName: 'sheet-morph' } : undefined}
       onClick={(e) => onOpen(e.currentTarget)}
       aria-haspopup="dialog"
@@ -1041,7 +1043,7 @@ function dialPoint(c: number, r: number, deg: number): { x: number; y: number } 
   return { x: c + r * Math.cos(a), y: c + r * Math.sin(a) };
 }
 
-const LuceDial: React.FC<{ pct: number; size?: number }> = ({ pct, size = 224 }) => {
+const LuceDial: React.FC<{ pct: number; size?: number }> = ({ pct, size = 264 }) => {
   const c = size / 2;
   const faceR = c - 2;
   const tickOuter = c - 12;
@@ -1208,8 +1210,27 @@ export const InsightsPage: React.FC = () => {
   // and starts the next morph from the real current layout: reversible at
   // any time, never wait for completion (owner ruling).
   const activeVtRef = useRef<{ skipTransition: () => void } | null>(null);
+  // True only while a transition is actually animating. The press router
+  // below keys off this — it must never hijack at-rest clicks.
+  const vtLiveRef = useRef(false);
+  // Synchronous truth for the press router: which workspace the sheet is
+  // (or is about to be) showing. React state lags one VT update callback
+  // behind (probe-measured ~300ms), so the router can never trust `sheet`.
+  const sheetIntentRef = useRef<{ workspaceId: string; el: HTMLElement } | null>(null);
+
+  const armVt = useCallback(
+    (vt: { skipTransition: () => void; finished: Promise<unknown> }) => {
+      activeVtRef.current = vt;
+      vtLiveRef.current = true;
+      void vt.finished.finally(() => {
+        if (activeVtRef.current === vt) vtLiveRef.current = false;
+      });
+    },
+    [],
+  );
 
   const openSheet = useCallback((workspaceId: string, el: HTMLElement) => {
+    sheetIntentRef.current = { workspaceId, el };
     if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
       setSheetSettled(true);
       setSheet({ workspaceId, el });
@@ -1227,17 +1248,20 @@ export const InsightsPage: React.FC = () => {
       // with it (snapshots break if this state change escapes the callback).
       flushSync(() => setSheet({ workspaceId, el }));
     });
-    activeVtRef.current = vt;
+    armVt(vt);
     void vt.finished.finally(() => setSheetSettled(true));
-  }, []);
+  }, [armVt]);
 
   /** §D contraction — the same morph in reverse, at the close observation
    *  speed (a `:root`-level class scopes the shorter duration rule). Focus
    *  returns to the originating tile; the tile itself was never hidden, so a
    *  grid hole is impossible by construction. */
   const closeSheet = useCallback(() => {
-    const current = sheet;
+    // The intent ref covers the race where the opening VT's update callback
+    // (which commits `sheet`) hasn't run yet but the user already reversed.
+    const current = sheet ?? sheetIntentRef.current;
     if (!current) return;
+    sheetIntentRef.current = null;
     const opener = current.el;
     if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
       // Unmount synchronously so the sheet's focus guard is gone before
@@ -1257,13 +1281,82 @@ export const InsightsPage: React.FC = () => {
       });
       opener?.focus?.();
     });
-    activeVtRef.current = vt;
+    armVt(vt);
     void vt.finished.finally(() => {
       document.documentElement.classList.remove('vt-closing');
       // At rest nothing needs the name; clear it unless a newer open owns it.
       setMorphId((prev) => (prev === current.workspaceId ? null : prev));
     });
-  }, [sheet]);
+  }, [sheet, armVt]);
+
+  // While ANY view transition runs, the spec captures the whole document
+  // into the root snapshot — the live DOM is unhittable and every press
+  // lands on <html> (probe-verified: mid-morph clicks targeted the root's
+  // "dark" class). So interruption cannot be done in CSS; presses are
+  // routed here instead: skip the transition (the live DOM is hit-testable
+  // again the same instant), then deliver the press to what the user aimed
+  // at. A workspace tile under the point wins even through the scrim —
+  // "I should also be able to open another tile while the animation is
+  // happening." Anything else goes to the topmost live element: the scrim
+  // and panel dead space contract the sheet, real controls activate.
+  useEffect(() => {
+    const onPress = (e: PointerEvent) => {
+      if (!vtLiveRef.current) return;
+      vtLiveRef.current = false;
+      activeVtRef.current?.skipTransition();
+      // The press already happened against the un-hittable document, so the
+      // browser's own click will target <html> and die; suppress it and
+      // route the intent ourselves.
+      e.preventDefault();
+      e.stopPropagation();
+      // Geometry, not hit-testing: right after a skip the live DOM can still
+      // be one update-callback behind (probe-measured), but the board is
+      // always mounted behind the sheet, so tile rects are always true.
+      const tile = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-workspace-tile]'),
+      ).find((t) => {
+        const r = t.getBoundingClientRect();
+        return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      });
+      const closing = document.documentElement.classList.contains('vt-closing');
+      const openWs = sheetIntentRef.current?.workspaceId ?? null;
+      if (closing) {
+        // Mid-contraction: a press on any tile (including the one closing)
+        // opens it — reversal and tile-switch in one rule. Empty-board
+        // presses need nothing beyond the skip.
+        if (tile) openSheet(tile.dataset.workspaceTile as string, tile);
+        return;
+      }
+      if (tile && tile.dataset.workspaceTile !== openWs) {
+        // "I should also be able to open another tile while the animation
+        // is happening."
+        openSheet(tile.dataset.workspaceTile as string, tile);
+        return;
+      }
+      if (openWs) {
+        // Press on the morphing sheet itself (or its originating tile): a
+        // real control inside the live panel activates; anything else means
+        // "reverse it" — same rules as the settled panel.
+        const top = document.elementsFromPoint(e.clientX, e.clientY)[0];
+        if (
+          top instanceof HTMLElement &&
+          top.closest('.luce-sheet') &&
+          top.closest('button, a, input, select, textarea, [data-selectable]')
+        ) {
+          top.click();
+          return;
+        }
+        closeSheet();
+        return;
+      }
+      // No sheet in play (e.g. the filter glide): hand the press to the
+      // topmost live element so cluster tiles and nav stay responsive.
+      const top = document.elementsFromPoint(e.clientX, e.clientY)[0];
+      if (top instanceof HTMLElement) top.click();
+    };
+    document.addEventListener('pointerdown', onPress, true);
+    return () => document.removeEventListener('pointerdown', onPress, true);
+  }, [openSheet, closeSheet]);
 
   // D6: ignition ceremony — once per session, skipped under reduced motion,
   // never gating the content (it only stages the arrival of what is already
@@ -1397,8 +1490,12 @@ export const InsightsPage: React.FC = () => {
   // running present → name A–Z.
   const groups = useMemo(() => {
     const all = snapshot?.refreshables ?? [];
-    const visible = activeFilter ? all.filter((r) => matchesTileFilter(r, activeFilter)) : all;
-    return triageSortGroups(groupByWorkspace(visible), blast.suspectDatasetIds);
+    // The filter selects WHICH clients show — it never recomputes a tile's
+    // stats (owner: filtering to Broken showed 0% everywhere because health
+    // was derived from the filtered subset). Full groups, filtered LIST.
+    const full = triageSortGroups(groupByWorkspace(all), blast.suspectDatasetIds);
+    if (!activeFilter) return full;
+    return full.filter((g) => g.items.some((r) => matchesTileFilter(r, activeFilter)));
   }, [snapshot, activeFilter, blast]);
 
   const counts = useMemo(() => {
@@ -1433,7 +1530,17 @@ export const InsightsPage: React.FC = () => {
 
   /** Tile click: activate the filter, or clear it when already active. */
   const toggleFilter = (f: TileFilter) => {
-    setActiveFilter((prev) => (prev === f ? null : f));
+    const apply = () => setActiveFilter((prev) => (prev === f ? null : f));
+    if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
+      apply();
+      return;
+    }
+    // The grid transition rides a quick view transition — cards animate
+    // instead of teleporting (owner: "animate and transition the cards below").
+    document.documentElement.classList.add('vt-filter');
+    const vt = document.startViewTransition(() => flushSync(apply));
+    armVt(vt); // the grid glide is interruptible like every other morph
+    void vt.finished.finally(() => document.documentElement.classList.remove('vt-filter'));
   };
 
   const scrollToSection = (id: string) => {

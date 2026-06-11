@@ -247,10 +247,12 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.getByText(/Showing: Broken/)).toBeInTheDocument();
     // Ops has no broken items, so its whole tile disappears from the board.
     expect(screen.queryByRole('button', { name: 'Open Ops details' })).not.toBeInTheDocument();
-    // Opening the remaining Sales tile shows ONLY the broken row.
+    // Opening the remaining Sales tile shows the FULL workspace — the filter
+    // selects which tiles show, it never elides data or recomputes stats
+    // (owner: filtering to Broken showed "0% everywhere").
     const sales = await openSheet('Sales');
     expect(within(sales).getAllByText('Broken Model').length).toBeGreaterThan(0);
-    expect(within(sales).queryAllByText('Healthy Model')).toHaveLength(0);
+    expect(within(sales).getAllByText('Healthy Model').length).toBeGreaterThan(0);
     await closeSheet();
 
     // The visible "Showing: Broken ✕" chip clears the filter.

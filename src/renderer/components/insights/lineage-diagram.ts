@@ -154,22 +154,14 @@ export function deriveLineage(
       const flow = flowByLowerId.get(flowId.toLowerCase());
       if (!flow) continue; // lineage can reference flows the snapshot can't see
       const flowHealth = health(flow);
-      const implicated = (blast.suspectsByDataflow.get(flow.id) ?? []).some(
-        (s) => s.id === ds.id,
-      );
       links.push({
         from: flow.id,
         to: ds.id,
-        health:
-          // The damage path is CONTIGUOUS (owner v8): an edge touching a red
-          // node at EITHER end is red — grey-into-red reads as a broken chain.
-          flowHealth === 'failed' || dsHealth === 'failed' || dsHealth === 'stale'
-            ? 'failed'
-            : implicated
-              ? 'stale'
-              : flowHealth === 'dormant'
-                ? 'dormant'
-                : 'healthy',
+        // Owner (Mohawk ruling): the line out of a flow speaks for THAT
+        // flow — a green flow feeds a green line even into a red dataset.
+        // The dataset node carries the damage (one red parent poisons it),
+        // never its siblings' lines.
+        health: flowHealth,
       });
     }
     for (const r of reportsByDataset.get(ds.id) ?? []) {
