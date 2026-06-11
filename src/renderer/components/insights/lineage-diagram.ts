@@ -161,10 +161,12 @@ export function deriveLineage(
         from: flow.id,
         to: ds.id,
         health:
-          flowHealth === 'failed'
-            ? 'failed' // red leaves the failed node
+          // The damage path is CONTIGUOUS (owner v8): an edge touching a red
+          // node at EITHER end is red — grey-into-red reads as a broken chain.
+          flowHealth === 'failed' || dsHealth === 'failed' || dsHealth === 'stale'
+            ? 'failed'
             : implicated
-              ? 'stale' // timing-skew implication without a hard failure
+              ? 'stale'
               : flowHealth === 'dormant'
                 ? 'dormant'
                 : 'healthy',
@@ -179,11 +181,9 @@ export function deriveLineage(
         from: ds.id,
         to: r.id,
         health:
-          dsHealth === 'failed'
-            ? 'failed'
-            : dsHealth === 'stale'
-              ? 'stale'
-              : dsHealth === 'dormant'
+          dsHealth === 'failed' || dsHealth === 'stale'
+            ? 'failed' // contiguous damage (owner v8)
+            : dsHealth === 'dormant'
                 ? 'dormant'
                 : 'healthy',
       });

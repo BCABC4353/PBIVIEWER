@@ -123,7 +123,7 @@ export function downForLabel(
   now: number = Date.now(),
 ): string | null {
   if (!isDown(item)) return null;
-  if (!item.lastSuccessTime) return 'down — never succeeded';
+  if (!item.lastSuccessTime) return 'never succeeded';
   const ms = now - Date.parse(item.lastSuccessTime);
   if (!Number.isFinite(ms) || ms < 0) return null;
   return `down ${formatElapsed(ms)}`;
@@ -161,7 +161,7 @@ export function dormantDownLabel(
   now: number = Date.now(),
 ): string | null {
   if (!isDormant(item, now)) return null;
-  if (!item.lastSuccessTime) return 'down — never succeeded';
+  if (!item.lastSuccessTime) return 'never succeeded';
   const ms = now - Date.parse(item.lastSuccessTime);
   if (!Number.isFinite(ms) || ms < 0) return null;
   return `down ${formatElapsed(ms)}`;

@@ -70,7 +70,7 @@ describe('downForLabel', () => {
   });
 
   it('reports a never-succeeded broken item honestly', () => {
-    expect(downForLabel(item({ lastStatus: 'Failed' }), NOW)).toBe('down — never succeeded');
+    expect(downForLabel(item({ lastStatus: 'Failed' }), NOW)).toBe('never succeeded');
   });
 
   it('returns null for healthy items and for unparseable/future success times', () => {
@@ -155,7 +155,7 @@ describe('isDormant / dormantDownLabel (Matt #4)', () => {
   it('labels dormancy in the existing down-for voice: "down 657d"', () => {
     const old = new Date(NOW - 657 * 24 * 3600_000).toISOString();
     expect(dormantDownLabel(item({ lastAttemptTime: old, lastSuccessTime: old }), NOW)).toBe('down 657d');
-    expect(dormantDownLabel(item({ lastAttemptTime: old }), NOW)).toBe('down — never succeeded');
+    expect(dormantDownLabel(item({ lastAttemptTime: old }), NOW)).toBe('never succeeded');
     expect(dormantDownLabel(item({ lastAttemptTime: new Date(NOW).toISOString() }), NOW)).toBeNull();
   });
 });
