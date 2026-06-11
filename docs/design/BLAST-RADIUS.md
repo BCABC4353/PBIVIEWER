@@ -50,3 +50,30 @@ cascade, haptic detent on open and on close. Slow, deliberate, tactile.
 Judged in the render loop (screenshots) and on-device. The across-the-room
 test applies to the expanded sheet too: the damage path must be findable in
 one second from across the room.
+
+## Tile-face synopsis (owner revision, 2026-06-10 night — real-data verdict)
+
+The first tile face failed in production: STALE DATA chips on 17 of 18 tiles
+(meaningless at that frequency), one asset's name headlining a whole client,
+a sentence pushing the useful chips off the tile. Owner: "It should be
+summarizing the data and creating a useful quick look synopsis."
+
+- EDGE = ONE health story: red when anything is broken; amber when degraded
+  (overdue/stale, nothing dead); muted green #3FB68B when ALL GOOD
+  (owner-authorized green as the happy-path color).
+- NO sentence, NO badges, NO single-report headline on the face.
+- BODY = stat synopsis: plain numbers with engraved labels —
+  DATASETS · DATAFLOWS · MEMBERS · STALE RPTS (amber, only when nonzero;
+  a count among counts, never a siren). Tabular digits, nothing ever clipped;
+  the tile sizes to its content.
+- Pulse dots stay as a quiet bottom strip — pattern without a name.
+- Damage counts (N broken · N OK) stay top-right.
+
+## Motion (owner re-amplified)
+- The sheet flies FROM the tile's actual location on the page — it must look
+  like the tile growing and revealing, never a centered card fading in.
+- The tile's own items scale/grow during the flight, then the remaining
+  detail folds in after.
+- Contraction returns INTO the originating tile, which must reappear —
+  the close path may never leave a hole in the stack (bug observed in
+  production: ghost tile not released on close).
