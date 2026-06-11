@@ -30,15 +30,13 @@ export interface BlastRadius {
   suspectDatasetIds: Set<string>;
 }
 
-/** True when the dataflow makes a Completed dataset a false positive. */
-function implicates(dataflow: InsightsRefreshable, dataset: InsightsRefreshable): boolean {
-  if (dataflow.lastStatus === 'Failed') return true;
-  // "Refreshed before the flow delivered": both success times must be KNOWN,
-  // and the dataflow's last success must be strictly OLDER than the dataset's.
-  // Date.parse on a malformed stamp yields NaN, and NaN comparisons are false,
-  // so garbage timestamps never implicate.
-  if (!dataflow.lastSuccessTime || !dataset.lastSuccessTime) return false;
-  return Date.parse(dataflow.lastSuccessTime) < Date.parse(dataset.lastSuccessTime);
+/** True when the dataflow makes a Completed dataset a false positive.
+ *  Owner ruling (v6, with screenshot proof): GREEN FEEDS GREEN — only a
+ *  FAILED upstream flow poisons a dataset. The old timestamp clause marked
+ *  the NORMAL pipeline order (flow at 4am, dataset at 5am) as stale and
+ *  painted a 19-OK fleet amber. */
+function implicates(dataflow: InsightsRefreshable, _dataset: InsightsRefreshable): boolean {
+  return dataflow.lastStatus === 'Failed';
 }
 
 export function computeBlastRadius(snapshot: InsightsSnapshot): BlastRadius {

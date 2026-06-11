@@ -73,16 +73,16 @@ describe('computeBlastRadius — cascade rule v1', () => {
     expect(result.suspectsByDataflow.get('df-1')).toEqual([ds]);
   });
 
-  it('marks a Completed dataset suspect when it refreshed BEFORE the flow delivered (flow success older)', () => {
+  it('owner v6 — flow-then-dataset timing is the HAPPY PATH: timing alone NEVER implicates', () => {
     const ds = dataset('ds-1', 'Completed', {
       lastSuccessTime: T2, // dataset refreshed at T2…
       upstreamDataflowIds: ['df-1'],
     });
     const result = computeBlastRadius(
-      snapshot([dataflow('df-1', 'Completed', { lastSuccessTime: T1 }), ds]), // …flow last delivered at T1
+      snapshot([dataflow('df-1', 'Completed', { lastSuccessTime: T1 }), ds]), // …flow delivered at T1: normal pipeline order
     );
-    expect(result.suspectDatasetIds.has('ds-1')).toBe(true);
-    expect(result.suspectsByDataflow.get('df-1')).toEqual([ds]);
+    expect(result.suspectDatasetIds.size).toBe(0);
+    expect(result.suspectsByDataflow.size).toBe(0);
   });
 
   it('keeps a healthy chain empty (flow succeeded AFTER the dataset refreshed)', () => {
@@ -183,7 +183,8 @@ describe('computeBlastRadius — cascade rule v1', () => {
       ]),
     );
     expect(result.suspectsByDataflow.get('df-failed')).toEqual([ds]);
-    expect(result.suspectsByDataflow.get('df-stale')).toEqual([ds]);
+    // owner v6: timing alone never implicates — the slow flow is innocent.
+    expect(result.suspectsByDataflow.has('df-stale')).toBe(false);
     expect(result.suspectsByDataflow.has('df-healthy')).toBe(false);
     expect(result.suspectDatasetIds).toEqual(new Set(['ds-1']));
   });
