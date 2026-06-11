@@ -76,10 +76,10 @@ describe('itemHealth — the diagram color language', () => {
     expect(itemHealth(item({ kind: 'dataflow', id: 'sus' }), new Set(['sus']), NOW)).toBe('healthy');
   });
 
-  it('exposes green/red/amber/ash tokens for the diagram only', () => {
+  it('exposes green/red/red/ash (stale=red, owner v7) tokens for the diagram only', () => {
     expect(lineageColor.healthy).toBe('#3FB68B');
     expect(lineageColor.failed).toBe('#E5484D');
-    expect(lineageColor.stale).toBe('#E8A33D');
+    expect(lineageColor.stale).toBe('#E5484D');
     expect(lineageColor.dormant).toContain('255,255,255'); // ash, not a hue
   });
 });

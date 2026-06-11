@@ -260,7 +260,7 @@ function statusMetaLine(
       color: luce.broken,
     };
   }
-  if (stale) return { text: 'stale', color: luce.warn };
+  if (stale) return { text: 'stale', color: luce.broken }; // owner: both red
   if (item.scheduleOverdue) return { text: `OVERDUE${down ? ` · ${down}` : ''}`, color: luce.warn };
   if (isDormant(item)) {
     const d = dormantDownLabel(item);
@@ -942,7 +942,7 @@ const WorkspaceTile: React.FC<{
             <TileStat
               value={affectedCount}
               label={affectedCount === 1 ? 'stale rpt' : 'stale rpts'}
-              tone={luce.warn}
+              tone={luce.broken}
               title={`${affectedCount} report${affectedCount === 1 ? '' : 's'} may be reading stale data — open to trace`}
             />
           )}
@@ -1808,7 +1808,7 @@ export const InsightsPage: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <span className="text-xs" style={{ color: luce.textTertiary, ...tabular }}>
-                  Last {admin.days} days · snapshot {formatTime(admin.generatedAt)}
+                  Last {admin.days} days · checked {relativeAge(admin.generatedAt) || 'just now'}
                   {admin.fromCache ? ' (cached)' : ''}
                   {admin.failedDays > 0 ? ` · ${admin.failedDays} day(s) could not be read — counts are partial` : ''}
                   {admin.truncated ? ' · very high activity — showing a partial count' : ''}
