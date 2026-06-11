@@ -35,16 +35,26 @@ export interface FreshnessTarget {
    */
   mode: 'report' | 'aggregate';
   datasets: DatasetWorkspacePair[];
+  /**
+   * Set when the URL DID name a report but the known-list match could not
+   * produce a dataset (an id the list doesn't carry, or a listed report
+   * without a datasetId). The caller can hand this id to the main-process
+   * resolver (content.resolveAppReportDataset) for a direct API lookup
+   * instead of settling for the aggregate stamp. Lowercased.
+   */
+  unresolvedReportId?: string;
 }
 
 // A reportId is a GUID path segment right after /reports/ (interactive) or
 // /rdlreports/ (paginated); some Power BI routes carry it as a ?reportId=
-// query param instead. The negative lookahead stops a 36-char prefix of a
-// longer hex-ish token from matching.
+// query param instead. The pattern is a REAL 8-4-4-4-12 GUID (not any 36-char
+// hex/dash run, which also matched runs of dashes or ungrouped hex); the
+// negative lookahead stops a GUID-shaped prefix of a longer token.
+const GUID_SOURCE = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const REPORT_ID_RES = [
-  /\/reports\/([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/,
-  /\/rdlreports\/([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/,
-  /[?&]reportId=([0-9a-fA-F-]{36})(?![0-9a-fA-F-])/,
+  new RegExp(`/reports/(${GUID_SOURCE})(?![0-9a-fA-F-])`),
+  new RegExp(`/rdlreports/(${GUID_SOURCE})(?![0-9a-fA-F-])`),
+  new RegExp(`[?&]reportId=(${GUID_SOURCE})(?![0-9a-fA-F-])`),
 ];
 
 /**
@@ -89,6 +99,9 @@ export function selectFreshnessTarget(
         datasets: [{ datasetId: report.datasetId, workspaceId: report.workspaceId }],
       };
     }
+    // A report IS on screen but the list couldn't target it — tell the caller
+    // which id to escalate to the direct API resolver.
+    return { mode: 'aggregate', datasets: [...aggregateDatasets], unresolvedReportId: wanted };
   }
   return { mode: 'aggregate', datasets: [...aggregateDatasets] };
 }

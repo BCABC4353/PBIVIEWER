@@ -9,6 +9,7 @@ import {
   parseReportIdFromUrl,
   selectFreshnessTarget,
   type AppReportFreshnessInfo,
+  type DatasetWorkspacePair,
 } from './app-report-freshness';
 import { reportIssue } from '../../lib/report-issue';
 import { useAuthStore } from '../../stores/auth-store';
@@ -53,6 +54,16 @@ export const AppViewer: React.FC = () => {
   // the navigation handler read the latest value without re-subscribing.
   const [currentReportId, setCurrentReportId] = useState<string | null>(null);
   const currentReportIdRef = useRef<string | null>(null);
+  // Direct API resolutions for reports the pre-fetched list could NOT target
+  // (id unknown to the list, or listed without a dataset), keyed by lowercased
+  // URL reportId. null = the resolver confidently said "no dataset" (keep the
+  // aggregate stamp; don't re-ask). State drives the header wording; the ref
+  // mirror lets the stable fetcher closure read/extend the map (same pattern
+  // as currentReportId above).
+  const [resolvedTargets, setResolvedTargets] = useState<ReadonlyMap<string, DatasetWorkspacePair | null>>(
+    () => new Map(),
+  );
+  const resolvedTargetsRef = useRef<Map<string, DatasetWorkspacePair | null>>(new Map());
 
   // Load the webview config (partition name) from main process
   useEffect(() => {
@@ -101,6 +112,9 @@ export const AppViewer: React.FC = () => {
   useEffect(() => {
     if (!appId) return;
     let cancelled = false;
+    // The route can switch apps in place — resolutions belong to ONE app.
+    resolvedTargetsRef.current = new Map();
+    setResolvedTargets(new Map());
     void (async () => {
       try {
         const reportsResp = await window.electronAPI.content.getAppReports(appId);
@@ -141,16 +155,40 @@ export const AppViewer: React.FC = () => {
   }, [appId]);
 
   // Poll dataset + upstream-dataflow freshness. When the webview URL names a
-  // known report, ask about that report's ONE dataset so the header shows the
-  // per-report stamp Power BI itself displays; otherwise (app home, dashboard,
-  // unknown report) fall back to the app-wide aggregate.
+  // report, ask about that report's ONE dataset so the header shows the
+  // per-report stamp Power BI itself displays — via the direct API resolver
+  // first, the pre-fetched list as the synchronous fallback. Only app home /
+  // dashboards / genuinely unresolvable reports use the app-wide aggregate.
   const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
     useCallback(async () => {
-      const target = selectFreshnessTarget(
+      let target = selectFreshnessTarget(
         currentReportIdRef.current,
         appReportsRef.current,
         datasetsRef.current,
       );
+      // Whenever a report is on screen, consult the main-process resolver,
+      // which asks the API about that id DIRECTLY (no list assumptions) and
+      // returns the dataset paired with its REAL home workspace — the list
+      // match can only offer the app's source workspace, which mislocates the
+      // upstream-dataflow lineage for shared datasets. Outcomes are cached per
+      // reportId (renderer session + 30 min in main), so this costs a lookup
+      // once per report, not per poll. Precedence: resolver pair → list match
+      // → aggregate; a resolver null (confident "no dataset") must not
+      // downgrade a successful list match, and a transient failure stays
+      // uncached so the next poll retries.
+      const urlReportId = currentReportIdRef.current?.toLowerCase() ?? null;
+      if (urlReportId && appId) {
+        let resolved = resolvedTargetsRef.current.get(urlReportId);
+        if (resolved === undefined) {
+          const resp = await window.electronAPI.content.resolveAppReportDataset(appId, urlReportId);
+          if (resp.success) {
+            resolved = resp.data;
+            resolvedTargetsRef.current.set(urlReportId, resp.data);
+            setResolvedTargets(new Map(resolvedTargetsRef.current));
+          }
+        }
+        if (resolved) target = { mode: 'report', datasets: [resolved] };
+      }
       const first = target.datasets[0];
       if (!first) return null;
       // Pass full {datasetId, workspaceId} PAIRS, not bare ids: an app's reports
@@ -164,27 +202,41 @@ export const AppViewer: React.FC = () => {
         datasetRefreshTime: r.data.datasetRefreshTime,
         dataflowRefreshTime: r.data.dataflowRefreshTime,
       };
-    }, []),
+      // useLiveFreshness reads the fetcher through a per-render ref, so the
+      // identity change when appId flips is harmless (no timer re-arm).
+    }, [appId]),
     lastLoadAt,
   );
 
   // Single-dataset mode (a known report is on screen) shows its exact stamp;
   // the aggregate fallback keeps the v2.2.10 "Oldest data" wording when the
-  // stalest-of-many timestamp is what's displayed.
+  // stalest-of-many timestamp is what's displayed. A report targeted via the
+  // direct API resolver counts the same as a list-matched one.
   const headerTarget = selectFreshnessTarget(
     currentReportId,
     appReportsRef.current,
     datasetsRef.current,
   );
-  const isReportTargeted = headerTarget.mode === 'report';
+  const apiResolvedPair = currentReportId
+    ? resolvedTargets.get(currentReportId.toLowerCase()) ?? null
+    : null;
+  const isReportTargeted = headerTarget.mode === 'report' || apiResolvedPair !== null;
   const freshnessLabel = isReportTargeted || datasetCount <= 1 ? 'Data refreshed' : 'Oldest data';
   // Owner-only targeting trace in the stamp's hover tooltip: when a stamp is
   // wrong, the same screenshot that reports it also says WHY (which report id
-  // the webview URL named, which mode the poll used, what the map knew).
+  // the webview URL named, which mode the poll used, what the map knew, and
+  // whether the direct API resolver had to step in).
   const ownerEmail = useAuthStore((s) => s.user?.email);
+  const headerMode = apiResolvedPair
+    ? 'report (api lookup)'
+    : headerTarget.mode === 'report'
+      ? 'report (list match)'
+      : headerTarget.unresolvedReportId
+        ? `aggregate (unresolved: ${resolvedTargets.has(headerTarget.unresolvedReportId) ? 'api said no dataset' : 'api lookup pending/failed'})`
+        : 'aggregate';
   const freshnessDiagnostic =
     (ownerEmail ?? '').toLowerCase() === 'brendan@bc-abc.com'
-      ? `url report: ${currentReportId ?? 'none (app home)'} · mode: ${headerTarget.mode} · app reports known: ${appReportsRef.current.length}`
+      ? `url report: ${currentReportId ?? 'none (app home)'} · mode: ${headerMode} · app reports known: ${appReportsRef.current.length}`
       : null;
 
   useEffect(() => {

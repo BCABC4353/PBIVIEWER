@@ -69,6 +69,8 @@ function createElectronAPIMock(): ElectronAPI {
       }),
       getAppReports: vi.fn().mockResolvedValue({ success: true, data: [] }),
       getAppDashboards: vi.fn().mockResolvedValue({ success: true, data: [] }),
+      // null = "no per-report target" — App view keeps its aggregate stamp.
+      resolveAppReportDataset: vi.fn().mockResolvedValue({ success: true, data: null }),
       getEmbedToken: vi.fn().mockResolvedValue({
         success: true,
         data: { token: '', tokenId: '', expiration: '' },

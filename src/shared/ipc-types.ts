@@ -83,6 +83,14 @@ export interface ElectronAPI {
     getApp: (appId: string) => Promise<IPCResponse<App>>;
     getAppReports: (appId: string) => Promise<IPCResponse<Report[]>>;
     getAppDashboards: (appId: string) => Promise<IPCResponse<Dashboard[]>>;
+    /** App view per-report freshness: resolve ONE app report (the id the
+     *  webview URL names) to its {datasetId, workspaceId} via a direct API
+     *  lookup. null = confidently not resolvable (caller keeps the aggregate
+     *  stamp); an error = transient, retry next poll. */
+    resolveAppReportDataset: (
+      appId: string,
+      reportId: string,
+    ) => Promise<IPCResponse<DatasetWorkspaceRef | null>>;
     getEmbedToken: (reportId: string, workspaceId: string) => Promise<IPCResponse<EmbedToken>>;
     exportReportToPdf: (
       reportId: string,

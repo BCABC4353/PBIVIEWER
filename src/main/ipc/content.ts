@@ -58,6 +58,13 @@ export function registerContentIpc(): void {
     return await powerbiApiService.getAppDashboards(id);
   });
 
+  ipcMain.handle('content:resolve-app-report-dataset', async (_event, appId: string, reportId: string) => {
+    const aId = validateUUID(appId);
+    const rId = validateUUID(reportId);
+    if (!aId || !rId) return { success: false, error: { code: 'INVALID_INPUT', message: 'Invalid ID' } };
+    return await powerbiApiService.resolveAppReportDataset(aId, rId);
+  });
+
   ipcMain.handle('content:get-embed-token', async (_event, reportId: string, workspaceId: string) => {
     const rId = validateUUID(reportId);
     const wId = validateUUID(workspaceId);

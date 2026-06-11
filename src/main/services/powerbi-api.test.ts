@@ -1703,3 +1703,152 @@ describe('getInsightsSnapshot — blast-radius data spine (lineage + report edge
     expect(result.data.reportCount).toBe(0);
   });
 });
+
+describe('resolveAppReportDataset (App view per-report freshness target)', () => {
+  const APP = '11111111-1111-4111-8111-111111111111';
+  const SOURCE_WS = '22222222-2222-4222-8222-222222222222';
+  const HOME_WS = '33333333-3333-4333-8333-333333333333';
+  const URL_REPORT = '44444444-4444-4444-8444-444444444444';
+  const ORIGINAL = '55555555-5555-4555-8555-555555555555';
+  const DATASET = '66666666-6666-4666-8666-666666666666';
+
+  /** Route fetches by URL substring. A number value = that HTTP status with an
+   *  empty body; an object = 200 with that JSON body. Unrouted URLs explode so
+   *  a test can assert exactly which endpoints were touched. */
+  function routeFetch(routes: Array<[string, number | object]>): ReturnType<typeof vi.fn> {
+    const mock = vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      for (const [needle, result] of routes) {
+        if (u.includes(needle)) {
+          return typeof result === 'number'
+            ? new Response('{}', { status: result })
+            : new Response(JSON.stringify(result), { status: 200 });
+        }
+      }
+      throw new Error(`unrouted fetch in test: ${u}`);
+    });
+    globalThis.fetch = mock as unknown as typeof fetch;
+    return mock;
+  }
+
+  function makeService() {
+    return createPowerBIApiService(
+      makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }),
+    );
+  }
+
+  it('resolves via the direct app-report lookup, in the dataset HOME workspace from webUrl', async () => {
+    routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, { id: URL_REPORT, datasetId: DATASET }],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [
+        `/datasets/${DATASET}`,
+        { webUrl: `https://app.powerbi.com/groups/${HOME_WS}/datasets/${DATASET}` },
+      ],
+    ]);
+    const result = await makeService().resolveAppReportDataset(APP, URL_REPORT);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    // The dataset's REAL group, not the app's source workspace — shared
+    // datasets need their own group for refreshes AND dataflow lineage.
+    expect(result.data).toEqual({ datasetId: DATASET, workspaceId: HOME_WS });
+  });
+
+  it('falls back to the app source workspace when the home-workspace lookup fails', async () => {
+    routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, { id: URL_REPORT, datasetId: DATASET }],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [`/datasets/${DATASET}`, 403],
+    ]);
+    const result = await makeService().resolveAppReportDataset(APP, URL_REPORT);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual({ datasetId: DATASET, workspaceId: SOURCE_WS });
+  });
+
+  it('hops to the source-workspace original when the apps API returns datasetId:"" (tenant quirk)', async () => {
+    routeFetch([
+      [
+        `/apps/${APP}/reports/${URL_REPORT}`,
+        { id: URL_REPORT, datasetId: '', originalReportObjectId: ORIGINAL },
+      ],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [`/groups/${SOURCE_WS}/reports/${ORIGINAL}`, { id: ORIGINAL, datasetId: DATASET }],
+      [`/datasets/${DATASET}`, 404],
+    ]);
+    const result = await makeService().resolveAppReportDataset(APP, URL_REPORT);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual({ datasetId: DATASET, workspaceId: SOURCE_WS });
+  });
+
+  it('probes the source workspace with the URL id itself when the apps API 404s (inverse id form)', async () => {
+    routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, 404],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [`/groups/${SOURCE_WS}/reports/${URL_REPORT}`, { id: URL_REPORT, datasetId: DATASET }],
+      [`/datasets/${DATASET}`, 404],
+    ]);
+    const result = await makeService().resolveAppReportDataset(APP, URL_REPORT);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual({ datasetId: DATASET, workspaceId: SOURCE_WS });
+  });
+
+  it('returns null (confident no-target) when no rung can name a dataset', async () => {
+    routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, 404],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [`/groups/${SOURCE_WS}/reports/${URL_REPORT}`, 404],
+    ]);
+    const result = await makeService().resolveAppReportDataset(APP, URL_REPORT);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toBeNull();
+  });
+
+  it('caches outcomes — the second call answers without touching the API', async () => {
+    const fetchMock = routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, { id: URL_REPORT, datasetId: DATASET }],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [`/datasets/${DATASET}`, 404],
+    ]);
+    const svc = makeService();
+    await svc.resolveAppReportDataset(APP, URL_REPORT);
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    const second = await svc.resolveAppReportDataset(APP, URL_REPORT);
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+    expect(second.success).toBe(true);
+    if (second.success) expect(second.data).toEqual({ datasetId: DATASET, workspaceId: SOURCE_WS });
+  });
+
+  it('clearCaches() drops resolutions (account switch must not leak the prior account\'s map)', async () => {
+    const fetchMock = routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, { id: URL_REPORT, datasetId: DATASET }],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+      [`/datasets/${DATASET}`, 404],
+    ]);
+    const svc = makeService();
+    await svc.resolveAppReportDataset(APP, URL_REPORT);
+    svc.clearCaches();
+    const callsAfterClear = fetchMock.mock.calls.length;
+    await svc.resolveAppReportDataset(APP, URL_REPORT);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterClear);
+  });
+
+  it('does NOT cache a transient failure — the next call retries', async () => {
+    // 403 on the app-report read is NOT the confident-404 path: it throws and
+    // surfaces as an error envelope.
+    const fetchMock = routeFetch([
+      [`/apps/${APP}/reports/${URL_REPORT}`, 403],
+      [`/apps/${APP}`, { id: APP, name: 'App', workspaceId: SOURCE_WS }],
+    ]);
+    const svc = makeService();
+    const first = await svc.resolveAppReportDataset(APP, URL_REPORT);
+    expect(first.success).toBe(false);
+    if (!first.success) expect(first.error.code).toBe('APP_REPORT_TARGET_FAILED');
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    await svc.resolveAppReportDataset(APP, URL_REPORT);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+  });
+});

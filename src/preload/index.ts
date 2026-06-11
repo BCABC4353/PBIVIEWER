@@ -31,6 +31,9 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('content:get-app-reports', appId),
     getAppDashboards: (appId: string) =>
       ipcRenderer.invoke('content:get-app-dashboards', appId),
+    // App view per-report freshness — direct lookup when list-matching failed.
+    resolveAppReportDataset: (appId: string, reportId: string) =>
+      ipcRenderer.invoke('content:resolve-app-report-dataset', appId, reportId),
     getEmbedToken: (reportId: string, workspaceId: string) =>
       ipcRenderer.invoke('content:get-embed-token', reportId, workspaceId),
     exportReportToPdf: (

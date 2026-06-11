@@ -26,6 +26,9 @@ export const IPC_CHANNELS = {
     getApp: 'content:get-app',
     getAppReports: 'content:get-app-reports',
     getAppDashboards: 'content:get-app-dashboards',
+    // App view per-report freshness: resolve ONE app report (named by the
+    // webview URL) to its {datasetId, workspaceId} when list-matching failed.
+    resolveAppReportDataset: 'content:resolve-app-report-dataset',
     getEmbedToken: 'content:get-embed-token',
     exportReportPdf: 'content:export-report-pdf',
     getDatasetRefreshInfo: 'content:get-dataset-refresh-info',

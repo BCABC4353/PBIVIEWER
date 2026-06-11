@@ -77,6 +77,21 @@ describe('parseReportIdFromUrl', () => {
     ).toBeNull();
   });
 
+  it('requires the real 8-4-4-4-12 GUID shape, not any 36-char hex/dash run', () => {
+    // 36 dashes — length matches, shape does not.
+    expect(
+      parseReportIdFromUrl(
+        `https://app.powerbi.com/groups/me/apps/${APP_ID}/reports/${'-'.repeat(36)}/x`,
+      ),
+    ).toBeNull();
+    // 36 ungrouped hex chars — length matches, grouping does not.
+    expect(
+      parseReportIdFromUrl(
+        `https://app.powerbi.com/groups/me/apps/${APP_ID}/reports/${'a'.repeat(36)}/x`,
+      ),
+    ).toBeNull();
+  });
+
   it('extracts the reportId from a paginated /rdlreports/ app URL', () => {
     expect(
       parseReportIdFromUrl(
@@ -151,20 +166,40 @@ describe('selectFreshnessTarget', () => {
     });
   });
 
-  it('falls back to the aggregate for a reportId not in the app report list', () => {
+  it('falls back to the aggregate for a reportId not in the app report list — and flags it unresolved', () => {
     const target = selectFreshnessTarget('deadbeef-dead-beef-dead-beefdeadbeef', reports, aggregate);
     expect(target.mode).toBe('aggregate');
     expect(target.datasets).toEqual(aggregate);
+    // The caller escalates this id to the main-process resolver.
+    expect(target.unresolvedReportId).toBe('deadbeef-dead-beef-dead-beefdeadbeef');
   });
 
-  it('falls back to the aggregate when the viewed report has no datasetId', () => {
+  it('falls back to the aggregate when the viewed report has no datasetId — and flags it unresolved', () => {
     const target = selectFreshnessTarget('cccccccc-0000-0000-0000-000000000000', reports, aggregate);
     expect(target.mode).toBe('aggregate');
     expect(target.datasets).toEqual(aggregate);
+    expect(target.unresolvedReportId).toBe('cccccccc-0000-0000-0000-000000000000');
+  });
+
+  it('lowercases the unresolved id so resolver cache keys are stable', () => {
+    const target = selectFreshnessTarget(
+      'DEADBEEF-DEAD-BEEF-DEAD-BEEFDEADBEEF',
+      reports,
+      aggregate,
+    );
+    expect(target.unresolvedReportId).toBe('deadbeef-dead-beef-dead-beefdeadbeef');
+  });
+
+  it('does NOT flag an unresolved report on app home (nothing for the resolver to look up)', () => {
+    expect(selectFreshnessTarget(null, reports, aggregate).unresolvedReportId).toBeUndefined();
   });
 
   it('falls back to an EMPTY aggregate before the report list resolves (fetcher then yields null)', () => {
-    expect(selectFreshnessTarget(REPORT_A, [], [])).toEqual({ mode: 'aggregate', datasets: [] });
+    expect(selectFreshnessTarget(REPORT_A, [], [])).toEqual({
+      mode: 'aggregate',
+      datasets: [],
+      unresolvedReportId: REPORT_A,
+    });
   });
 
   it('returns a copy of the aggregate list, not the live ref array', () => {

@@ -222,6 +222,13 @@ class PowerBIApiService {
   private insightsCache: { value: InsightsSnapshot; expires: number } | null = null;
   private static readonly INSIGHTS_TTL_MS = 5 * 60 * 1000;
 
+  // Per-(app, report) freshness-target resolutions for the App view (see
+  // resolveAppReportDataset). A resolution costs up to three API calls and the
+  // freshness poll re-runs every 5 minutes, so outcomes — including "this id is
+  // not a report" nulls — are cached. Report→dataset bindings are as static as
+  // lineage, so the lineage TTL is reused.
+  private appReportTargetCache = new Map<string, { value: DatasetWorkspaceRef | null; expires: number }>();
+
   constructor(deps: PowerBIApiDeps) {
     this.deps = deps;
   }
@@ -236,6 +243,7 @@ class PowerBIApiService {
   clearCaches(): void {
     this.insightsCache = null;
     this.adminInsightsCache = null;
+    this.appReportTargetCache.clear();
     lineageCache.clear();
   }
 
@@ -590,6 +598,121 @@ class PowerBIApiService {
         error: buildErrorEnvelope('APP_REPORTS_FETCH_FAILED', error),
       };
     }
+  }
+
+  /**
+   * Resolve the dataset behind ONE report inside an app — the App view's
+   * per-report freshness target. The renderer first matches the webview URL
+   * against its pre-fetched app report list; this is the SECOND CHANCE when
+   * that match fails (the URL named a GUID the list doesn't carry, or the
+   * matched report had no datasetId even after getAppReports' backfill).
+   * Asking the API about the URL's own id directly removes every list-matching
+   * assumption that has historically broken per-report stamps.
+   *
+   * Resolution ladder (each rung one request, later rungs best-effort):
+   *   1. GET /apps/{appId}/reports/{reportId} — does the app know this id?
+   *      A 404 is a CONFIDENT "not a report of this app" (dashboard id, app
+   *      home token, …) → null, cached, caller keeps the aggregate stamp.
+   *   2. Its datasetId, when the apps API populated it.
+   *   3. The originalReportObjectId hop: GET /groups/{sourceWs}/reports/{id}
+   *      — the SAME report in the app's source workspace, where datasetId IS
+   *      populated (tenant-verified quirk; see getAppReports).
+   *   4. The dataset's REAL home workspace via the groupless dataset lookup —
+   *      a shared dataset can live outside the app's source workspace, and
+   *      both the refreshes call and the upstream-dataflow lineage only answer
+   *      accurately in the dataset's own group.
+   */
+  async resolveAppReportDataset(
+    appId: string,
+    reportId: string,
+  ): Promise<IPCResponse<DatasetWorkspaceRef | null>> {
+    const cacheKey = `${appId}|${reportId}`.toLowerCase();
+    const cached = this.appReportTargetCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) {
+      return { success: true, data: cached.value };
+    }
+    try {
+      const appResponse = await this.getApp(appId);
+      const sourceWorkspaceId = appResponse.success ? appResponse.data.workspaceId : undefined;
+
+      let report: { datasetId?: string; originalReportObjectId?: string } | null = null;
+      try {
+        report = await this.makeRequest<{ datasetId?: string; originalReportObjectId?: string }>(
+          `/apps/${appId}/reports/${reportId}`,
+        );
+      } catch (error) {
+        const status = error instanceof HttpError ? error.status : undefined;
+        if (status !== 404) throw error;
+      }
+
+      let datasetId = report?.datasetId || undefined;
+      // The apps API doesn't know the id at all? The URL may be carrying the
+      // SOURCE-WORKSPACE form of the report id (the inverse of the
+      // originalReportObjectId hop below) — ask the source workspace directly.
+      if (!report && sourceWorkspaceId) {
+        try {
+          const direct = await this.makeRequest<{ datasetId?: string }>(
+            `/groups/${sourceWorkspaceId}/reports/${reportId}`,
+          );
+          datasetId = direct.datasetId || undefined;
+        } catch (error) {
+          const status = error instanceof HttpError ? error.status : undefined;
+          if (status !== 404 && status !== 401 && status !== 403) {
+            console.warn('[PowerBI] App report source-workspace probe failed (degrading):', error);
+          }
+        }
+      }
+      if (!datasetId && report?.originalReportObjectId && sourceWorkspaceId) {
+        try {
+          const original = await this.makeRequest<{ datasetId?: string }>(
+            `/groups/${sourceWorkspaceId}/reports/${report.originalReportObjectId}`,
+          );
+          datasetId = original.datasetId || undefined;
+        } catch (error) {
+          console.warn('[PowerBI] App report original-report hop failed (degrading):', error);
+        }
+      }
+
+      const value: DatasetWorkspaceRef | null =
+        datasetId && sourceWorkspaceId
+          ? {
+              datasetId,
+              workspaceId: await this.resolveDatasetHomeWorkspace(datasetId, sourceWorkspaceId),
+            }
+          : null;
+
+      this.appReportTargetCache.set(cacheKey, { value, expires: Date.now() + LINEAGE_TTL_MS });
+      return { success: true, data: value };
+    } catch (error) {
+      // NOT cached: a transient failure (network blip, throttle) must not pin
+      // this report to the aggregate stamp until the cache expires.
+      console.warn('[PowerBI] App report freshness target unresolved:', error);
+      return { success: false, error: buildErrorEnvelope('APP_REPORT_TARGET_FAILED', error) };
+    }
+  }
+
+  /**
+   * Best-effort home-workspace lookup for a dataset. The groupless dataset
+   * read works for any dataset the caller can access, and its webUrl names the
+   * dataset's REAL group (https://app.powerbi.com/groups/{ws}/datasets/{id}).
+   * Falls back to the provided workspace when the lookup or the parse fails
+   * (e.g. a My-Workspace dataset, whose webUrl has no group GUID).
+   */
+  private async resolveDatasetHomeWorkspace(
+    datasetId: string,
+    fallbackWorkspaceId: string,
+  ): Promise<string> {
+    try {
+      const dataset = await this.makeRequest<{ webUrl?: string }>(`/datasets/${datasetId}`);
+      const homeWorkspaceId =
+        /\/groups\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\//.exec(
+          dataset.webUrl ?? '',
+        )?.[1];
+      if (homeWorkspaceId) return homeWorkspaceId;
+    } catch (error) {
+      console.warn('[PowerBI] Dataset home-workspace lookup failed (using app workspace):', error);
+    }
+    return fallbackWorkspaceId;
   }
 
   async getAppDashboards(appId: string): Promise<IPCResponse<Dashboard[]>> {
