@@ -1,6 +1,6 @@
 {
   "name": "powerbi-viewer",
-  "version": "2.2.6",
+  "version": "2.2.7",
   "description": "Power BI Desktop Viewer - A clean, isolated viewing experience",
   "author": "BC-ABC",
   "main": "dist/main/main/index.js",
