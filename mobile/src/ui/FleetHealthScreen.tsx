@@ -1,25 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FlatList, Platform, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, Text, View,
+  FlatList,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
 import { sortWorstFirst } from '../core/refresh-health';
+import { presentError, type PresentableError } from '../core/error-presenter';
 import { groupFleetByWorkspace, type WorkspaceTile } from '../core/workspace-tiles';
-import { DetailLine, FleetHero, StatusChip, detailTrigger } from './components';
+import { FleetHero } from './components';
 import { BlastSheet, WorkspaceTileCard, type FrameRect } from './BlastRadius';
-import { Sparkline } from './Sparkline';
+import { ErrorState } from './states';
 import { SkeletonPulse } from '../feel/primitives';
 import { thunk } from '../feel/haptics';
-import { relativeAge } from '../core/refresh-health';
 
 export const FleetHealthScreen: React.FC<{
   source: DataSource;
   sample?: boolean;
   onOpen: (r: Refreshable) => void;
-}> = ({ source, sample, onOpen }) => {
+  onSignIn?: () => void;
+}> = ({ source, sample, onOpen, onSignIn }) => {
   const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<PresentableError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [progress, setProgress] = useState<{ pct: number; items: number } | null>(null);
   const [expanded, setExpanded] = useState<{
@@ -43,7 +51,7 @@ export const FleetHealthScreen: React.FC<{
         });
         if (live()) setSnapshot(snap);
       } catch (e) {
-        if (live()) setError(e instanceof Error ? e.message : 'Could not load fleet status');
+        if (live()) setError(presentError(e, 'your fleet'));
       } finally {
         if (live()) setProgress(null);
       }
@@ -85,19 +93,8 @@ export const FleetHealthScreen: React.FC<{
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" />
-      {error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorTitle}>Couldn't read your fleet</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable
-            onPress={() => void load(true)}
-            style={styles.retry}
-            accessibilityRole="button"
-            accessibilityLabel="Retry loading fleet status"
-          >
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
-        </View>
+      {error && !snapshot ? (
+        <ErrorState error={error} onRetry={() => void load(true)} onSignIn={onSignIn} />
       ) : !snapshot ? (
         <FleetSkeleton progress={progress} />
       ) : (
@@ -121,11 +118,16 @@ export const FleetHealthScreen: React.FC<{
                     read
                   </Text>
                 ) : null}
+                {error ? (
+                  <Text style={styles.partial} accessibilityLiveRegion="polite">
+                    Couldn't refresh — {error.title}. Showing the last loaded snapshot.
+                  </Text>
+                ) : null}
               </>
             }
             ListEmptyComponent={
               <View style={styles.center}>
-                <Text style={styles.errorText}>
+                <Text style={styles.emptyText}>
                   No refreshable datasets or dataflows in your workspaces yet.
                 </Text>
               </View>
@@ -181,38 +183,6 @@ const FleetSkeleton: React.FC<{ progress: { pct: number; items: number } | null 
   </View>
 );
 
-export const RefreshDetailScreen: React.FC<{ item: Refreshable; onBack: () => void }> = ({ item, onBack }) => {
-  const now = Date.now();
-  return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar barStyle="light-content" />
-      <Pressable onPress={onBack} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
-        <Text style={styles.backText}>‹ Fleet</Text>
-      </Pressable>
-      <View style={styles.detailHeader}>
-        <Text style={styles.detailTitle}>{item.name}</Text>
-        <Text style={styles.detailSub}>
-          {item.workspaceName} · {item.kind}
-        </Text>
-        <View style={{ marginTop: space.m }}>
-          <StatusChip status={item.lastStatus} overdue={item.scheduleOverdue} />
-        </View>
-      </View>
-      <View style={styles.detailBody}>
-        <DetailLine label="Last success" value={item.lastSuccessTime ? relativeAge(item.lastSuccessTime, now) : '—'} />
-        <DetailLine label="Last attempt" value={item.lastAttemptTime ? relativeAge(item.lastAttemptTime, now) : '—'} />
-        {item.kind === 'dataset' ? <DetailLine label="Trigger" value={detailTrigger(item.lastRefreshType)} /> : null}
-        <DetailLine label="Schedule" value={item.scheduleSummary} />
-        <DetailLine label="Owner" value={item.configuredBy} />
-        <DetailLine label="Error" value={item.errorCode} tone={color.broken} />
-        {item.recentDurationsMin ? (
-          <Sparkline values={item.recentDurationsMin} label="Refresh duration — recent runs" />
-        ) : null}
-      </View>
-    </SafeAreaView>
-  );
-};
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -221,12 +191,9 @@ const styles = StyleSheet.create({
   },
   host: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.m, padding: space.l },
-  errorTitle: { ...type.body, color: color.textPrimary, fontWeight: '600', textAlign: 'center' },
-  errorText: { ...type.body, color: color.textSecondary, textAlign: 'center' },
+  emptyText: { ...type.body, color: color.textSecondary, textAlign: 'center' },
   partial: { ...type.caption, color: color.textTertiary, textAlign: 'center', paddingBottom: space.m },
   skeletonCaption: { ...type.caption, color: color.textTertiary, textAlign: 'center', paddingVertical: space.m },
-  retry: { borderWidth: 1, borderColor: color.accent, borderRadius: 12, paddingHorizontal: space.l, paddingVertical: space.s },
-  retryText: { ...type.body, color: color.accent },
 
   skeleton: { flex: 1, paddingHorizontal: space.l },
   skeletonHero: {
@@ -238,11 +205,4 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface1, marginTop: space.s, marginBottom: space.xl,
   },
   skeletonRow: { height: 52, borderRadius: 12, backgroundColor: color.surface1, marginBottom: space.m },
-
-  back: { paddingHorizontal: space.l, paddingVertical: space.s },
-  backText: { ...type.body, color: color.accent },
-  detailHeader: { paddingHorizontal: space.l, paddingTop: space.m },
-  detailTitle: { ...type.title, color: color.textPrimary },
-  detailSub: { ...type.caption, color: color.textTertiary, marginTop: 4 },
-  detailBody: { paddingHorizontal: space.l, marginTop: space.l },
 });

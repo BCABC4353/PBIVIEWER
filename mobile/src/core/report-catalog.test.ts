@@ -262,6 +262,28 @@ describe('fetchLatestRefresh', () => {
     stubFetch({});
     expect(await fetchLatestRefresh(tokens, 'd1', 'ws1')).toBeNull();
   });
+
+  it('falls through to the dataset route when the workspace route answers with no entries', async () => {
+    const { calls } = stubFetch({
+      '/groups/ws1/datasets/d1/refreshes?$top=1': { value: [] },
+      '/datasets/d1/refreshes?$top=1': {
+        value: [{ status: 'Failed', endTime: '2026-06-11T05:00:00Z' }],
+      },
+    });
+    expect(await fetchLatestRefresh(tokens, 'd1', 'ws1')).toEqual({
+      status: 'Failed',
+      endTime: '2026-06-11T05:00:00Z',
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('returns null when every route answers but none has a usable entry', async () => {
+    stubFetch({
+      '/groups/ws1/datasets/d1/refreshes?$top=1': { value: [] },
+      '/datasets/d1/refreshes?$top=1': { value: [{}] },
+    });
+    expect(await fetchLatestRefresh(tokens, 'd1', 'ws1')).toBeNull();
+  });
 });
 
 import { pickDatasetIdFromReports } from './report-catalog';

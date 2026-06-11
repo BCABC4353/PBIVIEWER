@@ -257,7 +257,6 @@ export async function fetchLatestRefresh(
       const body = (await res.json()) as { value?: Array<{ status?: string; endTime?: string }> };
       const first = body.value?.[0];
       if (first?.status) return { status: first.status, endTime: first.endTime };
-      return null;
     } catch {
     }
   }

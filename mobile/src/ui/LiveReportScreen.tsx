@@ -14,14 +14,17 @@ import type { ReportsModel } from '../core/data-source-factory';
 import type { LatestRefresh, ReportRef } from '../core/report-catalog';
 import { CanvasDerivationError, type DeriveStep } from '../core/canvas-crosswalk';
 import type { CanvasSpec } from '../core/dax';
+import { classifyError, presentError } from '../core/error-presenter';
 import { SkeletonPulse } from '../feel/primitives';
+import { ErrorState } from './states';
 import { ReportCanvasScreen } from './ReportCanvasScreen';
 
 export const LiveReportScreen: React.FC<{
   report: ReportRef;
   model: ReportsModel;
   onBack: () => void;
-}> = ({ report, model, onBack }) => {
+  onSignIn?: () => void;
+}> = ({ report, model, onBack, onSignIn }) => {
   const [spec, setSpec] = useState<CanvasSpec | null>(null);
   const [error, setError] = useState<{ message: string; apiError: string | null } | null>(null);
   const [step, setStep] = useState<DeriveStep | 'locate'>('model');
@@ -118,13 +121,22 @@ export const LiveReportScreen: React.FC<{
     return <ReportCanvasScreen spec={spec} runQuery={runQuery} onBack={onBack} />;
   }
   if (error) {
+    const authError = classifyError(`${error.message} ${error.apiError ?? ''}`) === 'auth';
     return (
       <Shell onBack={onBack} title={report.name}>
-        <ErrorCard
-          error={error}
-          refresh={refresh}
-          onRetry={() => void derive()}
-        />
+        {authError ? (
+          <ErrorState
+            error={presentError(new Error('Session expired'), 'this report')}
+            onRetry={() => void derive()}
+            onSignIn={onSignIn}
+          />
+        ) : (
+          <ErrorCard
+            error={error}
+            refresh={refresh}
+            onRetry={() => void derive()}
+          />
+        )}
       </Shell>
     );
   }
@@ -239,7 +251,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.canvas,
     paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
   },
-  back: { paddingHorizontal: space.l, paddingVertical: space.s },
+  back: { paddingHorizontal: space.l, paddingVertical: space.s, minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   backText: { ...type.body, color: color.accent },
   body: { paddingHorizontal: space.l, paddingBottom: space.xxl, gap: space.m },
   title: { ...type.title, color: color.textPrimary, marginBottom: space.s },
@@ -280,6 +292,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: space.m,
     paddingVertical: space.xs,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   pressed: { backgroundColor: color.surface2 },
   retryText: { ...type.caption, color: color.accent },

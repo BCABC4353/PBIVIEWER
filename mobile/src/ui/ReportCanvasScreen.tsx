@@ -19,6 +19,8 @@ import {
   type QueryResult,
   type VisualSpec,
 } from '../core/dax';
+import { presentError } from '../core/error-presenter';
+import { motionEnabled } from '../feel/springs';
 import { BarChart, DataTable, DonutChart, KpiTile, LineChart, VisualCard } from '../visuals';
 
 export const ReportCanvasScreen: React.FC<{
@@ -83,7 +85,12 @@ const CanvasVisual: React.FC<{
     try {
       setResult(await runQuery(visual.dax));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Query failed');
+      const friendly = presentError(e, 'this visual');
+      setError(
+        friendly.kind === 'unknown'
+          ? friendly.detail ?? 'Query failed'
+          : `${friendly.title} — ${friendly.body}`,
+      );
     }
   }, [runQuery, visual.dax]);
 
@@ -93,6 +100,10 @@ const CanvasVisual: React.FC<{
 
   const enter = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (!motionEnabled()) {
+      enter.setValue(1);
+      return;
+    }
     Animated.timing(enter, {
       toValue: 1,
       duration: 420,
@@ -141,7 +152,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.canvas,
     paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
   },
-  back: { paddingHorizontal: space.l, paddingVertical: space.s },
+  back: { paddingHorizontal: space.l, paddingVertical: space.s, minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   backText: { ...type.body, color: color.accent },
   canvas: { paddingHorizontal: space.l, paddingBottom: space.xxl, gap: space.m },
   title: { ...type.title, color: color.textPrimary, marginBottom: space.s },

@@ -12,7 +12,10 @@ import {
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataMode, ReportsModel } from '../core/data-source-factory';
+import { presentError, type PresentableError } from '../core/error-presenter';
+import { thunk } from '../feel/haptics';
 import { gateTabBody } from './tab-gate';
+import { ErrorState, ListSkeleton, ScreenHeader } from './states';
 import {
   defaultExpandedKeys,
   filterCatalogGroups,
@@ -23,6 +26,8 @@ import {
   type ReportRef,
 } from '../core/report-catalog';
 
+const REPORTS_SUBTITLE = 'Rendered natively — no embedded canvas';
+
 export const ReportsScreen: React.FC<{
   model: ReportsModel | null;
   mode: DataMode;
@@ -31,7 +36,7 @@ export const ReportsScreen: React.FC<{
 }> = ({ model, mode, onOpen, onSignIn }) => {
   const gate = gateTabBody('reports', mode, model !== null);
   if (gate === 'data' && model) {
-    return <LiveReportList model={model} onOpen={onOpen} />;
+    return <LiveReportList model={model} onOpen={onOpen} onSignIn={onSignIn} />;
   }
   if (gate === 'sample-reports-card') {
     return (
@@ -55,12 +60,12 @@ export const SignedOutCard: React.FC<{
   onSignIn,
   title = 'Sign in to see your reports',
   body = "Your Power BI apps and workspaces appear here once you're connected.",
-  screenTitle,
-  screenSubtitle,
+  screenTitle = 'Reports',
+  screenSubtitle = REPORTS_SUBTITLE,
 }) => (
   <SafeAreaView style={styles.screen}>
     <StatusBar barStyle="light-content" />
-    <Header title={screenTitle} subtitle={screenSubtitle} />
+    <ScreenHeader title={screenTitle} subtitle={screenSubtitle} />
     <View style={styles.signInWrap}>
       <View style={styles.signInCard}>
         <Text style={styles.signInTitle}>{title}</Text>
@@ -115,9 +120,10 @@ function flatten(groups: ReportGroup[], expanded: ReadonlySet<string>, filtering
 const LiveReportList: React.FC<{
   model: ReportsModel;
   onOpen: (report: ReportRef) => void;
-}> = ({ model, onOpen }) => {
+  onSignIn: () => void;
+}> = ({ model, onOpen, onSignIn }) => {
   const [result, setResult] = useState<ReportCatalogResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<PresentableError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -134,7 +140,7 @@ const LiveReportList: React.FC<{
           setExpanded(defaultExpandedKeys(r.groups));
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not load reports');
+        setError(presentError(e, 'your reports'));
       }
     },
     [model],
@@ -148,6 +154,7 @@ const LiveReportList: React.FC<{
   }, [load]);
 
   const onRefresh = useCallback(async () => {
+    thunk();
     setRefreshing(true);
     await load(true);
     setRefreshing(false);
@@ -167,18 +174,29 @@ const LiveReportList: React.FC<{
   const visible = useMemo(() => filterCatalogGroups(sorted, query), [sorted, query]);
   const rows = result ? flatten(visible, expanded, filtering) : [];
 
+  if (!result && !error) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar barStyle="light-content" />
+        <ScreenHeader title="Reports" subtitle={REPORTS_SUBTITLE} />
+        <ListSkeleton rows={6} caption="Loading your reports…" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" />
       <FlatList
         data={rows}
         keyExtractor={(row) => row.key}
+        contentContainerStyle={rows.length === 0 ? styles.grow : undefined}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={color.accent} />
         }
         ListHeaderComponent={
           <>
-            <Header />
+            <ScreenHeader title="Reports" subtitle={REPORTS_SUBTITLE} />
             {result ? (
               <View style={styles.searchWrap}>
                 <TextInput
@@ -211,34 +229,25 @@ const LiveReportList: React.FC<{
                 Couldn't read: {result.failedSources.join(', ')}
               </Text>
             ) : null}
+            {error && rows.length > 0 ? (
+              <Text style={styles.partial} accessibilityLiveRegion="polite">
+                Couldn't refresh — {error.title}. Showing the last loaded list.
+              </Text>
+            ) : null}
           </>
         }
         ListEmptyComponent={
           error ? (
-            <View style={styles.stateWrap}>
-              <Text style={styles.errorText}>{error}</Text>
-              <Pressable
-                onPress={() => void load(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Retry loading reports"
-                style={({ pressed }) => [styles.retry, pressed && styles.pressed]}
-              >
-                <Text style={styles.retryText}>Retry</Text>
-              </Pressable>
-            </View>
+            <ErrorState error={error} onRetry={() => void load(true)} onSignIn={onSignIn} />
           ) : result && filtering ? (
             <View style={styles.stateWrap}>
               <Text style={styles.muted}>Nothing matches “{query.trim()}”.</Text>
             </View>
-          ) : result ? (
+          ) : (
             <View style={styles.stateWrap}>
               <Text style={styles.muted}>
                 No reports yet — nothing has been shared with this account.
               </Text>
-            </View>
-          ) : (
-            <View style={styles.stateWrap}>
-              <Text style={styles.muted}>Loading your reports…</Text>
             </View>
           )
         }
@@ -304,21 +313,9 @@ const ReportRow: React.FC<{ report: ReportRef; onOpen: (r: ReportRef) => void }>
   </Pressable>
 );
 
-const Header: React.FC<{ title?: string; subtitle?: string }> = ({
-  title = 'Reports',
-  subtitle = 'Rendered natively — no embedded canvas',
-}) => (
-  <View style={styles.header}>
-    <Text style={styles.title}>{title}</Text>
-    {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-  </View>
-);
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.canvas },
-  header: { paddingHorizontal: space.l, paddingTop: space.m, paddingBottom: space.l },
-  title: { ...type.title, color: color.textPrimary },
-  subtitle: { ...type.caption, color: color.textTertiary, marginTop: 4 },
+  grow: { flexGrow: 1 },
 
   signInWrap: { flex: 1, justifyContent: 'center', paddingHorizontal: space.l, paddingBottom: space.xxl },
   signInCard: {
@@ -337,6 +334,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: space.l,
     paddingVertical: space.s,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   signInButtonText: { ...type.body, color: color.accent },
   pressed: { opacity: 0.7 },
@@ -367,15 +366,6 @@ const styles = StyleSheet.create({
   partial: { ...type.caption, color: color.textTertiary, paddingHorizontal: space.l, paddingBottom: space.s },
   stateWrap: { paddingHorizontal: space.l, paddingVertical: space.xl, gap: space.m, alignItems: 'flex-start' },
   muted: { ...type.caption, color: color.textTertiary },
-  errorText: { ...type.caption, color: color.textSecondary },
-  retry: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: color.accent,
-    borderRadius: 8,
-    paddingHorizontal: space.m,
-    paddingVertical: space.xs,
-  },
-  retryText: { ...type.caption, color: color.accent },
 
   groupHeader: {
     flexDirection: 'row',
@@ -394,6 +384,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.m,
+    minHeight: 44,
     paddingHorizontal: space.l,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,

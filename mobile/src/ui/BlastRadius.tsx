@@ -135,6 +135,10 @@ export const BlastSheet: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const releaseCloseLatch = useCallback(() => {
+    closing.current = false;
+  }, []);
+
   const requestClose = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
@@ -146,9 +150,11 @@ export const BlastSheet: React.FC<{
       if (finished) {
         runOnJS(latch)();
         runOnJS(onClose)();
+      } else {
+        runOnJS(releaseCloseLatch)();
       }
     });
-  }, [motion, onClose, progress]);
+  }, [motion, onClose, progress, releaseCloseLatch]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;

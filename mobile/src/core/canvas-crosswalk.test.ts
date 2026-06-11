@@ -285,6 +285,29 @@ describe('deriveCanvasSpec — hard timeouts', () => {
     const spec = await deriveCanvasSpec(run, 'Slow', { rungTimeoutMs: 20, totalTimeoutMs: 500 });
     expect(spec.visuals.length).toBeGreaterThan(0);
   });
+
+  it('a query that fails after its rung already timed out never becomes an unhandled rejection', async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const rejecters: Array<(e: Error) => void> = [];
+      const run: DaxRunner = () =>
+        new Promise<never>((_, reject) => {
+          rejecters.push(reject);
+        });
+      await expect(
+        deriveCanvasSpec(run, 'R', { rungTimeoutMs: 10, totalTimeoutMs: 40 }),
+      ).rejects.toThrow(CanvasDerivationError);
+      for (const reject of rejecters) reject(new Error('late failure after abort'));
+      await new Promise((r) => setTimeout(r, 25));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.removeListener('unhandledRejection', onUnhandled);
+    }
+  });
 });
 
 describe('deriveCanvasSpec — step reporting + defensive INFO parsing', () => {

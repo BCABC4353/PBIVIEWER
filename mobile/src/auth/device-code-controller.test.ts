@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DeviceCodeCancelledError,
+  DeviceCodeExpiredError,
   type DeviceCodeChallenge,
   type DeviceCodePollHooks,
 } from './device-code-auth';
@@ -63,6 +64,7 @@ function harness() {
       persistCount += 1;
       return Promise.resolve();
     },
+    now: () => 1_000_000,
   });
   const unsubscribeState = controller.subscribe((s) => states.push(s));
   const unsubscribeSignIn = controller.onSignedIn((u) => signedIn.push(u));
@@ -88,12 +90,14 @@ describe('DeviceCodeController generations', () => {
       phase: 'polling',
       userCode: 'BXQ4-HT7P',
       pollStatus: 'waiting',
+      expiresAt: 1_900_000,
     });
     h.polls[0]!.hooks.onStatus?.('slow_down');
     expect(h.controller.getState()).toEqual({
       phase: 'polling',
       userCode: 'BXQ4-HT7P',
       pollStatus: 'slow_down',
+      expiresAt: 1_900_000,
     });
     h.polls[0]!.result.resolve(tokensFor('a'));
     const user = await startP;
@@ -119,6 +123,7 @@ describe('DeviceCodeController generations', () => {
       phase: 'polling',
       userCode: 'BXQ4-HT7P',
       pollStatus: 'waiting',
+      expiresAt: 1_900_000,
     });
 
     h.polls[1]!.result.resolve(tokensFor('fresh'));
@@ -146,6 +151,7 @@ describe('DeviceCodeController generations', () => {
       phase: 'polling',
       userCode: 'BXQ4-HT7P',
       pollStatus: 'waiting',
+      expiresAt: 1_900_000,
     });
 
     h.polls[1]!.result.resolve(tokensFor('b'));
@@ -207,10 +213,68 @@ describe('DeviceCodeController generations', () => {
       phase: 'polling',
       userCode: 'BXQ4-HT7P',
       pollStatus: 'waiting',
+      expiresAt: 1_900_000,
     });
 
     h.polls[1]!.result.resolve(tokensFor('e'));
     await secondP;
+    expect(h.controller.getState()).toEqual({ phase: 'idle' });
+  });
+
+  it('an expired code surfaces the dedicated expired state, not a generic error', async () => {
+    const h = harness();
+    const startP = h.controller.start();
+    await tick();
+    h.polls[0]!.result.reject(new DeviceCodeExpiredError());
+    expect(await startP).toBeNull();
+    expect(h.controller.getState()).toEqual({ phase: 'expired' });
+    expect(h.signedIn).toHaveLength(0);
+  });
+
+  it('clearError resets the expired state back to idle', async () => {
+    const h = harness();
+    const startP = h.controller.start();
+    await tick();
+    h.polls[0]!.result.reject(new DeviceCodeExpiredError());
+    await startP;
+    h.controller.clearError();
+    expect(h.controller.getState()).toEqual({ phase: 'idle' });
+  });
+
+  it('a stale attempt expiring never clobbers the active attempt with the expired state', async () => {
+    const h = harness();
+    const firstP = h.controller.start();
+    await tick();
+    const secondP = h.controller.start();
+    await tick();
+
+    h.polls[0]!.result.reject(new DeviceCodeExpiredError());
+    expect(await firstP).toBeNull();
+    expect(h.controller.getState()).toEqual({
+      phase: 'polling',
+      userCode: 'BXQ4-HT7P',
+      pollStatus: 'waiting',
+      expiresAt: 1_900_000,
+    });
+
+    h.polls[1]!.result.resolve(tokensFor('f'));
+    await secondP;
+    expect(h.controller.getState()).toEqual({ phase: 'idle' });
+  });
+
+  it('restarting after expiry issues a fresh code and completes normally', async () => {
+    const h = harness();
+    const firstP = h.controller.start();
+    await tick();
+    h.polls[0]!.result.reject(new DeviceCodeExpiredError());
+    await firstP;
+    expect(h.controller.getState()).toEqual({ phase: 'expired' });
+
+    const secondP = h.controller.start();
+    await tick();
+    expect(h.polls).toHaveLength(2);
+    h.polls[1]!.result.resolve(tokensFor('g'));
+    expect(await secondP).toEqual({ username: 'g@bc-abc.com' });
     expect(h.controller.getState()).toEqual({ phase: 'idle' });
   });
 
@@ -226,6 +290,7 @@ describe('DeviceCodeController generations', () => {
       phase: 'polling',
       userCode: 'BXQ4-HT7P',
       pollStatus: 'waiting',
+      expiresAt: 1_900_000,
     });
   });
 });

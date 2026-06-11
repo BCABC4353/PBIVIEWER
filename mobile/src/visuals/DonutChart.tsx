@@ -26,10 +26,9 @@ export const DonutChart: React.FC<{
   format?: ValueFormat;
   centerLabel?: string;
 }> = ({ data, format = 'number', centerLabel = 'total' }) => {
-  const slices = data.slices;
-  if (slices.length === 0) return <Text style={styles.empty}>No data</Text>;
-
+  const slices = data.slices.filter((s) => s.value > 0);
   const total = slices.reduce((s, d) => s + d.value, 0);
+  if (slices.length === 0 || total <= 0) return <Text style={styles.empty}>No data</Text>;
   const largest = slices.reduce((bi, s, i) => (s.value > slices[bi]!.value ? i : bi), 0);
   const sliceColor = (i: number) => (i === largest ? highlight : seriesShade(i, slices.length));
 

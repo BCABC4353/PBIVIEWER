@@ -1,5 +1,6 @@
 import {
   DeviceCodeCancelledError,
+  DeviceCodeExpiredError,
   type DeviceCodeChallenge,
   type DeviceCodePollHooks,
 } from './device-code-auth';
@@ -8,7 +9,8 @@ import type { TokenSet, UserInfo } from './token-manager';
 export type DeviceCodeFlowState =
   | { phase: 'idle' }
   | { phase: 'requesting' }
-  | { phase: 'polling'; userCode: string; pollStatus: 'waiting' | 'slow_down' }
+  | { phase: 'polling'; userCode: string; pollStatus: 'waiting' | 'slow_down'; expiresAt: number }
+  | { phase: 'expired' }
   | { phase: 'error'; message: string };
 
 export interface DeviceCodeControllerDeps {
@@ -16,6 +18,7 @@ export interface DeviceCodeControllerDeps {
   poll: (challenge: DeviceCodeChallenge, hooks: DeviceCodePollHooks) => Promise<TokenSet>;
   adoptTokens: (set: TokenSet) => Promise<UserInfo | null>;
   persistLiveMode: () => Promise<void>;
+  now?: () => number;
 }
 
 export class DeviceCodeController {
@@ -50,7 +53,9 @@ export class DeviceCodeController {
   }
 
   clearError(): void {
-    if (this.state.phase === 'error') this.setState({ phase: 'idle' });
+    if (this.state.phase === 'error' || this.state.phase === 'expired') {
+      this.setState({ phase: 'idle' });
+    }
   }
 
   async start(): Promise<UserInfo | null> {
@@ -60,12 +65,13 @@ export class DeviceCodeController {
     try {
       const challenge = await this.deps.requestCode();
       if (!current()) return null;
-      this.setState({ phase: 'polling', userCode: challenge.userCode, pollStatus: 'waiting' });
+      const expiresAt = (this.deps.now ?? Date.now)() + challenge.expiresInSec * 1000;
+      this.setState({ phase: 'polling', userCode: challenge.userCode, pollStatus: 'waiting', expiresAt });
       const tokens = await this.deps.poll(challenge, {
         cancelled: () => !current(),
         onStatus: (status) => {
           if (current()) {
-            this.setState({ phase: 'polling', userCode: challenge.userCode, pollStatus: status });
+            this.setState({ phase: 'polling', userCode: challenge.userCode, pollStatus: status, expiresAt });
           }
         },
       });
@@ -81,6 +87,10 @@ export class DeviceCodeController {
     } catch (e) {
       if (e instanceof DeviceCodeCancelledError) {
         if (current()) this.setState({ phase: 'idle' });
+        return null;
+      }
+      if (e instanceof DeviceCodeExpiredError) {
+        if (current()) this.setState({ phase: 'expired' });
         return null;
       }
       if (current()) {

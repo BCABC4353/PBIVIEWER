@@ -1,71 +1,27 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import { formatValue, type SeriesData, type ValueFormat } from '../core/dax';
-import { detent } from '../feel/haptics';
 import { highlight, seriesRest } from './palette';
 import { barIndexForX } from './scrub-logic';
+import { ScrubHintCaption, useScrub } from './scrub';
 
 const CHART_HEIGHT = 120;
-const TAP_SLOP = 4;
 
 export const BarChart: React.FC<{
   data: SeriesData;
   format?: ValueFormat;
   highlightIndex?: number;
 }> = ({ data, format = 'number', highlightIndex }) => {
-  const [selected, setSelected] = useState<number | null>(null);
-  const widthRef = useRef(0);
-  const countRef = useRef(data.points.length);
-  countRef.current = data.points.length;
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
-  const movedRef = useRef(false);
-
-  const scrubTo = useCallback((x: number) => {
-    const idx = barIndexForX(x, widthRef.current, countRef.current);
-    if (idx < 0 || idx === selectedRef.current) return;
-    selectedRef.current = idx;
-    setSelected(idx);
-    detent();
-  }, []);
-
-  const endTouch = useCallback(() => {
-    if (!movedRef.current) {
-      selectedRef.current = null;
-      setSelected(null);
-    }
-  }, []);
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderTerminationRequest: (_e, g) => Math.abs(g.dy) > Math.abs(g.dx),
-        onShouldBlockNativeResponder: (_e, g) => Math.abs(g.dx) >= Math.abs(g.dy),
-        onPanResponderGrant: (e) => {
-          movedRef.current = false;
-          scrubTo(e.nativeEvent.locationX);
-        },
-        onPanResponderMove: (e, g) => {
-          if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) movedRef.current = true;
-          scrubTo(e.nativeEvent.locationX);
-        },
-        onPanResponderRelease: endTouch,
-        onPanResponderTerminate: endTouch,
-      }),
-    [scrubTo, endTouch],
-  );
+  const scrub = useScrub(data.points.length, barIndexForX);
 
   const points = data.points;
   if (points.length === 0) return <Text style={styles.empty}>No data</Text>;
 
   const max = Math.max(...points.map((p) => p.value), 0);
-  const min = Math.min(...points.map((p) => p.value), 0);
-  const range = max - min || 1;
+  const scale = max || 1;
   const hi = highlightIndex ?? points.length - 1;
-  const sel = selected !== null && selected < points.length ? selected : null;
+  const sel = scrub.selected !== null && scrub.selected < points.length ? scrub.selected : null;
   const active = sel !== null ? points[sel] : undefined;
   const latest = points[hi]!;
 
@@ -82,17 +38,14 @@ export const BarChart: React.FC<{
       <View
         style={styles.plot}
         pointerEvents="box-only"
-        onLayout={(e) => {
-          widthRef.current = e.nativeEvent.layout.width;
-        }}
-        {...pan.panHandlers}
+        onLayout={scrub.onLayout}
+        {...scrub.panHandlers}
       >
-        {}
         {[0, 0.5, 1].map((t) => (
           <View key={t} style={[styles.grid, { top: t * (CHART_HEIGHT - 1) }]} />
         ))}
         {points.map((p, i) => {
-          const h = Math.max(3, Math.round(((p.value - Math.min(min, 0)) / range) * CHART_HEIGHT));
+          const h = Math.max(3, Math.round((Math.max(p.value, 0) / scale) * CHART_HEIGHT));
           const amber = sel !== null ? i === sel : i === hi;
           return (
             <View
@@ -124,6 +77,7 @@ export const BarChart: React.FC<{
           </Text>
         ) : null}
       </View>
+      <ScrubHintCaption visible={scrub.hintVisible} />
     </View>
   );
 };

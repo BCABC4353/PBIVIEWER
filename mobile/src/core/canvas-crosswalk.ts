@@ -448,10 +448,12 @@ async function runRung<T>(
       reject(new Error(`${label} timed out after ${Math.ceil(ms / 1000)}s`));
     }, ms);
   });
+  const work = fn(ctrl.signal);
   try {
-    return await Promise.race([fn(ctrl.signal), timeout]);
+    return await Promise.race([work, timeout]);
   } finally {
     clearTimeout(timer);
+    work.catch(() => {});
   }
 }
 

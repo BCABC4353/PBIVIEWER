@@ -42,6 +42,13 @@ export class DeviceCodeCancelledError extends Error {
   }
 }
 
+export class DeviceCodeExpiredError extends Error {
+  constructor() {
+    super('The sign-in code expired before you finished — start again for a fresh code.');
+    this.name = 'DeviceCodeExpiredError';
+  }
+}
+
 export const PUBLIC_CLIENT_FLAG_GUIDANCE =
   'Microsoft rejected the sign-in because the app registration does not allow ' +
   'public client flows. One-time fix (no new redirect URIs needed): Entra portal → ' +
@@ -133,7 +140,7 @@ export async function pollDeviceCode(
   for (;;) {
     if (hooks.cancelled?.()) throw new DeviceCodeCancelledError();
     if (now() >= deadline) {
-      throw new Error('The sign-in code expired before you finished — start again for a fresh code.');
+      throw new DeviceCodeExpiredError();
     }
     await sleep(intervalSec * 1000);
     if (hooks.cancelled?.()) throw new DeviceCodeCancelledError();
@@ -174,7 +181,7 @@ export async function pollDeviceCode(
       continue;
     }
     if (error === 'expired_token') {
-      throw new Error('The sign-in code expired before you finished — start again for a fresh code.');
+      throw new DeviceCodeExpiredError();
     }
     if (error === 'access_denied' || error === 'authorization_declined') {
       throw new Error('Sign-in was declined on the Microsoft page.');

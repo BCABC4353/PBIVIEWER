@@ -2,7 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { color, radius, space, statusColor, statusGlyph, statusLabel, type } from '../design/tokens';
 import type { Refreshable } from '../core/types';
-import { relativeAge, triggerLabel } from '../core/refresh-health';
+import { triggerLabel } from '../core/refresh-health';
+import { motionEnabled } from '../feel/springs';
+import { Timestamp } from './Timestamp';
 
 export const StatusChip: React.FC<{ status: Refreshable['lastStatus']; overdue?: boolean }> = ({
   status,
@@ -30,7 +32,15 @@ export const FleetHero: React.FC<{
 }> = ({ broken, total, generatedAt, now, sample }) => {
   const healthy = broken === 0;
   return (
-    <View style={styles.hero}>
+    <View
+      style={styles.hero}
+      accessible
+      accessibilityLabel={
+        healthy
+          ? `All ${total} refreshables healthy`
+          : `${broken} of ${total} refreshables need attention`
+      }
+    >
       {sample ? <Text style={styles.heroSample}>SAMPLE DATA</Text> : null}
       <Text style={[styles.heroNumber, { color: healthy ? color.textPrimary : color.broken }]}>
         {healthy ? '0' : String(broken)}
@@ -38,7 +48,7 @@ export const FleetHero: React.FC<{
       <Text style={styles.heroLabel}>
         {healthy ? `all ${total} refreshables healthy` : `of ${total} need attention`}
       </Text>
-      <Text style={styles.heroMeta}>checked {relativeAge(generatedAt, now) || 'just now'}</Text>
+      <Timestamp iso={generatedAt} now={now} prefix="checked " style={styles.heroMeta} />
     </View>
   );
 };
@@ -66,6 +76,10 @@ export const FleetRow: React.FC<{
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (item.lastStatus !== 'InProgress') return;
+    if (!motionEnabled()) {
+      pulse.setValue(0.7);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 0.45, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -92,12 +106,16 @@ export const FleetRow: React.FC<{
         </Text>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {variant === 'sheet'
-            ? `${statusLabel[item.lastStatus]}${item.scheduleOverdue ? ' · overdue' : ''}${
-                item.lastSuccessTime ? ` · last success ${relativeAge(item.lastSuccessTime, now)}` : ''
-              }`
-            : `${item.workspaceName}${
-                item.lastSuccessTime ? ` · ${relativeAge(item.lastSuccessTime, now)}` : ''
-              }`}
+            ? `${statusLabel[item.lastStatus]}${item.scheduleOverdue ? ' · overdue' : ''}`
+            : item.workspaceName}
+          {item.lastSuccessTime ? (
+            <Timestamp
+              iso={item.lastSuccessTime}
+              now={now}
+              prefix={variant === 'sheet' ? ' · last success ' : ' · '}
+              style={styles.rowMeta}
+            />
+          ) : null}
         </Text>
         {variant === 'sheet' ? <RunDots item={item} tone={tone ?? color.neutral} /> : null}
         {variant === 'sheet' && downstreamNote ? (
@@ -106,7 +124,6 @@ export const FleetRow: React.FC<{
           </Text>
         ) : null}
       </View>
-      {}
       {variant === 'board' && item.scheduleOverdue ? (
         <Text style={[styles.rowFlag, { color: color.broken }]}>!</Text>
       ) : null}
@@ -115,13 +132,28 @@ export const FleetRow: React.FC<{
   );
 };
 
-export const DetailLine: React.FC<{ label: string; value?: string; tone?: string }> = ({ label, value, tone }) =>
-  value ? (
+export const DetailLine: React.FC<{
+  label: string;
+  value?: string;
+  tone?: string;
+  timestamp?: { iso?: string; now: number };
+}> = ({ label, value, tone, timestamp }) => {
+  if (!value && !timestamp?.iso) return null;
+  return (
     <View style={styles.detailLine}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={[styles.detailValue, tone ? { color: tone } : null]}>{value}</Text>
+      {timestamp?.iso ? (
+        <Timestamp
+          iso={timestamp.iso}
+          now={timestamp.now}
+          style={[styles.detailValue, tone ? { color: tone } : null]}
+        />
+      ) : (
+        <Text style={[styles.detailValue, tone ? { color: tone } : null]}>{value}</Text>
+      )}
     </View>
-  ) : null;
+  );
+};
 
 export const detailTrigger = triggerLabel;
 
@@ -143,6 +175,7 @@ const styles = StyleSheet.create({
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: space.m,
+    minHeight: 44,
     paddingHorizontal: space.l, paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.hairline,
   },
@@ -160,6 +193,7 @@ const styles = StyleSheet.create({
 
   detailLine: {
     flexDirection: 'row', justifyContent: 'space-between',
+    minHeight: 44, alignItems: 'center',
     paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.hairline,
   },
   detailLabel: { ...type.body, color: color.textSecondary },

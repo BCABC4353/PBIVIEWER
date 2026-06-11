@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { color, radius, space, type } from '../design/tokens';
+import { motionEnabled } from '../feel/springs';
 
 export const VisualCard: React.FC<{
   title: string;
@@ -13,6 +14,10 @@ export const VisualCard: React.FC<{
   const breathe = useRef(new Animated.Value(0.35)).current;
   useEffect(() => {
     if (!loading) return;
+    if (!motionEnabled()) {
+      breathe.setValue(0.5);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(breathe, { toValue: 0.7, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -79,6 +84,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.chip,
     paddingHorizontal: space.m,
     paddingVertical: space.xs,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   retryPressed: { backgroundColor: color.surface2 },
   retryText: { ...type.caption, color: color.accent },

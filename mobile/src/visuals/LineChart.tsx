@@ -1,64 +1,21 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { color, space, type } from '../design/tokens';
 import { formatValue, type SeriesData, type ValueFormat } from '../core/dax';
-import { detent } from '../feel/haptics';
 import { areaFill, highlight, seriesLine } from './palette';
 import { lineIndexForX } from './scrub-logic';
+import { ScrubHintCaption, useScrub } from './scrub';
 
 const CHART_HEIGHT = 120;
 const PAD_V = 6;
-const TAP_SLOP = 4;
 
 export const LineChart: React.FC<{
   data: SeriesData;
   format?: ValueFormat;
 }> = ({ data, format = 'number' }) => {
-  const [width, setWidth] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const widthRef = useRef(0);
-  const countRef = useRef(data.points.length);
-  countRef.current = data.points.length;
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
-  const movedRef = useRef(false);
-
-  const scrubTo = useCallback((px: number) => {
-    const idx = lineIndexForX(px, widthRef.current, countRef.current);
-    if (idx < 0 || idx === selectedRef.current) return;
-    selectedRef.current = idx;
-    setSelected(idx);
-    detent();
-  }, []);
-
-  const endTouch = useCallback(() => {
-    if (!movedRef.current) {
-      selectedRef.current = null;
-      setSelected(null);
-    }
-  }, []);
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderTerminationRequest: (_e, g) => Math.abs(g.dy) > Math.abs(g.dx),
-        onShouldBlockNativeResponder: (_e, g) => Math.abs(g.dx) >= Math.abs(g.dy),
-        onPanResponderGrant: (e) => {
-          movedRef.current = false;
-          scrubTo(e.nativeEvent.locationX);
-        },
-        onPanResponderMove: (e, g) => {
-          if (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP) movedRef.current = true;
-          scrubTo(e.nativeEvent.locationX);
-        },
-        onPanResponderRelease: endTouch,
-        onPanResponderTerminate: endTouch,
-      }),
-    [scrubTo, endTouch],
-  );
+  const scrub = useScrub(data.points.length, lineIndexForX);
+  const width = scrub.width;
 
   const points = data.points;
   if (points.length === 0) return <Text style={styles.empty}>No data</Text>;
@@ -68,7 +25,7 @@ export const LineChart: React.FC<{
   const min = Math.min(...values);
   const range = max - min || 1;
   const last = points[points.length - 1]!;
-  const sel = selected !== null && selected < points.length ? selected : null;
+  const sel = scrub.selected !== null && scrub.selected < points.length ? scrub.selected : null;
   const active = sel !== null ? points[sel] : undefined;
   const activeIndex = sel ?? points.length - 1;
 
@@ -99,14 +56,9 @@ export const LineChart: React.FC<{
       <View
         style={styles.plot}
         pointerEvents="box-only"
-        onLayout={(e) => {
-          const w = Math.round(e.nativeEvent.layout.width);
-          widthRef.current = w;
-          setWidth(w);
-        }}
-        {...pan.panHandlers}
+        onLayout={scrub.onLayout}
+        {...scrub.panHandlers}
       >
-        {}
         <Text style={[styles.rail, styles.railTop]}>{formatValue(max, format)}</Text>
         <Text style={[styles.rail, styles.railBottom]}>{formatValue(min, format)}</Text>
         {width > 0 ? (
@@ -142,6 +94,7 @@ export const LineChart: React.FC<{
           </Text>
         ) : null}
       </View>
+      <ScrubHintCaption visible={scrub.hintVisible} />
     </View>
   );
 };

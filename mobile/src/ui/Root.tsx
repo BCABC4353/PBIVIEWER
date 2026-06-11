@@ -4,7 +4,8 @@ import { color, space, type } from '../design/tokens';
 import type { DataSource, Refreshable } from '../core/types';
 import type { DataMode, ReportsModel } from '../core/data-source-factory';
 import type { ReportRef } from '../core/report-catalog';
-import { FleetHealthScreen, RefreshDetailScreen } from './screens';
+import { FleetHealthScreen } from './FleetHealthScreen';
+import { RefreshDetailScreen } from './RefreshDetailScreen';
 import { ReportsScreen } from './ReportsScreen';
 import { LiveReportScreen } from './LiveReportScreen';
 import { AlertsScreen } from './AlertsScreen';
@@ -41,26 +42,38 @@ export const Root: React.FC<{
     setAlertDetail(null);
   }, [source]);
 
+  const goToSettings = () => setTab('settings');
+
   let body: React.ReactNode;
   switch (tab) {
     case 'fleet':
       body = fleetDetail ? (
         <RefreshDetailScreen item={fleetDetail} onBack={() => setFleetDetail(null)} />
       ) : (
-        <FleetHealthScreen source={source} sample={mode === 'mock'} onOpen={setFleetDetail} />
+        <FleetHealthScreen
+          source={source}
+          sample={mode === 'mock'}
+          onOpen={setFleetDetail}
+          onSignIn={goToSettings}
+        />
       );
       break;
     case 'reports':
       body =
         openReport && reports ? (
-          <LiveReportScreen report={openReport} model={reports} onBack={() => setOpenReport(null)} />
+          <LiveReportScreen
+            report={openReport}
+            model={reports}
+            onBack={() => setOpenReport(null)}
+            onSignIn={goToSettings}
+          />
         ) : (
           <View style={styles.edge}>
             <ReportsScreen
               model={reports}
               mode={mode}
               onOpen={setOpenReport}
-              onSignIn={() => setTab('settings')}
+              onSignIn={goToSettings}
             />
           </View>
         );
@@ -70,7 +83,7 @@ export const Root: React.FC<{
         <RefreshDetailScreen item={alertDetail} onBack={() => setAlertDetail(null)} />
       ) : (
         <View style={styles.edge}>
-          <AlertsScreen source={source} onOpen={setAlertDetail} />
+          <AlertsScreen source={source} onOpen={setAlertDetail} onSignIn={goToSettings} />
         </View>
       );
       break;
@@ -104,7 +117,6 @@ export const Root: React.FC<{
           );
         })}
       </View>
-      {}
       <IgnitionOverlay />
     </View>
   );
@@ -125,7 +137,7 @@ const styles = StyleSheet.create({
     paddingTop: space.s,
     paddingBottom: space.l,
   },
-  tab: { flex: 1, alignItems: 'center', gap: 2 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 44 },
   tabPressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
   tabGlyph: { ...type.body },
   tabLabel: { ...type.micro },
