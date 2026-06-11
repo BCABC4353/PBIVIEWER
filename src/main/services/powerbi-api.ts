@@ -577,6 +577,10 @@ class PowerBIApiService {
         embedUrl: report.embedUrl,
         datasetId: report.datasetId,
         reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
+        // The app webview's URL can name this report by EITHER guid (the
+        // app-scoped id or the source-workspace original) depending on how
+        // Power BI routed the navigation — freshness matching accepts both.
+        originalReportObjectId: report.originalReportObjectId,
       }));
 
       return { success: true, data: reports };

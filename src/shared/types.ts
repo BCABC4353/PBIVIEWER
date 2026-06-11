@@ -46,6 +46,12 @@ export interface Report {
   embedUrl: string;
   datasetId: string;
   reportType: 'PowerBIReport' | 'PaginatedReport';
+  /**
+   * App reports only: the SAME report's id in the app's source workspace.
+   * The app webview's URL can name a report by either GUID depending on how
+   * Power BI routed the navigation, so freshness matching accepts both.
+   */
+  originalReportObjectId?: string;
 }
 
 export interface Dashboard {
