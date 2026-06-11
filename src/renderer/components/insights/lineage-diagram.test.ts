@@ -112,24 +112,32 @@ describe('deriveLineage — column assignment + edge derivation', () => {
     expect(g.reports.find((n) => n.id === 'r-2')?.health).toBe('healthy');
   });
 
-  it('derives edges: red leaving the failed flow, red from suspect to report (contiguous damage, owner v8), green happy path', () => {
+  it('derives edges: red leaving the failed flow (the line speaks for its source), red from suspect to report, green happy path', () => {
     const g = deriveLineage([flow, sus, clean], blastOf(['ds-sus'], [['df-1', [sus]]]), reports, NOW);
     expect(g.links).toContainEqual({ from: 'df-1', to: 'ds-sus', health: 'failed' });
     expect(g.links).toContainEqual({ from: 'ds-sus', to: 'r-1', health: 'failed' });
     expect(g.links).toContainEqual({ from: 'ds-clean', to: 'r-2', health: 'healthy' });
   });
 
-  it("owner v8 — an implicated dataset edge is RED (contiguous damage), never amber", () => {
-    const lateFlow = item({ kind: 'dataflow', id: 'df-late', name: 'Late Flow' });
-    const skewed = item({ id: 'ds-skew', name: 'Skewed Model', upstreamDataflowIds: ['df-late'] });
+  it('owner (Mohawk ruling) — a flow→dataset line carries the SOURCE flow health: one green line and one red line can feed the same red dataset', () => {
+    const greenFlow = item({ kind: 'dataflow', id: 'df-green', name: 'Mohawk Reports' });
+    const redFlow = item({ kind: 'dataflow', id: 'df-red', name: 'Mohawk Loader', lastStatus: 'Failed' });
+    const ds = item({
+      id: 'ds-mohawk',
+      name: 'Mohawk - Reports',
+      upstreamDataflowIds: ['df-green', 'df-red'],
+    });
     const g = deriveLineage(
-      [lateFlow, skewed],
-      blastOf(['ds-skew'], [['df-late', [skewed]]]),
+      [greenFlow, redFlow, ds],
+      blastOf(['ds-mohawk'], [['df-red', [ds]]]),
       [],
       NOW,
     );
-    expect(g.dataflows[0]?.health).toBe('healthy');
-    expect(g.links).toContainEqual({ from: 'df-late', to: 'ds-skew', health: 'failed' });
+    // The dataset node is red (one red parent poisons it)…
+    expect(g.datasets.find((n) => n.id === 'ds-mohawk')?.health).toBe('stale'); // token; renders red
+    // …but each line keeps its own source's color.
+    expect(g.links).toContainEqual({ from: 'df-green', to: 'ds-mohawk', health: 'healthy' });
+    expect(g.links).toContainEqual({ from: 'df-red', to: 'ds-mohawk', health: 'failed' });
   });
 
   it('routes ash edges out of dormant flows and skips lineage to invisible flows', () => {

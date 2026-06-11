@@ -748,18 +748,6 @@
   animation-duration: var(--morph-close);
 }
 
-/* The page-level cross-fade carries the scrim/blur's appearance. Left at the
-   browser default (~0.25s) the blur SNAPS ON before the 2.6s morph begins —
-   out of sync (owner). The root rides the same clock as the morph. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 2.6s;
-  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
-}
-:root.vt-closing::view-transition-old(root),
-:root.vt-closing::view-transition-new(root) {
-  animation-duration: 2s;
-}
 ::view-transition-old(sheet-morph) {
   animation-duration: calc(var(--morph-open) * 0.35); /* the tile face hands off in the first beat — no lingering halo */
 }
@@ -821,6 +809,59 @@
    snapshot overlay normally eats every click until it finishes — disable
    hit-testing on it so the REAL page (scrim, sheet, close) stays clickable
    mid-morph, and a new interaction can interrupt/reverse at any time. */
-::view-transition {
+html::view-transition,
+html::view-transition-group(*),
+html::view-transition-image-pair(*),
+html::view-transition-old(*),
+html::view-transition-new(*) {
+  /* Animation never blocks input (owner): the snapshot overlay is
+     click-through; the live page stays interactive mid-morph. The bare
+     `::view-transition` selector is DROPPED by the css pipeline — html-
+     anchored forms survive (runtime-verified). */
   pointer-events: none;
+}
+
+
+/* Filter tiles are BUTTONS and must feel like it (owner): they rise to meet
+   the cursor, travel on press, and show a lit face when engaged — not a
+   thin yellow outline. */
+button.luce-panel.luce-rise {
+  transition:
+    transform 120ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+button.luce-panel.luce-rise:hover {
+  transform: translateY(-1px);
+  background-color: rgba(255, 255, 255, 0.03);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    var(--luce-shadow-1),
+    0 6px 16px rgba(0, 0, 0, 0.35);
+}
+button.luce-panel.luce-rise:active {
+  transform: scale(0.975);
+}
+
+/* Filter glide — the workspace cards slide to their new slots when a filter
+   toggles (owner: "animate and transition the cards below"). The names
+   exist ONLY while `vt-filter` is up: during sheet morphs a named tile
+   would be lifted out of the root snapshot and float above the scrim. */
+:root.vt-filter [data-workspace-tile] {
+  view-transition-name: auto;
+}
+:root.vt-filter::view-transition-group(*),
+:root.vt-filter::view-transition-old(root),
+:root.vt-filter::view-transition-new(root) {
+  animation-duration: calc(var(--morph-open) * 0.14);
+}
+.luce-tile--active {
+  background:
+    radial-gradient(120% 100% at 50% -20%, rgba(232, 163, 61, 0.16), transparent 60%),
+    linear-gradient(180deg, #232017 0%, #1a1812 100%) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 163, 61, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 18px rgba(232, 163, 61, 0.10);
+  outline: none;
 }
