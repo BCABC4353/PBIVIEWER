@@ -7,6 +7,7 @@ import type {
   InsightsRefreshable,
   ContentItem,
   AdminInsights,
+  InsightsWorkspaceAccess,
 } from '../../../shared/types';
 import {
   luce,
@@ -27,7 +28,7 @@ import {
   type TileFilter,
   type WorkspaceGroup,
 } from './insights-luce';
-import { prefersReducedMotion, useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
+import { prefersReducedMotion, SPRING_SETTLE, useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
 import './insights-luce.css';
 
 /**
@@ -277,77 +278,229 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
   );
 };
 
-/**
- * Workspace group header (Matt #1): the chevron leads on the LEFT and rotates
- * on expand (on the settle spring, D5), the WHOLE header is a pressable with
- * switchgear travel (D10), and an explicit "N items" count says "there is
- * something to open here" — the status glyph is information, never the control.
- */
-const WorkspaceSection: React.FC<{
+
+
+// ---------------------------------------------------------------------------
+// Blast-radius sheet (owner-designed): a workspace TILE expands elegantly
+// into an overlay that blurs the board behind it; a second click contracts
+// it. FLIP — the sheet literally grows out of the tile's own rectangle on
+// the settle spring. Items inside are organized by TYPE (Dataflows first:
+// they are upstream), then the people with access.
+// ---------------------------------------------------------------------------
+const SheetGroup: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div>
+    <div className="luce-legend mb-1.5">{title}</div>
+    <div className="luce-groove rounded-xl overflow-hidden">{children}</div>
+  </div>
+);
+
+const WorkspaceSheet: React.FC<{
   group: WorkspaceGroup;
-  expanded: boolean;
-  onToggle: () => void;
-}> = ({ group, expanded, onToggle }) => {
-  // The strip's pulse: the worst item's recent runs ride the closed header so
-  // the board reads as a bank of instruments, not a list of drawers.
+  access?: InsightsWorkspaceAccess;
+  fromRect: DOMRect | null;
+  onClose: () => void;
+}> = ({ group, access, fromRect, onClose }) => {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closingRef = useRef(false);
+
+  // FLIP in: from the tile's rectangle to the sheet's natural rectangle.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el || !fromRect || prefersReducedMotion()) return;
+    const to = el.getBoundingClientRect();
+    const sx = fromRect.width / to.width;
+    const sy = fromRect.height / to.height;
+    const dx = fromRect.left - to.left;
+    const dy = fromRect.top - to.top;
+    el.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0.6 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 400, easing: SPRING_SETTLE, fill: 'both' },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const close = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    const el = panelRef.current;
+    if (!el || !fromRect || prefersReducedMotion()) {
+      onClose();
+      return;
+    }
+    const to = el.getBoundingClientRect();
+    const sx = fromRect.width / to.width;
+    const sy = fromRect.height / to.height;
+    const dx = fromRect.left - to.left;
+    const dy = fromRect.top - to.top;
+    const anim = el.animate(
+      [
+        { transform: 'none', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0 },
+      ],
+      { duration: 250, easing: 'ease-in', fill: 'forwards' },
+    );
+    anim.onfinish = onClose;
+  }, [fromRect, onClose]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [close]);
+
+  const dataflows = group.items.filter((i) => i.kind === 'dataflow');
+  const datasets = group.items.filter((i) => i.kind === 'dataset');
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${group.workspaceName} details`}
+    >
+      {/* The board recedes: dim + blur. Click anywhere on it to contract. */}
+      <button
+        aria-label="Close"
+        className="absolute inset-0 cursor-pointer"
+        style={{ background: 'rgba(5,5,7,0.55)', backdropFilter: 'blur(10px)' }}
+        onClick={close}
+      />
+      <div
+        ref={panelRef}
+        className="luce-panel luce-panel--raised relative w-full max-w-[880px] max-h-[86vh] overflow-y-auto p-6 flex flex-col gap-5"
+        style={{ borderRadius: 20 }}
+      >
+        <div className="luce-lens" aria-hidden="true" />
+        <div className="relative z-[1] flex items-start justify-between gap-4">
+          <div>
+            <div className="luce-legend">Client</div>
+            <h3 className="text-2xl font-semibold" style={{ color: luce.textPrimary }}>
+              {group.workspaceName}
+            </h3>
+            <div className="text-xs mt-1" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
+              {groupSummaryLabel(group)}
+            </div>
+          </div>
+          <button
+            className="luce-chip luce-press px-3 py-1.5 text-xs font-semibold cursor-pointer border-0"
+            style={{ color: luce.textSecondary }}
+            onClick={close}
+            aria-label="Close details"
+          >
+            ✕ Close
+          </button>
+        </div>
+        {dataflows.length > 0 && (
+          <SheetGroup title={`Dataflows — upstream (${dataflows.length})`}>
+            {dataflows.map((r) => (
+              <RefreshableRow key={`${r.kind}-${r.id}`} item={r} />
+            ))}
+          </SheetGroup>
+        )}
+        <SheetGroup title={`Datasets (${datasets.length})`}>
+          {datasets.length === 0 ? (
+            <p className="text-xs p-3" style={{ color: luce.textTertiary }}>
+              No datasets visible in this workspace.
+            </p>
+          ) : (
+            datasets.map((r) => <RefreshableRow key={`${r.kind}-${r.id}`} item={r} />)
+          )}
+        </SheetGroup>
+        <SheetGroup title="People with access">
+          {!access || access.users === null ? (
+            <p className="text-xs p-3" style={{ color: luce.textTertiary }}>
+              The member list is not visible to your account. People reaching this content
+              through a published Power BI App are only listed for tenant admins.
+            </p>
+          ) : access.users.length === 0 ? (
+            <p className="text-xs p-3" style={{ color: luce.textTertiary }}>No members.</p>
+          ) : (
+            access.users.map((u, i) => (
+              <div
+                key={`${u.email || u.name}-${i}`}
+                className="flex items-center justify-between px-4 py-2 transition-colors hover:bg-white/[0.03]"
+              >
+                <div>
+                  <div className="text-sm" style={{ color: luce.textPrimary }}>{u.name}</div>
+                  {u.email && <div className="text-xs" style={{ color: luce.textTertiary }}>{u.email}</div>}
+                </div>
+                <span className="luce-chip px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide" style={{ color: luce.textSecondary }}>
+                  {u.role}
+                </span>
+              </div>
+            ))
+          )}
+        </SheetGroup>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * One client, one tile (owner spec): summary data on the face — status edge,
+ * pulse dots, counts, members — and the whole story behind a click. Most
+ * clients see exactly ONE of these; it has to carry the room alone.
+ */
+const WorkspaceTile: React.FC<{
+  group: WorkspaceGroup;
+  access?: InsightsWorkspaceAccess;
+  solo: boolean;
+  onOpen: (rect: DOMRect) => void;
+}> = ({ group, access, solo, onOpen }) => {
   const pulseItem =
     group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
     group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
   const edge =
     group.counts.broken > 0 ? luce.broken : group.counts.overdue > 0 ? luce.warn : 'rgba(255,255,255,0.10)';
+  const flows = group.items.filter((i) => i.kind === 'dataflow').length;
+  const sets = group.items.length - flows;
+  const members =
+    !access || access.users === null ? null : access.users.length;
   return (
-  <div className="luce-panel luce-card overflow-hidden relative">
-    <span
-      aria-hidden="true"
-      className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r"
-      style={{ background: edge, boxShadow: group.counts.broken > 0 ? `0 0 8px ${luce.broken}` : 'none' }}
-    />
     <button
-      className="luce-press w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer hover:bg-white/[0.03]"
-      onClick={onToggle}
-      aria-expanded={expanded}
-      style={{ background: expanded ? luce.surface2 : undefined }}
+      className={`luce-panel luce-panel--raised luce-press luce-rise relative text-left cursor-pointer overflow-hidden ${
+        solo ? 'p-7' : 'p-5'
+      }`}
+      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
+      aria-haspopup="dialog"
+      aria-label={`Open ${group.workspaceName} details`}
     >
-      <span className="flex items-center gap-2.5 min-w-0">
-        <span
-          aria-hidden="true"
-          className="inline-block text-xs"
-          style={{
-            color: luce.textSecondary,
-            transform: expanded ? 'rotate(90deg)' : 'none',
-            transition: 'transform 250ms var(--spring-settle)',
-          }}
-        >
-          ▸
-        </span>
-        <span aria-hidden="true" className="text-sm" style={{ color: statusColor[group.worst] }}>
-          {statusGlyph[group.worst]}
-        </span>
-        <span className="truncate text-sm font-semibold" style={{ color: luce.textPrimary }}>
+      <span
+        aria-hidden="true"
+        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r"
+        style={{ background: edge, boxShadow: group.counts.broken > 0 ? `0 0 8px ${luce.broken}` : 'none' }}
+      />
+      <div className="luce-lens" aria-hidden="true" />
+      <div className="relative z-[1] flex items-center justify-between gap-3">
+        <span className={`truncate font-semibold ${solo ? 'text-2xl' : 'text-base'}`} style={{ color: luce.textPrimary }}>
+          <span aria-hidden="true" className="mr-2 text-sm" style={{ color: statusColor[group.worst] }}>
+            {statusGlyph[group.worst]}
+          </span>
           {group.workspaceName}
         </span>
-        <span
-          className="luce-chip px-1.5 py-px text-[10px] whitespace-nowrap"
-          style={{ color: luce.textTertiary, ...tabular }}
-        >
-          {group.items.length} item{group.items.length === 1 ? '' : 's'}
-        </span>
-      </span>
-      <span className="flex items-center gap-4 shrink-0">
-        {pulseItem && <RunDotStrip quiet runs={pulseItem.recentRuns} kind={pulseItem.kind} />}
-        <span className="text-xs" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
+        <span className="text-xs shrink-0" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
           {groupSummaryLabel(group)}
         </span>
-      </span>
-    </button>
-    {expanded && (
-      <div role="rowgroup" className="luce-groove" style={{ borderTop: '1px solid rgba(0,0,0,0.45)' }}>
-        {group.items.map((r) => (
-          <RefreshableRow key={`${r.kind}-${r.id}`} item={r} />
-        ))}
       </div>
-    )}
-  </div>
+      <div className={`relative z-[1] flex items-center gap-4 ${solo ? 'mt-6' : 'mt-4'}`}>
+        {pulseItem && <RunDotStrip quiet runs={pulseItem.recentRuns} kind={pulseItem.kind} />}
+      </div>
+      <div className={`relative z-[1] flex items-center gap-2 flex-wrap ${solo ? 'mt-6' : 'mt-4'}`}>
+        <span className="luce-chip px-2 py-0.5 text-[11px]" style={{ color: luce.textTertiary, ...tabular }}>
+          {sets} dataset{sets === 1 ? '' : 's'}
+        </span>
+        <span className="luce-chip px-2 py-0.5 text-[11px]" style={{ color: luce.textTertiary, ...tabular }}>
+          {flows} dataflow{flows === 1 ? '' : 's'}
+        </span>
+        <span className="luce-chip px-2 py-0.5 text-[11px]" style={{ color: luce.textTertiary, ...tabular }}>
+          {members === null ? 'members not visible' : `${members} member${members === 1 ? '' : 's'}`}
+        </span>
+      </div>
+    </button>
   );
 };
 
@@ -519,17 +672,16 @@ const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, i
 export const InsightsPage: React.FC = () => {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  // The Administration entry is for the owner alone (owner directive).
+  const isOwner = (user?.email ?? '').toLowerCase() === 'brendan@bc-abc.com';
 
   const [snapshot, setSnapshot] = useState<InsightsSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedWs, setExpandedWs] = useState<Set<string>>(new Set());
-  // Group expansion (Matt #7): EVERY group starts collapsed; this set holds
-  // only the groups the user has opened. An active tile filter (Matt #2)
-  // overrides it and force-expands the matching groups.
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   // Active summary-tile filter (Matt #2), null = show everything.
   const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
+  // Blast-radius sheet: the open workspace + the tile rect it grows from.
+  const [sheet, setSheet] = useState<{ workspaceId: string; rect: DOMRect | null } | null>(null);
 
   // D6: ignition ceremony — once per session, skipped under reduced motion,
   // never gating the content (it only stages the arrival of what is already
@@ -683,27 +835,14 @@ export const InsightsPage: React.FC = () => {
     return catalog.filter((c) => !openedIds.has(c.id)).slice(0, 15);
   }, [catalog, frequent]);
 
-  const toggleWs = (id: string) => {
-    setExpandedWs((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  // Access folded into each client tile (owner spec): workspaceId -> roster.
+  const accessByWs = useMemo(() => {
+    const m = new Map<string, InsightsWorkspaceAccess>();
+    for (const a of snapshot?.access ?? []) m.set(a.workspaceId, a);
+    return m;
+  }, [snapshot]);
 
-  // Filter active → matching groups are force-expanded so the hits are visible.
-  const isGroupExpanded = (g: WorkspaceGroup) =>
-    activeFilter !== null || openGroups.has(g.workspaceId);
-  const toggleGroup = (g: WorkspaceGroup) => {
-    if (activeFilter !== null) return; // expansion is pinned while filtering
-    setOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(g.workspaceId)) next.delete(g.workspaceId);
-      else next.add(g.workspaceId);
-      return next;
-    });
-  };
+  const sheetGroup = sheet ? groups.find((g) => g.workspaceId === sheet.workspaceId) ?? null : null;
 
   /** Tile click: activate the filter, or clear it when already active. */
   const toggleFilter = (f: TileFilter) => {
@@ -868,9 +1007,8 @@ export const InsightsPage: React.FC = () => {
           {(
             [
               ['Health', 'insights-health'],
-              ['Access', 'insights-access'],
               ['Usage', 'insights-usage'],
-              ['Admin', 'insights-admin'],
+              ...(isOwner ? ([['Admin', 'insights-admin']] as const) : []),
             ] as const
           ).map(([label, id]) => (
             <button
@@ -902,87 +1040,29 @@ export const InsightsPage: React.FC = () => {
                 ? `Nothing matches the ${activeTileLabel} filter.`
                 : 'No datasets or dataflows are visible to your account.'}
             </p>
+          ) : groups.length === 1 ? (
+            /* Most clients see exactly ONE tile — their own. It gets the room. */
+            <div className="max-w-[780px]">
+              <WorkspaceTile
+                group={groups[0]!}
+                access={accessByWs.get(groups[0]!.workspaceId)}
+                solo
+                onOpen={(rect) => setSheet({ workspaceId: groups[0]!.workspaceId, rect })}
+              />
+            </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {groups.map((g) => (
-                <WorkspaceSection
+                <WorkspaceTile
                   key={g.workspaceId}
                   group={g}
-                  expanded={isGroupExpanded(g)}
-                  onToggle={() => toggleGroup(g)}
+                  access={accessByWs.get(g.workspaceId)}
+                  solo={false}
+                  onOpen={(rect) => setSheet({ workspaceId: g.workspaceId, rect })}
                 />
               ))}
             </div>
           )}
-        </section>
-
-        {/* Workspace access */}
-        <section
-          id="insights-access"
-          aria-labelledby="insights-access-heading"
-          className="luce-wing-l"
-          style={{ scrollMarginTop: 48, '--luce-i': 0 } as React.CSSProperties}
-        >
-          <SectionHeading id="insights-access-heading" eyebrow="Access" title="Who has access" />
-          <p className="text-xs mb-3" style={{ color: luce.textTertiary }}>
-            Workspace members only. People who reach your content through a published Power BI
-            App (App audiences) are not listed — Microsoft restricts that list to tenant admins.
-          </p>
-          <div className="space-y-2">
-            {snapshot.access.map((ws) => (
-              <div key={ws.workspaceId} className="luce-panel luce-card overflow-hidden">
-                <button
-                  className="luce-press w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer hover:bg-white/[0.03]"
-                  onClick={() => toggleWs(ws.workspaceId)}
-                  aria-expanded={expandedWs.has(ws.workspaceId)}
-                  style={{ background: expandedWs.has(ws.workspaceId) ? luce.surface2 : undefined }}
-                >
-                  <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: luce.textPrimary }}>
-                    <span
-                      aria-hidden="true"
-                      className="inline-block text-xs"
-                      style={{
-                        color: luce.textSecondary,
-                        transform: expandedWs.has(ws.workspaceId) ? 'rotate(90deg)' : 'none',
-                        transition: 'transform 250ms var(--spring-settle)',
-                      }}
-                    >
-                      ▸
-                    </span>
-                    {ws.workspaceName}
-                  </span>
-                  <span className="text-xs" style={{ color: luce.textTertiary, ...tabular }}>
-                    {ws.users === null ? 'access list not visible to you' : `${ws.users.length} member(s)`}
-                  </span>
-                </button>
-                {expandedWs.has(ws.workspaceId) && ws.users !== null && (
-                  <div className="luce-groove px-4 pb-3" style={{ borderTop: '1px solid rgba(0,0,0,0.45)' }}>
-                    {ws.users.map((u, i) => (
-                      <div
-                        key={`${u.email || u.name}-${i}`}
-                        className="flex items-center justify-between py-1.5 transition-colors hover:bg-white/[0.03]"
-                      >
-                        <div>
-                          <div className="text-sm" style={{ color: luce.textPrimary }}>{u.name}</div>
-                          {u.email && (
-                            <div className="text-xs" style={{ color: luce.textTertiary }}>
-                              {u.email}
-                            </div>
-                          )}
-                        </div>
-                        <span
-                          className="luce-chip px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
-                          style={{ color: luce.textSecondary }}
-                        >
-                          {u.role}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
         </section>
 
         {/* Your usage */}
@@ -1051,7 +1131,8 @@ export const InsightsPage: React.FC = () => {
           </p>
         </section>
 
-        {/* Admin tier — App audiences + tenant activity (Fabric admin only) */}
+        {/* Admin tier — the owner's eyes only */}
+        {isOwner && (
         <section
           id="insights-admin"
           aria-labelledby="insights-admin-heading"
@@ -1245,6 +1326,15 @@ export const InsightsPage: React.FC = () => {
             </div>
           )}
         </section>
+        )}
+        {sheetGroup && (
+          <WorkspaceSheet
+            group={sheetGroup}
+            access={accessByWs.get(sheetGroup.workspaceId)}
+            fromRect={sheet?.rect ?? null}
+            onClose={() => setSheet(null)}
+          />
+        )}
       </div>
     </div>
   );
