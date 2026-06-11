@@ -1,3 +1,9 @@
+/* THE one animation knob (owner): change --morph-open and everything —
+   close, blur, cross-fades — scales proportionally. */
+:root {
+  --morph-open: 2.6s;
+  --morph-close: calc(var(--morph-open) * 0.77);
+}
 /**
  * Luce material + motion layer for the Insights board ONLY.
  * Implements D1–D12 of docs/design/FERRARI-DASHBOARD-RND.md.
@@ -715,21 +721,34 @@
   overflow: clip;
   border-radius: 16px;
   /* Owner's current observation speed for the opening bloom. */
-  animation-duration: 2.6s;
+  animation-duration: var(--morph-open);
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Old/new cross-fade rides the same clock as the group's box. */
 ::view-transition-image-pair(sheet-morph) {
-  animation-duration: 2.6s;
+  animation-duration: var(--morph-open);
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 ::view-transition-new(sheet-morph) {
-  animation-duration: 2.6s;
+  animation-duration: var(--morph-open);
+}
+
+/* The page-level cross-fade carries the scrim/blur's appearance. Left at the
+   browser default (~0.25s) the blur SNAPS ON before the 2.6s morph begins —
+   out of sync (owner). The root rides the same clock as the morph. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--morph-open);
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root.vt-closing::view-transition-old(root),
+:root.vt-closing::view-transition-new(root) {
+  animation-duration: var(--morph-close);
 }
 ::view-transition-old(sheet-morph) {
-  animation-duration: 0.9s; /* the tile face hands off in the first beat — no lingering halo */
+  animation-duration: calc(var(--morph-open) * 0.35); /* the tile face hands off in the first beat — no lingering halo */
 }
 
 /* Close runs at its own observation speed: InsightsPage toggles `vt-closing`
@@ -738,7 +757,7 @@
 :root.vt-closing::view-transition-image-pair(sheet-morph),
 :root.vt-closing::view-transition-old(sheet-morph),
 :root.vt-closing::view-transition-new(sheet-morph) {
-  animation-duration: 2s;
+  animation-duration: var(--morph-close);
 }
 
 /* §C — sheet rows separate by HAIRLINE only (never grooves inside the lens). */
@@ -782,4 +801,13 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.2px;
+}
+
+
+/* Owner ruling: animation must never block input. The view-transition
+   snapshot overlay normally eats every click until it finishes — disable
+   hit-testing on it so the REAL page (scrim, sheet, close) stays clickable
+   mid-morph, and a new interaction can interrupt/reverse at any time. */
+::view-transition {
+  pointer-events: none;
 }
