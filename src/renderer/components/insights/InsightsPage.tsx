@@ -62,8 +62,10 @@ import './insights-luce.css';
  *      (DESIGN-CONTRACT §B); a solo client gets the hero tile (§A). A tile
  *      expands (FLIP, §D) into the blast-radius sheet (§C): the lineage
  *      process diagram (owner v3 #3) on top, then chipless dataflow/dataset
- *      rows and the people with access, folded in.
- *   3. Your usage + the admin tier (owner-only; App audiences, activity).
+ *      rows, the people with access, and the user's USAGE for that workspace
+ *      (owner: usage belongs in the same window as its tile) — total opens as
+ *      a bar graph, never-opened items as one footnote line.
+ *   3. The admin tier (owner-only; App audiences, activity).
  */
 
 function formatTime(iso?: string): string {
@@ -491,11 +493,19 @@ const WorkspaceSheet: React.FC<{
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
   reports: LineageReportInput[];
+  /** This workspace's slice of the locally-recorded opens (usage.getFrequent
+   *  filtered by workspaceId at the page level — owner: usage lives in the
+   *  same window as the tile, because it's about THIS workspace). */
+  usage: ContentItem[];
+  /** This workspace's catalog slice (reports + dashboards the user can see),
+   *  used to derive the never-opened footnote. */
+  catalog: Array<{ id: string; name: string }>;
   /** §E: glass (backdrop blur) on — immediately when no morph ran, or at the
    *  open morph's `finished` promise (InsightsPage decides). */
   settled: boolean;
   onClose: () => void;
-}> = ({ group, access, blast, reports, settled, onClose }) => {
+}> = ({ group, access, blast, reports, usage, catalog, settled, onClose }) => {
+  const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -574,6 +584,14 @@ const WorkspaceSheet: React.FC<{
 
   const dataflows = group.items.filter((i) => i.kind === 'dataflow');
   const datasets = group.items.filter((i) => i.kind === 'dataset');
+
+  // USAGE group (owner: one flow, no two columns). Each used item draws a
+  // horizontal bar scaled to the workspace MAX open count; everything the
+  // user can see but has never opened compresses into one footnote line.
+  const used = [...usage].sort((a, b) => (b.openCount ?? 0) - (a.openCount ?? 0));
+  const maxOpens = used.reduce((m, f) => Math.max(m, f.openCount ?? 0), 0);
+  const openedIds = new Set(usage.map((f) => f.id));
+  const neverOpened = catalog.filter((c) => !openedIds.has(c.id));
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -695,6 +713,77 @@ const WorkspaceSheet: React.FC<{
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            </div>
+            {/* USAGE (owner): the user's opens for THIS workspace, in the same
+                window as the tile — one flow, total usage as a bar graph. */}
+            <div data-testid="sheet-usage">
+              <SheetLabel>Usage</SheetLabel>
+              <div className="mb-2" style={{ fontSize: 10, color: ladder.faint }}>
+                opens recorded by this app on this computer
+              </div>
+              <div className="luce-wave luce-wave--3">
+                {used.length === 0 ? (
+                  <p style={{ fontSize: 12, color: ladder.faint }}>
+                    No opens recorded yet for this client.
+                  </p>
+                ) : (
+                  <div>
+                    {used.map((f) => (
+                      <button
+                        key={f.id}
+                        data-testid="usage-bar-row"
+                        className="w-full grid items-center text-left cursor-pointer border-0 bg-transparent rounded-lg transition-colors hover:bg-white/[0.03]"
+                        style={{
+                          gridTemplateColumns: 'minmax(0, 1fr) minmax(64px, 2fr) 76px',
+                          columnGap: 12,
+                          padding: '6px 8px',
+                        }}
+                        title={f.name}
+                        onClick={() =>
+                          navigate(
+                            f.type === 'dashboard'
+                              ? `/dashboard/${f.workspaceId}/${f.id}`
+                              : `/report/${f.workspaceId}/${f.id}`,
+                          )
+                        }
+                      >
+                        <span className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
+                          {f.name}
+                        </span>
+                        {/* The bar: width ∝ openCount / workspace max. */}
+                        <span aria-hidden="true" className="block min-w-0">
+                          <span
+                            data-testid="usage-bar"
+                            className="block rounded-full"
+                            style={{
+                              height: 6,
+                              width: `${((f.openCount ?? 0) / Math.max(1, maxOpens)) * 100}%`,
+                              background: 'rgba(232,163,61,0.55)', // luce.accent at modest opacity
+                            }}
+                          />
+                        </span>
+                        <span
+                          className="text-right whitespace-nowrap"
+                          style={{ fontSize: 11, color: ladder.low, ...tabular }}
+                        >
+                          {f.openCount ?? 0} open{(f.openCount ?? 0) === 1 ? '' : 's'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {neverOpened.length > 0 && (
+                  <p
+                    data-testid="usage-never-opened"
+                    className="mt-2"
+                    style={{ fontSize: 11, color: ladder.faint }}
+                  >
+                    Never opened:{' '}
+                    {neverOpened.slice(0, 5).map((c) => c.name).join(', ')}
+                    {neverOpened.length > 5 ? ` +${neverOpened.length - 5} more` : ''}
+                  </p>
                 )}
               </div>
             </div>
@@ -1083,7 +1172,6 @@ const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, i
 // ---------------------------------------------------------------------------
 
 export const InsightsPage: React.FC = () => {
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   // The Administration entry is for the owner alone (owner directive).
   const isOwner = (user?.email ?? '').toLowerCase() === 'brendan@bc-abc.com';
@@ -1232,10 +1320,11 @@ export const InsightsPage: React.FC = () => {
     setAdminLoading(false);
   }, []);
 
-  // Usage cross-reference: most-opened (frequent) + the full catalog so we can
-  // derive "items you have access to but have never opened".
+  // Usage cross-reference: most-opened (frequent) + the full catalog. Both are
+  // loaded ONCE here and sliced per workspace into each tile's sheet (owner:
+  // usage renders in the same window as the tile it belongs to).
   const [frequent, setFrequent] = useState<ContentItem[]>([]);
-  const [catalog, setCatalog] = useState<Array<{ id: string; name: string; workspaceName: string; type: string }>>([]);
+  const [catalog, setCatalog] = useState<Array<{ id: string; name: string; workspaceId: string }>>([]);
 
   const load = useCallback(async (force: boolean) => {
     setIsLoading(true);
@@ -1269,19 +1358,16 @@ export const InsightsPage: React.FC = () => {
         if (cancelled) return;
         if (freqResp.success) setFrequent(freqResp.data);
         if (itemsResp.success) {
-          const wsName = new Map(itemsResp.data.workspaces.map((w) => [w.id, w.name]));
           setCatalog([
             ...itemsResp.data.reports.map((r) => ({
               id: r.id,
               name: r.name,
-              workspaceName: wsName.get(r.workspaceId) || '',
-              type: 'Report',
+              workspaceId: r.workspaceId,
             })),
             ...itemsResp.data.dashboards.map((d) => ({
               id: d.id,
               name: d.name,
-              workspaceName: wsName.get(d.workspaceId) || '',
-              type: 'Dashboard',
+              workspaceId: d.workspaceId,
             })),
           ]);
         }
@@ -1335,12 +1421,6 @@ export const InsightsPage: React.FC = () => {
     const up = all.filter((r) => !isDown(r)).length;
     return Math.round((up / all.length) * 100);
   }, [snapshot]);
-
-  const neverOpened = useMemo(() => {
-    if (catalog.length === 0) return [];
-    const openedIds = new Set(frequent.map((f) => f.id));
-    return catalog.filter((c) => !openedIds.has(c.id)).slice(0, 15);
-  }, [catalog, frequent]);
 
   // Access folded into each client tile (owner spec): workspaceId -> roster.
   const accessByWs = useMemo(() => {
@@ -1511,7 +1591,6 @@ export const InsightsPage: React.FC = () => {
           {(
             [
               ['Health', 'insights-health'],
-              ['Usage', 'insights-usage'],
               ...(isOwner ? ([['Admin', 'insights-admin']] as const) : []),
             ] as const
           ).map(([label, id]) => (
@@ -1571,72 +1650,6 @@ export const InsightsPage: React.FC = () => {
               ))}
             </div>
           )}
-        </section>
-
-        {/* Your usage */}
-        <section
-          id="insights-usage"
-          aria-labelledby="insights-usage-heading"
-          className="luce-wing-r"
-          style={{ scrollMarginTop: 48, '--luce-i': 1 } as React.CSSProperties}
-        >
-          <div className="mb-3">
-            <SectionHeading id="insights-usage-heading" eyebrow="Usage" title="Your usage" />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="luce-panel luce-card p-3">
-              <div className="luce-legend mb-2 px-2 pt-1">You open most</div>
-              {frequent.length === 0 ? (
-                <p className="text-xs" style={{ color: luce.textTertiary }}>
-                  Nothing tracked yet — open a few reports first.
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {frequent.slice(0, 8).map((f) => (
-                    <button
-                      key={f.id}
-                      className="w-full text-left px-2 py-1 rounded-lg hover:bg-white/5"
-                      onClick={() =>
-                        navigate(
-                          f.type === 'dashboard'
-                            ? `/dashboard/${f.workspaceId}/${f.id}`
-                            : `/report/${f.workspaceId}/${f.id}`,
-                        )
-                      }
-                    >
-                      <div className="text-sm" style={{ color: luce.textPrimary }}>{f.name}</div>
-                      <div className="text-xs" style={{ color: luce.textTertiary }}>
-                        {f.workspaceName}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="luce-panel luce-card p-3">
-              <div className="luce-legend mb-2 px-2 pt-1">Never opened by you</div>
-              {neverOpened.length === 0 ? (
-                <p className="text-xs" style={{ color: luce.textTertiary }}>
-                  {catalog.length === 0 ? 'Catalog still loading…' : "You've opened everything you can see."}
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {neverOpened.map((c) => (
-                    <div key={c.id} className="px-2 py-1 rounded-lg transition-colors hover:bg-white/[0.03]">
-                      <div className="text-sm" style={{ color: luce.textPrimary }}>{c.name}</div>
-                      <div className="text-xs" style={{ color: luce.textTertiary }}>
-                        {c.type} · {c.workspaceName}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <p className="text-xs mt-2" style={{ color: luce.textTertiary }}>
-            Usage above is what this app has recorded for your account on this computer. The
-            admin view below adds tenant-wide activity for Fabric administrators.
-          </p>
         </section>
 
         {/* Admin tier — the owner's eyes only */}
@@ -1844,6 +1857,8 @@ export const InsightsPage: React.FC = () => {
           access={accessByWs.get(sheetGroup.workspaceId)}
           blast={blast}
           reports={snapshot.reports ?? []}
+          usage={frequent.filter((f) => f.workspaceId === sheetGroup.workspaceId)}
+          catalog={catalog.filter((c) => c.workspaceId === sheetGroup.workspaceId)}
           settled={sheetSettled}
           onClose={closeSheet}
         />
