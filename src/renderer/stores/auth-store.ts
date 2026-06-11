@@ -134,8 +134,20 @@ export const useAuthStore = create<AuthState>((set) => ({
   // so the app falls back to the LoginScreen.
   switchAccount: async () => {
     set({ isLoading: true, error: null });
+
+    const SWITCH_TIMEOUT_MS = 130_000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('Account switch timed out. Please try again.')),
+        SWITCH_TIMEOUT_MS,
+      ),
+    );
+
     try {
-      const response = await window.electronAPI.auth.switchAccount();
+      const response = await Promise.race([
+        window.electronAPI.auth.switchAccount(),
+        timeoutPromise,
+      ]);
 
       if (response.success && response.data.success) {
         set({

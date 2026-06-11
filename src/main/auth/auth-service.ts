@@ -93,6 +93,7 @@ class AuthService {
   private readonly deps: AuthServiceDeps;
   private account: AccountInfo | null = null;
   private pendingAuthState: string | null = null; // For CSRF validation
+  private interactiveAuthInFlight = false;
   // Guard so initializeCache() runs its deserialize+hydrate
   // at most once. Repeated reads (isAuthenticated, getAccessToken) must not keep
   // re-deserializing and clobbering this.account on every call.
@@ -118,6 +119,7 @@ class AuthService {
   // two acquireTokenSilent + persistCache cycles against each other, which can
   // corrupt the MSAL cache. All callers await the same in-flight promise.
   private tokenAcquisitionInFlight: Promise<IPCResponse<TokenResult>> | null = null;
+  private tokenPersistMutex: Promise<void> = Promise.resolve();
 
   constructor(deps: AuthServiceDeps) {
     this.deps = deps;
@@ -207,6 +209,15 @@ class AuthService {
     } catch (error) {
       this.deps.logger.warn('[Auth] Cache persistence failed:', error);
     }
+  }
+
+  private runSerializedTokenAcquisition<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.tokenPersistMutex.then(work);
+    this.tokenPersistMutex = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   /**
@@ -397,36 +408,37 @@ class AuthService {
    */
   async login(options?: { prompt?: string }): Promise<IPCResponse<AuthResult>> {
     const prompt = options?.prompt;
+    // Fail loud, not blank: a build whose Azure credentials weren't injected
+    // (or are the .env.example placeholders) would otherwise open a Microsoft
+    // sign-in window that renders blank — the "credentials completely broken,
+    // can't even see the login" outage. Surface a specific, actionable error
+    // so the operator knows it's a bad build, not a user/network problem.
+    if (!azureConfigValid) {
+      return {
+        success: false,
+        error: {
+          code: 'MISCONFIGURED_CREDENTIALS',
+          message:
+            'This build is missing its Microsoft sign-in credentials and cannot sign in. ' +
+            'Reinstall the previous working version, or rebuild with AZURE_CLIENT_ID and ' +
+            'AZURE_TENANT_ID set.',
+        },
+      };
+    }
+
+    // A fast double-click on the Sign-in button would overwrite
+    // pendingAuthState mid-flight, which then trips the CSRF check on the
+    // first window's redirect. Treat the second click as a no-op so the
+    // in-flight login can complete; the renderer ignores LOGIN_IN_PROGRESS.
+    if (this.interactiveAuthInFlight) {
+      return {
+        success: false,
+        error: { code: 'LOGIN_IN_PROGRESS', message: 'A sign-in is already in progress' },
+      };
+    }
+
+    this.interactiveAuthInFlight = true;
     try {
-      // Fail loud, not blank: a build whose Azure credentials weren't injected
-      // (or are the .env.example placeholders) would otherwise open a Microsoft
-      // sign-in window that renders blank — the "credentials completely broken,
-      // can't even see the login" outage. Surface a specific, actionable error
-      // so the operator knows it's a bad build, not a user/network problem.
-      if (!azureConfigValid) {
-        return {
-          success: false,
-          error: {
-            code: 'MISCONFIGURED_CREDENTIALS',
-            message:
-              'This build is missing its Microsoft sign-in credentials and cannot sign in. ' +
-              'Reinstall the previous working version, or rebuild with AZURE_CLIENT_ID and ' +
-              'AZURE_TENANT_ID set.',
-          },
-        };
-      }
-
-      // A fast double-click on the Sign-in button would overwrite
-      // pendingAuthState mid-flight, which then trips the CSRF check on the
-      // first window's redirect. Treat the second click as a no-op so the
-      // in-flight login can complete; the renderer ignores LOGIN_IN_PROGRESS.
-      if (this.pendingAuthState !== null) {
-        return {
-          success: false,
-          error: { code: 'LOGIN_IN_PROGRESS', message: 'A sign-in is already in progress' },
-        };
-      }
-
       // PROACTIVE pre-login sweep. When there is no in-flight login AND
       // no signed-in account, wipe the partition cookies BEFORE we open the auth
       // window. Sign-out and sign-in must be symmetric: a prior crash or an
@@ -565,6 +577,9 @@ class AuthService {
         success: false,
         error: { code: 'LOGIN_FAILED', message: String(error) },
       };
+    } finally {
+      this.pendingAuthState = null;
+      this.interactiveAuthInFlight = false;
     }
   }
 
@@ -636,12 +651,14 @@ class AuthService {
 
         // Try silent token acquisition first
         try {
-          const result = await this.deps.msalClient.acquireTokenSilent({
-            ...silentRequest,
-            account,
+          const result = await this.runSerializedTokenAcquisition(async () => {
+            const acquired = await this.deps.msalClient.acquireTokenSilent({
+              ...silentRequest,
+              account,
+            });
+            await this.persistCache();
+            return acquired;
           });
-
-          await this.persistCache();
           // Record expiry keyed by THIS account's homeAccountId so the
           // validateToken short-circuit can only ever trust this account's token.
           if (result.expiresOn) {
@@ -715,11 +732,14 @@ class AuthService {
       this.account = account;
 
       try {
-        const result = await this.deps.msalClient.acquireTokenSilent({
-          scopes: adminScopes,
-          account,
+        const result = await this.runSerializedTokenAcquisition(async () => {
+          const acquired = await this.deps.msalClient.acquireTokenSilent({
+            scopes: adminScopes,
+            account,
+          });
+          await this.persistCache();
+          return acquired;
         });
-        await this.persistCache();
         return {
           success: true,
           data: {
@@ -734,18 +754,19 @@ class AuthService {
 
       // Share the in-flight guard with login() so two auth windows can never
       // stack (e.g. admin unlock clicked during a sign-in).
-      if (this.pendingAuthState !== null) {
+      if (this.interactiveAuthInFlight) {
         return {
           success: false,
           error: { code: 'LOGIN_IN_PROGRESS', message: 'A sign-in is already in progress' },
         };
       }
 
-      this.lastAuthError = null;
-      const { verifier, challenge } = await this.deps.cryptoProvider.generatePkceCodes();
-      const state = this.generateState();
-      this.pendingAuthState = state;
+      this.interactiveAuthInFlight = true;
       try {
+        this.lastAuthError = null;
+        const { verifier, challenge } = await this.deps.cryptoProvider.generatePkceCodes();
+        const state = this.generateState();
+        this.pendingAuthState = state;
         // Request the SUPERSET (base + admin scopes) so the refreshed grant
         // covers everything the app uses with one consent.
         const authCodeUrl = await this.deps.msalClient.getAuthCodeUrl({
@@ -816,6 +837,7 @@ class AuthService {
         };
       } finally {
         this.pendingAuthState = null;
+        this.interactiveAuthInFlight = false;
       }
     } catch (error) {
       return {
