@@ -1437,3 +1437,130 @@ describe('App freshness — per-dataset workspaces and groupless fallback', () =
     expect(groupedCalls).toContain('ws-legacy|ds-legacy-2');
   });
 });
+
+// ---------------------------------------------------------------------------
+// App dataset backfill — tenant-verified quirk (diagnose-pbi 2026-06-10):
+// /apps/{id}/reports returns datasetId:"" but carries originalReportObjectId.
+// One workspace-listing hop must recover the dataset so App freshness works.
+// ---------------------------------------------------------------------------
+describe('getAppReports dataset backfill', () => {
+  function urlOf(call: unknown[]): string {
+    return String(call[0]);
+  }
+
+  it('backfills empty datasetId from the source workspace (id match, then name)', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes('/apps/app-1/reports')) {
+        return new Response(
+          JSON.stringify({
+            value: [
+              {
+                id: 'app-r1', name: 'BELL - DASHBOARD', embedUrl: 'e1',
+                datasetId: '', reportType: 'PowerBIReport', appId: 'app-1',
+                originalReportObjectId: 'ws-r1',
+              },
+              {
+                id: 'app-r2', name: 'BELL - KPI', embedUrl: 'e2',
+                datasetId: '', reportType: 'PowerBIReport', appId: 'app-1',
+                // no originalReportObjectId -> must fall back to name match
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.endsWith('/apps/app-1')) {
+        return new Response(
+          JSON.stringify({ id: 'app-1', name: 'BELL', workspaceId: 'ws-1', publishedBy: 'x', lastUpdate: 'y' }),
+          { status: 200 },
+        );
+      }
+      if (u.includes('/groups/ws-1/reports')) {
+        return new Response(
+          JSON.stringify({
+            value: [
+              { id: 'ws-r1', name: 'BELL - DASHBOARD', datasetId: 'ds-dash' },
+              { id: 'ws-r2', name: 'bell - kpi', datasetId: 'ds-kpi' },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await svc.getAppReports('app-1');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const [dash, kpi] = result.data;
+    expect(dash?.datasetId).toBe('ds-dash'); // via originalReportObjectId
+    expect(kpi?.datasetId).toBe('ds-kpi'); // via case-insensitive name match
+    // The hop hit the source workspace exactly once.
+    const wsCalls = fetchMock.mock.calls.filter((c) => urlOf(c).includes('/groups/ws-1/reports'));
+    expect(wsCalls.length).toBe(1);
+  });
+
+  it('skips the hop entirely when app reports already carry datasetId', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes('/apps/app-1/reports')) {
+        return new Response(
+          JSON.stringify({
+            value: [{ id: 'r', name: 'R', embedUrl: 'e', datasetId: 'ds-1', reportType: 'PowerBIReport', appId: 'app-1' }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.endsWith('/apps/app-1')) {
+        return new Response(
+          JSON.stringify({ id: 'app-1', name: 'BELL', workspaceId: 'ws-1', publishedBy: 'x', lastUpdate: 'y' }),
+          { status: 200 },
+        );
+      }
+      throw new Error(`unexpected fetch: ${u}`);
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await svc.getAppReports('app-1');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data[0]?.datasetId).toBe('ds-1');
+    expect(fetchMock.mock.calls.some((c) => urlOf(c).includes('/groups/'))).toBe(false);
+  });
+
+  it('degrades to the old behavior when the workspace listing is denied', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes('/apps/app-1/reports')) {
+        return new Response(
+          JSON.stringify({
+            value: [{ id: 'r', name: 'R', embedUrl: 'e', datasetId: '', reportType: 'PowerBIReport', appId: 'app-1', originalReportObjectId: 'x' }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.endsWith('/apps/app-1')) {
+        return new Response(
+          JSON.stringify({ id: 'app-1', name: 'BELL', workspaceId: 'ws-1', publishedBy: 'x', lastUpdate: 'y' }),
+          { status: 200 },
+        );
+      }
+      return new Response('forbidden', { status: 403 });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await svc.getAppReports('app-1');
+    expect(result.success).toBe(true); // hop is best-effort, never fatal
+    if (!result.success) return;
+    expect(result.data[0]?.datasetId).toBe('');
+  });
+});

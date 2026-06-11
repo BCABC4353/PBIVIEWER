@@ -525,21 +525,59 @@ class PowerBIApiService {
         datasetId: string;
         reportType: string;
         appId: string;
+        /** The SAME report's id in the app's source workspace. */
+        originalReportObjectId?: string;
       }
 
       // Use fetchAllPages so apps with >100 reports paginate via @odata.nextLink
       // instead of silently truncating to the first page.
-      const reports = await this.fetchAllPages<RawAppReport, Report>(
+      const raw = await this.fetchAllPages<RawAppReport, RawAppReport>(
         `/apps/${appId}/reports`,
-        (report) => ({
-          id: report.id,
-          name: report.name,
-          workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
-          embedUrl: report.embedUrl,
-          datasetId: report.datasetId,
-          reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
-        })
+        (report) => report,
       );
+
+      // Tenant-verified quirk (diagnose-pbi 2026-06-10): /apps/{id}/reports can
+      // return datasetId:"" while carrying originalReportObjectId — a pointer to
+      // the SAME report in the app's source workspace, where datasetId IS
+      // populated. Without this hop the App view has no datasets to ask about
+      // and the freshness strip reads "Data refreshed: —" forever. Backfill
+      // with ONE workspace listing (id match first, then name match); the hop
+      // is best-effort so a denied workspace degrades to the old behavior.
+      if (raw.some((r) => !r.datasetId)) {
+        try {
+          const wsReports = await this.fetchAllPages<
+            { id: string; name: string; datasetId?: string },
+            { id: string; name: string; datasetId?: string }
+          >(`/groups/${actualWorkspaceId}/reports`, (r) => r);
+          const byId = new Map<string, string>();
+          const byName = new Map<string, string>();
+          for (const w of wsReports) {
+            if (w.datasetId) {
+              byId.set(w.id, w.datasetId);
+              byName.set(w.name.toLowerCase(), w.datasetId);
+            }
+          }
+          for (const r of raw) {
+            if (!r.datasetId) {
+              r.datasetId =
+                (r.originalReportObjectId ? byId.get(r.originalReportObjectId) : undefined) ??
+                byName.get(r.name.toLowerCase()) ??
+                r.datasetId;
+            }
+          }
+        } catch (err) {
+          console.warn('[PowerBI] App dataset backfill failed (degrading):', err);
+        }
+      }
+
+      const reports: Report[] = raw.map((report) => ({
+        id: report.id,
+        name: report.name,
+        workspaceId: actualWorkspaceId, // Use actual workspace GUID for embedding
+        embedUrl: report.embedUrl,
+        datasetId: report.datasetId,
+        reportType: report.reportType === 'PaginatedReport' ? 'PaginatedReport' : 'PowerBIReport',
+      }));
 
       return { success: true, data: reports };
     } catch (error) {
