@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { color, space, statusColor, statusGlyph, statusLabel, type } from '../design/tokens';
 import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
-import { relativeAge, statusOrder } from '../core/refresh-health';
+import { itemRank, relativeAge } from '../core/refresh-health';
 
 /** Why an item is in the feed — one quiet sentence per alert. */
 function alertReason(r: Refreshable): string {
@@ -28,10 +28,11 @@ const isAlert = (r: Refreshable): boolean =>
   r.lastStatus === 'Never' ||
   r.scheduleOverdue === true;
 
-/** Worst first (core ordering), newest first within the same severity band. */
+/** Worst first (the board's Matt #4 itemRank — overdue is its own band above
+ *  Never), newest first within the same severity band. */
 function sortAlerts(items: Refreshable[]): Refreshable[] {
   return [...items].sort((a, b) => {
-    const s = statusOrder[a.lastStatus] - statusOrder[b.lastStatus];
+    const s = itemRank(a) - itemRank(b);
     if (s !== 0) return s;
     const at = a.lastAttemptTime ? Date.parse(a.lastAttemptTime) : 0;
     const bt = b.lastAttemptTime ? Date.parse(b.lastAttemptTime) : 0;

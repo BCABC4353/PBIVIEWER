@@ -1,13 +1,18 @@
 // ---------------------------------------------------------------------------
 // PURE refresh-health derivation: refresh/transaction history in, health
-// fields out. This module must have NO electron or node imports — it is
-// intended to be shared verbatim with the mobile app (mobile/) later, so it
-// must stay loadable in any JS runtime. Type-only imports from src/shared are
-// fine (erased at compile time). The fetching wrappers that feed these
-// functions live in powerbi/insights.ts.
+// fields out. SINGLE SOURCE for BOTH apps — consumed by the desktop main
+// process (src/main/services/powerbi/insights.ts feeds these functions from
+// its fetching wrappers) and by the mobile app's thin adapter
+// (mobile/src/core/refresh-health.ts; Metro reaches this file through the
+// watchFolders entry in mobile/metro.config.js). This module must have NO
+// electron, node, or react-native imports and NO side effects — it compiles
+// under tsconfig.main.json (CommonJS), tsconfig.renderer.json (bundler), AND
+// the mobile Expo toolchain, so it must stay loadable in any JS runtime.
+// Keep imports relative; type-only imports from src/shared are fine (erased
+// at compile time).
 // ---------------------------------------------------------------------------
 
-import type { InsightsRefreshable } from '../../../shared/types';
+import type { InsightsRefreshable } from './types';
 
 /**
  * Parse a dataset refresh entry's serviceExceptionJson into the error code
@@ -125,10 +130,14 @@ export function deriveDatasetRefreshHealth(
  * schedule's expected cadence (minimum 24h so a multi-daily schedule with
  * one missed slot doesn't immediately alarm). Datasets without a schedule
  * (live connections, push datasets) simply return no fields.
+ *
+ * `now` is injectable (epoch ms) so the mobile adapter and its tests can pass
+ * a fixed clock; desktop callers omit it and get the real one.
  */
 export function deriveScheduleInfo(
   sched: { days?: string[]; times?: string[]; enabled?: boolean; localTimeZoneId?: string } | null | undefined,
   lastSuccessTime?: string,
+  now: number = Date.now(),
 ): Pick<InsightsRefreshable, 'scheduleSummary' | 'scheduleOverdue'> {
   if (!sched || sched.enabled !== true) return {};
 
@@ -143,7 +152,7 @@ export function deriveScheduleInfo(
     const slotsPerWeek = Math.max(1, (days.length || 7) * (times.length || 1));
     const expectedGapMs = (7 * 24 * 60 * 60 * 1000) / slotsPerWeek;
     const overdueAfterMs = Math.max(24 * 60 * 60 * 1000, 2 * expectedGapMs);
-    scheduleOverdue = Date.now() - Date.parse(lastSuccessTime) > overdueAfterMs;
+    scheduleOverdue = now - Date.parse(lastSuccessTime) > overdueAfterMs;
   } else {
     // Enabled schedule but no success ever recorded — that IS overdue.
     scheduleOverdue = true;

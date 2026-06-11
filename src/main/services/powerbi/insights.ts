@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
 // Insights tier: the one-pager snapshot of refresh health, workspace access,
 // and catalog counts. The fetching wrappers here feed the PURE derivation
-// functions in powerbi/refresh-health.ts.
+// functions in src/shared/refresh-health-core.ts (the single source shared
+// with the mobile app).
 // ---------------------------------------------------------------------------
 
 import { mapWithConcurrency, type PowerBIApiResponse } from './http';
@@ -10,7 +11,7 @@ import {
   deriveDataflowRefreshHealth,
   deriveDatasetRefreshHealth,
   deriveScheduleInfo,
-} from './refresh-health';
+} from '../../../shared/refresh-health-core';
 import type {
   Workspace,
   Report,
@@ -307,7 +308,7 @@ export class PowerBIInsightsApi {
   }
 
   /** Fetch a dataset's recent refresh history and derive health from it
-   *  (the pure derivation lives in powerbi/refresh-health.ts). */
+   *  (the pure derivation lives in src/shared/refresh-health-core.ts). */
   private async getDatasetRefreshHealth(
     workspaceId: string,
     datasetId: string,
@@ -359,7 +360,7 @@ export class PowerBIInsightsApi {
   }
 
   /** Fetch a dataflow's recent transactions and derive health from them
-   *  (the pure derivation lives in powerbi/refresh-health.ts). */
+   *  (the pure derivation lives in src/shared/refresh-health-core.ts). */
   private async getDataflowRefreshHealth(
     workspaceId: string,
     dataflowId: string,

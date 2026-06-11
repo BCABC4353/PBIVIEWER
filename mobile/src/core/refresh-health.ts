@@ -1,8 +1,24 @@
 /**
- * Refresh-health derivation — direct port of the desktop app's verified logic
- * (src/main/services/powerbi-api.ts). Pure functions; no I/O.
+ * Refresh-health adapter — the health DERIVATIONS live in the canonical
+ * shared module (src/shared/refresh-health-core.ts at the repo root), the
+ * single source for desktop AND mobile; this file no longer carries its own
+ * copy (the hand-port drifted: it dropped pbi.error codes and ranked overdue
+ * below quiet Never/Running). Metro reaches the out-of-tree import through
+ * the watchFolders entry in mobile/metro.config.js.
+ *
+ * Kept here, and ONLY here, are the mobile-specific pieces:
+ *   - recentDurationsMin (sparkline fuel — desktop renders recentRuns dots
+ *     instead),
+ *   - itemRank / statusOrder / sortWorstFirst (fleet-board ordering),
+ *   - relativeAge / triggerLabel (label helpers).
+ * Pure functions; no I/O, no React Native imports.
  */
 import type { Refreshable, RefreshStatus } from './types';
+import {
+  deriveDatasetRefreshHealth,
+  deriveDataflowRefreshHealth,
+  deriveScheduleInfo as deriveScheduleInfoCore,
+} from '../../../src/shared/refresh-health-core';
 
 export interface RawRefreshEntry {
   status?: string;
@@ -18,33 +34,24 @@ export interface RawTransaction {
   endTime?: string;
 }
 
+/** Same success semantics the canonical module uses for datasets: 'Unknown'
+ *  WITH an endTime is how the v1 endpoint reports a completed on-demand
+ *  refresh. Local copy only feeds the mobile-only durations derivation. */
 const successLike = (s?: string) => s === 'Completed' || s === 'Unknown';
 
-/** Dataset health from its recent refresh history (newest first). */
+/**
+ * Dataset health from its recent refresh history (newest first). Status,
+ * times, and errorCode come from the canonical derivation — including the
+ * full serviceExceptionJson parse (top-level errorCode OR the nested
+ * pbi.error code), so failures name the same cause the desktop shows.
+ * recentDurationsMin is the mobile-only addition; the canonical recentRuns
+ * strip is dropped at this boundary because the mobile Refreshable does not
+ * carry it (the phone draws a duration sparkline instead of the dot strip).
+ */
 export function deriveDatasetHealth(
   entries: RawRefreshEntry[],
 ): Pick<Refreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime' | 'errorCode' | 'lastRefreshType' | 'recentDurationsMin'> {
-  if (entries.length === 0) return { lastStatus: 'Never' };
-  const newest = entries[0]!;
-  const lastSuccess = entries.find((e) => successLike(e.status) && e.endTime);
-
-  let lastStatus: RefreshStatus;
-  // 'Unknown' with no endTime is an in-flight refresh; 'Unknown' WITH an
-  // endTime is how the v1 endpoint reports a completed on-demand refresh.
-  if (newest.status === 'Unknown' && !newest.endTime) lastStatus = 'InProgress';
-  else if (successLike(newest.status)) lastStatus = 'Completed';
-  else if (newest.status === 'Cancelled') lastStatus = 'Cancelled';
-  else if (newest.status === 'Disabled') lastStatus = 'Disabled';
-  else lastStatus = 'Failed';
-
-  let errorCode: string | undefined;
-  if (lastStatus === 'Failed' && newest.serviceExceptionJson) {
-    try {
-      errorCode = (JSON.parse(newest.serviceExceptionJson) as { errorCode?: string }).errorCode;
-    } catch {
-      /* malformed exception payload — omit */
-    }
-  }
+  const core = deriveDatasetRefreshHealth(entries);
 
   // Durations of successful runs (oldest→newest) — drawn natively as a
   // sparkline; a creeping duration is the early warning of a degrading model.
@@ -54,33 +61,25 @@ export function deriveDatasetHealth(
     .reverse();
 
   return {
-    lastStatus,
-    lastAttemptTime: newest.endTime || newest.startTime,
-    lastSuccessTime: lastSuccess?.endTime,
-    errorCode,
-    lastRefreshType: newest.refreshType,
+    lastStatus: core.lastStatus,
+    lastAttemptTime: core.lastAttemptTime,
+    lastSuccessTime: core.lastSuccessTime,
+    errorCode: core.errorCode,
+    lastRefreshType: core.lastRefreshType,
     recentDurationsMin: recentDurationsMin.length > 0 ? recentDurationsMin : undefined,
   };
 }
 
-/** Dataflow health from its recent transactions (newest first). */
+/** Dataflow health from its recent transactions (newest first) — canonical
+ *  derivation, minus the recentRuns strip the mobile type does not carry. */
 export function deriveDataflowHealth(
   entries: RawTransaction[],
 ): Pick<Refreshable, 'lastStatus' | 'lastAttemptTime' | 'lastSuccessTime'> {
-  if (entries.length === 0) return { lastStatus: 'Never' };
-  const newest = entries[0]!;
-  const lastSuccess = entries.find((e) => e.status === 'Success' && e.endTime);
-
-  let lastStatus: RefreshStatus;
-  if (newest.status === 'Success') lastStatus = 'Completed';
-  else if (newest.status === 'InProgress' || (!newest.endTime && !newest.status)) lastStatus = 'InProgress';
-  else if (newest.status === 'Cancelled') lastStatus = 'Cancelled';
-  else lastStatus = 'Failed';
-
+  const core = deriveDataflowRefreshHealth(entries);
   return {
-    lastStatus,
-    lastAttemptTime: newest.endTime || newest.startTime,
-    lastSuccessTime: lastSuccess?.endTime,
+    lastStatus: core.lastStatus,
+    lastAttemptTime: core.lastAttemptTime,
+    lastSuccessTime: core.lastSuccessTime,
   };
 }
 
@@ -93,31 +92,19 @@ export interface RawSchedule {
 /**
  * Schedule-vs-reality: overdue when an enabled schedule's last success is older
  * than twice its expected cadence (min 24h), or has never succeeded at all.
+ * Canonical math; mobile passes an explicit clock for deterministic tests.
  */
 export function deriveScheduleInfo(
   sched: RawSchedule | null,
   lastSuccessTime: string | undefined,
   now: number,
 ): Pick<Refreshable, 'scheduleSummary' | 'scheduleOverdue'> {
-  if (!sched || sched.enabled !== true) return {};
-  const days = sched.days ?? [];
-  const times = sched.times ?? [];
-  const daysLabel = days.length === 0 || days.length === 7 ? 'Daily' : days.join(', ');
-  const scheduleSummary = `${daysLabel}${times.length > 0 ? ` at ${times.join(', ')}` : ''}`;
-
-  let scheduleOverdue: boolean;
-  if (lastSuccessTime) {
-    const slotsPerWeek = Math.max(1, (days.length || 7) * (times.length || 1));
-    const expectedGapMs = (7 * 24 * 60 * 60 * 1000) / slotsPerWeek;
-    const overdueAfterMs = Math.max(24 * 60 * 60 * 1000, 2 * expectedGapMs);
-    scheduleOverdue = now - Date.parse(lastSuccessTime) > overdueAfterMs;
-  } else {
-    scheduleOverdue = true; // enabled schedule, no success ever
-  }
-  return { scheduleSummary, scheduleOverdue };
+  return deriveScheduleInfoCore(sched, lastSuccessTime, now);
 }
 
-/** Worst-first ordering for the fleet board (same ranking as desktop). */
+/** Status severity bands (mirrors the desktop board's `severity` record in
+ *  insights-luce.ts). NOTE: list ordering uses itemRank below, which
+ *  additionally bands schedule-overdue items above Never/Running. */
 export const statusOrder: Record<RefreshStatus, number> = {
   Failed: 0,
   Cancelled: 1,
@@ -127,15 +114,33 @@ export const statusOrder: Record<RefreshStatus, number> = {
   Disabled: 5,
 };
 
+/**
+ * Item sort rank — the desktop board's documented "Matt #4" order
+ * (src/renderer/components/insights/insights-luce.ts itemRank):
+ * Failed, Cancelled, Overdue, Never, Running, OK, Live. A schedule-overdue
+ * item OUTRANKS quiet Never/Running items — converged on the desktop ruling
+ * 2026-06-11; the old mobile order ranked overdue below them. (The desktop
+ * also has a Dormant band between Overdue and Never; mobile derives no
+ * dormancy yet, so that band is skipped.)
+ */
+export function itemRank(r: Pick<Refreshable, 'lastStatus' | 'scheduleOverdue'>): number {
+  if (r.lastStatus === 'Failed') return 0;
+  if (r.lastStatus === 'Cancelled') return 1;
+  if (r.scheduleOverdue) return 2;
+  if (r.lastStatus === 'Never') return 3;
+  if (r.lastStatus === 'InProgress') return 4;
+  if (r.lastStatus === 'Completed') return 5;
+  return 6; // Disabled ("Live")
+}
+
+/** Worst-first ordering for the fleet board (Matt #4 rank, then names). */
 export function sortWorstFirst(items: Refreshable[]): Refreshable[] {
-  return [...items].sort((a, b) => {
-    const s = statusOrder[a.lastStatus] - statusOrder[b.lastStatus];
-    if (s !== 0) return s;
-    // Overdue floats above healthy within the same status band.
-    const o = Number(b.scheduleOverdue ?? false) - Number(a.scheduleOverdue ?? false);
-    if (o !== 0) return o;
-    return a.workspaceName.localeCompare(b.workspaceName) || a.name.localeCompare(b.name);
-  });
+  return [...items].sort(
+    (a, b) =>
+      itemRank(a) - itemRank(b) ||
+      a.workspaceName.localeCompare(b.workspaceName) ||
+      a.name.localeCompare(b.name),
+  );
 }
 
 export function triggerLabel(refreshType?: string): string {

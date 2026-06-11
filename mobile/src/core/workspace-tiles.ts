@@ -13,7 +13,7 @@
  * FleetSnapshot carries, mock or live — no data-layer contract changes.
  */
 import type { Refreshable } from './types';
-import { sortWorstFirst, statusOrder } from './refresh-health';
+import { itemRank, sortWorstFirst } from './refresh-health';
 
 /**
  * Tile edge severity. Red is sacred — `broken` means Failed, nothing else.
@@ -98,14 +98,13 @@ export function groupFleetByWorkspace(refreshables: Refreshable[]): WorkspaceTil
   }
 
   // Worst workspace first — rank tiles by their worst item with the board's
-  // own keys (status band, then overdue flag, then name).
-  tiles.sort((a, b) => {
-    const s = statusOrder[a.worst.lastStatus] - statusOrder[b.worst.lastStatus];
-    if (s !== 0) return s;
-    const o = Number(b.worst.scheduleOverdue ?? false) - Number(a.worst.scheduleOverdue ?? false);
-    if (o !== 0) return o;
-    return a.workspaceName.localeCompare(b.workspaceName);
-  });
+  // own key (the desktop's Matt #4 itemRank, where overdue is its own band
+  // above Never/Running), then name.
+  tiles.sort(
+    (a, b) =>
+      itemRank(a.worst) - itemRank(b.worst) ||
+      a.workspaceName.localeCompare(b.workspaceName),
+  );
   return tiles;
 }
 

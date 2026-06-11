@@ -11,7 +11,7 @@ import type { Refreshable } from './types';
 
 const NOW = Date.parse('2026-06-10T12:00:00Z');
 
-describe('deriveDatasetHealth (ported from desktop, must match its semantics)', () => {
+describe('deriveDatasetHealth (delegates to the shared canonical module — src/shared/refresh-health-core.ts)', () => {
   it('empty history → Never', () => {
     expect(deriveDatasetHealth([]).lastStatus).toBe('Never');
   });
@@ -23,6 +23,19 @@ describe('deriveDatasetHealth (ported from desktop, must match its semantics)', 
     expect(r.lastStatus).toBe('Failed');
     expect(r.errorCode).toBe('CredsMissing');
     expect(r.lastSuccessTime).toBe('2026-06-09T01:05:00Z');
+  });
+  it('parses pbi.error-shaped payloads with no top-level errorCode (converged with the desktop parseServiceException — the old mobile port dropped these and showed a bare "Refresh failed")', () => {
+    const r = deriveDatasetHealth([
+      {
+        status: 'Failed',
+        endTime: '2026-06-10T01:05:00Z',
+        serviceExceptionJson: JSON.stringify({
+          'pbi.error': { code: 'Gateway_Offline', details: [{ detail: 'GW-EU-1 unreachable' }] },
+        }),
+      },
+    ]);
+    expect(r.lastStatus).toBe('Failed');
+    expect(r.errorCode).toBe('Gateway_Offline');
   });
   it('Unknown without endTime → InProgress; with endTime → Completed', () => {
     expect(deriveDatasetHealth([{ status: 'Unknown', startTime: 'x' }]).lastStatus).toBe('InProgress');
@@ -87,14 +100,20 @@ describe('fleet ordering and labels', () => {
     kind: 'dataset', id: 'x', name: 'n', workspaceId: 'w', workspaceName: 'W',
     lastStatus: 'Completed', ...over,
   });
-  it('sorts worst-first with overdue floating above healthy', () => {
+  it('sorts worst-first in the desktop board\'s Matt #4 order: Failed, Cancelled, Overdue, Never, Running, OK, Live', () => {
+    // Converged 2026-06-11 on the desktop's Matt #4 ruling (insights-luce.ts
+    // itemRank): a schedule-overdue item OUTRANKS quiet Never/Running items.
+    // The old mobile order ranked overdue below them.
     const sorted = sortWorstFirst([
       mk({ id: 'ok', lastStatus: 'Completed' }),
+      mk({ id: 'never', lastStatus: 'Never' }),
       mk({ id: 'bad', lastStatus: 'Failed' }),
+      mk({ id: 'run', lastStatus: 'InProgress' }),
       mk({ id: 'late', lastStatus: 'Completed', scheduleOverdue: true }),
+      mk({ id: 'cancel', lastStatus: 'Cancelled' }),
       mk({ id: 'live', lastStatus: 'Disabled' }),
     ]);
-    expect(sorted.map((r) => r.id)).toEqual(['bad', 'late', 'ok', 'live']);
+    expect(sorted.map((r) => r.id)).toEqual(['bad', 'cancel', 'late', 'never', 'run', 'ok', 'live']);
   });
   it('maps ViaApi to a human trigger label', () => {
     expect(triggerLabel('ViaApi')).toBe('Power Automate / API');
