@@ -198,6 +198,14 @@ export interface InsightsRefreshable {
    * failure detail, so dataflow runs never carry these fields.
    */
   recentRuns?: Array<{ ok: boolean; endTime?: string; errorCode?: string; errorDetail?: string }>;
+  /**
+   * Datasets only: ids of the dataflows feeding this dataset, from the
+   * workspace's upstreamDataflows lineage (the blast-radius cascade edge).
+   * Present (possibly empty) when the lineage call for the workspace
+   * succeeded; OMITTED when lineage could not be read — "unknown", never a
+   * snapshot failure.
+   */
+  upstreamDataflowIds?: string[];
 }
 
 /** Who can see a workspace. users is null when the caller may not list them
@@ -223,6 +231,13 @@ export interface InsightsSnapshot {
   reportCount: number;
   dashboardCount: number;
   refreshables: InsightsRefreshable[];
+  /**
+   * Every report the snapshot's workspaces expose — the dataset→report edge
+   * of the blast-radius cascade. datasetId is omitted when the report has no
+   * bound dataset (e.g. some paginated reports). Built from the same
+   * per-workspace report listings that feed reportCount.
+   */
+  reports: Array<{ id: string; name: string; workspaceId: string; datasetId?: string }>;
   access: InsightsWorkspaceAccess[];
   partialFailure: boolean;
   failedWorkspaces: Array<{ id: string; name: string; error: string }>;

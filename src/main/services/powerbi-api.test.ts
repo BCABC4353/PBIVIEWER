@@ -1564,3 +1564,142 @@ describe('getAppReports dataset backfill', () => {
     expect(result.data[0]?.datasetId).toBe('');
   });
 });
+
+describe('getInsightsSnapshot — blast-radius data spine (lineage + report edges)', () => {
+  const WS = '11111111-1111-1111-1111-111111111111';
+  const wsRoute: [RegExp, unknown] = [
+    /\/groups(\?|$)/,
+    { value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] },
+  ];
+
+  // Ordered regex routes, first match wins (same harness as the suites above).
+  function svcWith(routes: Array<[RegExp, unknown]>) {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      for (const [pattern, body] of routes) {
+        if (pattern.test(url)) return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    return createPowerBIApiService(makeDeps({ getAccessToken }));
+  }
+
+  function fetchUrls(): string[] {
+    return (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+  }
+
+  it('populates upstreamDataflowIds from ONE workspace-level lineage call', async () => {
+    const svc = svcWith([
+      // Full workspace link list: ds-multi feeds from two flows, ds-solo from one,
+      // ds-none appears in no link at all.
+      [/\/datasets\/upstreamDataflows/, {
+        value: [
+          { datasetObjectId: 'ds-multi', dataflowObjectId: 'df-1', workspaceObjectId: WS },
+          { datasetObjectId: 'ds-multi', dataflowObjectId: 'df-2', workspaceObjectId: WS },
+          // Duplicate link + casing difference must dedupe into one id.
+          { datasetObjectId: 'DS-MULTI', dataflowObjectId: 'df-1', workspaceObjectId: WS },
+          { datasetObjectId: 'ds-solo', dataflowObjectId: 'df-2', workspaceObjectId: WS },
+        ],
+      }],
+      [/\/datasets(\?|$)/, {
+        value: [
+          { id: 'ds-multi', name: 'Multi', isRefreshable: true },
+          { id: 'ds-solo', name: 'Solo', isRefreshable: true },
+          { id: 'ds-none', name: 'None', isRefreshable: false },
+        ],
+      }],
+      wsRoute,
+    ]);
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const byId = new Map(result.data.refreshables.map((r) => [r.id, r]));
+    expect(byId.get('ds-multi')?.upstreamDataflowIds).toEqual(['df-1', 'df-2']);
+    expect(byId.get('ds-solo')?.upstreamDataflowIds).toEqual(['df-2']);
+    // Lineage succeeded but holds no link for this dataset → KNOWN none ([]),
+    // not unknown (omitted). Disabled datasets carry lineage too.
+    expect(byId.get('ds-none')?.upstreamDataflowIds).toEqual([]);
+
+    // Exactly ONE lineage request for the whole workspace (not per dataset).
+    expect(fetchUrls().filter((u) => u.includes('/datasets/upstreamDataflows')).length).toBe(1);
+  });
+
+  it('OMITS upstreamDataflowIds (and keeps the snapshot) when the lineage call fails', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/datasets/upstreamDataflows')) {
+        return new Response('forbidden', { status: 403 });
+      }
+      if (/\/datasets(\?|$)/.test(url)) {
+        return new Response(
+          JSON.stringify({ value: [{ id: 'ds-1', name: 'Sales Model', isRefreshable: true }] }),
+          { status: 200 },
+        );
+      }
+      if (/\/groups\//.test(url)) return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const ds = result.data.refreshables.find((r) => r.id === 'ds-1');
+    expect(ds).toBeDefined();
+    // Unknown lineage: the FIELD is absent, not an empty array.
+    expect(ds && 'upstreamDataflowIds' in ds).toBe(false);
+    expect(result.data.partialFailure).toBe(false);
+  });
+
+  it('collects every workspace report into snapshot.reports, reusing the count listing', async () => {
+    const svc = svcWith([
+      [/\/reports(\?|$)/, {
+        value: [
+          { id: 'r-1', name: 'Sales Daily', embedUrl: 'e1', datasetId: 'ds-1', reportType: 'PowerBIReport' },
+          // Paginated report with no bound dataset: datasetId comes back empty.
+          { id: 'r-2', name: 'Invoice Pack', embedUrl: 'e2', datasetId: '', reportType: 'PaginatedReport' },
+        ],
+      }],
+      wsRoute,
+    ]);
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    expect(result.data.reports).toEqual([
+      { id: 'r-1', name: 'Sales Daily', workspaceId: WS, datasetId: 'ds-1' },
+      { id: 'r-2', name: 'Invoice Pack', workspaceId: WS }, // datasetId omitted, not ''
+    ]);
+    // reportCount and the reports array come from the SAME single listing.
+    expect(result.data.reportCount).toBe(2);
+    expect(fetchUrls().filter((u) => /\/reports(\?|$)/.test(u)).length).toBe(1);
+  });
+
+  it('leaves snapshot.reports empty when the report listing fails (count path unchanged)', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (/\/reports(\?|$)/.test(url)) return new Response('boom', { status: 500 });
+      if (/\/groups\//.test(url)) return new Response(JSON.stringify({ value: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const result = await svc.getInsightsSnapshot();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.reports).toEqual([]);
+    expect(result.data.reportCount).toBe(0);
+  });
+});

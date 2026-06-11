@@ -1,0 +1,34 @@
+name: Visual Evidence
+
+# Every PR that touches the renderer gets PHOTOGRAPHS of the product attached
+# as artifacts: the Insights board, the blast-radius sheet open, and the
+# solo-client view. Logic gates prove it works; this proves what it LOOKS like.
+on:
+  pull_request:
+    paths:
+      - 'src/renderer/**'
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Stub generated configs
+        run: |
+          printf 'export const AZURE_CONFIG = {\n  clientId: "00000000-0000-4000-8000-000000000001",\n  tenantId: "00000000-0000-4000-8000-000000000002",\n} as const;\n' > src/main/auth/azure-config.generated.ts
+          test -f src/main/services/beacon-config.generated.ts || printf 'export const BEACON_CONFIG = { repo: "", token: "" } as const;\n' > src/main/services/beacon-config.generated.ts
+      - run: npm i --no-save puppeteer
+      - name: Serve renderer and photograph
+        run: |
+          npx vite --port 5180 &
+          for i in $(seq 1 30); do curl -sf http://localhost:5180/ >/dev/null && break; sleep 1; done
+          mkdir -p visual-out
+          node scripts/visual/shoot-board.cjs visual-out/board.png visual-out/sheet.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insights-screenshots
+          path: visual-out/*.png

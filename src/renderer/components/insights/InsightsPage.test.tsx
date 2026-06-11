@@ -2,11 +2,14 @@
  * InsightsPage (Luce board) rendering cases.
  *
  * Drives the page through its main states with a mocked getInsights bridge:
- * clickable summary-tile filters, workspace grouping (broken first, ALL
- * groups collapsed until opened), dormant detection, down-for labels,
- * run-history dot strips with failure tooltips, the sticky section nav,
- * the partial-failure banner, access lists, the error + retry path, and
- * the admin unlock UX (staged loading text + client-side cancel).
+ * clickable summary-tile filters, the per-workspace TILE grid (damage-first
+ * triage, items folded behind each tile), the blast-radius SHEET a tile
+ * expands into (rows worst-first, dormant detection, down-for labels,
+ * run-history dot strips with failure tooltips, access folded in), the
+ * damage cascade (STALE DATA badges, reports affected), the solo-client
+ * hero tile, the sticky section nav, the partial-failure banner, the error
+ * + retry path, and the owner-gated admin tier (staged loading text +
+ * client-side cancel).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
@@ -100,6 +103,7 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
       },
       { workspaceId: 'ws-2', workspaceName: 'Ops', users: null },
     ],
+    reports: [],
     partialFailure: false,
     failedWorkspaces: [],
     ...overrides,
@@ -108,6 +112,31 @@ function snapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
 
 function mockGetInsights(resp: unknown) {
   (window.electronAPI.content.getInsights as ReturnType<typeof vi.fn>).mockResolvedValue(resp);
+}
+
+/** Open a workspace's blast-radius sheet from its tile and return the dialog. */
+async function openSheet(workspaceName: string): Promise<HTMLElement> {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: `Open ${workspaceName} details` }));
+  });
+  return screen.getByRole('dialog', { name: `${workspaceName} details` });
+}
+
+/** Contract the sheet (Esc — same path as backdrop / second header click). */
+async function closeSheet(): Promise<void> {
+  await act(async () => {
+    fireEvent.keyDown(window, { key: 'Escape' });
+  });
+}
+
+/** The admin tier is the owner's alone (owner directive). */
+function signInAsOwner() {
+  useAuthStore.setState({
+    user: { id: 'account-0', displayName: 'Brendan', email: 'brendan@bc-abc.com' },
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+  });
 }
 
 beforeEach(() => {
@@ -141,59 +170,55 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.getByRole('button', { name: '1 Dormant' })).toBeInTheDocument();
   });
 
-  it('groups by workspace: broken section first, but EVERY section starts collapsed (Matt #7)', async () => {
+  it('groups by workspace: one tile per client, damage first, items folded behind the tile (Matt #7)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
 
-    // Nothing is expanded — even the broken Sales section.
-    expect(screen.queryByText('Broken Model')).not.toBeInTheDocument();
+    // Nothing is expanded — no item ROWS on the board face. (§B puts the
+    // worst asset's NAME on the tile face; the rows stay behind the click.)
+    expect(screen.queryAllByRole('row')).toHaveLength(0);
+    expect(screen.queryByText('Healthy Model')).not.toBeInTheDocument();
     expect(screen.queryByText('Staging Flow')).not.toBeInTheDocument();
-    const salesHeader = screen.getByRole('button', { name: /Sales.*broken/ });
-    expect(salesHeader).toHaveAttribute('aria-expanded', 'false');
 
-    // The header still carries the wayfinding: item count + damage summary.
-    expect(salesHeader).toHaveTextContent('2 items');
-    expect(screen.getByText(/1 broken/)).toBeInTheDocument();
+    // One tile per workspace; the broken Sales tile triages FIRST (§B).
+    const tiles = screen.getAllByRole('button', { name: /^Open .+ details$/ });
+    expect(tiles.map((t) => t.getAttribute('aria-label'))).toEqual([
+      'Open Sales details',
+      'Open Ops details',
+    ]);
+    // The tile face still carries the wayfinding: the damage summary chips.
+    expect(within(tiles[0]!).getByText('1 broken')).toBeInTheDocument();
 
-    // Opening Sales reveals its rows, worst first.
-    await act(async () => {
-      fireEvent.click(salesHeader);
-    });
-    expect(salesHeader).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText('Broken Model')).toBeInTheDocument();
-    expect(screen.getByText('Healthy Model')).toBeInTheDocument();
-    expect(screen.getByText('Failed')).toBeInTheDocument();
-    expect(screen.getByText('OK')).toBeInTheDocument();
-    const rows = screen.getAllByRole('row').map((r) => r.textContent ?? '');
+    // Opening Sales reveals its rows in the sheet, worst first.
+    const sales = await openSheet('Sales');
+    expect(within(sales).getByText('Broken Model')).toBeInTheDocument();
+    expect(within(sales).getByText('Healthy Model')).toBeInTheDocument();
+    expect(within(sales).getByText('Failed')).toBeInTheDocument();
+    expect(within(sales).getByText('OK')).toBeInTheDocument();
+    const rows = within(sales).getAllByRole('row').map((r) => r.textContent ?? '');
     const failedIdx = rows.findIndex((t) => t.includes('Broken Model'));
     const okIdx = rows.findIndex((t) => t.includes('Healthy Model'));
     expect(failedIdx).toBeGreaterThanOrEqual(0);
     expect(failedIdx).toBeLessThan(okIdx);
 
-    // Ops opens (and closes) independently.
-    const opsHeader = screen.getByRole('button', { name: /Ops.*OK/ });
+    // The sheet closes (Esc) and Ops opens independently.
+    await closeSheet();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('row')).toHaveLength(0);
+    const ops = await openSheet('Ops');
+    expect(within(ops).getByText('Staging Flow')).toBeInTheDocument();
+    expect(within(ops).getByText('Never run')).toBeInTheDocument();
+    expect(within(ops).getByText('Live')).toBeInTheDocument();
+    // The × Close control contracts it too.
     await act(async () => {
-      fireEvent.click(opsHeader);
-    });
-    expect(screen.getByText('Staging Flow')).toBeInTheDocument();
-    expect(screen.getByText('Never run')).toBeInTheDocument();
-    expect(screen.getByText('Live')).toBeInTheDocument();
-    await act(async () => {
-      fireEvent.click(opsHeader);
+      fireEvent.click(within(ops).getByRole('button', { name: 'Close details' }));
     });
     expect(screen.queryByText('Staging Flow')).not.toBeInTheDocument();
-
-    // Section order: the troubled Sales section renders before Ops.
-    const sections = screen.getAllByRole('button', { name: /broken|OK/ });
-    const salesIdx = sections.findIndex((b) => /Sales/.test(b.textContent ?? ''));
-    const opsIdx = sections.findIndex((b) => /Ops/.test(b.textContent ?? ''));
-    expect(salesIdx).toBeGreaterThanOrEqual(0);
-    expect(salesIdx).toBeLessThan(opsIdx);
   });
 
-  it('summary tiles filter the board: matches auto-expand, clear chip removes the filter (Matt #2)', async () => {
+  it('summary tiles filter the board: only matching workspaces remain, clear chip removes the filter (Matt #2)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -206,26 +231,30 @@ describe('InsightsPage — Luce board', () => {
     });
     expect(brokenTile).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/Showing: Broken/)).toBeInTheDocument();
-    // Matching group auto-expands; only the broken row shows.
-    expect(screen.getByText('Broken Model')).toBeInTheDocument();
-    expect(screen.queryByText('Healthy Model')).not.toBeInTheDocument();
-    // Ops has no broken items, so the whole group disappears from the board.
-    expect(screen.queryByRole('button', { name: /Ops.*OK/ })).not.toBeInTheDocument();
+    // Ops has no broken items, so its whole tile disappears from the board.
+    expect(screen.queryByRole('button', { name: 'Open Ops details' })).not.toBeInTheDocument();
+    // Opening the remaining Sales tile shows ONLY the broken row.
+    const sales = await openSheet('Sales');
+    expect(within(sales).getByText('Broken Model')).toBeInTheDocument();
+    expect(within(sales).queryByText('Healthy Model')).not.toBeInTheDocument();
+    await closeSheet();
 
     // The visible "Showing: Broken ✕" chip clears the filter.
     await act(async () => {
       fireEvent.click(screen.getByText(/Showing: Broken/));
     });
     expect(screen.queryByText(/Showing: Broken/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ops.*OK/ })).toBeInTheDocument();
-    expect(screen.queryByText('Broken Model')).not.toBeInTheDocument(); // collapsed again
+    expect(screen.getByRole('button', { name: 'Open Ops details' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('row')).toHaveLength(0); // folded again
 
     // Clicking an active tile also clears (toggle).
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '1 Dormant' }));
     });
     expect(screen.getByText(/Showing: Dormant/)).toBeInTheDocument();
-    expect(screen.getByText('Dusty Model')).toBeInTheDocument();
+    const ops = await openSheet('Ops');
+    expect(within(ops).getByText('Dusty Model')).toBeInTheDocument();
+    await closeSheet();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '1 Dormant' }));
     });
@@ -239,12 +268,11 @@ describe('InsightsPage — Luce board', () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Ops.*OK/ }));
-    });
+    const ops = await openSheet('Ops');
     // Chip reads "Dormant · down NNNd" off the 2024-01-01 last success.
-    expect(screen.getByText(/^Dormant · down \d+d$/)).toBeInTheDocument();
-    expect(screen.getByText(/1 dormant/)).toBeInTheDocument();
+    expect(within(ops).getByText(/^Dormant · down \d+d$/)).toBeInTheDocument();
+    // The sheet header summary counts it.
+    expect(within(ops).getByText(/1 dormant/)).toBeInTheDocument();
   });
 
   it('shows the down-for label, failure-rate caption, dot strip, trigger, owner, and error code', async () => {
@@ -252,20 +280,19 @@ describe('InsightsPage — Luce board', () => {
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
-    });
+    const sales = await openSheet('Sales');
 
     // Down since the last success (clock-relative — assert shape, not value).
-    expect(screen.getByText(/^down \d+[mhd]$/)).toBeInTheDocument();
-    // 3 of the 12 mocked runs failed.
-    expect(screen.getByText('3 of last 12 runs failed')).toBeInTheDocument();
-    // Dot strips render for both expanded rows.
-    expect(screen.getAllByTestId('run-dot-strip').length).toBeGreaterThanOrEqual(2);
-    // Trigger, owner, and error code survive the redesign.
-    expect(screen.getByText('Power Automate / API')).toBeInTheDocument();
-    expect(screen.getByText('owner@bc-abc.com')).toBeInTheDocument();
-    expect(screen.getByText('ModelRefreshFailed_CredentialsNotSpecified')).toBeInTheDocument();
+    expect(within(sales).getByText(/^down \d+[mhd]$/)).toBeInTheDocument();
+    // 3 of the 12 mocked runs failed — the caption lives UNDER the dots (§C).
+    expect(within(sales).getByText('3 of last 12 runs failed')).toBeInTheDocument();
+    // Dot strips render for both sheet rows.
+    expect(within(sales).getAllByTestId('run-dot-strip').length).toBeGreaterThanOrEqual(2);
+    // Trigger (now on the meta line with the relative time), owner, and error
+    // code survive the redesign.
+    expect(within(sales).getByText(/· Power Automate \/ API$/)).toBeInTheDocument();
+    expect(within(sales).getByText('owner@bc-abc.com')).toBeInTheDocument();
+    expect(within(sales).getByText('ModelRefreshFailed_CredentialsNotSpecified')).toBeInTheDocument();
   });
 
   it('failed dataset dots carry "Failed · time · errorCode: detail" tooltips (Matt #5)', async () => {
@@ -273,9 +300,7 @@ describe('InsightsPage — Luce board', () => {
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
-    });
+    await openSheet('Sales');
 
     const failTitles = screen.getAllByTitle(
       /^Failed · .+ · ModelRefreshFailed_CredentialsNotSpecified: Credentials expired$/,
@@ -306,9 +331,7 @@ describe('InsightsPage — Luce board', () => {
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Ops.*broken/ }));
-    });
+    await openSheet('Ops');
     expect(
       screen.getByTitle(/^Failed · .+ \(no detail provided by Power BI for dataflows\)$/),
     ).toBeInTheDocument();
@@ -339,9 +362,7 @@ describe('InsightsPage — Luce board', () => {
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales.*OK/ }));
-    });
+    await openSheet('Sales');
     const strip = screen.getByTestId('run-dot-strip');
     const dots = Array.from(strip.querySelectorAll('span.rounded-full'));
     expect(dots).toHaveLength(12);
@@ -361,17 +382,18 @@ describe('InsightsPage — Luce board', () => {
     });
 
     const nav = screen.getByRole('navigation', { name: 'Page sections' });
-    for (const label of ['Health', 'Access', 'Usage', 'Admin']) {
+    for (const label of ['Health', 'Usage']) {
       expect(within(nav).getByRole('button', { name: label })).toBeInTheDocument();
     }
     await act(async () => {
-      fireEvent.click(within(nav).getByRole('button', { name: 'Access' }));
+      fireEvent.click(within(nav).getByRole('button', { name: 'Usage' }));
     });
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
-    expect(document.getElementById('insights-access')).not.toBeNull();
     expect(document.getElementById('insights-health')).not.toBeNull();
     expect(document.getElementById('insights-usage')).not.toBeNull();
-    expect(document.getElementById('insights-admin')).not.toBeNull();
+    // Access folded into each tile's sheet; Admin is owner-only (see below).
+    expect(within(nav).queryByRole('button', { name: 'Access' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   });
 
   it('keeps DATASET and DATAFLOW kind chips on the same quiet grayscale tier (D12)', async () => {
@@ -379,14 +401,10 @@ describe('InsightsPage — Luce board', () => {
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Ops.*OK/ }));
-    });
-    const datasetChips = screen.getAllByText('dataset');
-    const dataflowChips = screen.getAllByText('dataflow');
+    // Ops carries both kinds: a dataflow and two datasets.
+    const ops = await openSheet('Ops');
+    const datasetChips = within(ops).getAllByText('dataset');
+    const dataflowChips = within(ops).getAllByText('dataflow');
     expect(datasetChips.length).toBeGreaterThan(0);
     expect(dataflowChips.length).toBeGreaterThan(0);
     const dsColor = (datasetChips[0] as HTMLElement).style.color;
@@ -399,19 +417,26 @@ describe('InsightsPage — Luce board', () => {
     for (const chip of datasetChips) expect((chip as HTMLElement).style.color).toBe(dsColor);
   });
 
-  it('expands a workspace access list and labels not-visible lists', async () => {
+  it('folds the access roster into the sheet and labels not-visible lists', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
 
-    expect(screen.getByText('access list not visible to you')).toBeInTheDocument();
+    // Sales: the roster renders inside the sheet (names; email/role on title).
+    const sales = await openSheet('Sales');
+    expect(within(sales).getByText('People with access')).toBeInTheDocument();
+    expect(within(sales).getByText('Brendan')).toBeInTheDocument();
+    expect(within(sales).getByText('Client A')).toBeInTheDocument();
+    expect(within(sales).getByTitle('brendan@bc-abc.com · Admin')).toBeInTheDocument();
+    expect(within(sales).getByTitle('a@client.com · Viewer')).toBeInTheDocument();
+    await closeSheet();
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales.*member/ }));
-    });
-    expect(screen.getByText('brendan@bc-abc.com')).toBeInTheDocument();
-    expect(screen.getByText('Viewer')).toBeInTheDocument();
+    // Ops: the API hides the list → honest notice, not an empty roster.
+    const ops = await openSheet('Ops');
+    expect(
+      within(ops).getByText(/The member list is not visible to your account/),
+    ).toBeInTheDocument();
   });
 
   it('shows the partial-failure banner when some workspaces could not be read', async () => {
@@ -439,16 +464,14 @@ describe('InsightsPage — Luce board', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent('Could not reach Power BI.');
 
-    // Retry path: next call succeeds and the page renders (groups collapsed).
+    // Retry path: next call succeeds and the page renders (items folded).
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     });
-    expect(screen.getByRole('button', { name: /Sales.*broken/ })).toBeInTheDocument();
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Sales.*broken/ }));
-    });
-    expect(screen.getByText('Healthy Model')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Sales details' })).toBeInTheDocument();
+    const sales = await openSheet('Sales');
+    expect(within(sales).getByText('Healthy Model')).toBeInTheDocument();
     // Retry must force a rebuild (bypass the snapshot cache).
     const calls = (window.electronAPI.content.getInsights as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls[calls.length - 1]?.[0]).toBe(true);
@@ -463,8 +486,362 @@ describe('InsightsPage — Luce board', () => {
   });
 });
 
-describe('InsightsPage — admin tier', () => {
+describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => {
+  /** ws-1 only: a failed root flow feeding one suspect + one clean dataset. */
+  function cascadeSnapshot(overrides: Partial<InsightsSnapshot> = {}): InsightsSnapshot {
+    return snapshot({
+      workspaceCount: 1,
+      refreshables: [
+        {
+          kind: 'dataflow',
+          id: 'df-root',
+          name: 'Root Flow',
+          workspaceId: 'ws-1',
+          workspaceName: 'Sales',
+          lastStatus: 'Failed',
+          lastAttemptTime: '2026-06-10T02:00:00.000Z',
+          lastSuccessTime: '2026-06-08T02:00:00.000Z',
+          recentRuns: [{ ok: false, endTime: '2026-06-10T02:00:00.000Z' }],
+        },
+        {
+          kind: 'dataset',
+          id: 'ds-sus',
+          name: 'Suspect Model',
+          workspaceId: 'ws-1',
+          workspaceName: 'Sales',
+          lastStatus: 'Completed',
+          lastAttemptTime: '2026-06-10T03:00:00.000Z',
+          lastSuccessTime: '2026-06-10T03:00:00.000Z',
+          upstreamDataflowIds: ['df-root'],
+          recentRuns: [{ ok: true, endTime: '2026-06-10T03:00:00.000Z' }],
+        },
+        {
+          kind: 'dataset',
+          id: 'ds-clean',
+          name: 'Clean Model',
+          workspaceId: 'ws-1',
+          workspaceName: 'Sales',
+          lastStatus: 'Completed',
+          lastAttemptTime: '2026-06-10T03:00:00.000Z',
+          lastSuccessTime: '2026-06-10T03:00:00.000Z',
+          recentRuns: [{ ok: true, endTime: '2026-06-10T03:00:00.000Z' }],
+        },
+      ],
+      reports: [
+        { id: 'r-1', name: 'Exec Daily', workspaceId: 'ws-1', datasetId: 'ds-sus' },
+        { id: 'r-2', name: 'Quiet Report', workspaceId: 'ws-1', datasetId: 'ds-clean' },
+      ],
+      ...overrides,
+    });
+  }
+
+  it('renders the damage cascade: suspects badged STALE DATA (never OK), reports affected named', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sheet = await openSheet('Sales');
+
+    // Under the failed dataflow: the cascade summary + named suspects.
+    const cascade = within(sheet).getByTestId('damage-cascade');
+    expect(within(sheet).getByText('→ 1 dataset refreshed against stale data')).toBeInTheDocument();
+    expect(within(cascade).getByText('Suspect Model')).toBeInTheDocument();
+    expect(within(cascade).queryByText('Clean Model')).not.toBeInTheDocument();
+    // Reports lying to clients, named; healthy-bound reports never appear.
+    expect(within(sheet).getByText('→ 1 report affected')).toBeInTheDocument();
+    expect(within(cascade).getByText('Exec Daily')).toBeInTheDocument();
+    expect(within(cascade).queryByText('Quiet Report')).not.toBeInTheDocument();
+
+    // The badge renders in the cascade AND on the dataset's own row.
+    expect(within(sheet).getAllByText('STALE DATA').length).toBe(2);
+    // The suspect dataset NEVER shows OK/green — only the clean one does.
+    expect(within(sheet).getAllByText('OK').length).toBe(1);
+    const rows = within(sheet).getAllByRole('row');
+    const suspectRow = rows.find((r) => r.textContent?.includes('Suspect Model'))!;
+    expect(within(suspectRow).queryByText('OK')).not.toBeInTheDocument();
+    expect(within(suspectRow).getByText('STALE DATA')).toBeInTheDocument();
+  });
+
+  it('ends the chain honestly with "→ no bound reports" when a suspect has none', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot({ reports: [] }) });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sheet = await openSheet('Sales');
+    expect(within(sheet).getByText('→ no bound reports')).toBeInTheDocument();
+    expect(within(sheet).queryByText(/reports? affected/)).not.toBeInTheDocument();
+  });
+
+  it('caps cascade lists at 4 named items and expands "+N more" in place', async () => {
+    const suspects = Array.from({ length: 6 }, (_, i) => ({
+      kind: 'dataset' as const,
+      id: `ds-s${i}`,
+      name: `Suspect ${i}`,
+      workspaceId: 'ws-1',
+      workspaceName: 'Sales',
+      lastStatus: 'Completed' as const,
+      lastSuccessTime: '2026-06-10T03:00:00.000Z',
+      upstreamDataflowIds: ['df-root'],
+    }));
+    mockGetInsights({
+      success: true,
+      data: cascadeSnapshot({
+        refreshables: [
+          {
+            kind: 'dataflow',
+            id: 'df-root',
+            name: 'Root Flow',
+            workspaceId: 'ws-1',
+            workspaceName: 'Sales',
+            lastStatus: 'Failed',
+          },
+          ...suspects,
+        ],
+        reports: [],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sheet = await openSheet('Sales');
+    expect(within(sheet).getByText('→ 6 datasets refreshed against stale data')).toBeInTheDocument();
+    const cascade = within(sheet).getByTestId('damage-cascade');
+    expect(within(cascade).getByText('Suspect 0')).toBeInTheDocument();
+    expect(within(cascade).getByText('Suspect 3')).toBeInTheDocument();
+    expect(within(cascade).queryByText('Suspect 4')).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(cascade).getByRole('button', { name: '+2 more' }));
+    });
+    expect(within(cascade).getByText('Suspect 4')).toBeInTheDocument();
+    expect(within(cascade).getByText('Suspect 5')).toBeInTheDocument();
+    expect(within(cascade).queryByText('+2 more')).not.toBeInTheDocument();
+  });
+
+  it('sorts damaged workspaces first in the tile grid: broken, then suspects-only, then quiet (§B)', async () => {
+    mockGetInsights({
+      success: true,
+      data: snapshot({
+        workspaceCount: 3,
+        refreshables: [
+          {
+            kind: 'dataset',
+            id: 'a-ok',
+            name: 'Alpha Model',
+            workspaceId: 'ws-a',
+            workspaceName: 'Alpha',
+            lastStatus: 'Completed',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+          },
+          {
+            kind: 'dataset',
+            id: 'b-bad',
+            name: 'Bravo Model',
+            workspaceId: 'ws-b',
+            workspaceName: 'Bravo',
+            lastStatus: 'Failed',
+            lastSuccessTime: '2026-06-08T03:00:00.000Z',
+          },
+          {
+            // Charlie has NO broken flow — but its dataset refreshed BEFORE
+            // its upstream flow delivered, so it is a suspect (stale timing).
+            kind: 'dataflow',
+            id: 'c-flow',
+            name: 'Charlie Flow',
+            workspaceId: 'ws-c',
+            workspaceName: 'Charlie',
+            lastStatus: 'Completed',
+            lastSuccessTime: '2026-06-01T00:00:00.000Z',
+          },
+          {
+            kind: 'dataset',
+            id: 'c-sus',
+            name: 'Charlie Model',
+            workspaceId: 'ws-c',
+            workspaceName: 'Charlie',
+            lastStatus: 'Completed',
+            lastSuccessTime: '2026-06-05T00:00:00.000Z',
+            upstreamDataflowIds: ['c-flow'],
+          },
+        ],
+        reports: [],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const tiles = screen.getAllByRole('button', { name: /^Open .+ details$/ });
+    expect(tiles.map((t) => t.getAttribute('aria-label'))).toEqual([
+      'Open Bravo details', // broken
+      'Open Charlie details', // no broken flow, but suspects — damage band
+      'Open Alpha details', // quiet
+    ]);
+    // The suspect workspace's tile carries the STALE DATA hint; quiet ones don't.
+    expect(within(tiles[1]!).getByText('STALE DATA')).toBeInTheDocument();
+    expect(within(tiles[2]!).queryByText('STALE DATA')).not.toBeInTheDocument();
+  });
+
+  it('renders the solo-client HERO tile with ASSETS/MEMBERS/FRESHNESS and the amber blast line (§A)', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+
+    const hero = screen.getByTestId('luce-hero-tile');
+    // The three columns.
+    expect(within(hero).getByText('Assets')).toBeInTheDocument();
+    expect(within(hero).getByText('Members')).toBeInTheDocument();
+    expect(within(hero).getByText('Freshness')).toBeInTheDocument();
+    // Assets are NAMED on the hero (vs counts on the n=20 tile).
+    expect(within(hero).getByText('Root Flow')).toBeInTheDocument();
+    expect(within(hero).getByText('Suspect Model')).toBeInTheDocument();
+    // Members fold in: count + names.
+    expect(within(hero).getByText('2')).toBeInTheDocument();
+    expect(within(hero).getByText('Brendan')).toBeInTheDocument();
+    // Freshness lines.
+    expect(within(hero).getByText('Oldest success:')).toBeInTheDocument();
+    expect(within(hero).getByText('Next scheduled:')).toBeInTheDocument();
+    // The blast line — only because suspects exist.
+    expect(
+      within(hero).getByText('1 report may be reading stale data — open to trace'),
+    ).toBeInTheDocument();
+  });
+
+  it('names a hard failure on the HERO asset face — "FAILED · down …", not just red dots (Matt)', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero-tile');
+    // Root Flow is Failed with a prior success → the asset face says the word.
+    expect(within(hero).getByText(/FAILED · down/)).toBeInTheDocument();
+  });
+
+  it('shows the failure-rate caption on the HERO asset pulse strips (Matt)', async () => {
+    mockGetInsights({ success: true, data: cascadeSnapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero-tile');
+    // The quiet hero strips still surface the pattern, not just the dots.
+    expect(within(hero).getByText('1 of last 1 runs failed')).toBeInTheDocument();
+  });
+
+  it('puts the affected-report COUNT on the n=20 tile, not only the solo hero (Matt)', async () => {
+    mockGetInsights({
+      success: true,
+      data: snapshot({
+        workspaceCount: 2,
+        refreshables: [
+          {
+            kind: 'dataflow',
+            id: 'df-a',
+            name: 'A Flow',
+            workspaceId: 'ws-a',
+            workspaceName: 'Alpha',
+            lastStatus: 'Failed',
+            lastAttemptTime: '2026-06-10T02:00:00.000Z',
+            lastSuccessTime: '2026-06-08T02:00:00.000Z',
+            recentRuns: [{ ok: false, endTime: '2026-06-10T02:00:00.000Z' }],
+          },
+          {
+            kind: 'dataset',
+            id: 'ds-a',
+            name: 'A Model',
+            workspaceId: 'ws-a',
+            workspaceName: 'Alpha',
+            lastStatus: 'Completed',
+            lastAttemptTime: '2026-06-10T03:00:00.000Z',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+            upstreamDataflowIds: ['df-a'],
+            recentRuns: [{ ok: true, endTime: '2026-06-10T03:00:00.000Z' }],
+          },
+          {
+            kind: 'dataset',
+            id: 'ds-b',
+            name: 'B Model',
+            workspaceId: 'ws-b',
+            workspaceName: 'Beta',
+            lastStatus: 'Completed',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+            recentRuns: [{ ok: true, endTime: '2026-06-10T03:00:00.000Z' }],
+          },
+        ],
+        reports: [{ id: 'r-a', name: 'Alpha Daily', workspaceId: 'ws-a', datasetId: 'ds-a' }],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    // Two workspaces → n=20 grid (no hero). Alpha's tile carries the count.
+    expect(screen.queryByTestId('luce-hero-tile')).not.toBeInTheDocument();
+    expect(screen.getByText('1 report may be reading stale data')).toBeInTheDocument();
+  });
+
+  it('keeps the hero quiet when healthy: no blast line, no green substitute; hides hidden member lists honestly', async () => {
+    mockGetInsights({
+      success: true,
+      data: snapshot({
+        workspaceCount: 1,
+        refreshables: [
+          {
+            kind: 'dataset',
+            id: 'ds-ok',
+            name: 'Healthy Model',
+            workspaceId: 'ws-2',
+            workspaceName: 'Ops',
+            lastStatus: 'Completed',
+            lastSuccessTime: '2026-06-10T03:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const hero = screen.getByTestId('luce-hero-tile');
+    expect(within(hero).queryByText(/may be reading stale data/)).not.toBeInTheDocument();
+    expect(within(hero).queryByText(/all good/i)).not.toBeInTheDocument();
+    // ws-2's member list is null → the honest single-line notice.
+    expect(within(hero).getByText('not visible to your account')).toBeInTheDocument();
+  });
+
+  it('uses the n=20 tile grid (no hero) the moment a second workspace exists', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(screen.queryByTestId('luce-hero-tile')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Open .+ details$/ })).toHaveLength(2);
+  });
+});
+
+describe('InsightsPage — admin tier (owner-only)', () => {
+  it('hides the Admin nav and section entirely from non-owners', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    // beforeEach signs in test@example.com — not the owner.
+    const nav = screen.getByRole('navigation', { name: 'Page sections' });
+    expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
+    expect(document.getElementById('insights-admin')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Unlock admin view' })).not.toBeInTheDocument();
+  });
+
+  it('shows the Admin nav and unlock section to the owner alone', async () => {
+    signInAsOwner();
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const nav = screen.getByRole('navigation', { name: 'Page sections' });
+    expect(within(nav).getByRole('button', { name: 'Admin' })).toBeInTheDocument();
+    expect(document.getElementById('insights-admin')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Unlock admin view' })).toBeInTheDocument();
+  });
+
   it('requests a 2-day window and surfaces ADMIN_REQUIRED as a friendly message', async () => {
+    signInAsOwner();
     mockGetInsights({ success: true, data: snapshot() });
     // setup.ts default getAdminInsights mock returns ADMIN_REQUIRED.
     await act(async () => {
@@ -479,6 +856,7 @@ describe('InsightsPage — admin tier', () => {
   });
 
   it('shows staged honest loading text with a Cancel that discards the in-flight call', async () => {
+    signInAsOwner();
     mockGetInsights({ success: true, data: snapshot() });
     let resolveAdmin: (v: unknown) => void = () => {};
     (window.electronAPI.content.getAdminInsights as ReturnType<typeof vi.fn>).mockReturnValue(
@@ -524,6 +902,7 @@ describe('InsightsPage — admin tier', () => {
   });
 
   it('warns that the consent window may open behind the app', async () => {
+    signInAsOwner();
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -532,6 +911,7 @@ describe('InsightsPage — admin tier', () => {
   });
 
   it('renders activity and App audiences after a successful unlock', async () => {
+    signInAsOwner();
     mockGetInsights({ success: true, data: snapshot() });
     (window.electronAPI.content.getAdminInsights as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
@@ -632,7 +1012,7 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     // Ceremony is on — and the content is fully present beneath it.
     expect(document.querySelector('.luce-board.luce-ignite')).not.toBeNull();
     expect(screen.getByText('Broken')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Sales.*broken/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Sales details' })).toBeInTheDocument();
     // The session is marked immediately so it can never replay.
     expect(window.sessionStorage.getItem(IGNITION_FLAG)).toBe('1');
 
@@ -694,5 +1074,31 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     const hero = screen.getByTestId('luce-hero');
     expect(within(hero).getByText('—')).toBeInTheDocument();
     expect(within(hero).getByLabelText('Data health unknown')).toBeInTheDocument();
+  });
+
+  it('returns focus to the originating tile when the sheet contracts (§D)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const tile = screen.getByRole('button', { name: 'Open Sales details' });
+    await openSheet('Sales');
+    await closeSheet();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(tile);
+  });
+
+  it('keeps a ghost tile in the grid while its sheet is open (the grid never reflows, §D)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const tile = screen.getByRole('button', { name: 'Open Sales details' });
+    await openSheet('Sales');
+    // Still mounted (its cell holds the 124px slot) but fully transparent.
+    expect(tile).toBeInTheDocument();
+    expect(tile.style.opacity).toBe('0');
+    await closeSheet();
+    expect(tile.style.opacity).not.toBe('0');
   });
 });
