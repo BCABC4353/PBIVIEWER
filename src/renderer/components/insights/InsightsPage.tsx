@@ -901,7 +901,7 @@ const WorkspaceTile: React.FC<{
         style={
           ghost
             ? { opacity: 0, transition: 'opacity 60ms linear 100ms' } // hide AFTER the sheet covers it
-            : { transition: 'opacity 120ms linear 200ms' } // reappear after the sheet has shrunk away
+            : { transition: 'opacity 140ms linear 500ms' } // reappear only AFTER the 480ms contraction lands
         }
         onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
         aria-haspopup="dialog"
@@ -1086,8 +1086,8 @@ const HeroTile: React.FC<{
             <span style={{ color: ladder.mid }}>{oldest ? relativeAge(oldest) || 'just now' : '—'}</span>
           </div>
           {oldest && (
-            <div style={{ fontSize: 11, color: ladder.faint, ...tabular, ...nowrap }}>
-              {formatTime(oldest)}
+            <div title={formatTime(oldest)} style={{ display: 'none' }}>
+              {/* absolute date lives on hover of the line above only */}
             </div>
           )}
           <div className="mt-2" style={{ fontSize: 12, ...nowrap }}>
@@ -1529,8 +1529,8 @@ export const InsightsPage: React.FC = () => {
               Insights
             </h1>
             <p className="text-sm" style={{ color: luce.textTertiary }}>
-              Every client workspace, one board — refreshes, access, and usage. Snapshot from{' '}
-              {formatTime(snapshot.generatedAt)}
+              Every client workspace, one board — refreshes, access, and usage. Checked{' '}
+              {relativeAge(snapshot.generatedAt) || 'just now'}
               {snapshot.fromCache ? ' (cached)' : ''}.
             </p>
           </div>
