@@ -4,7 +4,7 @@ import {
   itemSeverity,
   sheetSections,
   tileCountsLine,
-} from './blast-radius';
+} from './workspace-tiles';
 import type { Refreshable } from './types';
 
 /** Minimal honest refreshable — override what the case is about. */

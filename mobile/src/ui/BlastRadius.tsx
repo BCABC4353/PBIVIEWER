@@ -17,7 +17,7 @@
  * no haptics.
  *
  * Inside, items are organized BY TYPE — dataflows (upstream) first, then
- * datasets (core/blast-radius.ts, unit-tested). Each dataflow row carries a
+ * datasets (core/workspace-tiles.ts, unit-tested). Each dataflow row carries a
  * downstream-damage annotation SLOT (`downstreamNotes`), hidden when absent —
  * the cascade data arrives with the blast-radius spine; nothing is fabricated.
  */
@@ -40,7 +40,7 @@ import {
   tileCountsLine,
   type TileSeverity,
   type WorkspaceTile,
-} from '../core/blast-radius';
+} from '../core/workspace-tiles';
 import { FleetRow, RunDots } from './components';
 import { latch } from '../feel/haptics';
 import { motionEnabled, springs } from '../feel/springs';

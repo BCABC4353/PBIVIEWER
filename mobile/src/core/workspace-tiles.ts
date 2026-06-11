@@ -1,6 +1,10 @@
 /**
- * Blast-radius grouping — pure logic for the fleet board's workspace TILES
- * and their expanded type-organized sheets (docs/design/BLAST-RADIUS.md).
+ * Workspace-tile grouping — pure logic for the fleet board's workspace TILES
+ * and their expanded type-organized sheets (the "blast radius" interaction,
+ * docs/design/BLAST-RADIUS.md). Formerly named blast-radius.ts; renamed
+ * because the DESKTOP tree has an unrelated src/shared/blast-radius.ts
+ * (failed-dataflow cascade math) and the name collision kept sending
+ * grep-driven edits into the wrong file.
  * No React Native imports: everything here unit-tests on plain node.
  *
  * The tile carries the workspace's summary (worst status, counts, the worst

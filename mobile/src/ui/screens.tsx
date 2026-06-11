@@ -5,7 +5,7 @@ import {
 import { color, space, type } from '../design/tokens';
 import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
 import { sortWorstFirst } from '../core/refresh-health';
-import { groupFleetByWorkspace, type WorkspaceTile } from '../core/blast-radius';
+import { groupFleetByWorkspace, type WorkspaceTile } from '../core/workspace-tiles';
 import { DetailLine, FleetHero, StatusChip, detailTrigger } from './components';
 import { BlastSheet, WorkspaceTileCard, type FrameRect } from './BlastRadius';
 import { Sparkline } from './Sparkline';
@@ -66,7 +66,7 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   ).length;
 
   // Workspace tiles, worst workspace first — works on whatever the snapshot
-  // carries (mock or live); pure grouping, unit-tested in core/blast-radius.
+  // carries (mock or live); pure grouping, unit-tested in core/workspace-tiles.
   const tiles = useMemo(
     () => (snapshot ? groupFleetByWorkspace(snapshot.refreshables) : []),
     [snapshot],
