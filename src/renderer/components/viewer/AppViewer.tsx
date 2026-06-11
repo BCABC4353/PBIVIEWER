@@ -5,6 +5,11 @@ import { AppsRegular } from '@fluentui/react-icons';
 import { ViewerToolbar } from './ViewerToolbar';
 import { EMBED } from '../../../shared/constants';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
+import {
+  parseReportIdFromUrl,
+  selectFreshnessTarget,
+  type AppReportFreshnessInfo,
+} from './app-report-freshness';
 import { reportIssue } from '../../lib/report-issue';
 
 // Type definition for Electron webview element
@@ -38,6 +43,15 @@ export const AppViewer: React.FC = () => {
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
   const [datasetCount, setDatasetCount] = useState(0);
   const datasetsRef = useRef<Array<{ datasetId: string; workspaceId: string }>>([]);
+  // FULL report list (id/name/datasetId/workspaceId), not just dataset pairs:
+  // the header must stamp the report CURRENTLY viewed inside the app, and the
+  // webview URL only gives us its reportId — this map turns it into a dataset.
+  const appReportsRef = useRef<AppReportFreshnessInfo[]>([]);
+  // Report named by the webview's current URL, or null on app home/dashboards.
+  // State drives the label; the ref mirror lets the stable fetcher closure and
+  // the navigation handler read the latest value without re-subscribing.
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+  const currentReportIdRef = useRef<string | null>(null);
 
   // Load the webview config (partition name) from main process
   useEffect(() => {
@@ -79,8 +93,10 @@ export const AppViewer: React.FC = () => {
   }, [appId, loadAppDetails]);
 
   // ----- Live data-freshness for the App view -----
-  // Resolve this app's dataset(s) once (datasetCount > 1 -> "Oldest data" label,
-  // since we can't know which report inside a multi-report app is on screen).
+  // Resolve this app's report list once. Each report keeps its own
+  // dataset binding so the header can stamp the report CURRENTLY viewed
+  // (tracked via the webview URL below); the deduped dataset list remains as
+  // the aggregate fallback for app home / unknown-report URLs.
   useEffect(() => {
     if (!appId) return;
     let cancelled = false;
@@ -88,6 +104,12 @@ export const AppViewer: React.FC = () => {
       try {
         const reportsResp = await window.electronAPI.content.getAppReports(appId);
         if (cancelled || !reportsResp.success) return;
+        appReportsRef.current = reportsResp.data.map((r) => ({
+          id: r.id,
+          name: r.name,
+          datasetId: r.datasetId,
+          workspaceId: r.workspaceId,
+        }));
         const seen = new Set<string>();
         const datasets: Array<{ datasetId: string; workspaceId: string }> = [];
         for (const r of reportsResp.data) {
@@ -116,18 +138,25 @@ export const AppViewer: React.FC = () => {
     };
   }, [appId]);
 
-  // Poll dataset + upstream-dataflow freshness for this app's dataset(s).
+  // Poll dataset + upstream-dataflow freshness. When the webview URL names a
+  // known report, ask about that report's ONE dataset so the header shows the
+  // per-report stamp Power BI itself displays; otherwise (app home, dashboard,
+  // unknown report) fall back to the app-wide aggregate.
   const { datasetRefreshTime, dataflowRefreshTime, newDataAvailable } = useLiveFreshness(
     useCallback(async () => {
-      const ds = datasetsRef.current;
-      const first = ds[0];
+      const target = selectFreshnessTarget(
+        currentReportIdRef.current,
+        appReportsRef.current,
+        datasetsRef.current,
+      );
+      const first = target.datasets[0];
       if (!first) return null;
       // Pass full {datasetId, workspaceId} PAIRS, not bare ids: an app's reports
       // can be bound to shared datasets living in other workspaces, and querying
       // them all under the first dataset's workspace 404s every refreshes call
       // (the "Data refreshed: —" forever bug). Each dataset is queried in its
       // own home workspace, with a groupless fallback for app-audience access.
-      const r = await window.electronAPI.content.getDataFreshness(first.workspaceId, ds);
+      const r = await window.electronAPI.content.getDataFreshness(first.workspaceId, target.datasets);
       if (!r.success) return null;
       return {
         datasetRefreshTime: r.data.datasetRefreshTime,
@@ -137,7 +166,13 @@ export const AppViewer: React.FC = () => {
     lastLoadAt,
   );
 
-  const freshnessLabel = datasetCount > 1 ? 'Oldest data' : 'Data refreshed';
+  // Single-dataset mode (a known report is on screen) shows its exact stamp;
+  // the aggregate fallback keeps the v2.2.10 "Oldest data" wording when the
+  // stalest-of-many timestamp is what's displayed.
+  const isReportTargeted =
+    selectFreshnessTarget(currentReportId, appReportsRef.current, datasetsRef.current).mode ===
+    'report';
+  const freshnessLabel = isReportTargeted || datasetCount <= 1 ? 'Data refreshed' : 'Oldest data';
 
   useEffect(() => {
     if (error) reportIssue({ code: 'APP_WEBVIEW_ERROR', itemName: appName, context: error });
@@ -210,10 +245,32 @@ export const AppViewer: React.FC = () => {
       setIsLoading(false);
     };
 
+    // Track WHICH report inside the app is on screen via the webview URL
+    // (https://app.powerbi.com/groups/me/apps/{appId}/reports/{reportId}/…).
+    // Power BI's app shell is an SPA, so report switches usually arrive as
+    // did-navigate-in-page; did-navigate covers full loads and redirects.
+    const handleNavigation = (event: Event) => {
+      const e = event as Event & { url?: string; isMainFrame?: boolean };
+      // The PBI embed spawns sub-frames that navigate on their own; only the
+      // main frame's URL says which report the user is viewing.
+      if (e.isMainFrame === false) return;
+      const reportId = parseReportIdFromUrl(e.url);
+      if (reportId === currentReportIdRef.current) return;
+      currentReportIdRef.current = reportId;
+      setCurrentReportId(reportId);
+      // Re-poll NOW so the stamp flips to the newly viewed report's dataset
+      // instead of waiting up to 5 minutes for the next scheduled poll. Also
+      // re-baselines newDataAvailable, which is correct: the content now on
+      // screen was just (re)rendered for this report.
+      setLastLoadAt(Date.now());
+    };
+
     webview.addEventListener('did-start-loading', handleDidStartLoading);
     webview.addEventListener('did-stop-loading', handleDidStopLoading);
     webview.addEventListener('did-fail-load', handleDidFailLoad);
     webview.addEventListener('render-process-gone', handleCrashed);
+    webview.addEventListener('did-navigate', handleNavigation);
+    webview.addEventListener('did-navigate-in-page', handleNavigation);
 
     return () => {
       // Remove listeners FIRST so the about:blank navigation we kick off in a
@@ -224,6 +281,8 @@ export const AppViewer: React.FC = () => {
       webview.removeEventListener('did-stop-loading', handleDidStopLoading);
       webview.removeEventListener('did-fail-load', handleDidFailLoad);
       webview.removeEventListener('render-process-gone', handleCrashed);
+      webview.removeEventListener('did-navigate', handleNavigation);
+      webview.removeEventListener('did-navigate-in-page', handleNavigation);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const w = webview as any;
