@@ -589,6 +589,7 @@ const WorkspaceSheet: React.FC<{
     // FLIP translate math is only valid about the top-left corner; the
     // default 50%/50% origin made every flight read as a rise from below.
     el.style.transformOrigin = '0 0';
+    el.style.willChange = 'transform';
     const to = el.getBoundingClientRect();
     const sx = fromRect.width / to.width;
     const sy = fromRect.height / to.height;
@@ -596,12 +597,15 @@ const WorkspaceSheet: React.FC<{
     const dy = fromRect.top - to.top;
     const flight = el.animate(
       [
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 1 },
-        { transform: 'none', borderRadius: '16px', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+        { transform: 'none' },
       ],
       { duration: SHEET_OPEN_MS, easing: SHEET_FLIGHT_EASE, fill: 'both' },
     );
     flight.onfinish = () => setSettled(true);
+    void flight.finished.finally?.(() => { el.style.willChange = ''; });
+    void flight.finished.then(() => setSettled(true)).catch(() => setSettled(true));
+    window.setTimeout(() => setSettled(true), SHEET_OPEN_MS + 150); // settle failsafe
     if (canAnimate(scrimRef.current)) {
       scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], {
         duration: 250,
@@ -628,6 +632,8 @@ const WorkspaceSheet: React.FC<{
           fill: 'forwards',
         });
         fade.onfinish = onClose;
+        void fade.finished.then(onClose).catch(onClose);
+        window.setTimeout(onClose, 200); // failsafe — releasing twice is a no-op upstream
       } else {
         onClose();
       }
@@ -672,7 +678,18 @@ const WorkspaceSheet: React.FC<{
         fill: 'forwards',
       });
     }
-    anim.onfinish = onClose;
+    // The tile's return must NEVER depend on one callback (owner, 3rd ask):
+    // finish event + finished promise + a hard timer all release it; the
+    // first to fire wins, the rest no-op.
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      onClose();
+    };
+    anim.onfinish = release;
+    void anim.finished.then(release).catch(release);
+    window.setTimeout(release, SHEET_CLOSE_MS + 150);
   }, [fromRect, onClose]);
 
   useEffect(() => {
@@ -846,9 +863,6 @@ const WorkspaceTile: React.FC<{
   ghost: boolean;
   onOpen: (rect: DOMRect, el: HTMLElement) => void;
 }> = ({ group, affectedCount, ghost, onOpen }) => {
-  const pulseItem =
-    group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
-    group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
   const broken = group.counts.broken > 0;
   // The edge tells ONE story — ALL GOOD (green, owner-authorized) or NOT SO
   // GOOD (amber degraded / red broken). Never the voice of a single asset.
@@ -900,12 +914,6 @@ const WorkspaceTile: React.FC<{
             </span>
           )}
         </div>
-        {/* Pulse: pattern without a name — the worst asset's last 12 runs. */}
-        {pulseItem && (
-          <div className="mt-3.5">
-            <RunDotStrip quiet size={6} runs={pulseItem.recentRuns} kind={pulseItem.kind} />
-          </div>
-        )}
       </button>
     </div>
   );
