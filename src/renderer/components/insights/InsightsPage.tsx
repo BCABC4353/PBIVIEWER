@@ -12,9 +12,7 @@ import type {
 import {
   luce,
   ladder,
-  kindColor,
-  statusGlyph,
-  statusColor,
+  kindDot,
   statusLabel,
   downForLabel,
   dormantDownLabel,
@@ -28,14 +26,19 @@ import {
   triageSortGroups,
   workspaceSuspectCount,
   workspaceAffectedReportCount,
-  cascadeReports,
   oldestSuccessIso,
   unlockStageText,
   type TileFilter,
   type WorkspaceGroup,
 } from './insights-luce';
+import {
+  deriveLineage,
+  layoutLineage,
+  lineageColor,
+  type LineageReportInput,
+} from './lineage-diagram';
 import { computeBlastRadius, type BlastRadius } from '../../../shared/blast-radius';
-import { prefersReducedMotion, SPRING_SETTLE, useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
+import { prefersReducedMotion, useIgnition, useDocumentHidden, useSpringNumber } from './luce-motion';
 import './insights-luce.css';
 
 /**
@@ -57,9 +60,9 @@ import './insights-luce.css';
  *      the status tiles are clickable filters (Matt #2).
  *   2. Health board — one TILE per workspace (client), triaged damage-first
  *      (DESIGN-CONTRACT §B); a solo client gets the hero tile (§A). A tile
- *      expands (FLIP, §D) into the blast-radius sheet (§C): dataflows with
- *      damage cascades, datasets (suspects badged STALE DATA), and the
- *      people with access, folded in.
+ *      expands (FLIP, §D) into the blast-radius sheet (§C): the lineage
+ *      process diagram (owner v3 #3) on top, then chipless dataflow/dataset
+ *      rows and the people with access, folded in.
  *   3. Your usage + the admin tier (owner-only; App audiences, activity).
  */
 
@@ -119,51 +122,41 @@ const LuceButton: React.FC<
   </button>
 );
 
-/** Status = glyph + label, colored text on a neutral recessed well (D12). */
-const StatusChip: React.FC<{ status: InsightsRefreshable['lastStatus'] }> = ({ status }) => (
+/**
+ * Kind identity DOT (owner v3 #5): the chip is dead — a small violet
+ * (dataflow) or slate (dataset) dot rides before every row name. Identity
+ * tints only, never a status hue.
+ */
+const KindDot: React.FC<{ kind: InsightsRefreshable['kind'] }> = ({ kind }) => (
   <span
-    className="luce-chip inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
-    style={{ color: statusColor[status] }}
-  >
-    <span aria-hidden="true">{statusGlyph[status]}</span>
-    <span>{statusLabel[status]}</span>
-  </span>
+    role="img"
+    aria-label={kind}
+    title={kind}
+    data-testid="kind-dot"
+    className="inline-block rounded-full justify-self-center shrink-0"
+    style={{ width: 8, height: 8, background: kindDot[kind] }}
+  />
 );
 
-const OverdueChip: React.FC<{ scheduleSummary?: string }> = ({ scheduleSummary }) => (
-  <span
-    className="luce-chip inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
-    style={{ color: luce.warn }}
-    title={`Schedule: ${scheduleSummary || 'enabled'} — but no recent successful refresh`}
+/** One-line key for the dots, in the engraved legend style (owner v3 #5) —
+ *  the words stay lowercase ("● dataflow ● dataset", his exact ask). */
+const KindKey: React.FC = () => (
+  <div
+    className="luce-legend flex items-center"
+    style={{ gap: 16, textTransform: 'none' }}
+    data-testid="kind-key"
   >
-    <span aria-hidden="true">▲</span>
-    <span>Overdue</span>
-  </span>
-);
-
-/** Gray-violet "abandoned" chip (Matt #4): "DORMANT · down 657d". */
-const DormantChip: React.FC<{ item: InsightsRefreshable }> = ({ item }) => {
-  const down = dormantDownLabel(item);
-  return (
-    <span
-      className="luce-chip inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap"
-      style={{ color: luce.dormant, ...tabular }}
-      title="No refresh attempt in over a year — likely abandoned"
-    >
-      <span aria-hidden="true">◷</span>
-      <span>Dormant{down ? ` · ${down}` : ''}</span>
-    </span>
-  );
-};
-
-/** DATASET / DATAFLOW identity chip — same muted tints everywhere (Matt #3). */
-const KindChip: React.FC<{ kind: InsightsRefreshable['kind'] }> = ({ kind }) => (
-  <span
-    className="luce-chip px-1.5 py-px text-[10px] uppercase tracking-wider whitespace-nowrap"
-    style={{ color: kindColor[kind] }}
-  >
-    {kind}
-  </span>
+    {(['dataflow', 'dataset'] as const).map((kind) => (
+      <span key={kind} className="inline-flex items-center" style={{ gap: 6 }}>
+        <span
+          aria-hidden="true"
+          className="inline-block rounded-full"
+          style={{ width: 6, height: 6, background: kindDot[kind] }}
+        />
+        {kind}
+      </span>
+    ))}
+  </div>
 );
 
 /** Tooltip for one dot: failed dataset dots explain themselves (Matt #5). */
@@ -234,26 +227,6 @@ const RunDotStrip: React.FC<{
   );
 };
 
-/** STALE DATA badge (§C): the amber mark a suspect dataset carries wherever it
- *  renders — never an OK/green chip anywhere a suspect appears. */
-const StaleBadge: React.FC = () => (
-  <span
-    className="whitespace-nowrap shrink-0"
-    style={{
-      fontSize: 10,
-      fontWeight: 600,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      color: luce.warn,
-      background: 'rgba(232,163,61,0.12)',
-      borderRadius: 4,
-      padding: '2px 6px',
-    }}
-  >
-    STALE DATA
-  </span>
-);
-
 /** Damage summary chips (§A/§B): `N broken` red · `N overdue` amber · `N OK`
  *  low. Health is silent — no green, no "all good" substitute. */
 const DamageCounts: React.FC<{ counts: WorkspaceGroup['counts']; size?: number; gap?: number }> = ({
@@ -272,52 +245,71 @@ const DamageCounts: React.FC<{ counts: WorkspaceGroup['counts']; size?: number; 
 };
 
 /**
- * Sheet row — DESIGN-CONTRACT §C row grid (kills the meta collisions): four
- * fixed tracks `[status 88px] [name 1fr] [pulse 132px] [meta 224px]`, gap 16.
- * META is exactly two stacked nowrap 11px lines: relative time + trigger (low)
- * over the absolute timestamp (faint). The pulse caption lives under the dots
- * inside the 132px track — trigger text never shares its line.
+ * Status as colored TEXT in the meta column (owner v3 #6) — the chips are
+ * dead. Red `FAILED · down 1347d`, amber lowercase `stale`, amber
+ * `OVERDUE · …`, gray `DORMANT · down 482d`, and the quieter states; a
+ * healthy row says nothing (silence = health). Null = no status line.
+ */
+function statusMetaLine(
+  item: InsightsRefreshable,
+  stale: boolean,
+): { text: string; color: string } | null {
+  const down = downForLabel(item);
+  if (item.lastStatus === 'Failed' || item.lastStatus === 'Cancelled') {
+    return {
+      text: `${statusLabel[item.lastStatus].toUpperCase()}${down ? ` · ${down}` : ''}`,
+      color: luce.broken,
+    };
+  }
+  if (stale) return { text: 'stale', color: luce.warn };
+  if (item.scheduleOverdue) return { text: `OVERDUE${down ? ` · ${down}` : ''}`, color: luce.warn };
+  if (isDormant(item)) {
+    const d = dormantDownLabel(item);
+    return { text: `DORMANT${d ? ` · ${d}` : ''}`, color: luce.dormant };
+  }
+  if (item.lastStatus === 'Never') return { text: 'NEVER RUN', color: luce.warn };
+  if (item.lastStatus === 'InProgress') return { text: 'RUNNING', color: luce.accent };
+  if (item.lastStatus === 'Disabled') return { text: 'LIVE', color: luce.textTertiary };
+  return null;
+}
+
+/**
+ * Sheet row — owner punch list v3 #5/#6: the 88px status-chip column is dead.
+ * Four tracks `[dot 16px] [name minmax(0,2fr)] [pulse 132px] [meta 240px]`,
+ * gap 16 — the name owns the reclaimed width so "AUTO FINANCE REPORTING"
+ * renders whole at the 880px sheet width. META is up to THREE stacked nowrap
+ * 11px lines: the colored status text, relative time + trigger, timestamp.
+ * Error code stays under the name (truncated, full text on title).
  */
 const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> = ({
   item,
   stale = false,
 }) => {
-  const down = downForLabel(item);
-  const dormant = isDormant(item);
   const anchor = item.lastAttemptTime || item.lastSuccessTime;
   const rel = relativeAge(anchor);
+  const status = statusMetaLine(item, stale);
   return (
     <div
       role="row"
       className="grid items-center transition-colors hover:bg-white/[0.03]"
       style={{
-        gridTemplateColumns: '88px minmax(0, 1fr) 132px 224px',
+        gridTemplateColumns: '16px minmax(0, 2fr) 132px 240px',
         columnGap: 16,
         padding: '12px 0',
       }}
     >
-      {/* Status (88px): a suspect dataset NEVER shows OK — it carries the badge. */}
-      <div className="min-w-0">{stale ? <StaleBadge /> : <StatusChip status={item.lastStatus} />}</div>
+      {/* Kind dot (16px): violet dataflow / slate dataset — identity, not status. */}
+      <KindDot kind={item.kind} />
 
-      {/* Name (1fr, min-width 0, ellipsis) */}
+      {/* Name (2fr, min-width 0, ellipsis) — no chips on the name line. */}
       <div className="min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
-            {item.name}
-          </span>
-          <KindChip kind={item.kind} />
-          {item.scheduleOverdue && <OverdueChip scheduleSummary={item.scheduleSummary} />}
-          {dormant && <DormantChip item={item} />}
+        <div className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>
+          {item.name}
         </div>
-        {(down || item.errorCode || item.configuredBy) && (
+        {(item.errorCode || item.configuredBy) && (
           <div className="mt-1 flex items-center gap-3 text-[12px] min-w-0" style={{ color: luce.textTertiary }}>
-            {down && (
-              <span className="font-semibold whitespace-nowrap" style={{ color: luce.broken, ...tabular }}>
-                {down}
-              </span>
-            )}
             {item.errorCode && (
-              <span title={`Power BI error: ${item.errorCode}`} className="truncate">
+              <span data-selectable title={`Power BI error: ${item.errorCode}`} className="truncate">
                 {item.errorCode}
               </span>
             )}
@@ -331,8 +323,16 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
         <RunDotStrip runs={item.recentRuns} kind={item.kind} />
       </div>
 
-      {/* Meta (224px, right-aligned): exactly two 11px nowrap lines. */}
+      {/* Meta (240px, right-aligned): up to three 11px nowrap lines. */}
       <div className="text-right min-w-0">
+        {status && (
+          <div
+            className="overflow-hidden text-ellipsis whitespace-nowrap font-semibold"
+            style={{ fontSize: 11, color: status.color, ...tabular }}
+          >
+            {status.text}
+          </div>
+        )}
         <div
           className="overflow-hidden text-ellipsis whitespace-nowrap"
           style={{ fontSize: 11, color: ladder.low }}
@@ -376,107 +376,125 @@ const SheetLabel: React.FC<{ children: React.ReactNode; wave?: 1 | 2 | 3 }> = ({
   </div>
 );
 
-/** Cascade lists cap at 4 named items; "+N more" expands in place (§C). */
-const CASCADE_CAP = 4;
-
 /**
- * Downstream damage under a failed/stale dataflow: an indented cascade block
- * — amber connector, suspect datasets with STALE DATA badges, then the
- * reports affected. Red never appears here: red is the root cause's alone.
+ * Lineage diagram (owner v3 #3) — the sheet's PRIMARY visual: the workspace's
+ * blast radius drawn as a process diagram. Three columns (DATAFLOWS →
+ * DATASETS → REPORTS), rounded-rect nodes, smooth bezier edges. Green is the
+ * happy path (owner-authorized here, and here only), red the fails and the
+ * edges leaving them, amber the stale/suspect path into reports, ash the
+ * dormant fleet. All placement logic lives in lineage-diagram.ts (pure,
+ * tested); this component only paints the result.
  */
-const DamageCascade: React.FC<{
-  suspects: InsightsRefreshable[];
-  reportsByDataset: BlastRadius['reportsByDataset'];
-}> = ({ suspects, reportsByDataset }) => {
-  const [allSets, setAllSets] = useState(false);
-  const [allReports, setAllReports] = useState(false);
-  const reports = cascadeReports(suspects, reportsByDataset);
-  const shownSets = allSets ? suspects : suspects.slice(0, CASCADE_CAP);
-  const shownReports = allReports ? reports : reports.slice(0, CASCADE_CAP);
-  const moreBtn: React.CSSProperties = { fontSize: 12, color: ladder.low };
+const LineageDiagram: React.FC<{
+  group: WorkspaceGroup;
+  blast: BlastRadius;
+  reports: LineageReportInput[];
+}> = ({ group, blast, reports }) => {
+  const layout = useMemo(
+    () => layoutLineage(deriveLineage(group.items, blast, reports)),
+    [group, blast, reports],
+  );
+  if (layout.nodes.length === 0) return null;
+  const damage = (h: string): boolean => h === 'failed' || h === 'stale';
   return (
-    <div className="relative" style={{ paddingLeft: 36, paddingBottom: 12 }} data-testid="damage-cascade">
-      <span
-        aria-hidden="true"
-        className="absolute"
-        style={{ left: 18, top: 0, bottom: 12, width: 1, background: 'rgba(232,163,61,0.35)' }}
-      />
-      <div style={{ fontSize: 12, fontWeight: 500, color: luce.warn }}>
-        → {suspects.length} dataset{suspects.length === 1 ? '' : 's'} refreshed against stale data
-      </div>
-      <div className="mt-1 space-y-1">
-        {shownSets.map((ds) => (
-          <div key={ds.id} className="flex items-center gap-2 min-w-0">
-            <span className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
-              {ds.name}
-            </span>
-            <StaleBadge />
-          </div>
-        ))}
-        {!allSets && suspects.length > CASCADE_CAP && (
-          <button
-            className="block cursor-pointer border-0 bg-transparent p-0 text-left"
-            style={moreBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              setAllSets(true);
-            }}
+    <svg
+      viewBox={`0 0 ${layout.width} ${layout.height}`}
+      width="100%"
+      role="img"
+      aria-label={`${group.workspaceName} lineage — dataflows to datasets to reports`}
+      data-testid="lineage-diagram"
+      style={{ display: 'block', height: 'auto', maxHeight: 360 }}
+    >
+      {/* Column headers in the engraved legend style. */}
+      {(['DATAFLOWS', 'DATASETS', 'REPORTS'] as const).map((label, i) => (
+        <text key={label} x={layout.columnX[i]! + 2} y={12} className="luce-lineage-header">
+          {label}
+        </text>
+      ))}
+      {layout.edges.map((e) => (
+        <g
+          key={`${e.from}->${e.to}`}
+          data-testid="lineage-edge"
+          data-from={e.from}
+          data-to={e.to}
+          data-health={e.health}
+        >
+          {/* Damage edges carry a soft under-glow. */}
+          {damage(e.health) && (
+            <path d={e.path} fill="none" stroke={lineageColor[e.health]} strokeWidth={6} strokeOpacity={0.16} />
+          )}
+          <path
+            d={e.path}
+            fill="none"
+            stroke={lineageColor[e.health]}
+            strokeWidth={damage(e.health) ? 2 : 1.5}
+            strokeOpacity={e.health === 'dormant' ? 0.55 : 0.9}
+          />
+        </g>
+      ))}
+      {layout.nodes.map((n) => (
+        <g
+          key={n.id}
+          role="img"
+          aria-label={n.name}
+          data-testid="lineage-node"
+          data-node-id={n.id}
+          data-column={n.column}
+          data-health={n.health}
+        >
+          <title>{n.name}</title>
+          <rect
+            x={n.x}
+            y={n.y}
+            width={n.width}
+            height={n.height}
+            rx={8}
+            fill="#141417"
+            stroke={lineageColor[n.health]}
+            strokeWidth={2}
+            strokeOpacity={n.health === 'dormant' ? 0.6 : 1}
+          />
+          <text
+            x={n.x + n.width / 2}
+            y={n.y + n.height / 2 + 4}
+            textAnchor="middle"
+            fill={lineageColor[n.health]}
+            opacity={n.health === 'dormant' ? 0.85 : 1}
+            style={{ fontSize: 11, fontWeight: 500 }}
           >
-            +{suspects.length - CASCADE_CAP} more
-          </button>
-        )}
-      </div>
-      {reports.length === 0 ? (
-        <div className="mt-2" style={{ fontSize: 12, fontWeight: 500, color: ladder.low }}>
-          → no bound reports
-        </div>
-      ) : (
-        <>
-          <div className="mt-2" style={{ fontSize: 12, fontWeight: 500, color: luce.warn }}>
-            → {reports.length} report{reports.length === 1 ? '' : 's'} affected
-          </div>
-          <div className="mt-1 space-y-1">
-            {shownReports.map((r) => (
-              <div key={r.id} className="flex items-center gap-2 min-w-0">
-                <span
-                  aria-hidden="true"
-                  className="inline-block rounded-full shrink-0"
-                  style={{ width: 6, height: 6, background: luce.warn }}
-                />
-                <span className="truncate" style={{ fontSize: 13, color: ladder.mid }}>
-                  {r.name}
-                </span>
-              </div>
-            ))}
-            {!allReports && reports.length > CASCADE_CAP && (
-              <button
-                className="block cursor-pointer border-0 bg-transparent p-0 text-left"
-                style={moreBtn}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAllReports(true);
-                }}
-              >
-                +{reports.length - CASCADE_CAP} more
-              </button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+            {n.label}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 };
 
 const canAnimate = (el: Element | null): el is HTMLElement & { animate: Element['animate'] } =>
   !!el && typeof el.animate === 'function';
 
+/** Owner v3 #2: the sheet opens SLOWER and visibly grows — 650ms out on the
+ *  settle spring, 450ms shrinking back into the tile. Reduced motion stays
+ *  instant (150ms linear opacity at final geometry). */
+const SHEET_OPEN_MS = 700;
+const SHEET_CLOSE_MS = 480;
+/**
+ * The flight's own curve. The settle SPRING is wrong for the panel: its
+ * attack reaches ~92% size in the first 18% of the duration, so a 650ms
+ * flight still reads as a pop (owner: "it should open much slower and
+ * grow"). This bezier spends real time in the middle of the journey —
+ * the bloom is VISIBLE — and still lands without bounce.
+ */
+const SHEET_FLIGHT_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+
 const WorkspaceSheet: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
+  reports: LineageReportInput[];
   fromRect: DOMRect | null;
   onClose: () => void;
-}> = ({ group, access, blast, fromRect, onClose }) => {
+}> = ({ group, access, blast, reports, fromRect, onClose }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLButtonElement>(null);
   const nameRef = useRef<HTMLHeadingElement>(null);
@@ -537,9 +555,10 @@ const WorkspaceSheet: React.FC<{
   const [settled, setSettled] = useState(false);
 
   // §D expansion — FLIP from the tile's rect to the sheet's natural rect over
-  // 400ms on the settle spring; transform + opacity (+ radius 12→16) only.
-  // The shared client name counter-scales so it reads 15px at takeoff and
-  // snaps to real 28px text at settle. Scrim fades 0→1 over 250ms linear.
+  // 650ms on the settle spring (owner v3 #2: "open much slower and grow");
+  // transform + opacity (+ radius 12→16) only. The shared client name
+  // counter-scales so it reads 15px at takeoff and snaps to real 28px text at
+  // settle. Scrim fades 0→1 over 250ms linear.
   useEffect(() => {
     const el = panelRef.current;
     if (!canAnimate(el)) {
@@ -566,7 +585,7 @@ const WorkspaceSheet: React.FC<{
         { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 1 },
         { transform: 'none', borderRadius: '16px', opacity: 1 },
       ],
-      { duration: 400, easing: SPRING_SETTLE, fill: 'both' },
+      { duration: SHEET_OPEN_MS, easing: SHEET_FLIGHT_EASE, fill: 'both' },
     );
     flight.onfinish = () => setSettled(true);
     const nameEl = nameRef.current;
@@ -575,8 +594,8 @@ const WorkspaceSheet: React.FC<{
       // needs scale 15/(28·sx) at t=0 to read tile-sized for the whole flight.
       nameEl.style.transformOrigin = 'left center';
       nameEl.animate([{ transform: `scale(${15 / (28 * sx)})` }, { transform: 'none' }], {
-        duration: 400,
-        easing: SPRING_SETTLE,
+        duration: SHEET_OPEN_MS,
+        easing: SHEET_FLIGHT_EASE, // must match the panel or the name drifts
         fill: 'both',
       });
     }
@@ -591,8 +610,9 @@ const WorkspaceSheet: React.FC<{
   }, []);
 
   // §D contraction — waves out in reverse (opacity only), panel FLIPs back
-  // over 400ms settle, scrim fades 250ms. A close mid-flight retargets from
-  // the CURRENT transform; it never restarts from 0.
+  // over 450ms settle, shrinking into the tile (owner v3 #2); scrim fades
+  // 250ms. A close mid-flight retargets from the CURRENT transform; it never
+  // restarts from 0.
   const close = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
@@ -640,7 +660,7 @@ const WorkspaceSheet: React.FC<{
         { transform: fromTransform, borderRadius: '16px', opacity: 1 },
         { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 0 },
       ],
-      { duration: 400, easing: SPRING_SETTLE, fill: 'forwards' },
+      { duration: SHEET_CLOSE_MS, easing: SHEET_FLIGHT_EASE, fill: 'forwards' },
     );
     if (canAnimate(scrimRef.current)) {
       scrimRef.current.animate([{ opacity: 1 }, { opacity: 0 }], {
@@ -659,6 +679,22 @@ const WorkspaceSheet: React.FC<{
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
+
+  // Owner v3 #1: "it opens with a click it should close with a click" — a
+  // click anywhere on the sheet that is NOT an interactive element contracts
+  // it, same as the backdrop. Buttons/links/inputs keep working; selecting
+  // text in the technical-details block ([data-selectable], or any live
+  // selection) never closes.
+  const onPanelClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a, input, select, textarea, [data-selectable]')) return;
+      const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+      if (selection && !selection.isCollapsed) return;
+      close();
+    },
+    [close],
+  );
 
   const dataflows = group.items.filter((i) => i.kind === 'dataflow');
   const datasets = group.items.filter((i) => i.kind === 'dataset');
@@ -686,15 +722,14 @@ const WorkspaceSheet: React.FC<{
         tabIndex={-1}
         className={`luce-sheet relative flex flex-col${settled ? ' luce-sheet--settled' : ''}`}
         style={{ width: 'min(880px, 100vw - 96px)', maxHeight: 'calc(100vh - 96px)' }}
+        onClick={onPanelClick}
       >
-        <div className="luce-sheet-vignette" aria-hidden="true" />
         {/* Header (sticky over the scrolling body). Shared elements that rode
             the FLIP: name, damage chips, worst-asset pulse strip. A second
-            click anywhere on it contracts the sheet (§D). */}
+            click anywhere non-interactive contracts the sheet (owner v3 #1). */}
         <div
           className="relative z-[1] flex items-start justify-between gap-4 shrink-0 cursor-pointer"
           style={{ padding: '28px 32px 16px' }}
-          onClick={close}
         >
           <div className="min-w-0">
             <h3
@@ -729,29 +764,26 @@ const WorkspaceSheet: React.FC<{
             </button>
           </div>
         </div>
-        {/* Body scrolls under the header. Waves: 1 = section headers +
-            dataflow rows, 2 = dataset rows + meta, 3 = cascades + people. */}
+        {/* Body scrolls under the header. Waves: 1 = the lineage diagram +
+            section headers + dataflow rows, 2 = dataset rows + meta, 3 =
+            people. The diagram IS the damage cascade now (owner v3 #3). */}
         <div className="relative z-[1] overflow-y-auto" style={{ padding: '0 32px 28px' }}>
           <div className="space-y-6">
+            <div className="luce-wave luce-wave--1">
+              <LineageDiagram group={group} blast={blast} reports={reports} />
+            </div>
+            <div className="luce-wave luce-wave--1">
+              <KindKey />
+            </div>
             {dataflows.length > 0 && (
               <div>
                 <SheetLabel wave={1}>Dataflows — upstream ({dataflows.length})</SheetLabel>
                 <div className="luce-hairline-rows">
-                  {dataflows.map((r) => {
-                    const suspects = blast.suspectsByDataflow.get(r.id);
-                    return (
-                      <div key={`${r.kind}-${r.id}`}>
-                        <div className="luce-wave luce-wave--1">
-                          <RefreshableRow item={r} />
-                        </div>
-                        {suspects && suspects.length > 0 && (
-                          <div className="luce-wave luce-wave--3">
-                            <DamageCascade suspects={suspects} reportsByDataset={blast.reportsByDataset} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {dataflows.map((r) => (
+                    <div key={`${r.kind}-${r.id}`} className="luce-wave luce-wave--1">
+                      <RefreshableRow item={r} />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -808,44 +840,56 @@ const WorkspaceSheet: React.FC<{
 };
 
 /** Meta pill — 10px caps faint on a .04 well, radius 4 (§B row 3). */
-const MetaPill: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span
-    className="whitespace-nowrap"
-    style={{
-      fontSize: 10,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      color: ladder.faint,
-      background: 'rgba(255,255,255,0.04)',
-      borderRadius: 4,
-      padding: '2px 8px',
-      ...tabular,
-    }}
-  >
-    {children}
+/** Synopsis stat — a plain number over an engraved label. The tile face
+ *  summarizes; it never headlines one asset or wears a siren (owner spec,
+ *  docs/design/BLAST-RADIUS.md "Tile-face synopsis"). */
+const TileStat: React.FC<{
+  value: React.ReactNode;
+  label: string;
+  tone?: string;
+  title?: string;
+}> = ({ value, label, tone, title }) => (
+  <span className="flex flex-col min-w-0" title={title}>
+    <span style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.1, color: tone ?? ladder.mid, ...tabular }}>
+      {value}
+    </span>
+    <span
+      className="whitespace-nowrap"
+      style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: ladder.faint }}
+    >
+      {label}
+    </span>
   </span>
 );
+
 
 /**
  * One client, one tile (DESIGN-CONTRACT §B): uniform 124px, status edge,
  * name + damage chips, worst-asset pulse, meta pills. Broken tiles sit
  * higher (s3 + shadow-2) over a red under-glow; workspaces with suspect
- * datasets carry the STALE DATA hint. While its sheet is open the tile is a
- * 124px ghost so the grid never reflows (§D).
+ * datasets say only "N reports may be reading stale data" (owner v3 #4 —
+ * the badge is dead). While its sheet is open the tile is a 124px ghost so
+ * the grid never reflows (§D).
  */
 const WorkspaceTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
-  suspectCount: number;
   affectedCount: number;
   ghost: boolean;
   onOpen: (rect: DOMRect, el: HTMLElement) => void;
-}> = ({ group, access, suspectCount, affectedCount, ghost, onOpen }) => {
+}> = ({ group, access, affectedCount, ghost, onOpen }) => {
   const pulseItem =
     group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
     group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
   const broken = group.counts.broken > 0;
-  const edge = broken ? luce.broken : group.counts.overdue > 0 ? luce.warn : ladder.hairline;
+  // The edge tells ONE story — ALL GOOD (green, owner-authorized) or NOT SO
+  // GOOD (amber degraded / red broken). Never the voice of a single asset.
+  const degraded = group.counts.overdue > 0 || affectedCount > 0;
+  const edge = broken
+    ? luce.broken
+    : degraded
+      ? luce.warn
+      : 'rgba(63,182,139,0.7)'; // muted lineageColor.healthy
   const flows = group.items.filter((i) => i.kind === 'dataflow').length;
   const sets = group.items.length - flows;
   const members = !access || access.users === null ? null : access.users.length;
@@ -870,31 +914,32 @@ const WorkspaceTile: React.FC<{
           </span>
           <DamageCounts counts={group.counts} />
         </div>
-        <div className="mt-3 flex items-center gap-3 min-w-0">
-          {pulseItem && <RunDotStrip quiet size={6} runs={pulseItem.recentRuns} kind={pulseItem.kind} />}
-          {pulseItem && (
-            <span className="truncate" style={{ fontSize: 12, color: ladder.low }}>
-              {pulseItem.name}
-            </span>
+        {/* Synopsis body (owner spec): plain numbers, engraved labels.
+            Staleness is a count among counts — never a siren, never a
+            single asset's name headlining the whole client. */}
+        <div className="mt-4 flex items-start" style={{ gap: 22 }}>
+          <TileStat value={sets} label={sets === 1 ? 'dataset' : 'datasets'} />
+          <TileStat value={flows} label={flows === 1 ? 'dataflow' : 'dataflows'} />
+          <TileStat
+            value={members === null ? '—' : members}
+            label={members === 1 ? 'member' : 'members'}
+            title={members === null ? 'Member list not visible to your account' : undefined}
+          />
+          {affectedCount > 0 && (
+            <TileStat
+              value={affectedCount}
+              label={affectedCount === 1 ? 'stale rpt' : 'stale rpts'}
+              tone={luce.warn}
+              title={`${affectedCount} report${affectedCount === 1 ? '' : 's'} may be reading stale data — open to trace`}
+            />
           )}
-          {suspectCount > 0 && <StaleBadge />}
         </div>
-        {affectedCount > 0 && (
-          <div className="mt-2" style={{ fontSize: 12, fontWeight: 500, color: luce.warn, ...tabular }}>
-            {affectedCount} report{affectedCount === 1 ? '' : 's'} may be reading stale data
+        {/* Pulse: pattern without a name — the worst asset's last 12 runs. */}
+        {pulseItem && (
+          <div className="mt-3.5">
+            <RunDotStrip quiet size={6} runs={pulseItem.recentRuns} kind={pulseItem.kind} />
           </div>
         )}
-        <div className="mt-3 flex items-center gap-2">
-          <MetaPill>
-            {sets} dataset{sets === 1 ? '' : 's'}
-          </MetaPill>
-          <MetaPill>
-            {flows} dataflow{flows === 1 ? '' : 's'}
-          </MetaPill>
-          <MetaPill>
-            {members === null ? 'members not visible' : `${members} member${members === 1 ? '' : 's'}`}
-          </MetaPill>
-        </div>
       </button>
     </div>
   );
@@ -930,8 +975,12 @@ const HeroTile: React.FC<{
   onOpen: (rect: DOMRect, el: HTMLElement) => void;
 }> = ({ group, access, blast, ghost, onOpen }) => {
   const broken = group.counts.broken > 0;
-  const edge = broken ? luce.broken : group.counts.overdue > 0 ? luce.warn : ladder.hairline;
   const suspectCount = workspaceSuspectCount(group, blast.suspectDatasetIds);
+  const edge = broken
+    ? luce.broken
+    : group.counts.overdue > 0 || suspectCount > 0
+      ? luce.warn
+      : 'rgba(63,182,139,0.7)'; // ALL GOOD — owner-authorized green
   const affected = workspaceAffectedReportCount(group, blast);
   const assets = group.items;
   const shownAssets = assets.slice(0, 5);
@@ -1621,7 +1670,6 @@ export const InsightsPage: React.FC = () => {
                   key={g.workspaceId}
                   group={g}
                   access={accessByWs.get(g.workspaceId)}
-                  suspectCount={workspaceSuspectCount(g, blast.suspectDatasetIds)}
                   affectedCount={workspaceAffectedReportCount(g, blast)}
                   ghost={sheet?.workspaceId === g.workspaceId}
                   onOpen={(rect, el) => setSheet({ workspaceId: g.workspaceId, rect, el })}
@@ -1901,6 +1949,7 @@ export const InsightsPage: React.FC = () => {
           group={sheetGroup}
           access={accessByWs.get(sheetGroup.workspaceId)}
           blast={blast}
+          reports={snapshot.reports ?? []}
           fromRect={sheet?.rect ?? null}
           onClose={() => {
             // §D: focus returns to the originating tile on contraction.

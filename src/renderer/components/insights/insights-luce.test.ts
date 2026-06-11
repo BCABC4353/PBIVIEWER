@@ -23,7 +23,7 @@ import {
   isDown,
   isDormant,
   matchesTileFilter,
-  kindColor,
+  kindDot,
   luce,
 } from './insights-luce';
 
@@ -176,16 +176,18 @@ describe('matchesTileFilter (Matt #2)', () => {
   });
 });
 
-describe('kind chip tints (D12: identity by word, not hue)', () => {
-  it('keeps kind chips on the grayscale ladder — never amber, never red', () => {
-    // Identity is carried by the chip's own label (DATASET / DATAFLOW);
-    // a hue restating a label is decoration. Both share the quiet tier.
-    expect(kindColor.dataset).toBe(luce.textTertiary);
-    expect(kindColor.dataflow).toBe(luce.textTertiary);
-    const punctuation = [luce.warn, luce.broken, luce.accent];
-    expect(punctuation).not.toContain(kindColor.dataset);
-    expect(punctuation).not.toContain(kindColor.dataflow);
-    expect(punctuation).not.toContain(luce.dormant);
+describe('kind dot tints (owner v3 #5: color-coded identity, no chips)', () => {
+  it('uses violet for dataflows and slate for datasets — identity tints, never status hues', () => {
+    expect(kindDot.dataflow).toBe('#A78BDB');
+    expect(kindDot.dataset).toBe('#7E9CC9');
+    // The two kinds must be distinguishable from each other…
+    expect(kindDot.dataflow).not.toBe(kindDot.dataset);
+    // …and may NOT borrow red/amber/green (or the chrome accent): identity
+    // is not status.
+    const statusHues = [luce.warn, luce.broken, luce.accent, '#3FB68B', '#E5484D', '#E8A33D'];
+    expect(statusHues).not.toContain(kindDot.dataset);
+    expect(statusHues).not.toContain(kindDot.dataflow);
+    expect(statusHues).not.toContain(luce.dormant);
   });
 });
 

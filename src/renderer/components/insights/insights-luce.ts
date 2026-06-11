@@ -36,10 +36,10 @@ export const luce = {
   warn: '#E8A33D',
   broken: '#E5484D', // sacred: failures only, never decoration
 
-  // D12: identity is carried by the chip's own WORD (DATASET / DATAFLOW) and
-  // glyph — a hue restating a label is decoration. Grayscale ladder only.
-  kindDataset: TEXT_TERTIARY,
-  kindDataflow: TEXT_TERTIARY,
+  // Owner punch list v3 #5: kind is a small identity DOT before the name —
+  // violet/slate identity tints, never a status hue (not red/amber/green).
+  kindDataflow: '#A78BDB',
+  kindDataset: '#7E9CC9',
   dormant: TEXT_TERTIARY, // "abandoned, not on fire"
 } as const;
 
@@ -57,8 +57,9 @@ export const ladder = {
   lip: 'rgba(255,255,255,0.05)',
 } as const;
 
-/** Kind → identity tint, used for every DATASET/DATAFLOW chip on the page. */
-export const kindColor: Record<InsightsRefreshable['kind'], string> = {
+/** Kind → identity dot tint (owner v3 #5): the dot before every row name and
+ *  the one-line key at the top of the sheet list. Identity, never status. */
+export const kindDot: Record<InsightsRefreshable['kind'], string> = {
   dataset: luce.kindDataset,
   dataflow: luce.kindDataflow,
 };

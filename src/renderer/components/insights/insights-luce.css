@@ -552,11 +552,12 @@
   border-radius: 1px;
 }
 
-/* The board sits in a lit room: a faint key-light pool behind the cluster so
-   the canvas itself has depth in a still image. */
+/* The board sits in a lit room. Owner v3 #8: "is the background supposed to
+   be a lens flair?" — the amber key-light pool failed; it is now barely-there
+   (alpha 0.015 ≤ 0.02). The bottom black falloff stays for depth. */
 .luce-board {
   background:
-    radial-gradient(90% 50% at 50% 0%, rgba(232, 163, 61, 0.05), transparent 60%),
+    radial-gradient(90% 50% at 50% 0%, rgba(232, 163, 61, 0.015), transparent 60%),
     radial-gradient(140% 90% at 50% 110%, rgba(0, 0, 0, 0.55), transparent 60%),
     var(--luce-canvas);
 }
@@ -646,36 +647,41 @@
 
 /* -------------------------------------------------------------------------
    DESIGN-CONTRACT §C/§D/§E — the sheet (expanded tile).
-   Machined glass under the key light: top-light ramp, seam ring, lip .07,
+   Real glass under the key light (owner v3 #7): seam ring, top sheen,
    shadow-3. Its own backdrop blur is DEFERRED to settle (.luce-sheet--settled)
-   so the 400ms flight never double-pays GPU.
+   so the 650ms flight never double-pays GPU.
    ------------------------------------------------------------------------- */
 
+/* Owner v3 #7: "a sexier glass surface". During the FLIP flight the panel
+   keeps a cheap OPAQUE ramp (no double-paying GPU); at settle it switches to
+   REAL glass — translucent fill, blur(40px) saturate(140%), so the blurred
+   board reads THROUGH the panel. No mottled/granite radial anywhere; the
+   only highlight is the top sheen (::before) + the lip in the ring shadow. */
 .luce-sheet {
   position: relative;
   isolation: isolate;
   border-radius: 16px;
-  background:
-    radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.09), transparent 55%),
-    linear-gradient(180deg, #202026 0%, #1c1c21 40%, #121215 100%);
+  background: linear-gradient(180deg, #202026 0%, #1c1c21 40%, #16161a 100%);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.65),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
     var(--luce-shadow-3);
 }
 
 .luce-sheet--settled {
-  backdrop-filter: blur(24px);
+  background: rgba(22, 22, 26, 0.58);
+  backdrop-filter: blur(40px) saturate(140%);
 }
 
-/* Lens vignette overlay — one lens per object, pointer-events none. */
-.luce-sheet-vignette {
+/* Top sheen — light catching the upper edge of the glass, nothing mottled. */
+.luce-sheet::before {
+  content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  z-index: 2;
-  background: radial-gradient(140% 140% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.3) 100%);
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 14%);
 }
 
 /* Full-viewport scrim: deep room, one blur layer (16px stays during flight). */
@@ -690,7 +696,8 @@
 }
 
 /* §D — fill-in stagger: three waves of new content, opacity/transform only,
-   each 250ms on the settle spring. ALL content is in the DOM at t=0. */
+   each 300ms on the settle spring, stretched to ride the slower 650ms flight
+   (owner v3 #2: delays ≈160/300/440ms). ALL content is in the DOM at t=0. */
 @keyframes luce-wave-in {
   from {
     opacity: 0;
@@ -703,17 +710,25 @@
 }
 
 .luce-sheet .luce-wave {
-  animation: luce-wave-in 250ms var(--spring-settle) both;
+  animation: luce-wave-in 300ms var(--spring-settle) both;
 }
 
 .luce-sheet .luce-wave--1 {
-  animation-delay: 120ms;
+  animation-delay: 160ms;
 }
 
 .luce-sheet .luce-wave--2 {
-  animation-delay: 200ms;
+  animation-delay: 300ms;
 }
 
 .luce-sheet .luce-wave--3 {
-  animation-delay: 280ms;
+  animation-delay: 440ms;
+}
+
+/* Lineage diagram (owner v3 #3) — engraved column headers, legend voice. */
+.luce-board .luce-lineage-header {
+  fill: rgba(235, 235, 245, 0.6);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
 }

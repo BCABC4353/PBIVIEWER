@@ -48,9 +48,27 @@ medicFlow.lastSuccessTime = new Date(Date.now() - 29 * 3600e3).toISOString();
 for (const r of SNAPSHOT.refreshables) {
   if (r.workspaceName === 'MEDIC' && r.kind === 'dataset') r.upstreamDataflowIds = [medicFlow.id];
 }
+// Long names that used to ellipse in the sheet rows (owner v3 #6 evidence).
+SNAPSHOT.refreshables.push(mk(n++, 'MEDIC', 'dataset', 'AUTO FINANCE REPORTING MODEL - PRODUCTION', 'Completed', 4,
+  [1,1,1,1,1,1,1,1].map(Boolean), { upstreamDataflowIds: [medicFlow.id] }));
+SNAPSHOT.refreshables.push(mk(n++, 'MEDIC', 'dataset', 'BILLING - CONSOLIDATED DASHBOARD FEED', 'Completed', 6,
+  [1,1,1,1,1,1].map(Boolean), { upstreamDataflowIds: [medicFlow.id] }));
+// FALLON at REAL scale: 20 dormant datasets + a never-run — the lineage
+// diagram must fold the ash fleet into "+N more" (owner v3 #3 evidence).
+for (let i = 0; i < 20; i++) {
+  SNAPSHOT.refreshables.push(mk(n++, 'FALLON', 'dataset', `FALLON - Legacy Mart ${String(i + 1).padStart(2, '0')}`,
+    'Completed', (400 + i * 25) * 24, i % 3 === 0 ? [1,1,1].map(Boolean) : [1,1].map(Boolean)));
+}
+SNAPSHOT.refreshables.push(mk(n++, 'FALLON', 'dataset', 'FALLON - Scratchpad', 'Never', 0, [], { lastAttemptTime: undefined, lastSuccessTime: undefined }));
+SNAPSHOT.refreshables.push(mk(n++, 'FALLON', 'dataflow', 'FALLON - Forgotten Ingest Flow', 'Completed', 600 * 24, [1,1].map(Boolean)));
+const dsId = (name) => SNAPSHOT.refreshables.find((r) => r.name === name).id;
 SNAPSHOT.reports = [
-  { id: 'rep-1', name: 'MEDIC - Executive Daily', workspaceId: 'medic', datasetId: SNAPSHOT.refreshables.find((r)=>r.name==='MEDIC - Billing Model').id },
-  { id: 'rep-2', name: 'MEDIC - Claims Aging', workspaceId: 'medic', datasetId: SNAPSHOT.refreshables.find((r)=>r.name==='MEDIC - KPI Model').id },
+  { id: 'rep-1', name: 'MEDIC - Executive Daily', workspaceId: 'medic', datasetId: dsId('MEDIC - Billing Model') },
+  { id: 'rep-2', name: 'MEDIC - Claims Aging', workspaceId: 'medic', datasetId: dsId('MEDIC - KPI Model') },
+  { id: 'rep-3', name: 'AUTO FINANCE BOARD PACK - MONTHLY REVIEW', workspaceId: 'medic', datasetId: dsId('AUTO FINANCE REPORTING MODEL - PRODUCTION') },
+  { id: 'rep-4', name: 'BILLING - AR SUMMARY', workspaceId: 'medic', datasetId: dsId('BILLING - CONSOLIDATED DASHBOARD FEED') },
+  { id: 'rep-5', name: 'FALLON - Weekly Ops', workspaceId: 'fallon', datasetId: dsId('FALLON - Billing Model') },
+  { id: 'rep-6', name: 'FALLON - Legacy Pack 03', workspaceId: 'fallon', datasetId: dsId('FALLON - Legacy Mart 03') },
 ];
 
 const STUB = `
@@ -99,7 +117,8 @@ const STUB = `
     const tiles = await page.$$('button[aria-haspopup="dialog"]');
     if (tiles.length > 0) {
       await tiles[0].click();
-      await new Promise((r) => setTimeout(r, 700));
+      // 650ms flight + waves to ~740ms (owner v3 #2) — wait for full settle.
+      await new Promise((r) => setTimeout(r, 1400));
       await page.screenshot({ path: process.argv[3] });
       console.log('SHEET SHOT:', process.argv[3]);
     } else {
