@@ -207,6 +207,25 @@ describe('pollDeviceCode state machine', () => {
     ).rejects.toThrow(/declined/i);
   });
 
+  it("authorization_declined (Microsoft's spelling of access_denied) → same friendly declined error", async () => {
+    const { fetch } = scriptedFetch([res(400, { error: 'authorization_declined' })]);
+    const { sleep } = fakeSleep();
+    // The full friendly copy, NOT just /declined/i — the pre-fix fallback
+    // surfaced the raw OAuth code 'authorization_declined', which would have
+    // matched the looser regex and hidden the regression.
+    await expect(
+      pollDeviceCode(CONFIG, challenge(), { fetch, sleep, now: () => 0 }),
+    ).rejects.toThrow('Sign-in was declined on the Microsoft page.');
+  });
+
+  it('bad_verification_code → friendly mistyped/stale-code error', async () => {
+    const { fetch } = scriptedFetch([res(400, { error: 'bad_verification_code' })]);
+    const { sleep } = fakeSleep();
+    await expect(
+      pollDeviceCode(CONFIG, challenge(), { fetch, sleep, now: () => 0 }),
+    ).rejects.toThrow(/did not recognize the sign-in code/i);
+  });
+
   it("invalid_client mid-poll → 'Allow public client flows' guidance", async () => {
     const { fetch } = scriptedFetch([
       res(401, { error: 'invalid_client', error_description: 'AADSTS7000218' }),

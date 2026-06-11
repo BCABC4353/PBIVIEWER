@@ -172,6 +172,34 @@ describe('invalid_grant handling', () => {
     expect(await m.getCurrentUser()).toBeNull();
   });
 
+  it("clears credentials for the REAL expo-auth-session error shape (code on `e.code`, prose-only message)", async () => {
+    // expo-auth-session's TokenError extends CodedError: the OAuth error code
+    // lands in `.code`, while `.message` is RFC 6749 human prose that never
+    // contains the literal string "invalid_grant" — a message-only regex
+    // would miss it entirely.
+    class FakeTokenError extends Error {
+      code = 'invalid_grant';
+      constructor() {
+        super(
+          'The provided authorization grant (e.g., authorization code, resource ' +
+            'owner credentials) or refresh token is invalid, expired, revoked, does ' +
+            'not match the redirection URI used in the authorization request, or was ' +
+            'issued to another client.',
+        );
+      }
+    }
+    const { m, seed, read } = manager({
+      refresh: async () => {
+        throw new FakeTokenError();
+      },
+    });
+    await seed(freshSet({ expiresAt: 0 }));
+    await expect(m.getAccessToken()).rejects.toThrow(/invalid, expired, revoked/);
+    expect(read()).toBeNull();
+    expect(await m.isSignedIn()).toBe(false);
+    expect(await m.getCurrentUser()).toBeNull();
+  });
+
   it('does NOT clear credentials on transient failures', async () => {
     const { m, seed, read } = manager({
       refresh: async () => {
@@ -278,6 +306,34 @@ describe('concurrent hydration (cold-start race)', () => {
     releaseGet();
     expect(await pending).toBe(false); // stale read must not commit
     expect(await m.isSignedIn()).toBe(false); // and a re-read sees the wipe
+  });
+
+  it('a load() during a slow clear() (remove still pending) does not resurrect credentials', async () => {
+    let releaseRemove!: () => void;
+    const removeGate = new Promise<void>((r) => (releaseRemove = r));
+    let value: string | null = JSON.stringify({ refreshToken: 'RT-zombie' });
+    const storage: TokenStorage = {
+      get: async () => value,
+      set: async (v) => {
+        value = v;
+      },
+      remove: async () => {
+        await removeGate; // SecureStore delete still in flight…
+        value = null;
+      },
+    };
+    const m = new TokenManager({ storage, refresh: vi.fn(), now: () => NOW });
+    expect(await m.isSignedIn()).toBe(true); // hydrated once, signed in
+    const clearing = m.clear(); // remove() now suspended on the gate
+    // Pre-fix: clear() reset `loaded` BEFORE the remove resolved, so this
+    // load() re-hydrated from the PRE-removal store value and committed it —
+    // zombie credentials after sign-out.
+    const during = m.isSignedIn();
+    releaseRemove();
+    await clearing;
+    expect(await during).toBe(false); // the racing reader settles signed-out
+    expect(await m.isSignedIn()).toBe(false); // and stays out after clear()
+    expect(await m.getCurrentUser()).toBeNull(); // in-memory state wiped too
   });
 });
 

@@ -165,7 +165,8 @@ export async function requestDeviceCode(
  *   authorization_pending → keep polling at `interval`
  *   slow_down             → add 5 s to the interval, keep polling
  *   expired_token         → the code died unredeemed — friendly throw
- *   access_denied         → the user said no — friendly throw
+ *   access_denied / authorization_declined → the user said no — friendly throw
+ *   bad_verification_code → AAD didn't recognize the typed code — friendly throw
  *   invalid_client / unauthorized_client → "Allow public client flows" guidance
  *   access_token present  → TokenSet (refresh token + identity included)
  */
@@ -226,8 +227,16 @@ export async function pollDeviceCode(
     if (error === 'expired_token') {
       throw new Error('The sign-in code expired before you finished — start again for a fresh code.');
     }
-    if (error === 'access_denied') {
+    // RFC 8628 names the refusal `access_denied`; the Microsoft identity
+    // platform actually answers `authorization_declined`. Same meaning.
+    if (error === 'access_denied' || error === 'authorization_declined') {
       throw new Error('Sign-in was declined on the Microsoft page.');
+    }
+    // AAD-specific: the code entered on the Microsoft page was wrong or stale.
+    if (error === 'bad_verification_code') {
+      throw new Error(
+        'Microsoft did not recognize the sign-in code — check it was typed exactly, or start again for a fresh code.',
+      );
     }
     throw errorFrom(body, `Sign-in failed (HTTP ${res.status})`);
   }

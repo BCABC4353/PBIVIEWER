@@ -46,8 +46,11 @@ export interface TokenStorage {
 }
 
 /** Performs the OAuth refresh_token grant. Must throw on failure; an
- *  `invalid_grant` failure should include that string in the error message
- *  (expo-auth-session's TokenError does). */
+ *  `invalid_grant` failure should carry that code on the error's `code`
+ *  property (expo-auth-session's TokenError is a CodedError — the OAuth error
+ *  code goes in `code`, while `message` is human prose that never contains
+ *  the literal "invalid_grant"). Embedding the code in the message also works,
+ *  as a fallback for other providers / injected fakes. */
 export type RefreshFn = (refreshToken: string) => Promise<TokenSet>;
 
 export interface TokenManagerDeps {
@@ -89,6 +92,10 @@ export class TokenManager {
   private hydration: Promise<TokenSet | null> | null = null;
   /** Bumped by clear() so an in-flight hydration can't resurrect credentials. */
   private epoch = 0;
+  /** In-flight clear(), if any — load() must wait it out: hydrating while
+   *  storage.remove() is still pending would read (and commit) the
+   *  PRE-removal SecureStore value — zombie credentials after sign-out. */
+  private clearing: Promise<void> | null = null;
   /** Single-flight lock — all concurrent getAccessToken callers share it. */
   private acquisitionInFlight: Promise<string> | null = null;
 
@@ -128,10 +135,27 @@ export class TokenManager {
   /** Sign out: wipe memory + storage. */
   async clear(): Promise<void> {
     this.epoch += 1; // invalidate any hydration still in flight
-    this.hydration = null;
-    this.tokens = null;
-    this.loaded = false; // re-arm hydration so a later read sees the cleared store
-    await this.storage.remove();
+    // Storage BEFORE the in-memory reset: flipping `loaded` while the remove
+    // is still pending would re-arm hydration against the pre-removal store
+    // value, and a load() landing in that window would resurrect the very
+    // credentials being wiped. `clearing` parks such loads until we're done.
+    const clearing = (async () => {
+      try {
+        await this.storage.remove();
+      } finally {
+        // Reset even when the remove throws — memory must not outlive sign-out.
+        this.hydration = null;
+        this.tokens = null;
+        this.loaded = false; // re-arm hydration so a later read sees the cleared store
+      }
+    })();
+    this.clearing = clearing;
+    try {
+      await clearing;
+    } finally {
+      // Release only our own gate — a newer clear() may have replaced it.
+      if (this.clearing === clearing) this.clearing = null;
+    }
   }
 
   /**
@@ -169,7 +193,14 @@ export class TokenManager {
       // AAD invalid_grant = the refresh token itself is dead (revoked,
       // expired, password change…). Keeping it would loop forever; drop the
       // credentials so the UI falls back to a clean "Sign in" state.
-      if (e instanceof Error && /invalid_grant/i.test(e.message)) {
+      // expo-auth-session's TokenError (a CodedError) puts the OAuth error
+      // code in `e.code` — its `message` is human prose that never says
+      // "invalid_grant" — so check the code first; the message regex stays
+      // only as a fallback for other providers / injected fakes.
+      if (
+        e instanceof Error &&
+        ((e as { code?: unknown }).code === 'invalid_grant' || /invalid_grant/i.test(e.message))
+      ) {
         await this.clear();
       }
       throw e;
@@ -194,8 +225,12 @@ export class TokenManager {
    *  getAccessToken() racing at launch) share one storage read — otherwise
    *  the second caller would observe `loaded = true, tokens = null` while the
    *  first is still awaiting storage.get() and wrongly report signed-out. */
-  private load(): Promise<TokenSet | null> {
-    if (this.loaded) return Promise.resolve(this.tokens);
+  private async load(): Promise<TokenSet | null> {
+    // A clear() may still be flushing storage.remove(); hydrating now would
+    // read the pre-removal value. Wait the wipe out first (its outcome is
+    // clear()'s caller's problem, not ours — hence the swallowed rejection).
+    while (this.clearing) await this.clearing.catch(() => {});
+    if (this.loaded) return this.tokens;
     this.hydration ??= this.hydrate();
     return this.hydration;
   }
