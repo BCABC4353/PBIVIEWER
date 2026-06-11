@@ -180,16 +180,22 @@ function dotTitle(
 const RunDotStrip: React.FC<{
   runs?: InsightsRefreshable['recentRuns'];
   kind: InsightsRefreshable['kind'];
-}> = ({ runs, kind }) => {
+  /** Decorative copy on a group header: no tooltips, no testid — the row-level
+   *  strips stay the single interactive source of truth (Matt #5). */
+  quiet?: boolean;
+}> = ({ runs, kind, quiet = false }) => {
   const cells = dotStripCells(runs);
   const label = failureRateCaption(runs);
   return (
-    <div className="flex flex-col items-start gap-1" data-testid="run-dot-strip">
+    <div
+      className="flex flex-col items-start gap-1"
+      {...(quiet ? {} : { 'data-testid': 'run-dot-strip' })}
+    >
       <div className="flex items-center gap-[3px]" aria-hidden="true">
         {cells.map((c, i) => (
           <span
             key={i}
-            title={dotTitle(c, kind)}
+            title={quiet ? undefined : dotTitle(c, kind)}
             className="inline-block w-[7px] h-[7px] rounded-full"
             style={
               c.state === 'ok'
@@ -201,7 +207,7 @@ const RunDotStrip: React.FC<{
           />
         ))}
       </div>
-      {label ? (
+      {quiet ? null : label ? (
         <span className="text-[11px]" style={{ color: luce.broken, ...tabular }}>
           {label}
         </span>
@@ -281,8 +287,21 @@ const WorkspaceSection: React.FC<{
   group: WorkspaceGroup;
   expanded: boolean;
   onToggle: () => void;
-}> = ({ group, expanded, onToggle }) => (
-  <div className="luce-panel luce-card overflow-hidden">
+}> = ({ group, expanded, onToggle }) => {
+  // The strip's pulse: the worst item's recent runs ride the closed header so
+  // the board reads as a bank of instruments, not a list of drawers.
+  const pulseItem =
+    group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
+    group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
+  const edge =
+    group.counts.broken > 0 ? luce.broken : group.counts.overdue > 0 ? luce.warn : 'rgba(255,255,255,0.10)';
+  return (
+  <div className="luce-panel luce-card overflow-hidden relative">
+    <span
+      aria-hidden="true"
+      className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r"
+      style={{ background: edge, boxShadow: group.counts.broken > 0 ? `0 0 8px ${luce.broken}` : 'none' }}
+    />
     <button
       className="luce-press w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer hover:bg-white/[0.03]"
       onClick={onToggle}
@@ -314,7 +333,8 @@ const WorkspaceSection: React.FC<{
           {group.items.length} item{group.items.length === 1 ? '' : 's'}
         </span>
       </span>
-      <span className="flex items-center gap-3 shrink-0">
+      <span className="flex items-center gap-4 shrink-0">
+        {pulseItem && <RunDotStrip quiet runs={pulseItem.recentRuns} kind={pulseItem.kind} />}
         <span className="text-xs" style={{ color: group.counts.broken > 0 ? luce.broken : luce.textTertiary, ...tabular }}>
           {groupSummaryLabel(group)}
         </span>
@@ -328,7 +348,8 @@ const WorkspaceSection: React.FC<{
       </div>
     )}
   </div>
-);
+  );
+};
 
 /** Engraved eyebrow + title — one heading treatment for every section (Matt #8). */
 const SectionHeading: React.FC<{ id: string; eyebrow: string; title: string }> = ({ id, eyebrow, title }) => (
@@ -339,6 +360,105 @@ const SectionHeading: React.FC<{ id: string; eyebrow: string; title: string }> =
     </h2>
   </div>
 );
+
+
+// ---------------------------------------------------------------------------
+// The hero INSTRUMENT (D11) — a real gauge, not a numeral on a card.
+// Geometry ported from the eye-tuned mobile dial (IgnitionSweep): 270° throw
+// from 135°, graduated tick ring, unlit groove, a lit arc built from three
+// stops of one light (breath / bloom / filament), tapered needle blade with
+// counterweight, machined hub. Tuned by rendered screenshot, not by intent.
+// ---------------------------------------------------------------------------
+const DIAL_SWEEP = 270;
+const DIAL_START = 135;
+
+function dialPoint(c: number, r: number, deg: number): { x: number; y: number } {
+  const a = (deg * Math.PI) / 180;
+  return { x: c + r * Math.cos(a), y: c + r * Math.sin(a) };
+}
+
+const LuceDial: React.FC<{ pct: number; size?: number }> = ({ pct, size = 224 }) => {
+  const c = size / 2;
+  const faceR = c - 2;
+  const tickOuter = c - 12;
+  const tickMinorIn = tickOuter - 7;
+  const tickMajorIn = tickOuter - 13;
+  const arcR = tickOuter - 19;
+  const needleTip = arcR + 5;
+  const hubR = 13;
+  const f = Math.max(0, Math.min(1, pct / 100));
+  const circ = 2 * Math.PI * arcR;
+  const arcLen = circ * (DIAL_SWEEP / 360);
+  const dash = `${arcLen} ${circ - arcLen}`;
+  const off = arcLen * (1 - f);
+  const ticks: React.ReactNode[] = [];
+  const count = 40;
+  for (let i = 0; i <= count; i++) {
+    const deg = DIAL_START + (i / count) * DIAL_SWEEP;
+    const major = i % 5 === 0;
+    const p1 = dialPoint(c, major ? tickMajorIn : tickMinorIn, deg);
+    const p2 = dialPoint(c, tickOuter, deg);
+    ticks.push(
+      <line
+        key={deg}
+        x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+        stroke={major ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.18)'}
+        strokeWidth={major ? 2 : 1}
+        strokeLinecap="round"
+      />,
+    );
+  }
+  const na = DIAL_START + f * DIAL_SWEEP;
+  const dir = dialPoint(0, 1, na);
+  const perp = { x: -dir.y, y: dir.x };
+  const baseR = hubR - 2;
+  const blade = [
+    `${c + baseR * dir.x + 2.6 * perp.x},${c + baseR * dir.y + 2.6 * perp.y}`,
+    `${c + (needleTip - 1) * dir.x + 0.7 * perp.x},${c + (needleTip - 1) * dir.y + 0.7 * perp.y}`,
+    `${c + needleTip * dir.x},${c + needleTip * dir.y}`,
+    `${c + (needleTip - 1) * dir.x - 0.7 * perp.x},${c + (needleTip - 1) * dir.y - 0.7 * perp.y}`,
+    `${c + baseR * dir.x - 2.6 * perp.x},${c + baseR * dir.y - 2.6 * perp.y}`,
+  ].join(' ');
+  const arcProps = {
+    cx: c, cy: c, r: arcR, fill: 'none',
+    strokeDasharray: dash, strokeDashoffset: off,
+    transform: `rotate(${DIAL_START}, ${c}, ${c})`, strokeLinecap: 'round' as const,
+  };
+  return (
+    <svg width={size} height={size} aria-hidden="true">
+      <defs>
+        <radialGradient id="luce-dial-face" cx="50%" cy="36%" r="78%">
+          <stop offset="0%" stopColor="#1C1C21" />
+          <stop offset="58%" stopColor="#131316" />
+          <stop offset="100%" stopColor="#0A0A0C" />
+        </radialGradient>
+        <radialGradient id="luce-dial-hub" cx="50%" cy="34%" r="80%">
+          <stop offset="0%" stopColor="#2A2A30" />
+          <stop offset="100%" stopColor="#131316" />
+        </radialGradient>
+      </defs>
+      <circle cx={c} cy={c} r={faceR} fill="url(#luce-dial-face)" />
+      <circle cx={c} cy={c} r={faceR} fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth={2} />
+      <circle cx={c} cy={c - 0.5} r={faceR - 1.5} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth={1} />
+      {ticks}
+      <circle {...arcProps} stroke="rgba(255,255,255,0.06)" strokeWidth={3} strokeDashoffset={0} />
+      <circle {...arcProps} stroke={luce.accent} strokeOpacity={0.08} strokeWidth={15} />
+      <circle {...arcProps} stroke={luce.accent} strokeOpacity={0.24} strokeWidth={7} />
+      <circle {...arcProps} stroke={luce.accent} strokeOpacity={1} strokeWidth={2.5} />
+      <g className="luce-needle luce-dial-needle" style={{ transformOrigin: `${c}px ${c}px` }}>
+        <line
+          x1={c} y1={c}
+          x2={c - 16 * dir.x} y2={c - 16 * dir.y}
+          stroke="#B97D2A" strokeWidth={5} strokeLinecap="round"
+        />
+        <polygon points={blade} fill={luce.accent} />
+      </g>
+      <circle cx={c} cy={c} r={hubR} fill="url(#luce-dial-hub)" />
+      <circle cx={c} cy={c} r={hubR} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
+      <circle cx={c} cy={c} r={3.4} fill={luce.accent} />
+    </svg>
+  );
+};
 
 /**
  * D1/D11 — the hero instrument: backlight deck → data → lens, holding the ONE
@@ -353,33 +473,37 @@ const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, i
   const needleAt = Math.max(0, Math.min(100, value));
   return (
     <div
-      className="luce-panel luce-panel--raised luce-hero-panel luce-rise p-6 flex flex-col justify-between"
+      className="luce-panel luce-panel--raised luce-hero-panel luce-rise p-6 flex items-center gap-8"
       style={{ '--luce-i': 0 } as React.CSSProperties}
       data-testid="luce-hero"
     >
       <div className="luce-backlight luce-backlight--live" aria-hidden="true" />
       {igniting && <span className="luce-flow" aria-hidden="true" />}
-      <div className="relative z-[1]">
+      {/* The instrument: needle + lit arc ride the same sprung value as the
+          numeral, so the whole cluster moves as one mass. */}
+      <div className="relative z-[1] shrink-0" style={{ width: 224, height: 224 }}>
+        <LuceDial pct={pct === null ? 0 : needleAt} />
+        <div
+          className="absolute inset-x-0 flex flex-col items-center"
+          style={{ bottom: 40 }}
+        >
+          <div
+            ref={ref}
+            className="luce-hero-num"
+            style={{ fontSize: 40, lineHeight: 1 }}
+            aria-label={pct === null ? 'Data health unknown' : `Data health ${pct} percent`}
+          >
+            {pct === null ? '—' : Math.round(value)}
+            {pct !== null && <span className="luce-hero-unit">%</span>}
+          </div>
+        </div>
+      </div>
+      <div className="relative z-[1] flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <span className="luce-live-dot" aria-hidden="true" />
           <span className="luce-legend">Data health</span>
         </div>
-        <div
-          ref={ref}
-          className="luce-hero-num mt-3"
-          aria-label={pct === null ? 'Data health unknown' : `Data health ${pct} percent`}
-        >
-          {pct === null ? '—' : Math.round(value)}
-          {pct !== null && <span className="luce-hero-unit">%</span>}
-        </div>
-      </div>
-      <div className="relative z-[1] mt-5">
-        <div className="luce-meter luce-well" aria-hidden="true">
-          <span className="luce-meter-pos" style={{ transform: `translateX(${needleAt}%)` }}>
-            <span className="luce-needle" />
-          </span>
-        </div>
-        <div className="mt-2 text-[11px]" style={{ color: luce.textTertiary }}>
+        <div className="text-[12px] leading-relaxed max-w-[200px]" style={{ color: luce.textTertiary }}>
           datasets &amp; dataflows neither broken nor overdue
         </div>
       </div>
@@ -685,14 +809,22 @@ export const InsightsPage: React.FC = () => {
               const inner = (
                 <>
                   <div
-                    className={`${tile.loud ? 'text-4xl' : 'text-3xl'} font-semibold${
+                    className={`${tile.loud ? 'text-4xl' : 'text-3xl'} font-semibold leading-none${
                       hot ? ' luce-lit luce-lit--hot luce-lit--red' : ''
                     }`}
                     style={{ ...(hot ? {} : { color: tile.color }), ...tabular }}
                   >
                     {tile.value}
                   </div>
-                  <div className="mt-1 luce-legend">{tile.label}</div>
+                  <div className="mt-2 luce-legend">{tile.label}</div>
+                  <span
+                    className="luce-tile-lamp"
+                    aria-hidden="true"
+                    style={{
+                      background: tile.loud ? tile.color : 'rgba(255,255,255,0.10)',
+                      boxShadow: tile.loud ? `0 0 8px ${tile.color}` : 'none',
+                    }}
+                  />
                 </>
               );
               const entrance = { '--luce-i': idx + 1 } as React.CSSProperties;

@@ -49,7 +49,11 @@
 .luce-panel {
   position: relative;
   isolation: isolate;
-  background: var(--luce-s1);
+  /* One key light from above (D4): the face is a material, not a fill — the
+     gradient is what makes depth survive a STATIC screenshot. */
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgba(255, 255, 255, 0.07), transparent 55%),
+    linear-gradient(180deg, #17171b 0%, var(--luce-s1) 38%, #0e0e11 100%);
   border-radius: 12px; /* D3: panels 12 */
   box-shadow:
     0 0 0 1px var(--luce-seam),
@@ -58,7 +62,9 @@
 }
 
 .luce-panel--raised {
-  background: var(--luce-s2);
+  background:
+    radial-gradient(130% 100% at 50% -25%, rgba(255, 255, 255, 0.09), transparent 60%),
+    linear-gradient(180deg, #202026 0%, var(--luce-s2) 40%, #121215 100%);
   box-shadow:
     0 0 0 1px var(--luce-seam),
     inset 0 1px 0 var(--luce-lip),
@@ -320,6 +326,22 @@
   filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
 }
 
+/* The hero dial's needle: an SVG group rotating about the hub. Overrides the
+   meter-pin box styles; the tremor itself is sub-perceptual (±0.35°, D7). */
+.luce-dial-needle {
+  position: static;
+  width: auto;
+  height: auto;
+  background: none;
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+@keyframes luce-dial-tremor {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(0.35deg); }
+  62% { transform: rotate(-0.3deg); }
+}
+
 .luce-live-dot {
   display: inline-block;
   width: 6px;
@@ -375,6 +397,9 @@
   }
   .luce-board .luce-needle {
     animation: luce-tremor 7s steps(24) infinite;
+  }
+  .luce-board .luce-dial-needle {
+    animation: luce-dial-tremor 7s steps(24) infinite;
   }
   .luce-board .luce-backlight--live {
     animation: luce-deck-drift 9s ease-in-out infinite;
@@ -513,4 +538,24 @@
   .luce-press:active {
     transform: none; /* no travel — feedback stays via the inset shadow */
   }
+}
+
+
+/* Status lamp riding each cluster tile — lit only when the count is loud. */
+.luce-tile-lamp {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+/* The board sits in a lit room: a faint key-light pool behind the cluster so
+   the canvas itself has depth in a still image. */
+.luce-board {
+  background:
+    radial-gradient(90% 50% at 50% 0%, rgba(232, 163, 61, 0.05), transparent 60%),
+    radial-gradient(140% 90% at 50% 110%, rgba(0, 0, 0, 0.55), transparent 60%),
+    var(--luce-canvas);
 }
