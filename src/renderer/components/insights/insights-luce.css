@@ -728,6 +728,19 @@
 ::view-transition-new(sheet-morph) {
   animation-duration: 2.6s;
 }
+
+/* The page-level cross-fade carries the scrim/blur's appearance. Left at the
+   browser default (~0.25s) the blur SNAPS ON before the 2.6s morph begins —
+   out of sync (owner). The root rides the same clock as the morph. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 2.6s;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root.vt-closing::view-transition-old(root),
+:root.vt-closing::view-transition-new(root) {
+  animation-duration: 2s;
+}
 ::view-transition-old(sheet-morph) {
   animation-duration: 0.9s; /* the tile face hands off in the first beat — no lingering halo */
 }
