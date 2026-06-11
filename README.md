@@ -38,7 +38,7 @@ npm run package:win   # or package:mac
 | `src/renderer/` | React UI: viewers, Insights board, presentation/kiosk mode, stores |
 | `src/preload/` + `src/shared/` | The typed IPC bridge and shared types/validation |
 | `mobile/` | Separate Expo app (own package.json — `cd mobile && npm ci`) |
-| `docs/` | Operator guides (install, updating, go-live runbook) and design doctrine |
+| `docs/` | Operator guides (install, updating, go-live runbook) |
 | `scripts/` | Build-time config generation, screenshot/PDF tooling |
 
 ## Releases and updates

@@ -1,8 +1,9 @@
-# PBI Viewer Mobile — Phase 1
+# PBI Viewer Mobile
 
-The fleet ops-console phone app. Design per `../docs/design/` ("quiet
-instrument cluster"): near-black cabin, one amber accent, red reserved for
-broken, status always shape + color + label.
+Companion phone app for refresh-health monitoring: fleet board, refresh
+detail, alerts, and natively rendered report canvases (no embedded Power BI
+canvas — report data is fetched via the Execute Queries DAX API and drawn
+with the app's own chart components).
 
 ## Run it on your iPhone (no Apple account, no Xcode)
 
@@ -16,22 +17,8 @@ npm start
 `scripts/ensure-azure-config.mjs`, which creates the gitignored
 `src/auth/azure-config.local.json` stub Metro needs to bundle.)
 
-Scan the QR code with the iPhone camera → opens in **Expo Go** (free App Store
-app). You'll see the Fleet Health board with sample data: hero number, worst-
-first list, pull-to-refresh, tap into Refresh Detail with the native
-duration sparkline.
-
-## Honest status
-
-| Piece | State |
-|---|---|
-| Core logic (status, overdue math, ordering, durations, DAX shaping) | **Ported/built with 112 unit tests green** |
-| Four-tab interface (Fleet / Reports / Alerts / Settings) | Built, typechecked — **never yet rendered on a device**; first `expo start` is the moment of truth, expect layout fixes |
-| Native visuals (KPI, bar, line, donut, table) + demo report canvases | Built; render offline from realistic mock query results; live mode binds the same DAX runner |
-| The feel layer (springs, haptic verbs, entrances, count-ups) + **Ignition ceremony** (once per cold launch, non-blocking veil, Reanimated UI-thread sweep) | Built; SwiftUI spring values translated losslessly; Reduce Motion safe; loading is quiet skeletons, never a gate |
-| Auth (AAD PKCE + device code flow, SecureStore persistence, silent refresh, single-flight) | Built + tested; **live mode needs only the Azure GUIDs in the gitignored `src/auth/azure-config.local.json`** — no Entra redirect changes (device code flow) |
-| Data | Sample mode by default; Live switch in Settings once auth is configured |
-| Push alerts | Not built (needs the small backend — `../docs/PHONE-OPS-CONSOLE-PLAN.md` Phase 2) |
+Scan the QR code with the iPhone camera → opens in **Expo Go** (free App
+Store app).
 
 ## Wiring live data (one local file, zero Entra redirect changes)
 
@@ -60,43 +47,21 @@ duration sparkline.
 Tokens then live in SecureStore and renew silently through the same
 TokenManager regardless of which flow acquired them.
 
-## Feel diagnostics
+## Verification
 
-Settings → FEEL → **Test feel** fires every haptic verb in sequence
-(tap / confirm / warn / fault / thunk / detent) and prints a per-verb ✓/✗
-line *including the caught error message* — the loud counterpart to the
-production wrappers, which stay deliberately fail-silent. If every verb
-shows ✓ but the phone stays still, check iPhone Settings → Sounds &
-Haptics → System Haptics.
-
-## Visuals doctrine (owner's call, locked)
-
-**This app never embeds Microsoft's report canvas.** Report content is fetched
-as *data* (the `Dataset.Read.All` scope already covers the Execute Queries DAX
-API) and re-rendered as the app's **own native visuals** — same tokens, same
-type, same motion as everything else. `src/ui/Sparkline.tsx` is the first one;
-the visual library grows from there (bars, lines, KPI tiles, tables). Embedding
-is permitted only as a last-resort fallback for visuals we haven't translated
-yet, and it should feel like a defeat every time.
+```bash
+npm run typecheck
+npm test
+```
 
 ## Phone quickstart (Windows)
 
-One command starts the phone dev server: it finds (or downloads) the app at
-`$HOME\Desktop\PBIVIEWER`, updates it to the latest published version,
-installs everything, and shows the QR code to scan with Expo Go.
-
-First time (paste into any PowerShell window):
-
-```powershell
-irm https://raw.githubusercontent.com/BCABC4353/PBIVIEWER/main/run-phone.ps1 | iex
-```
-
-Every time after that:
+`run-phone.ps1` at the repo root finds (or downloads) the app at
+`$HOME\Desktop\PBIVIEWER`, updates it to the latest published `main`,
+installs everything, and shows the QR code to scan with Expo Go. Note: any
+local edits inside that folder are discarded on each run (the script lists
+them first).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$HOME\Desktop\PBIVIEWER\run-phone.ps1"
 ```
-
-Leave the window open while you use the app; press `Ctrl+C` to stop. Any local
-edits inside the folder are discarded on each run (the script lists them first),
-so the phone always runs exactly what is published on `main`.

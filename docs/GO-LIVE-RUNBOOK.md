@@ -69,7 +69,7 @@ What the failure tells you:
 - **Single-instance lock** (no double-launch partition corruption) and **global crash handlers** in the main process.
 - Window is **always centered at a fixed size** — no "invisible app on a disconnected monitor" risk.
 - **Sign in once**: the auth window shares the same session/cookies as the app browser, so SSO is reused.
-- **Credentials baked into the build**; **tokens encrypted at rest** (Windows DPAPI via safeStorage).
+- **Credentials baked into the build**; **tokens stored obfuscated at rest** (AES-256 with an app-embedded key — deliberately not DPAPI/safeStorage so sign-in survives roaming/VDI profiles; the cache file's OS ACLs are the real protection).
 - **Empty tenant / first run** render proper "Welcome / Browse Workspaces" states — no crash.
 - **Launch-on-startup** auto-open falls back to Home gracefully if the saved item is gone.
 

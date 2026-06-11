@@ -1,8 +1,5 @@
 # CLAUDE.md — read this before touching anything
 
-This file exists because earlier agent sessions repeatedly failed simple edits
-here. Every rule below maps to a real failure mode in this repo.
-
 ## The repo is TWO packages, not one
 
 - **Desktop** (repo root): Electron + React 18 + TS. Source in `src/`.
@@ -10,9 +7,8 @@ here. Every rule below maps to a real failure mode in this repo.
   `package.json`, lockfile, and node_modules. `cd mobile && npm ci` before any
   mobile work. Root `npm test` does NOT run mobile tests; run `npm test` and
   `npm run typecheck` inside `mobile/`.
-- Several concepts exist in BOTH trees with similar (or formerly identical)
-  filenames but different contents. Before editing a file found by grep,
-  confirm which tree you are in.
+- `src/shared/` is consumed by BOTH packages (mobile reaches it via
+  `mobile/metro.config.js` watchFolders). Keep it free of platform imports.
 
 ## Build prerequisites (fresh clone)
 
@@ -39,18 +35,14 @@ cd mobile && npm run typecheck && npm test  # mobile
 Both tsconfigs include `src/shared/**` with DIFFERENT module semantics — an
 import style valid under one can fail the other. Always run both.
 
-## Editing hazards
+## Comment policy (owner decision)
 
-- Comments use real typography: em-dashes (—), arrows (→). Copy edit anchors
-  EXACTLY from a fresh Read — never retype them from memory or "normalize"
-  punctuation; a byte-level mismatch fails the edit with no useful error.
-- `src/main/services/powerbi-api.ts` and
-  `src/renderer/components/insights/InsightsPage.tsx` are very large with many
-  near-identical blocks. Use long, distinctive anchors (include surrounding
-  comment lines) and re-Read after each edit in the same file.
-- Comments here explain WHY (owner rulings, tenant-verified API quirks,
-  race-condition rationale). Do not delete or "simplify" them; match their
-  voice when adding code.
+This codebase is deliberately **comment-free**. Earlier AI sessions filled it
+with prose comments containing fabricated attributions and invented design
+rules; the owner removed all of them. Do NOT add prose comments — put
+rationale in commit messages. The ONLY comments permitted are functional
+directives the toolchain needs (`eslint-disable*`, `@ts-expect-error`,
+`/// <reference …`) and those only where the build genuinely requires them.
 
 ## Things that look like junk but are load-bearing
 
@@ -71,13 +63,14 @@ them together (contract tests in `src/test/` enforce this):
 
 ## Styling (desktop renderer)
 
-Four coexisting systems — keep each to its lane, don't mix per-element:
-Tailwind utilities (layout/spacing), Fluent UI v9 components,
-`src/renderer/styles/globals.css` (app chrome), and
+Four coexisting systems currently — keep each to its lane until the planned
+styling consolidation: Tailwind utilities (layout/spacing), Fluent UI v9
+components, `src/renderer/styles/globals.css` (app chrome), and
 `src/renderer/components/insights/insights-luce.css` (Insights board only).
 
-## Design rules that block PRs
+## Product priorities (owner's words)
 
-`docs/design/` is doctrine, not suggestion: one amber accent, red ONLY for
-real failures, status always color + shape + text (never hue alone), motion
-interruptible and Reduce-Motion aware.
+Clients need: workflows that present correctly, data that updates correctly,
+sign in once (not over and over), a reliable program that just works, and
+kiosk wall-display dashboards. The Insights board is the owner's personal
+experiment — fun, but never at the expense of the above.
