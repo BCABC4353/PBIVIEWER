@@ -420,7 +420,7 @@ describe('InsightsPage — Luce board', () => {
     expect((dfDots[0] as HTMLElement).style.background).toBe('rgb(167, 139, 219)');
     expect((dsDots[0] as HTMLElement).style.background).toBe('rgb(126, 156, 201)');
     for (const dot of dots) {
-      expect(['rgb(229, 72, 77)', 'rgb(232, 163, 61)', 'rgb(63, 182, 139)']).not.toContain(
+      expect(['rgb(229, 72, 77)', 'rgb(229, 72, 77)', 'rgb(63, 182, 139)']).not.toContain(
         (dot as HTMLElement).style.background,
       );
     }
@@ -555,7 +555,7 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     });
   }
 
-  it('draws the lineage diagram as the sheet\'s primary visual: red fail, amber suspect path, green happy path (owner v3 #3)', async () => {
+  it('draws the lineage diagram as the sheet\'s primary visual: red fail, red poisoned path (owner v7: downstream of failure IS broken), green happy path (owner v3 #3)', async () => {
     mockGetInsights({ success: true, data: cascadeSnapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
@@ -596,7 +596,7 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     const suspectRow = rows.find((r) => r.textContent?.includes('Suspect Model'))!;
     const staleWord = within(suspectRow).getByText('stale');
     expect(staleWord).toBeInTheDocument();
-    expect((staleWord as HTMLElement).style.color).toBe('rgb(232, 163, 61)');
+    expect((staleWord as HTMLElement).style.color).toBe('rgb(229, 72, 77)');
     expect(within(suspectRow).queryByText('OK')).not.toBeInTheDocument();
     // The clean row says nothing — silence is health, no green substitute.
     const cleanRow = rows.find((r) => r.textContent?.includes('Clean Model'))!;
@@ -1046,7 +1046,7 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     const hero = screen.getByTestId('luce-hero');
-    expect(within(hero).getByText('Data health')).toBeInTheDocument();
+    expect(within(hero).getByLabelText(/Data health \d+ percent|Data health unknown/)).toBeInTheDocument(); // caption dead (owner v7)
     // 4 of the 5 mocked refreshables are neither broken nor overdue → 80%.
     expect(within(hero).getByLabelText('Data health 80 percent')).toBeInTheDocument();
     expect(within(hero).getByText('80')).toBeInTheDocument();

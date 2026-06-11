@@ -27,7 +27,7 @@ export type LineageColumn = 'dataflow' | 'dataset' | 'report';
 export const lineageColor: Record<LineageHealth, string> = {
   healthy: '#3FB68B',
   failed: '#E5484D',
-  stale: '#E8A33D',
+  stale: '#E5484D', // owner: downstream of a failure IS broken — both red
   dormant: 'rgba(255,255,255,0.45)', // ash, not failure — must still READ as a node
 } as const;
 
@@ -130,14 +130,26 @@ export function deriveLineage(
     reportsByDataset.set(r.datasetId, list);
   }
 
+  // Owner rule: dormancy propagates. A dataset fed ONLY by dormant flows is
+  // dormant (failure/staleness still outrank); reports inherit downstream.
+  const effectiveDatasetHealth = (s: InsightsRefreshable): LineageHealth => {
+    const own = health(s);
+    if (own === 'failed' || own === 'stale' || own === 'dormant') return own;
+    const ups = (s.upstreamDataflowIds ?? [])
+      .map((id) => flowByLowerId.get(id.toLowerCase()))
+      .filter((f): f is InsightsRefreshable => Boolean(f));
+    if (ups.length > 0 && ups.every((f) => health(f) === 'dormant')) return 'dormant';
+    return own;
+  };
+
   const dataflows = flows.map((f) => ({ id: f.id, name: f.name, health: health(f) }));
-  const datasets = sets.map((s) => ({ id: s.id, name: s.name, health: health(s) }));
+  const datasets = sets.map((s) => ({ id: s.id, name: s.name, health: effectiveDatasetHealth(s) }));
   const reportNodes: LineageNodeSpec[] = [];
   const seenReports = new Set<string>();
   const links: LineageLinkSpec[] = [];
 
   for (const ds of sets) {
-    const dsHealth = health(ds);
+    const dsHealth = effectiveDatasetHealth(ds);
     for (const flowId of ds.upstreamDataflowIds ?? []) {
       const flow = flowByLowerId.get(flowId.toLowerCase());
       if (!flow) continue; // lineage can reference flows the snapshot can't see

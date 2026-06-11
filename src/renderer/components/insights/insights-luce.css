@@ -556,10 +556,7 @@
    be a lens flair?" — the amber key-light pool failed; it is now barely-there
    (alpha 0.015 ≤ 0.02). The bottom black falloff stays for depth. */
 .luce-board {
-  background:
-    radial-gradient(90% 50% at 50% 0%, rgba(232, 163, 61, 0.015), transparent 60%),
-    radial-gradient(140% 90% at 50% 110%, rgba(0, 0, 0, 0.55), transparent 60%),
-    var(--luce-canvas);
+  background: var(--luce-canvas);
 }
 
 /* -------------------------------------------------------------------------

@@ -260,7 +260,7 @@ function statusMetaLine(
       color: luce.broken,
     };
   }
-  if (stale) return { text: 'stale', color: luce.warn };
+  if (stale) return { text: 'stale', color: luce.broken }; // owner: both red
   if (item.scheduleOverdue) return { text: `OVERDUE${down ? ` · ${down}` : ''}`, color: luce.warn };
   if (isDormant(item)) {
     const d = dormantDownLabel(item);
@@ -491,8 +491,8 @@ const canAnimate = (el: Element | null): el is HTMLElement & { animate: Element[
 /** Owner v3 #2: the sheet opens SLOWER and visibly grows — 650ms out on the
  *  settle spring, 450ms shrinking back into the tile. Reduced motion stays
  *  instant (150ms linear opacity at final geometry). */
-const SHEET_OPEN_MS = 700;
-const SHEET_CLOSE_MS = 480;
+const SHEET_OPEN_MS = 2600; // owner: very slow, to watch the animation
+const SHEET_CLOSE_MS = 2000; // owner: very slow, to watch the animation
 /**
  * The flight's own curve. The settle SPRING is wrong for the panel: its
  * attack reaches ~92% size in the first 18% of the duration, so a 650ms
@@ -905,7 +905,7 @@ const WorkspaceTile: React.FC<{
         style={
           ghost
             ? { opacity: 0, transition: 'opacity 60ms linear 100ms' } // hide AFTER the sheet covers it
-            : { transition: 'opacity 140ms linear 500ms' } // reappear only AFTER the 480ms contraction lands
+            : { transition: 'opacity 120ms linear 40ms' } // ghost releases at landing; return immediately
         }
         onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
         aria-haspopup="dialog"
@@ -942,7 +942,7 @@ const WorkspaceTile: React.FC<{
             <TileStat
               value={affectedCount}
               label={affectedCount === 1 ? 'stale rpt' : 'stale rpts'}
-              tone={luce.warn}
+              tone={luce.broken}
               title={`${affectedCount} report${affectedCount === 1 ? '' : 's'} may be reading stale data — open to trace`}
             />
           )}
@@ -1251,15 +1251,9 @@ const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, i
           </div>
         </div>
       </div>
-      <div className="relative z-[1] flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <span className="luce-live-dot" aria-hidden="true" />
-          <span className="luce-legend">Data health</span>
-        </div>
-        <div className="text-[12px] leading-relaxed max-w-[200px]" style={{ color: luce.textTertiary }}>
-          datasets &amp; dataflows neither broken nor overdue
-        </div>
-      </div>
+      {/* The instrument needs no caption (owner v7): the live-dot idle mover
+          rides invisibly small next to the dial so D7's three movers hold. */}
+      <span className="luce-live-dot relative z-[1] self-start" aria-hidden="true" style={{ opacity: 0.5 }} />
       <div className="luce-lens" aria-hidden="true" />
     </div>
   );
@@ -1579,14 +1573,6 @@ export const InsightsPage: React.FC = () => {
                     {tile.value}
                   </div>
                   <div className="mt-2 luce-legend">{tile.label}</div>
-                  <span
-                    className="luce-tile-lamp"
-                    aria-hidden="true"
-                    style={{
-                      background: tile.loud ? tile.color : 'rgba(255,255,255,0.10)',
-                      boxShadow: tile.loud ? `0 0 8px ${tile.color}` : 'none',
-                    }}
-                  />
                 </>
               );
               const entrance = { '--luce-i': idx + 1 } as React.CSSProperties;
@@ -1808,7 +1794,7 @@ export const InsightsPage: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <span className="text-xs" style={{ color: luce.textTertiary, ...tabular }}>
-                  Last {admin.days} days · snapshot {formatTime(admin.generatedAt)}
+                  Last {admin.days} days · checked {relativeAge(admin.generatedAt) || 'just now'}
                   {admin.fromCache ? ' (cached)' : ''}
                   {admin.failedDays > 0 ? ` · ${admin.failedDays} day(s) could not be read — counts are partial` : ''}
                   {admin.truncated ? ' · very high activity — showing a partial count' : ''}
