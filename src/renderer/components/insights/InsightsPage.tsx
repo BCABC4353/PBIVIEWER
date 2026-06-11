@@ -1116,6 +1116,11 @@ export const InsightsPage: React.FC = () => {
    * Fallback (reduced motion, or no startViewTransition — e.g. jsdom): the
    * sheet simply appears at final geometry.
    */
+  // The active view transition — a new interaction SKIPS it (instant settle)
+  // and starts the next morph from the real current layout: reversible at
+  // any time, never wait for completion (owner ruling).
+  const activeVtRef = useRef<{ skipTransition: () => void } | null>(null);
+
   const openSheet = useCallback((workspaceId: string, el: HTMLElement) => {
     if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
       setSheetSettled(true);
@@ -1128,11 +1133,13 @@ export const InsightsPage: React.FC = () => {
       setSheetSettled(false);
       setMorphId(workspaceId);
     });
+    activeVtRef.current?.skipTransition(); // interrupt any running morph (owner: never wait)
     const vt = document.startViewTransition(() => {
       // Inside the callback the tile loses the name and the sheet renders
       // with it (snapshots break if this state change escapes the callback).
       flushSync(() => setSheet({ workspaceId, el }));
     });
+    activeVtRef.current = vt;
     void vt.finished.finally(() => setSheetSettled(true));
   }, []);
 
@@ -1152,6 +1159,7 @@ export const InsightsPage: React.FC = () => {
       return;
     }
     document.documentElement.classList.add('vt-closing');
+    activeVtRef.current?.skipTransition(); // reverse instantly mid-flight
     const vt = document.startViewTransition(() => {
       // The name returns to the tile in the same flush that unmounts the
       // sheet — the engine morphs the panel back into the tile.
@@ -1161,6 +1169,7 @@ export const InsightsPage: React.FC = () => {
       });
       opener?.focus?.();
     });
+    activeVtRef.current = vt;
     void vt.finished.finally(() => {
       document.documentElement.classList.remove('vt-closing');
       // At rest nothing needs the name; clear it unless a newer open owns it.
