@@ -38,12 +38,15 @@ function Step {
         # Pull the response body out of web exceptions when present - the
         # Power BI error code lives there, not in the status line.
         try {
-            $resp = $_.Exception.Response
-            if ($resp) {
-                $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+            $body = ""
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $body = $_.ErrorDetails.Message }
+            if (-not $body -and $_.Exception.Response) {
+                $stream = $_.Exception.Response.GetResponseStream()
+                if ($stream.CanSeek) { $stream.Position = 0 }
+                $reader = New-Object System.IO.StreamReader($stream)
                 $body = $reader.ReadToEnd()
-                if ($body) { $msg = "$msg | body: " + $body.Substring(0, [Math]::Min(600, $body.Length)) }
             }
+            if ($body) { $msg = "$msg | body: " + $body.Substring(0, [Math]::Min(600, $body.Length)) }
         } catch { }
         $entry.error = $msg
     }
@@ -89,12 +92,22 @@ while ((Get-Date) -lt $deadline) {
         $token = $tk.access_token
         break
     } catch {
+        # PS 5.1: the JSON error body usually arrives via ErrorDetails; the
+        # raw stream is often already consumed and reads back EMPTY. An empty
+        # body means we could not read the reply - that is NOT a decline, so
+        # keep waiting. Only a body that explicitly names a terminal error
+        # stops the loop.
         $body = ""
-        try {
-            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-            $body = $reader.ReadToEnd()
-        } catch { }
-        if ($body -notmatch "authorization_pending|slow_down") {
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $body = $_.ErrorDetails.Message }
+        if (-not $body) {
+            try {
+                $stream = $_.Exception.Response.GetResponseStream()
+                if ($stream.CanSeek) { $stream.Position = 0 }
+                $reader = New-Object System.IO.StreamReader($stream)
+                $body = $reader.ReadToEnd()
+            } catch { }
+        }
+        if ($body -and $body -notmatch "authorization_pending|slow_down") {
             Write-Host "    Sign-in failed or was declined. Body: $body" -ForegroundColor Red
             Read-Host "    Press Enter to close"
             return
