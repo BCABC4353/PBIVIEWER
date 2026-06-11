@@ -13,7 +13,7 @@ let forceImmediate = false;
 let updateDownloaded = false;
 let installing = false;
 
-function isNewerVersion(a: string, b: string): boolean {
+export function isNewerVersion(a: string, b: string): boolean {
   const parse = (v: string): number[] => {
     const core = v.replace(/^v/i, '').split('-')[0] ?? '';
     return core.split('.').map((n) => parseInt(n, 10) || 0);
@@ -61,7 +61,7 @@ async function notifyIfUpdateAvailable(): Promise<void> {
   }
 }
 
-async function isForcedBehind(): Promise<boolean> {
+export async function isForcedBehind(): Promise<boolean> {
   try {
     const res = await fetch(FORCE_POLICY_URL, { headers: { 'User-Agent': 'PBIVIEWER-updater' } });
     if (!res.ok) return false;

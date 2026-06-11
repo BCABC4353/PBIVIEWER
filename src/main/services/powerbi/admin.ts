@@ -23,6 +23,7 @@ export interface AdminAuthPort {
 export interface AdminPort {
   auth: AdminAuthPort;
   getApps(): Promise<IPCResponse<App[]>>;
+  getCacheEpoch(): number;
 }
 
 export class PowerBIAdminApi {
@@ -78,6 +79,7 @@ export class PowerBIAdminApi {
         return { success: true, data: { ...this.adminInsightsCache.value, fromCache: true } };
       }
 
+      const epochAtStart = this.port.getCacheEpoch();
       const appsResponse = await this.port.getApps();
       const appAudiences: AdminAppAudience[] = await mapWithConcurrency(
         appsResponse.success ? appsResponse.data : [],
@@ -200,10 +202,12 @@ export class PowerBIAdminApi {
         failedDays,
         truncated: truncatedForVolume,
       };
-      this.adminInsightsCache = {
-        value: result,
-        expires: Date.now() + PowerBIAdminApi.ADMIN_INSIGHTS_TTL_MS,
-      };
+      if (this.port.getCacheEpoch() === epochAtStart) {
+        this.adminInsightsCache = {
+          value: result,
+          expires: Date.now() + PowerBIAdminApi.ADMIN_INSIGHTS_TTL_MS,
+        };
+      }
       return { success: true, data: result };
     } catch (error) {
       const msg = String(error);

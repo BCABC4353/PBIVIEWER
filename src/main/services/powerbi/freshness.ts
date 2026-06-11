@@ -14,6 +14,7 @@ const LINEAGE_TTL_MS = 30 * 60 * 1000;
 export interface FreshnessPort {
   request<T>(endpoint: string): Promise<T>;
   getApp(appId: string): Promise<IPCResponse<App>>;
+  getCacheEpoch(): number;
 }
 
 export class PowerBIFreshnessApi {
@@ -44,6 +45,7 @@ export class PowerBIFreshnessApi {
     if (cached && cached.expires > Date.now()) {
       return { success: true, data: cached.value };
     }
+    const epochAtStart = this.port.getCacheEpoch();
     try {
       const appResponse = await this.port.getApp(appId);
       const sourceWorkspaceId = appResponse.success ? appResponse.data.workspaceId : undefined;
@@ -91,7 +93,9 @@ export class PowerBIFreshnessApi {
             }
           : null;
 
-      this.appReportTargetCache.set(cacheKey, { value, expires: Date.now() + LINEAGE_TTL_MS });
+      if (this.port.getCacheEpoch() === epochAtStart) {
+        this.appReportTargetCache.set(cacheKey, { value, expires: Date.now() + LINEAGE_TTL_MS });
+      }
       return { success: true, data: value };
     } catch (error) {
       console.warn('[PowerBI] App report freshness target unresolved:', error);
@@ -239,8 +243,9 @@ export class PowerBIFreshnessApi {
     const cacheKey = `${workspaceId}|${[...datasetIds].sort().join(',')}`;
     const cached = this.lineageCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) return cached.value;
+    const epochAtStart = this.port.getCacheEpoch();
     const { links, confident } = await this.resolveUpstreamDataflowsUncached(workspaceId, datasetIds);
-    if (confident && links.length > 0) {
+    if (confident && links.length > 0 && this.port.getCacheEpoch() === epochAtStart) {
       this.lineageCache.set(cacheKey, { value: links, expires: Date.now() + LINEAGE_TTL_MS });
     }
     return links;

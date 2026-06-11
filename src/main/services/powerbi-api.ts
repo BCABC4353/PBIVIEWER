@@ -33,6 +33,8 @@ export interface PowerBIApiDeps {
 class PowerBIApiService {
   private readonly deps: PowerBIApiDeps;
 
+  private cacheEpoch = 0;
+
   private readonly catalog: PowerBICatalogApi;
   private readonly freshness: PowerBIFreshnessApi;
   private readonly insights: PowerBIInsightsApi;
@@ -42,6 +44,7 @@ class PowerBIApiService {
   constructor(deps: PowerBIApiDeps) {
     this.deps = deps;
     const request = <T>(endpoint: string): Promise<T> => this.makeRequest<T>(endpoint);
+    const getCacheEpoch = (): number => this.cacheEpoch;
     this.catalog = new PowerBICatalogApi({
       request,
       requestWithUrl: <T>(fullUrl: string): Promise<T> => this.makeRequestWithUrl<T>(fullUrl),
@@ -49,21 +52,25 @@ class PowerBIApiService {
     this.freshness = new PowerBIFreshnessApi({
       request,
       getApp: (appId) => this.getApp(appId),
+      getCacheEpoch,
     });
     this.insights = new PowerBIInsightsApi({
       request,
       getWorkspaces: () => this.getWorkspaces(),
       getReports: (workspaceId) => this.getReports(workspaceId),
       getDashboards: (workspaceId) => this.getDashboards(workspaceId),
+      getCacheEpoch,
     });
     this.admin = new PowerBIAdminApi({
       auth: deps.auth,
       getApps: () => this.getApps(),
+      getCacheEpoch,
     });
     this.exporter = new PowerBIExportApi(deps.auth);
   }
 
   clearCaches(): void {
+    this.cacheEpoch++;
     this.insights.clearCache();
     this.admin.clearCache();
     this.freshness.clearCaches();

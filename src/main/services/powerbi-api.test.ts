@@ -1744,3 +1744,178 @@ describe('resolveAppReportDataset (App view per-report freshness target)', () =>
     expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
   });
 });
+
+describe('clearCaches() epoch — builds racing an account switch must not repopulate caches', () => {
+  const WS = '11111111-1111-1111-1111-111111111111';
+
+  function deferred(): { promise: Promise<void>; release: () => void } {
+    let release!: () => void;
+    const promise = new Promise<void>((r) => {
+      release = r;
+    });
+    return { promise, release };
+  }
+
+  function fetchMockRef(): ReturnType<typeof vi.fn> {
+    return globalThis.fetch as ReturnType<typeof vi.fn>;
+  }
+
+  it('insights: a snapshot in flight when clearCaches() runs is NOT cached — the next call re-fetches', async () => {
+    const gate = deferred();
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (/\/groups(\?|$)/.test(url)) {
+        await gate.promise;
+        return new Response(
+          JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+
+    const inFlight = svc.getInsightsSnapshot();
+    svc.clearCaches();
+    gate.release();
+    const stale = await inFlight;
+    expect(stale.success).toBe(true);
+
+    const callsAfterStale = fetchMockRef().mock.calls.length;
+    const next = await svc.getInsightsSnapshot();
+    expect(next.success).toBe(true);
+    if (next.success) expect(next.data.fromCache).toBe(false);
+    expect(fetchMockRef().mock.calls.length).toBeGreaterThan(callsAfterStale);
+  });
+
+  it('admin: an admin-insights build in flight when clearCaches() runs is NOT cached', async () => {
+    const gate = deferred();
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/admin/activityevents')) {
+        await gate.promise;
+        return new Response(JSON.stringify({ activityEventEntities: [], lastResultSet: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService({
+      auth: {
+        getAccessToken: vi.fn().mockResolvedValue(tokenOk()),
+        getAdminAccessToken: vi.fn().mockResolvedValue({
+          success: true,
+          data: { accessToken: 'admin-token', expiresOn: null },
+        }),
+      },
+    });
+
+    const inFlight = svc.getAdminInsights(1);
+    svc.clearCaches();
+    gate.release();
+    const stale = await inFlight;
+    expect(stale.success).toBe(true);
+
+    const next = await svc.getAdminInsights(1);
+    expect(next.success).toBe(true);
+    if (next.success) expect(next.data.fromCache).toBe(false);
+  });
+
+  it('freshness: an app-report-target resolution in flight when clearCaches() runs is NOT cached', async () => {
+    const APP = '11111111-1111-4111-8111-111111111111';
+    const REPORT = '44444444-4444-4444-8444-444444444444';
+    const SOURCE_WS = '22222222-2222-4222-8222-222222222222';
+    const DATASET = '66666666-6666-4666-8666-666666666666';
+    const gate = deferred();
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(`/apps/${APP}/reports/${REPORT}`)) {
+        await gate.promise;
+        return new Response(JSON.stringify({ id: REPORT, datasetId: DATASET }), { status: 200 });
+      }
+      if (url.endsWith(`/apps/${APP}`)) {
+        return new Response(
+          JSON.stringify({ id: APP, name: 'App', workspaceId: SOURCE_WS, publishedBy: 'x', lastUpdate: 'y' }),
+          { status: 200 },
+        );
+      }
+      if (url.includes(`/datasets/${DATASET}`)) {
+        return new Response('{}', { status: 404 });
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+
+    const inFlight = svc.resolveAppReportDataset(APP, REPORT);
+    svc.clearCaches();
+    gate.release();
+    const stale = await inFlight;
+    expect(stale.success).toBe(true);
+
+    const callsAfterStale = fetchMockRef().mock.calls.length;
+    const next = await svc.resolveAppReportDataset(APP, REPORT);
+    expect(next.success).toBe(true);
+    expect(fetchMockRef().mock.calls.length).toBeGreaterThan(callsAfterStale);
+  });
+
+  it('freshness: a lineage lookup in flight when clearCaches() runs is NOT cached', async () => {
+    let clearMidLineageFetch = true;
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('datasets/upstreamDataflows')) {
+        if (clearMidLineageFetch) {
+          clearMidLineageFetch = false;
+          svc.clearCaches();
+        }
+        return new Response(
+          JSON.stringify({
+            value: [{ datasetObjectId: 'ds-1', dataflowObjectId: 'df-1', workspaceObjectId: 'ws-1' }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/transactions')) {
+        return new Response(
+          JSON.stringify({ value: [{ status: 'Success', endTime: '2026-06-01T00:00:00.000Z' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+
+    const stale = await svc.getDataFreshness('ws-1', ['ds-1']);
+    expect(stale.success).toBe(true);
+
+    const lineageCalls = () =>
+      fetchMockRef().mock.calls.filter((c) => String(c[0]).includes('datasets/upstreamDataflows')).length;
+    const callsAfterStale = lineageCalls();
+    expect(callsAfterStale).toBe(1);
+    const next = await svc.getDataFreshness('ws-1', ['ds-1']);
+    expect(next.success).toBe(true);
+    expect(lineageCalls()).toBe(2);
+  });
+
+  it('control: without an interleaved clearCaches() the racing build still populates the cache', async () => {
+    const gate = deferred();
+    globalThis.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (/\/groups(\?|$)/.test(url)) {
+        await gate.promise;
+        return new Response(
+          JSON.stringify({ value: [{ id: WS, name: 'Sales', isReadOnly: false, type: 'Workspace' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ value: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+
+    const inFlight = svc.getInsightsSnapshot();
+    gate.release();
+    const first = await inFlight;
+    expect(first.success).toBe(true);
+
+    const next = await svc.getInsightsSnapshot();
+    expect(next.success).toBe(true);
+    if (next.success) expect(next.data.fromCache).toBe(true);
+  });
+});

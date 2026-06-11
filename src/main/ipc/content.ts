@@ -109,7 +109,7 @@ export function registerContentIpc(): void {
         await fs.rename(tmpPath, filePath);
       } catch (err) {
         await fs.rm(tmpPath, { force: true }).catch(() => {});
-        throw err;
+        return { success: false, error: { code: 'EXPORT_WRITE_FAILED', message: String(err) } };
       }
       return { success: true, data: { path: filePath } };
     }

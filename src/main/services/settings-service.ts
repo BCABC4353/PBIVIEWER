@@ -43,6 +43,10 @@ function createSettingsStore(): SettingsStoreLike {
 
 const store: SettingsStoreLike = createSettingsStore();
 
+function readSettings(): AppSettings {
+  return { ...DEFAULT_SETTINGS, ...store.get('settings', DEFAULT_SETTINGS) };
+}
+
 function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSettings> {
   const src = updates as Record<string, unknown>;
   const out: Partial<AppSettings> = {};
@@ -113,7 +117,7 @@ function sanitizePartialSettings(updates: Partial<AppSettings>): Partial<AppSett
 export const settingsService = {
   getSettings(): IPCResponse<AppSettings> {
     try {
-      const settings = store.get('settings', DEFAULT_SETTINGS);
+      const settings = readSettings();
       return { success: true, data: settings };
     } catch (error) {
       console.error('[SettingsService] getSettings error:', error);
@@ -126,7 +130,7 @@ export const settingsService = {
 
   updateSettings(updates: Partial<AppSettings>): IPCResponse<AppSettings> {
     try {
-      const currentSettings = store.get('settings', DEFAULT_SETTINGS);
+      const currentSettings = readSettings();
       const sanitized = sanitizePartialSettings(updates);
       const newSettings = { ...currentSettings, ...sanitized };
       store.set('settings', newSettings);

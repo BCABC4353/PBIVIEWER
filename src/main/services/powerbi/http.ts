@@ -116,7 +116,12 @@ export async function throwForStatus(response: Response, contextLabel: string): 
     const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'));
     throw new RetriableHttpError(429, message, retryAfterMs);
   }
-  if (response.status === 500 || response.status === 503 || response.status === 504) {
+  if (
+    response.status === 500 ||
+    response.status === 502 ||
+    response.status === 503 ||
+    response.status === 504
+  ) {
     throw new RetriableHttpError(response.status, message);
   }
   throw new HttpError(response.status, message);

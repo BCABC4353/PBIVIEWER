@@ -1,8 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { promises as fsp } from 'fs';
 
 const OUT_PATH = join(tmpdir(), 'pbiviewer-export-test.pdf');
+const TMP_PATH = `${OUT_PATH}.${process.pid}.tmp`;
 
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -29,14 +31,9 @@ vi.mock('../services/powerbi-api', () => ({
   },
 }));
 
-const writeFile = vi.fn().mockResolvedValue(undefined);
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fs')>();
-  return {
-    ...actual,
-    promises: { ...actual.promises, writeFile: (...args: unknown[]) => writeFile(...args) },
-  };
-});
+let writeFileSpy: ReturnType<typeof vi.spyOn>;
+let rmSpy: ReturnType<typeof vi.spyOn>;
+let renameSpy: ReturnType<typeof vi.spyOn>;
 
 import { registerContentIpc } from './content';
 
@@ -65,8 +62,14 @@ beforeEach(() => {
   handlers.clear();
   exportReportToPdf.mockReset();
   exportReportToPdf.mockResolvedValue({ success: true, data: Buffer.from('pdf') });
-  writeFile.mockClear();
+  writeFileSpy = vi.spyOn(fsp, 'writeFile').mockResolvedValue(undefined) as ReturnType<typeof vi.spyOn>;
+  rmSpy = vi.spyOn(fsp, 'rm').mockResolvedValue(undefined) as ReturnType<typeof vi.spyOn>;
+  renameSpy = vi.spyOn(fsp, 'rename').mockResolvedValue(undefined) as ReturnType<typeof vi.spyOn>;
   registerContentIpc();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('content:export-report-pdf input caps (FIX-5 / G2)', () => {
@@ -99,5 +102,51 @@ describe('content:export-report-pdf input caps (FIX-5 / G2)', () => {
     const res = await invokeExport();
     expect(res.success).toBe(true);
     expect(exportReportToPdf).toHaveBeenCalled();
+    expect(writeFileSpy).toHaveBeenCalledWith(TMP_PATH, Buffer.from('pdf'));
+    expect(renameSpy).toHaveBeenCalledWith(TMP_PATH, OUT_PATH);
+  });
+});
+
+describe('content:export-report-pdf write failures resolve to an IPC envelope (never reject)', () => {
+  it('returns EXPORT_WRITE_FAILED when the rename fails, and still cleans up the temp file', async () => {
+    renameSpy.mockRejectedValue(new Error('EBUSY: resource busy or locked'));
+
+    await expect(invokeExport()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'EXPORT_WRITE_FAILED',
+        message: expect.stringContaining('EBUSY'),
+      },
+    });
+
+    expect(rmSpy).toHaveBeenCalledWith(TMP_PATH, { force: true });
+  });
+
+  it('returns EXPORT_WRITE_FAILED when the temp write itself fails', async () => {
+    writeFileSpy.mockRejectedValue(new Error('ENOSPC: no space left on device'));
+
+    await expect(invokeExport()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'EXPORT_WRITE_FAILED',
+        message: expect.stringContaining('ENOSPC'),
+      },
+    });
+
+    expect(renameSpy).not.toHaveBeenCalled();
+    expect(rmSpy).toHaveBeenCalledWith(TMP_PATH, { force: true });
+  });
+
+  it('still reports EXPORT_WRITE_FAILED when the temp-file cleanup also fails', async () => {
+    renameSpy.mockRejectedValue(new Error('EPERM: operation not permitted'));
+    rmSpy.mockRejectedValue(new Error('EPERM: operation not permitted'));
+
+    await expect(invokeExport()).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'EXPORT_WRITE_FAILED',
+        message: expect.stringContaining('EPERM'),
+      },
+    });
   });
 });

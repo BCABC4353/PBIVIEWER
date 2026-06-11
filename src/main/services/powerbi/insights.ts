@@ -21,6 +21,7 @@ export interface InsightsPort {
   getWorkspaces(): Promise<IPCResponse<Workspace[]>>;
   getReports(workspaceId: string): Promise<IPCResponse<Report[]>>;
   getDashboards(workspaceId: string): Promise<IPCResponse<Dashboard[]>>;
+  getCacheEpoch(): number;
 }
 
 export class PowerBIInsightsApi {
@@ -43,6 +44,7 @@ export class PowerBIInsightsApi {
         return { success: true, data: { ...this.insightsCache.value, fromCache: true } };
       }
 
+      const epochAtStart = this.port.getCacheEpoch();
       const workspacesResponse = await this.port.getWorkspaces();
       if (!workspacesResponse.success) {
         return { success: false, error: workspacesResponse.error };
@@ -170,10 +172,12 @@ export class PowerBIInsightsApi {
         partialFailure: failedWorkspaces.length > 0,
         failedWorkspaces,
       };
-      this.insightsCache = {
-        value: snapshot,
-        expires: Date.now() + PowerBIInsightsApi.INSIGHTS_TTL_MS,
-      };
+      if (this.port.getCacheEpoch() === epochAtStart) {
+        this.insightsCache = {
+          value: snapshot,
+          expires: Date.now() + PowerBIInsightsApi.INSIGHTS_TTL_MS,
+        };
+      }
       return { success: true, data: snapshot };
     });
   }
