@@ -149,38 +149,71 @@ $apps = Step "list apps (GET /apps)" {
     @{ count = @($r.value).Count; names = @($r.value | Select-Object -First 10 -ExpandProperty name) }
 }
 
-$reportPick = $null
-if ($apps.ok -and $apps.result.count -gt 0) {
-    $appsRaw = Invoke-RestMethod -Headers $H -Uri "$Api/apps"
-    $firstApp = $appsRaw.value[0]
-    $reports = Step ("list reports of app '" + $firstApp.name + "'") {
-        $r = Invoke-RestMethod -Headers $H -Uri "$Api/apps/$($firstApp.id)/reports"
-        @{ count = @($r.value).Count; names = @($r.value | Select-Object -First 10 -ExpandProperty name) }
+# --- Probe A: what fields do APP reports actually carry on this tenant? ---
+$appsRaw = (Invoke-RestMethod -Headers $H -Uri "$Api/apps").value
+$firstApp = $appsRaw[0]
+Step ("raw fields of first report in app '" + $firstApp.name + "'") {
+    $r = (Invoke-RestMethod -Headers $H -Uri "$Api/apps/$($firstApp.id)/reports").value[0]
+    $fields = [ordered]@{}
+    foreach ($prop in $r.PSObject.Properties) {
+        $v = "$($prop.Value)"
+        if ($v.Length -gt 90) { $v = $v.Substring(0, 90) + "..." }
+        $fields[$prop.Name] = $v
     }
-    if ($reports.ok) {
-        $rlist = (Invoke-RestMethod -Headers $H -Uri "$Api/apps/$($firstApp.id)/reports").value
-        $reportPick = $rlist | Where-Object { $_.name -match "Admin" } | Select-Object -First 1
-        if (-not $reportPick) { $reportPick = $rlist | Select-Object -First 1 }
-    }
+    $fields
 }
 
-if ($reportPick -and $reportPick.datasetId) {
-    $Out.pickedReport = @{ name = $reportPick.name; datasetId = $reportPick.datasetId }
-    Step ("executeQueries INFO.MEASURES() on dataset of '" + $reportPick.name + "'") {
-        $body = @{ queries = @(@{ query = "EVALUATE INFO.MEASURES()" }); serializerSettings = @{ includeNulls = $true } } | ConvertTo-Json -Depth 5
-        $r = Invoke-RestMethod -Method Post -Headers $H -ContentType "application/json" `
-            -Uri "$Api/datasets/$($reportPick.datasetId)/executeQueries" -Body $body
-        $rows = @($r.results[0].tables[0].rows)
-        @{ measureCount = $rows.Count; firstMeasureColumns = if ($rows.Count -gt 0) { @($rows[0].PSObject.Properties.Name) } else { @() } }
+# --- Probe B: workspaces + their reports' datasetId presence ---
+$groups = $null
+Step "list workspaces (GET /groups)" {
+    $g = (Invoke-RestMethod -Headers $H -Uri "$Api/groups").value
+    $script:groups = $g
+    @{ count = @($g).Count; names = @($g | Select-Object -First 12 -ExpandProperty name) }
+} | Out-Null
+
+if ($groups) {
+    Step "datasetId presence on WORKSPACE reports (first 3 workspaces)" {
+        $summary = @()
+        foreach ($g in ($groups | Select-Object -First 3)) {
+            try {
+                $reps = (Invoke-RestMethod -Headers $H -Uri "$Api/groups/$($g.id)/reports").value
+                $with = @($reps | Where-Object { $_.datasetId }).Count
+                $summary += @{ workspace = $g.name; reports = @($reps).Count; withDatasetId = $with }
+            } catch {
+                $summary += @{ workspace = $g.name; error = $_.Exception.Message }
+            }
+        }
+        $summary
+    } | Out-Null
+
+    # --- Probe C: executeQueries against a dataset found the WORKSPACE way ---
+    $ds = $null
+    $dsWs = $null
+    foreach ($g in $groups) {
+        try {
+            $cands = (Invoke-RestMethod -Headers $H -Uri "$Api/groups/$($g.id)/datasets").value
+            $pick = $cands | Where-Object { $_.name -match "Admin" } | Select-Object -First 1
+            if (-not $pick) { $pick = $cands | Select-Object -First 1 }
+            if ($pick) { $ds = $pick; $dsWs = $g; break }
+        } catch { }
     }
-    Step "executeQueries COLUMNSTATISTICS() (fallback rung)" {
-        $body = @{ queries = @(@{ query = "EVALUATE COLUMNSTATISTICS()" }) } | ConvertTo-Json -Depth 5
-        $r = Invoke-RestMethod -Method Post -Headers $H -ContentType "application/json" `
-            -Uri "$Api/datasets/$($reportPick.datasetId)/executeQueries" -Body $body
-        @{ rowCount = @($r.results[0].tables[0].rows).Count }
+    if ($ds) {
+        $Out.pickedDataset = @{ name = $ds.name; workspace = $dsWs.name }
+        Step ("executeQueries INFO.MEASURES() on dataset '" + $ds.name + "'") {
+            $body = @{ queries = @(@{ query = "EVALUATE INFO.MEASURES()" }) } | ConvertTo-Json -Depth 5
+            $r = Invoke-RestMethod -Method Post -Headers $H -ContentType "application/json" `
+                -Uri "$Api/datasets/$($ds.id)/executeQueries" -Body $body
+            @{ measureRows = @($r.results[0].tables[0].rows).Count }
+        } | Out-Null
+        Step ("executeQueries COLUMNSTATISTICS() on dataset '" + $ds.name + "'") {
+            $body = @{ queries = @(@{ query = "EVALUATE COLUMNSTATISTICS()" }) } | ConvertTo-Json -Depth 5
+            $r = Invoke-RestMethod -Method Post -Headers $H -ContentType "application/json" `
+                -Uri "$Api/datasets/$($ds.id)/executeQueries" -Body $body
+            @{ statRows = @($r.results[0].tables[0].rows).Count }
+        } | Out-Null
+    } else {
+        $Out.pickedDataset = "no dataset visible in any workspace"
     }
-} else {
-    $Out.pickedReport = "none found (no apps/reports visible, or report has no datasetId)"
 }
 
 $json = $Out | ConvertTo-Json -Depth 8
