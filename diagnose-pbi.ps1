@@ -22,7 +22,7 @@ $ErrorActionPreference = "Stop"
 
 $ClientId = "ee7edf76-d666-4e27-8ee7-fbc19648c4f4"
 $TenantId = "65028f2d-9190-4d7f-bc2d-8ce298c3ba6f"
-$Scope = "https://analysis.windows.net/powerbi/api/.default"
+$Scope = "https://analysis.windows.net/powerbi/api/.default offline_access"
 $Api = "https://api.powerbi.com/v1.0/myorg"
 
 $Out = [ordered]@{ when = (Get-Date).ToString("s"); steps = @() }
@@ -57,8 +57,24 @@ function Step {
     return $entry
 }
 
+$TokenCache = Join-Path $env:TEMP "pbi-diag-token.json"
+
 Write-Host ""
 Write-Host "==> Power BI diagnostics - step 1: sign in" -ForegroundColor Cyan
+
+# Reuse a recent token so back-to-back runs skip the code ritual.
+$token = $null
+if (Test-Path $TokenCache) {
+    try {
+        $cached = Get-Content $TokenCache -Raw | ConvertFrom-Json
+        if ([DateTime]::Parse($cached.expires) -gt (Get-Date)) {
+            $token = $cached.access_token
+            Write-Host "    Reusing your sign-in from a few minutes ago." -ForegroundColor Green
+        }
+    } catch { }
+}
+
+if (-not $token) {
 
 try {
     $dc = Invoke-RestMethod -Method Post `
@@ -119,6 +135,9 @@ if (-not $token) {
     Read-Host "    Press Enter to close"
     return
 }
+@{ access_token = $token; expires = (Get-Date).AddMinutes(55).ToString("o") } |
+    ConvertTo-Json | Set-Content -Path $TokenCache
+}
 Write-Host "    Signed in." -ForegroundColor Green
 $H = @{ Authorization = "Bearer $token" }
 
@@ -165,7 +184,11 @@ if ($reportPick -and $reportPick.datasetId) {
 }
 
 $json = $Out | ConvertTo-Json -Depth 8
-Set-Clipboard -Value $json
+$OutFile = Join-Path ([Environment]::GetFolderPath("Desktop")) "pbi-diagnostic.json"
+Set-Content -Path $OutFile -Value $json -Encoding UTF8
+try { Set-Clipboard -Value $json } catch { }
 Write-Host ""
-Write-Host "==> DONE. Results are on your CLIPBOARD - paste them into the chat." -ForegroundColor Green
-Write-Host "    (Names and statuses only - no report row data was collected.)" -ForegroundColor Green
+Write-Host "==> DONE. Opening the results in Notepad." -ForegroundColor Green
+Write-Host "    In Notepad: Ctrl+A, Ctrl+C, then paste into the chat." -ForegroundColor Green
+Write-Host ("    (Saved at {0} - names and statuses only, no row data.)" -f $OutFile) -ForegroundColor Green
+Start-Process notepad.exe $OutFile
