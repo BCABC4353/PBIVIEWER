@@ -10,7 +10,7 @@
  * invalid_grant handling) lives in the PURE TokenManager (token-manager.ts);
  * this file is only the thin Expo/AAD wiring around it.
  *
- * ── Redirect URI ──────────────────────────────────────────────────────────
+ * -- Redirect URI --------------------------------------------------------
  * `makeRedirectUri()` resolves per environment:
  *  - Expo Go (development): the `exp://<host>:<port>` scheme of the dev
  *    server. NOTE: the old auth.expo.io AuthSession proxy was REMOVED in

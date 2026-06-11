@@ -1,0 +1,13 @@
+# Normalize all text files to LF in the repository. The desktop app is
+# developed on Windows; without this, one core.autocrlf misconfiguration
+# rewrites whole files to CRLF and turns every future diff/edit into noise.
+* text=auto eol=lf
+
+# Windows scripts that genuinely want CRLF on checkout.
+*.ps1 text eol=crlf
+
+# Binaries — never normalize.
+*.png binary
+*.ico binary
+*.icns binary
+*.pdf binary

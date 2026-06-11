@@ -250,7 +250,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         ) : null}
         <Text style={styles.title}>Settings</Text>
 
-        {/* ── Account ─────────────────────────────────────────────── */}
+        {/* -- Account -------------------------------------------------------- */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.card}>
           <View style={styles.row}>
@@ -287,7 +287,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           )}
         </View>
 
-        {/* ── Device-code sign-in in flight ───────────────────────── */}
+        {/* -- Device-code sign-in in flight -------------------------------------------------------- */}
         {deviceFlow ? (
           <View style={[styles.card, styles.deviceCard]}>
             <Text style={styles.deviceLead}>
@@ -329,7 +329,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         ) : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        {/* ── Data source ─────────────────────────────────────────── */}
+        {/* -- Data source -------------------------------------------------------- */}
         <Text style={styles.sectionLabel}>DATA SOURCE</Text>
         <View style={styles.card}>
           <ModeRow
@@ -348,7 +348,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           />
         </View>
 
-        {/* ── Feel diagnostics ────────────────────────────────────── */}
+        {/* -- Feel diagnostics -------------------------------------------------------- */}
         <Text style={styles.sectionLabel}>FEEL</Text>
         <View style={styles.card}>
           <Pressable
@@ -386,7 +386,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           ) : null}
         </View>
 
-        {/* ── About ───────────────────────────────────────────────── */}
+        {/* -- About -------------------------------------------------------- */}
         <Text style={styles.sectionLabel}>ABOUT</Text>
         <View style={styles.card}>
           <View style={[styles.row, styles.rowBetween]}>
