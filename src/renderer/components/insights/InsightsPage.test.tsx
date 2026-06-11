@@ -8,13 +8,22 @@
  * column, dormant detection, down-for labels, run-history dot strips with
  * failure tooltips, access folded in, click-anywhere-to-close), the lineage
  * process diagram (red fails / amber stale path / green happy path / ash
- * dormant, +N-more capping), the solo-client hero tile, the sticky section
- * nav, the partial-failure banner, the error + retry path, and the
+ * dormant, +N-more capping), the solo-client hero tile, the per-workspace
+ * USAGE group inside the sheet (open-count bar graph + never-opened
+ * footnote — owner: usage lives in the same window as its tile), the sticky
+ * section nav, the partial-failure banner, the error + retry path, and the
  * owner-gated admin tier (staged loading text + client-side cancel).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+
+// Spy on navigation from the sheet's usage bars (the rest of the router is real).
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>();
+  return { ...actual, useNavigate: () => mockNavigate };
+});
 import { InsightsPage } from './InsightsPage';
 import { IGNITION_FLAG } from './luce-motion';
 import { useAuthStore } from '../../stores/auth-store';
@@ -389,15 +398,15 @@ describe('InsightsPage — Luce board', () => {
     });
 
     const nav = screen.getByRole('navigation', { name: 'Page sections' });
-    for (const label of ['Health', 'Usage']) {
-      expect(within(nav).getByRole('button', { name: label })).toBeInTheDocument();
-    }
+    expect(within(nav).getByRole('button', { name: 'Health' })).toBeInTheDocument();
     await act(async () => {
-      fireEvent.click(within(nav).getByRole('button', { name: 'Usage' }));
+      fireEvent.click(within(nav).getByRole('button', { name: 'Health' }));
     });
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
     expect(document.getElementById('insights-health')).not.toBeNull();
-    expect(document.getElementById('insights-usage')).not.toBeNull();
+    // Usage moved INTO each tile's sheet (owner) — no page section, no nav entry.
+    expect(within(nav).queryByRole('button', { name: 'Usage' })).not.toBeInTheDocument();
+    expect(document.getElementById('insights-usage')).toBeNull();
     // Access folded into each tile's sheet; Admin is owner-only (see below).
     expect(within(nav).queryByRole('button', { name: 'Access' })).not.toBeInTheDocument();
     expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
@@ -873,6 +882,161 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     });
     expect(screen.queryByTestId('luce-hero-tile')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Open .+ details$/ })).toHaveLength(2);
+  });
+});
+
+describe('InsightsPage — usage lives in the workspace sheet (owner spec)', () => {
+  type Freq = {
+    id: string;
+    name: string;
+    type: 'report' | 'dashboard';
+    workspaceId: string;
+    workspaceName: string;
+    openCount: number;
+  };
+
+  function mockUsage(frequent: Freq[], reports: Array<{ id: string; name: string; workspaceId: string }>) {
+    (window.electronAPI.usage.getFrequent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: frequent,
+    });
+    (window.electronAPI.content.getAllItems as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: {
+        workspaces: [
+          { id: 'ws-1', name: 'Sales' },
+          { id: 'ws-2', name: 'Ops' },
+        ],
+        reports,
+        dashboards: [],
+        partialFailure: false,
+        failedWorkspaces: [],
+      },
+    });
+  }
+
+  it('renders the USAGE group in the sheet as a bar graph: this workspace only, sorted by opens desc, widths ∝ openCount/max, counts right-aligned, metric defined in the caption', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    mockUsage(
+      [
+        { id: 'r-weekly', name: 'Sales Weekly', type: 'report', workspaceId: 'ws-1', workspaceName: 'Sales', openCount: 6 },
+        { id: 'r-daily', name: 'Sales Daily', type: 'report', workspaceId: 'ws-1', workspaceName: 'Sales', openCount: 12 },
+        { id: 'r-ops', name: 'Ops Daily', type: 'report', workspaceId: 'ws-2', workspaceName: 'Ops', openCount: 9 },
+      ],
+      [
+        { id: 'r-daily', name: 'Sales Daily', workspaceId: 'ws-1' },
+        { id: 'r-weekly', name: 'Sales Weekly', workspaceId: 'ws-1' },
+      ],
+    );
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sales = await openSheet('Sales');
+
+    // The group sits inside the sheet, after PEOPLE WITH ACCESS, with the
+    // metric defined in a faint caption under the label.
+    const usage = within(sales).getByTestId('sheet-usage');
+    expect(within(usage).getByText('Usage')).toBeInTheDocument();
+    expect(
+      within(usage).getByText('opens recorded by this app on this computer'),
+    ).toBeInTheDocument();
+    const sheetHtml = sales.innerHTML;
+    expect(sheetHtml.indexOf('People with access')).toBeLessThan(sheetHtml.indexOf('opens recorded by this app'));
+
+    // One flow — only THIS workspace's opens, sorted by openCount desc.
+    const rows = within(usage).getAllByTestId('usage-bar-row');
+    expect(rows).toHaveLength(2); // the ws-2 record never leaks into Sales
+    expect(within(usage).queryByText('Ops Daily')).not.toBeInTheDocument();
+    expect(rows[0]).toHaveTextContent('Sales Daily');
+    expect(rows[0]).toHaveTextContent('12 opens');
+    expect(rows[1]).toHaveTextContent('Sales Weekly');
+    expect(rows[1]).toHaveTextContent('6 opens');
+    // Name carries the full text as a tooltip (truncation-safe).
+    expect(rows[0]).toHaveAttribute('title', 'Sales Daily');
+
+    // Bar math: width ∝ openCount relative to the workspace max (12).
+    const bars = within(usage).getAllByTestId('usage-bar');
+    expect((bars[0] as HTMLElement).style.width).toBe('100%'); // 12/12
+    expect((bars[1] as HTMLElement).style.width).toBe('50%'); // 6/12
+    expect((bars[0] as HTMLElement).style.height).toBe('6px');
+
+    // Everything in the catalog was opened → the never-opened line is omitted.
+    expect(within(usage).queryByTestId('usage-never-opened')).not.toBeInTheDocument();
+    expect(within(usage).queryByText(/^Never opened:/)).not.toBeInTheDocument();
+
+    // Rows stay clickable — they navigate like the old list did.
+    await act(async () => {
+      fireEvent.click(rows[0]!);
+    });
+    expect(mockNavigate).toHaveBeenCalledWith('/report/ws-1/r-daily');
+  });
+
+  it('compresses never-opened items into one footnote line capped at 5 names (+N more)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    const never = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf'].map((name, i) => ({
+      id: `r-n${i}`,
+      name,
+      workspaceId: 'ws-1',
+    }));
+    mockUsage(
+      [{ id: 'r-open', name: 'Opened One', type: 'report', workspaceId: 'ws-1', workspaceName: 'Sales', openCount: 3 }],
+      [{ id: 'r-open', name: 'Opened One', workspaceId: 'ws-1' }, ...never],
+    );
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sales = await openSheet('Sales');
+    const usage = within(sales).getByTestId('sheet-usage');
+    // 7 never-opened → 5 names + "+2 more"; a single wrapped faint line, not a column.
+    const line = within(usage).getByTestId('usage-never-opened');
+    expect(line).toHaveTextContent('Never opened: Alpha, Bravo, Charlie, Delta, Echo +2 more');
+    expect(line).not.toHaveTextContent('Foxtrot');
+    expect(line).not.toHaveTextContent('Golf');
+    // The opened item still draws its bar (max = its own count → full width).
+    expect(within(usage).getByTestId('usage-bar-row')).toHaveTextContent('Opened One');
+    expect((within(usage).getByTestId('usage-bar') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('shows the empty state when nothing was opened in this workspace: one faint line, no bars', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    // Opens exist — but only in ws-2, so the Sales sheet has none.
+    mockUsage(
+      [{ id: 'r-ops', name: 'Ops Daily', type: 'report', workspaceId: 'ws-2', workspaceName: 'Ops', openCount: 9 }],
+      [{ id: 'r-never', name: 'Sales Daily', workspaceId: 'ws-1' }],
+    );
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sales = await openSheet('Sales');
+    const usage = within(sales).getByTestId('sheet-usage');
+    expect(within(usage).getByText('No opens recorded yet for this client.')).toBeInTheDocument();
+    expect(within(usage).queryAllByTestId('usage-bar-row')).toHaveLength(0);
+    // The catalog item it has never opened still shows in the footnote.
+    expect(within(usage).getByTestId('usage-never-opened')).toHaveTextContent(
+      'Never opened: Sales Daily',
+    );
+  });
+
+  it('removes the page-level "Your usage" section entirely — the sheet is its only home', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    mockUsage(
+      [{ id: 'r-daily', name: 'Sales Daily', type: 'report', workspaceId: 'ws-1', workspaceName: 'Sales', openCount: 12 }],
+      [{ id: 'r-daily', name: 'Sales Daily', workspaceId: 'ws-1' }],
+    );
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    // No page section, no anchor, no two-column panels, no nav entry.
+    expect(document.getElementById('insights-usage')).toBeNull();
+    expect(screen.queryByText('Your usage')).not.toBeInTheDocument();
+    expect(screen.queryByText('You open most')).not.toBeInTheDocument();
+    expect(screen.queryByText('Never opened by you')).not.toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Page sections' });
+    expect(within(nav).queryByRole('button', { name: 'Usage' })).not.toBeInTheDocument();
+    // The board face shows no usage either — it renders only inside the sheet.
+    expect(screen.queryByTestId('sheet-usage')).not.toBeInTheDocument();
+    const sales = await openSheet('Sales');
+    expect(within(sales).getByTestId('sheet-usage')).toBeInTheDocument();
   });
 });
 
