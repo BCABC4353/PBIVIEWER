@@ -491,8 +491,8 @@ const canAnimate = (el: Element | null): el is HTMLElement & { animate: Element[
 /** Owner v3 #2: the sheet opens SLOWER and visibly grows — 650ms out on the
  *  settle spring, 450ms shrinking back into the tile. Reduced motion stays
  *  instant (150ms linear opacity at final geometry). */
-const SHEET_OPEN_MS = 700;
-const SHEET_CLOSE_MS = 480;
+const SHEET_OPEN_MS = 2600; // owner: very slow, to watch the animation
+const SHEET_CLOSE_MS = 2000; // owner: very slow, to watch the animation
 /**
  * The flight's own curve. The settle SPRING is wrong for the panel: its
  * attack reaches ~92% size in the first 18% of the duration, so a 650ms

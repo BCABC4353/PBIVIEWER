@@ -1046,7 +1046,7 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     const hero = screen.getByTestId('luce-hero');
-    expect(within(hero).getByText('Data health')).toBeInTheDocument();
+    expect(within(hero).getByLabelText(/Data health \d+ percent|Data health unknown/)).toBeInTheDocument(); // caption dead (owner v7)
     // 4 of the 5 mocked refreshables are neither broken nor overdue → 80%.
     expect(within(hero).getByLabelText('Data health 80 percent')).toBeInTheDocument();
     expect(within(hero).getByText('80')).toBeInTheDocument();
