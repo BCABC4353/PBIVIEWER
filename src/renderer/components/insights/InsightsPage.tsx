@@ -1073,9 +1073,6 @@ const HeroGauge: React.FC<{ pct: number | null; igniting: boolean }> = ({ pct, i
           </div>
         </div>
       </div>
-      {/* The instrument needs no caption (owner v7): the live-dot idle mover
-          rides invisibly small next to the dial so D7's three movers hold. */}
-      <span className="luce-live-dot relative z-[1] self-start" aria-hidden="true" style={{ opacity: 0.5 }} />
       <div className="luce-lens" aria-hidden="true" />
     </div>
   );

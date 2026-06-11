@@ -1053,13 +1053,13 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     expect(hero.querySelector('.luce-lens')).not.toBeNull();
   });
 
-  it('keeps exactly three idle movers: live-dot, needle, backlight deck (D7)', async () => {
+  it('keeps exactly TWO idle movers: needle + backlight deck — the live-dot died with the dial caption (owner v11)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     const movers = document.querySelectorAll('.luce-live-dot, .luce-needle, .luce-backlight--live');
-    expect(movers).toHaveLength(3);
+    expect(movers).toHaveLength(2);
   });
 
   it('plays the ignition ceremony once per session, never gating the content (D6)', async () => {
