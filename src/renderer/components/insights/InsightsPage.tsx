@@ -589,6 +589,7 @@ const WorkspaceSheet: React.FC<{
     // FLIP translate math is only valid about the top-left corner; the
     // default 50%/50% origin made every flight read as a rise from below.
     el.style.transformOrigin = '0 0';
+    el.style.willChange = 'transform';
     const to = el.getBoundingClientRect();
     const sx = fromRect.width / to.width;
     const sy = fromRect.height / to.height;
@@ -596,12 +597,13 @@ const WorkspaceSheet: React.FC<{
     const dy = fromRect.top - to.top;
     const flight = el.animate(
       [
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 1 },
-        { transform: 'none', borderRadius: '16px', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+        { transform: 'none' },
       ],
       { duration: SHEET_OPEN_MS, easing: SHEET_FLIGHT_EASE, fill: 'both' },
     );
     flight.onfinish = () => setSettled(true);
+    void flight.finished.finally?.(() => { el.style.willChange = ''; });
     void flight.finished.then(() => setSettled(true)).catch(() => setSettled(true));
     window.setTimeout(() => setSettled(true), SHEET_OPEN_MS + 150); // settle failsafe
     if (canAnimate(scrimRef.current)) {
