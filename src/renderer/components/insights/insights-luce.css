@@ -703,10 +703,12 @@
    ------------------------------------------------------------------------- */
 ::view-transition-old(sheet-morph),
 ::view-transition-new(sheet-morph) {
+  /* Owner v12: contents are ONE BODY with the box — snapshots STRETCH with
+     the morphing group. object-fit:none froze the tile face at original size
+     in the corner while the box grew behind it: two visible actors. */
   height: 100%;
   width: 100%;
-  object-fit: none;
-  object-position: top left;
+  object-fit: fill;
 }
 
 ::view-transition-group(sheet-morph) {
@@ -723,9 +725,11 @@
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-::view-transition-old(sheet-morph),
 ::view-transition-new(sheet-morph) {
   animation-duration: 2.6s;
+}
+::view-transition-old(sheet-morph) {
+  animation-duration: 0.9s; /* the tile face hands off in the first beat — no lingering halo */
 }
 
 /* Close runs at its own observation speed: InsightsPage toggles `vt-closing`

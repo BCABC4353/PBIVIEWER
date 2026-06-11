@@ -1963,11 +1963,20 @@ class PowerBIApiService {
       const datasetResults = await Promise.all(
         refs.map((r) => this.getDatasetRefreshInfo(r.datasetId, r.workspaceId)),
       );
-      for (const r of datasetResults) {
-        if (r.success && r.data.lastRefreshTime) {
-          if (!datasetRefreshTime || Date.parse(r.data.lastRefreshTime) < Date.parse(datasetRefreshTime)) {
-            datasetRefreshTime = r.data.lastRefreshTime;
-          }
+      // Owner ruling: ABANDONED datasets don't define an app's freshness. A
+      // dataset with no refresh in 90+ days is dead weight, not lag — exclude
+      // it from the "Oldest data" aggregate so one corpse from years ago
+      // can't mask that the living datasets refreshed this morning. Only if
+      // EVERYTHING is abandoned do we fall back to the true oldest.
+      const ABANDONED_MS = 90 * 24 * 60 * 60 * 1000;
+      const times = datasetResults
+        .filter((r) => r.success && r.data.lastRefreshTime)
+        .map((r) => (r.success ? r.data.lastRefreshTime! : ''))
+        .filter(Boolean);
+      const living = times.filter((t) => Date.now() - Date.parse(t) < ABANDONED_MS);
+      for (const t of living.length > 0 ? living : times) {
+        if (!datasetRefreshTime || Date.parse(t) < Date.parse(datasetRefreshTime)) {
+          datasetRefreshTime = t;
         }
       }
 
