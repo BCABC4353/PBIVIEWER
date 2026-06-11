@@ -1,4 +1,4 @@
 {
   "_comment": "MANDATORY-UPDATE POLICY (owner mandate 2026-06-10): the release pipeline automatically sets forceMinVersion to every new release, so all running Windows apps auto-restart into it within ~10-15 minutes. To pause mandatory updates for one release, edit this back to 0.0.0 AFTER the release's force-policy job runs. macOS cannot be force-updated (manual install). See docs/UPDATING.md.",
-  "forceMinVersion": "2.1.14"
+  "forceMinVersion": "2.1.15"
 }
