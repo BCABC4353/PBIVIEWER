@@ -1192,17 +1192,36 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     expect(document.activeElement).toBe(tile);
   });
 
-  it('keeps a ghost tile in the grid while its sheet is open (the grid never reflows, §D)', async () => {
+  it('keeps the REAL tile in the grid while its sheet is open — never hidden, the grid never reflows (§D)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     const tile = screen.getByRole('button', { name: 'Open Sales details' });
     await openSheet('Sales');
-    // Still mounted (its cell holds the 124px slot) but fully transparent.
+    // The view-transition morph owns the screen during flight; the tile
+    // itself stays mounted and fully visible — no manual ghosting, so a
+    // grid hole is impossible by construction.
     expect(tile).toBeInTheDocument();
-    expect(tile.style.opacity).toBe('0');
-    await closeSheet();
     expect(tile.style.opacity).not.toBe('0');
+    await closeSheet();
+    expect(tile).toBeInTheDocument();
+    expect(tile.style.opacity).not.toBe('0');
+  });
+
+  it('falls back to a plain state change when the View Transition engine is missing (jsdom path)', async () => {
+    // jsdom has no document.startViewTransition — opening and closing the
+    // sheet must work without any transition plumbing.
+    expect('startViewTransition' in document).toBe(false);
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const sales = await openSheet('Sales');
+    expect(sales).toBeInTheDocument();
+    // No morph ran → the glass applies immediately (no deferred settle).
+    expect(sales.querySelector('.luce-sheet--settled')).not.toBeNull();
+    await closeSheet();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

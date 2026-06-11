@@ -569,6 +569,7 @@
   position: relative;
   z-index: 1;
   isolation: isolate;
+  contain: layout; /* clean view-transition snapshots (research: prevents glitches) */
   display: block;
   width: 100%;
   height: 124px;
@@ -645,18 +646,19 @@
 /* -------------------------------------------------------------------------
    DESIGN-CONTRACT §C/§D/§E — the sheet (expanded tile).
    Real glass under the key light (owner v3 #7): seam ring, top sheen,
-   shadow-3. Its own backdrop blur is DEFERRED to settle (.luce-sheet--settled)
-   so the 650ms flight never double-pays GPU.
+   shadow-3. Its own backdrop blur is DEFERRED to the morph's `finished`
+   promise (.luce-sheet--settled) so the flight never double-pays GPU.
    ------------------------------------------------------------------------- */
 
-/* Owner v3 #7: "a sexier glass surface". During the FLIP flight the panel
-   keeps a cheap OPAQUE ramp (no double-paying GPU); at settle it switches to
-   REAL glass — translucent fill, blur(40px) saturate(140%), so the blurred
-   board reads THROUGH the panel. No mottled/granite radial anywhere; the
-   only highlight is the top sheen (::before) + the lip in the ring shadow. */
+/* Owner v3 #7: "a sexier glass surface". During the morph the panel keeps a
+   cheap OPAQUE ramp (no double-paying GPU); at settle it switches to REAL
+   glass — translucent fill, blur(40px) saturate(140%), so the blurred board
+   reads THROUGH the panel. No mottled/granite radial anywhere; the only
+   highlight is the top sheen (::before) + the lip in the ring shadow. */
 .luce-sheet {
   position: relative;
   isolation: isolate;
+  contain: layout; /* clean view-transition snapshots (research: prevents glitches) */
   border-radius: 16px;
   background: linear-gradient(180deg, #202026 0%, #1c1c21 40%, #16161a 100%);
   box-shadow:
@@ -685,6 +687,54 @@
 .luce-scrim {
   background: rgba(11, 11, 13, 0.55);
   backdrop-filter: blur(16px) saturate(1.1);
+}
+
+/* -------------------------------------------------------------------------
+   §D — the native View Transition morph (`sheet-morph`): tile ⇄ sheet.
+   Aspect-ratio treatment per Jake Archibald's "View transitions: dealing
+   with aspect ratio changes": a ~360×130 tile morphing into an ~880×700
+   sheet is a maximal ratio change, and the default snapshot scaling warps
+   both endpoints. width/height 100% make the snapshots track the GROUP's
+   animating box instead of preserving their own ratio; object-fit none +
+   object-position top left pin each snapshot's pixels 1:1 to the top-left
+   corner, so neither endpoint ever stretches — the box simply reveals or
+   clips them. The group clips so the larger (sheet) snapshot cannot spill
+   past the small box at takeoff/landing.
+   ------------------------------------------------------------------------- */
+::view-transition-old(sheet-morph),
+::view-transition-new(sheet-morph) {
+  height: 100%;
+  width: 100%;
+  object-fit: none;
+  object-position: top left;
+}
+
+::view-transition-group(sheet-morph) {
+  overflow: clip;
+  border-radius: 16px;
+  /* Owner's current observation speed for the opening bloom. */
+  animation-duration: 2.6s;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Old/new cross-fade rides the same clock as the group's box. */
+::view-transition-image-pair(sheet-morph) {
+  animation-duration: 2.6s;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+::view-transition-old(sheet-morph),
+::view-transition-new(sheet-morph) {
+  animation-duration: 2.6s;
+}
+
+/* Close runs at its own observation speed: InsightsPage toggles `vt-closing`
+   on :root before the close transition captures anything. */
+:root.vt-closing::view-transition-group(sheet-morph),
+:root.vt-closing::view-transition-image-pair(sheet-morph),
+:root.vt-closing::view-transition-old(sheet-morph),
+:root.vt-closing::view-transition-new(sheet-morph) {
+  animation-duration: 2s;
 }
 
 /* §C — sheet rows separate by HAIRLINE only (never grooves inside the lens). */

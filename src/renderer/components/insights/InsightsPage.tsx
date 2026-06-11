@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Spinner } from '@fluentui/react-components';
 import { useAuthStore } from '../../stores/auth-store';
@@ -363,10 +364,14 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
 
 // ---------------------------------------------------------------------------
 // Blast-radius sheet (DESIGN-CONTRACT §C/§D/§E): the tile literally BECOMES
-// the sheet — FLIP on the settle spring, shared elements riding the flight,
-// three waves of fill-in, machined-glass material with the blur deferred to
-// settle. Inside: dataflows (upstream) with their damage cascades, datasets
-// (suspects carry the STALE DATA badge), then the people with access.
+// the sheet — a native View Transition morph. One view-transition-name
+// (`sheet-morph`) is carried by the clicked tile while the sheet is closed
+// and by the sheet panel while it is open; the engine's snapshots own the
+// whole flight (orchestrated in InsightsPage, durations/aspect handling in
+// insights-luce.css). Three waves of fill-in, machined-glass material with
+// the blur switched on at the morph's `finished` promise. Inside: dataflows
+// (upstream) with their damage cascades, datasets (suspects carry the STALE
+// DATA badge), then the people with access.
 // ---------------------------------------------------------------------------
 
 /** Section label — 11px caps, tracking 0.08em, faint (§C). */
@@ -481,48 +486,29 @@ const LineageDiagram: React.FC<{
   );
 };
 
-const canAnimate = (el: Element | null): el is HTMLElement & { animate: Element['animate'] } =>
-  !!el && typeof el.animate === 'function';
-
-/** Owner v3 #2: the sheet opens SLOWER and visibly grows — 650ms out on the
- *  settle spring, 450ms shrinking back into the tile. Reduced motion stays
- *  instant (150ms linear opacity at final geometry). */
-const SHEET_OPEN_MS = 2600; // owner: very slow, to watch the animation
-const SHEET_CLOSE_MS = 2000; // owner: very slow, to watch the animation
-/**
- * The flight's own curve. The settle SPRING is wrong for the panel: its
- * attack reaches ~92% size in the first 18% of the duration, so a 650ms
- * flight still reads as a pop (owner: "it should open much slower and
- * grow"). This bezier spends real time in the middle of the journey —
- * the bloom is VISIBLE — and still lands without bounce.
- */
-const SHEET_FLIGHT_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
-
 const WorkspaceSheet: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
   reports: LineageReportInput[];
-  fromRect: DOMRect | null;
+  /** §E: glass (backdrop blur) on — immediately when no morph ran, or at the
+   *  open morph's `finished` promise (InsightsPage decides). */
+  settled: boolean;
   onClose: () => void;
-}> = ({ group, access, blast, reports, fromRect, onClose }) => {
+}> = ({ group, access, blast, reports, settled, onClose }) => {
   const panelRef = useRef<HTMLDivElement>(null);
-  const scrimRef = useRef<HTMLButtonElement>(null);
-  const nameRef = useRef<HTMLHeadingElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const closingRef = useRef(false);
 
   // Modal discipline (release-gate blocker): keyboard/AT users land INSIDE
   // the dialog and can never wander the dimmed board behind it. A document
   // focus guard is authoritative — it survives the focus eviction that
   // applying `inert` to the board triggers, and it re-captures any stray
-  // focus (Tab off the last element, programmatic focus elsewhere).
+  // focus (Tab off the last element, programmatic focus elsewhere). Close
+  // unmounts the sheet synchronously (inside the view-transition callback),
+  // so this guard is already gone when focus returns to the tile.
   useEffect(() => {
     let active = true;
     const pull = () => {
-      // Stand down the moment contraction starts, so focus can return to the
-      // originating tile instead of being yanked back into the closing sheet.
-      if (closingRef.current) return;
       const panel = panelRef.current;
       if (!panel || panel.contains(document.activeElement)) return;
       (closeBtnRef.current ?? panel).focus();
@@ -561,144 +547,14 @@ const WorkspaceSheet: React.FC<{
       first.focus();
     }
   }, []);
-  // §E resolution: the sheet's own backdrop blur is OFF during the flight —
-  // the gradient ramp alone carries the material — and switches on at settle.
-  const [settled, setSettled] = useState(false);
-
-  // §D expansion — FLIP from the tile's rect to the sheet's natural rect over
-  // 650ms on the settle spring (owner v3 #2: "open much slower and grow");
-  // transform + opacity (+ radius 12→16) only. The shared client name
-  // counter-scales so it reads 15px at takeoff and snaps to real 28px text at
-  // settle. Scrim fades 0→1 over 250ms linear.
-  useEffect(() => {
-    const el = panelRef.current;
-    if (!canAnimate(el)) {
-      setSettled(true);
-      return;
-    }
-    if (prefersReducedMotion() || !fromRect || fromRect.width === 0) {
-      // Reduced motion: no FLIP, no stagger — 150ms linear opacity at final
-      // geometry, blur applied statically.
-      setSettled(true);
-      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'linear' });
-      if (canAnimate(scrimRef.current)) {
-        scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'linear' });
-      }
-      return;
-    }
-    // FLIP translate math is only valid about the top-left corner; the
-    // default 50%/50% origin made every flight read as a rise from below.
-    el.style.transformOrigin = '0 0';
-    el.style.willChange = 'transform';
-    const to = el.getBoundingClientRect();
-    const sx = fromRect.width / to.width;
-    const sy = fromRect.height / to.height;
-    const dx = fromRect.left - to.left;
-    const dy = fromRect.top - to.top;
-    const flight = el.animate(
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
-        { transform: 'none' },
-      ],
-      { duration: SHEET_OPEN_MS, easing: SHEET_FLIGHT_EASE, fill: 'both' },
-    );
-    flight.onfinish = () => setSettled(true);
-    void flight.finished.finally?.(() => { el.style.willChange = ''; });
-    void flight.finished.then(() => setSettled(true)).catch(() => setSettled(true));
-    window.setTimeout(() => setSettled(true), SHEET_OPEN_MS + 150); // settle failsafe
-    if (canAnimate(scrimRef.current)) {
-      scrimRef.current.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: 250,
-        easing: 'linear',
-        fill: 'both',
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // §D contraction — waves out in reverse (opacity only), panel FLIPs back
-  // over 450ms settle, shrinking into the tile (owner v3 #2); scrim fades
-  // 250ms. A close mid-flight retargets from the CURRENT transform; it never
-  // restarts from 0.
-  const close = useCallback(() => {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    const el = panelRef.current;
-    if (!canAnimate(el) || !fromRect || fromRect.width === 0 || prefersReducedMotion()) {
-      if (canAnimate(el) && prefersReducedMotion()) {
-        const fade = el.animate([{ opacity: 1 }, { opacity: 0 }], {
-          duration: 150,
-          easing: 'linear',
-          fill: 'forwards',
-        });
-        fade.onfinish = onClose;
-        void fade.finished.then(onClose).catch(onClose);
-        window.setTimeout(onClose, 200); // failsafe — releasing twice is a no-op upstream
-      } else {
-        onClose();
-      }
-      return;
-    }
-    // Retarget: sample the in-flight transform, cancel the open animation,
-    // and fly from exactly there back to the tile's rectangle.
-    const cs = getComputedStyle(el);
-    const fromTransform = cs.transform && cs.transform !== 'none' ? cs.transform : 'none';
-    if (typeof el.getAnimations === 'function') {
-      for (const a of el.getAnimations()) a.cancel();
-    }
-    setSettled(false); // blur off for the return flight
-    const to = el.getBoundingClientRect();
-    const sx = fromRect.width / to.width;
-    const sy = fromRect.height / to.height;
-    const dx = fromRect.left - to.left;
-    const dy = fromRect.top - to.top;
-    // Waves out in reverse: damage/people first, then the rest — opacity only.
-    const wavesOut = el.querySelectorAll<HTMLElement>('.luce-wave');
-    wavesOut.forEach((node) => {
-      if (!canAnimate(node)) return;
-      const last = node.classList.contains('luce-wave--3');
-      node.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: 150,
-        delay: last ? 0 : 60,
-        easing: 'linear',
-        fill: 'forwards',
-      });
-    });
-    const anim = el.animate(
-      [
-        { transform: fromTransform, borderRadius: '16px', opacity: 1 },
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, borderRadius: '12px', opacity: 0 },
-      ],
-      { duration: SHEET_CLOSE_MS, easing: SHEET_FLIGHT_EASE, fill: 'forwards' },
-    );
-    if (canAnimate(scrimRef.current)) {
-      scrimRef.current.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: 250,
-        easing: 'linear',
-        fill: 'forwards',
-      });
-    }
-    // The tile's return must NEVER depend on one callback (owner, 3rd ask):
-    // finish event + finished promise + a hard timer all release it; the
-    // first to fire wins, the rest no-op.
-    let released = false;
-    const release = () => {
-      if (released) return;
-      released = true;
-      onClose();
-    };
-    anim.onfinish = release;
-    void anim.finished.then(release).catch(release);
-    window.setTimeout(release, SHEET_CLOSE_MS + 150);
-  }, [fromRect, onClose]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [close]);
+  }, [onClose]);
 
   // Owner v3 #1: "it opens with a click it should close with a click" — a
   // click anywhere on the sheet that is NOT an interactive element contracts
@@ -711,9 +567,9 @@ const WorkspaceSheet: React.FC<{
       if (target.closest('button, a, input, select, textarea, [data-selectable]')) return;
       const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
       if (selection && !selection.isCollapsed) return;
-      close();
+      onClose();
     },
-    [close],
+    [onClose],
   );
 
   const dataflows = group.items.filter((i) => i.kind === 'dataflow');
@@ -727,30 +583,34 @@ const WorkspaceSheet: React.FC<{
       aria-label={`${group.workspaceName} details`}
       onKeyDown={trapTab}
     >
-      {/* The board recedes behind one deep scrim; clicking it contracts. */}
+      {/* The board recedes behind one deep scrim; clicking it contracts. Its
+          fade rides the view transition's root cross-fade. */}
       <button
-        ref={scrimRef}
         aria-label="Close"
         className="luce-scrim absolute inset-0 cursor-pointer border-0"
-        onClick={close}
+        onClick={onClose}
       />
       <div
         ref={panelRef}
         tabIndex={-1}
         className={`luce-sheet relative flex flex-col${settled ? ' luce-sheet--settled' : ''}`}
-        style={{ width: 'min(880px, 100vw - 96px)', maxHeight: 'calc(100vh - 96px)' }}
+        style={{
+          width: 'min(880px, 100vw - 96px)',
+          maxHeight: 'calc(100vh - 96px)',
+          // While open, ONLY the sheet panel carries the morph name — the
+          // engine pairs it with the tile that carried it in the old state.
+          viewTransitionName: 'sheet-morph',
+        }}
         onClick={onPanelClick}
       >
-        {/* Header (sticky over the scrolling body). Shared elements that rode
-            the FLIP: name, damage chips, worst-asset pulse strip. A second
-            click anywhere non-interactive contracts the sheet (owner v3 #1). */}
+        {/* Header (sticky over the scrolling body). A second click anywhere
+            non-interactive contracts the sheet (owner v3 #1). */}
         <div
           className="relative z-[1] flex items-start justify-between gap-4 shrink-0 cursor-pointer"
           style={{ padding: '28px 32px 16px' }}
         >
           <div className="min-w-0">
             <h3
-              ref={nameRef}
               className="truncate"
               style={{ fontSize: 28, lineHeight: 1.2, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
             >
@@ -763,7 +623,7 @@ const WorkspaceSheet: React.FC<{
               ref={closeBtnRef}
               className="cursor-pointer border-0 bg-transparent inline-flex items-center justify-center"
               style={{ fontSize: 12, color: ladder.low, minWidth: 32, minHeight: 32 }}
-              onClick={close}
+              onClick={onClose}
               aria-label="Close details"
             >
               × Close
@@ -853,16 +713,19 @@ const WorkspaceSheet: React.FC<{
  * name + damage chips, worst-asset pulse, meta pills. Broken tiles sit
  * higher (s3 + shadow-2) over a red under-glow; workspaces with suspect
  * datasets say only "N reports may be reading stale data" (owner v3 #4 —
- * the badge is dead). While its sheet is open the tile is a 124px ghost so
- * the grid never reflows (§D).
+ * the badge is dead). The tile is NEVER hidden: while its sheet is open the
+ * view-transition snapshots own the screen, and the tile keeps its 124px
+ * slot, so the grid never reflows (§D).
  */
 const WorkspaceTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   affectedCount: number;
-  ghost: boolean;
-  onOpen: (rect: DOMRect, el: HTMLElement) => void;
-}> = ({ group, affectedCount, ghost, onOpen }) => {
+  /** True while THIS tile is the morph's tile-side endpoint (sheet closed):
+   *  it alone carries `sheet-morph` — one name, one element at a time. */
+  morphSource: boolean;
+  onOpen: (el: HTMLElement) => void;
+}> = ({ group, affectedCount, morphSource, onOpen }) => {
   const broken = group.counts.broken > 0;
   // The edge tells ONE story — ALL GOOD (green, owner-authorized) or NOT SO
   // GOOD (amber degraded / red broken). Never the voice of a single asset.
@@ -877,12 +740,8 @@ const WorkspaceTile: React.FC<{
       {broken && <span aria-hidden="true" className="luce-tile-underglow" />}
       <button
         className={`luce-tile${broken ? ' luce-tile--broken' : ''}`}
-        style={
-          ghost
-            ? { opacity: 0, transition: 'opacity 60ms linear 100ms' } // hide AFTER the sheet covers it
-            : { transition: 'opacity 120ms linear 40ms' } // ghost releases at landing; return immediately
-        }
-        onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
+        style={morphSource ? { viewTransitionName: 'sheet-morph' } : undefined}
+        onClick={(e) => onOpen(e.currentTarget)}
         aria-haspopup="dialog"
         aria-label={`Open ${group.workspaceName} details`}
       >
@@ -945,9 +804,11 @@ const HeroTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
-  ghost: boolean;
-  onOpen: (rect: DOMRect, el: HTMLElement) => void;
-}> = ({ group, access, blast, ghost, onOpen }) => {
+  /** True while this hero tile is the morph's tile-side endpoint (see
+   *  WorkspaceTile.morphSource — one name, one element at a time). */
+  morphSource: boolean;
+  onOpen: (el: HTMLElement) => void;
+}> = ({ group, access, blast, morphSource, onOpen }) => {
   const broken = group.counts.broken > 0;
   const suspectCount = workspaceSuspectCount(group, blast.suspectDatasetIds);
   const edge = broken
@@ -970,8 +831,8 @@ const HeroTile: React.FC<{
     <button
       className="luce-tile luce-hero-tile"
       data-testid="luce-hero-tile"
-      style={ghost ? { opacity: 0 } : undefined}
-      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
+      style={morphSource ? { viewTransitionName: 'sheet-morph' } : undefined}
+      onClick={(e) => onOpen(e.currentTarget)}
       aria-haspopup="dialog"
       aria-label={`Open ${group.workspaceName} details`}
     >
@@ -1235,13 +1096,80 @@ export const InsightsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Active summary-tile filter (Matt #2), null = show everything.
   const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
-  // Blast-radius sheet: the open workspace + the tile rect it grows from +
-  // the originating tile element (focus returns to it on contraction, §D).
+  // Blast-radius sheet: the open workspace + the originating tile ELEMENT,
+  // kept solely so focus can return to it on contraction (§D).
   const [sheet, setSheet] = useState<{
     workspaceId: string;
-    rect: DOMRect | null;
     el: HTMLElement | null;
   } | null>(null);
+  // The workspace whose TILE carries the `sheet-morph` view-transition name
+  // while the sheet is closed (set just before the open morph captures its
+  // old snapshot; the name moves to the sheet panel the moment it renders).
+  const [morphId, setMorphId] = useState<string | null>(null);
+  // §E: the sheet's glass (backdrop blur) switches on at the open morph's
+  // `finished` promise; with no morph (reduced motion / no engine) it is on
+  // from the first frame.
+  const [sheetSettled, setSheetSettled] = useState(true);
+
+  /**
+   * §D expansion — a native View Transition morph: the clicked tile IS the
+   * sheet. The tile already carries `sheet-morph` when the engine captures
+   * the old snapshot; ALL sheet state changes run inside the callback
+   * (flushSync) so the new snapshot pairs the name onto the sheet panel.
+   * Fallback (reduced motion, or no startViewTransition — e.g. jsdom): the
+   * sheet simply appears at final geometry.
+   */
+  const openSheet = useCallback((workspaceId: string, el: HTMLElement) => {
+    if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
+      setSheetSettled(true);
+      setSheet({ workspaceId, el });
+      return;
+    }
+    // A re-open during an interrupted close must not inherit the close speed.
+    document.documentElement.classList.remove('vt-closing');
+    flushSync(() => {
+      setSheetSettled(false);
+      setMorphId(workspaceId);
+    });
+    const vt = document.startViewTransition(() => {
+      // Inside the callback the tile loses the name and the sheet renders
+      // with it (snapshots break if this state change escapes the callback).
+      flushSync(() => setSheet({ workspaceId, el }));
+    });
+    void vt.finished.finally(() => setSheetSettled(true));
+  }, []);
+
+  /** §D contraction — the same morph in reverse, at the close observation
+   *  speed (a `:root`-level class scopes the shorter duration rule). Focus
+   *  returns to the originating tile; the tile itself was never hidden, so a
+   *  grid hole is impossible by construction. */
+  const closeSheet = useCallback(() => {
+    const current = sheet;
+    if (!current) return;
+    const opener = current.el;
+    if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
+      // Unmount synchronously so the sheet's focus guard is gone before
+      // focus returns to the tile (it would otherwise pull focus back).
+      flushSync(() => setSheet(null));
+      opener?.focus?.();
+      return;
+    }
+    document.documentElement.classList.add('vt-closing');
+    const vt = document.startViewTransition(() => {
+      // The name returns to the tile in the same flush that unmounts the
+      // sheet — the engine morphs the panel back into the tile.
+      flushSync(() => {
+        setMorphId(current.workspaceId);
+        setSheet(null);
+      });
+      opener?.focus?.();
+    });
+    void vt.finished.finally(() => {
+      document.documentElement.classList.remove('vt-closing');
+      // At rest nothing needs the name; clear it unless a newer open owns it.
+      setMorphId((prev) => (prev === current.workspaceId ? null : prev));
+    });
+  }, [sheet]);
 
   // D6: ignition ceremony — once per session, skipped under reduced motion,
   // never gating the content (it only stages the arrival of what is already
@@ -1616,8 +1544,8 @@ export const InsightsPage: React.FC = () => {
               group={groups[0]!}
               access={accessByWs.get(groups[0]!.workspaceId)}
               blast={blast}
-              ghost={sheet?.workspaceId === groups[0]!.workspaceId}
-              onOpen={(rect, el) => setSheet({ workspaceId: groups[0]!.workspaceId, rect, el })}
+              morphSource={!sheet && morphId === groups[0]!.workspaceId}
+              onOpen={(el) => openSheet(groups[0]!.workspaceId, el)}
             />
           ) : (
             /* The n=20 triage grid (§B): damage findable across the room. */
@@ -1631,8 +1559,8 @@ export const InsightsPage: React.FC = () => {
                   group={g}
                   access={accessByWs.get(g.workspaceId)}
                   affectedCount={workspaceAffectedReportCount(g, blast)}
-                  ghost={sheet?.workspaceId === g.workspaceId}
-                  onOpen={(rect, el) => setSheet({ workspaceId: g.workspaceId, rect, el })}
+                  morphSource={!sheet && morphId === g.workspaceId}
+                  onOpen={(el) => openSheet(g.workspaceId, el)}
                 />
               ))}
             </div>
@@ -1910,13 +1838,8 @@ export const InsightsPage: React.FC = () => {
           access={accessByWs.get(sheetGroup.workspaceId)}
           blast={blast}
           reports={snapshot.reports ?? []}
-          fromRect={sheet?.rect ?? null}
-          onClose={() => {
-            // §D: focus returns to the originating tile on contraction.
-            const opener = sheet?.el;
-            setSheet(null);
-            opener?.focus?.();
-          }}
+          settled={sheetSettled}
+          onClose={closeSheet}
         />
       )}
     </div>
