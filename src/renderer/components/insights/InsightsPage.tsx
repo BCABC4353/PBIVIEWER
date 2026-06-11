@@ -477,7 +477,58 @@ const WorkspaceSheet: React.FC<{
   const panelRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLButtonElement>(null);
   const nameRef = useRef<HTMLHeadingElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const closingRef = useRef(false);
+
+  // Modal discipline (release-gate blocker): keyboard/AT users land INSIDE
+  // the dialog and can never wander the dimmed board behind it. A document
+  // focus guard is authoritative — it survives the focus eviction that
+  // applying `inert` to the board triggers, and it re-captures any stray
+  // focus (Tab off the last element, programmatic focus elsewhere).
+  useEffect(() => {
+    let active = true;
+    const pull = () => {
+      // Stand down the moment contraction starts, so focus can return to the
+      // originating tile instead of being yanked back into the closing sheet.
+      if (closingRef.current) return;
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      (closeBtnRef.current ?? panel).focus();
+    };
+    // Land focus after the open paint + the board's inert eviction settle.
+    const t = setTimeout(pull, 0);
+    const onFocusIn = () => {
+      if (active) pull();
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      active = false;
+      clearTimeout(t);
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, []);
+  const trapTab = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusables = panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    const active = document.activeElement;
+    if (!panel.contains(active)) {
+      e.preventDefault();
+      first.focus();
+    } else if (e.shiftKey && (active === first || active === panel)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, []);
   // §E resolution: the sheet's own backdrop blur is OFF during the flight —
   // the gradient ramp alone carries the material — and switches on at settle.
   const [settled, setSettled] = useState(false);
@@ -618,6 +669,7 @@ const WorkspaceSheet: React.FC<{
       role="dialog"
       aria-modal="true"
       aria-label={`${group.workspaceName} details`}
+      onKeyDown={trapTab}
     >
       {/* The board recedes behind one deep scrim; clicking it contracts. */}
       <button
@@ -628,6 +680,7 @@ const WorkspaceSheet: React.FC<{
       />
       <div
         ref={panelRef}
+        tabIndex={-1}
         className={`luce-sheet relative flex flex-col${settled ? ' luce-sheet--settled' : ''}`}
         style={{ width: 'min(880px, 100vw - 96px)', maxHeight: 'calc(100vh - 96px)' }}
       >
@@ -644,7 +697,7 @@ const WorkspaceSheet: React.FC<{
             <h3
               ref={nameRef}
               className="truncate"
-              style={{ fontSize: 28, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
+              style={{ fontSize: 28, lineHeight: 1.2, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
             >
               {group.workspaceName}
             </h3>
@@ -663,6 +716,7 @@ const WorkspaceSheet: React.FC<{
           <div className="flex items-center gap-4 shrink-0">
             <DamageCounts counts={group.counts} size={13} gap={16} />
             <button
+              ref={closeBtnRef}
               className="cursor-pointer border-0 bg-transparent inline-flex items-center justify-center"
               style={{ fontSize: 12, color: ladder.low, minWidth: 32, minHeight: 32 }}
               onClick={close}
@@ -898,7 +952,7 @@ const HeroTile: React.FC<{
       <div className="flex items-start justify-between gap-4 min-w-0">
         <span
           className="truncate"
-          style={{ fontSize: 28, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
+          style={{ fontSize: 28, lineHeight: 1.2, fontWeight: 600, color: ladder.hi, letterSpacing: '-0.01em' }}
         >
           {group.workspaceName}
         </span>
@@ -1820,21 +1874,23 @@ export const InsightsPage: React.FC = () => {
           )}
         </section>
         )}
-        {sheetGroup && (
-          <WorkspaceSheet
-            group={sheetGroup}
-            access={accessByWs.get(sheetGroup.workspaceId)}
-            blast={blast}
-            fromRect={sheet?.rect ?? null}
-            onClose={() => {
-              // §D: focus returns to the originating tile on contraction.
-              const opener = sheet?.el;
-              setSheet(null);
-              opener?.focus?.();
-            }}
-          />
-        )}
       </div>
+      {/* The sheet is a SIBLING of the (inert-able) board content, never a
+          child — otherwise `inert` would disable the sheet's own controls. */}
+      {sheetGroup && (
+        <WorkspaceSheet
+          group={sheetGroup}
+          access={accessByWs.get(sheetGroup.workspaceId)}
+          blast={blast}
+          fromRect={sheet?.rect ?? null}
+          onClose={() => {
+            // §D: focus returns to the originating tile on contraction.
+            const opener = sheet?.el;
+            setSheet(null);
+            opener?.focus?.();
+          }}
+        />
+      )}
     </div>
   );
 };
