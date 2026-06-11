@@ -260,7 +260,7 @@ function statusMetaLine(
       color: luce.broken,
     };
   }
-  if (stale) return { text: 'stale', color: luce.broken }; // owner: both red
+  if (stale) return { text: 'FAILED · upstream', color: luce.broken }; // one vocabulary (owner v8)
   if (item.scheduleOverdue) return { text: `OVERDUE${down ? ` · ${down}` : ''}`, color: luce.warn };
   if (isDormant(item)) {
     const d = dormantDownLabel(item);
@@ -312,7 +312,12 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
             style={{ color: luce.textTertiary, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
           >
             {(() => {
-              const det = [...(item.recentRuns ?? [])].reverse().find((r) => !r.ok && r.errorDetail)?.errorDetail ?? '';
+              let det = [...(item.recentRuns ?? [])].reverse().find((r) => !r.ok && r.errorDetail)?.errorDetail ?? '';
+              if (det.startsWith('{')) {
+                const m = /"code"\s*:\s*"([^"]+)"/.exec(det);
+                det = m?.[1] ?? '';
+              }
+              det = det.replace(/<\/?(pii|ccon)>/g, '');
               const first = det.split(/\.\.|\. /)[0] ?? det;
               return first.length > 220 ? `${first.slice(0, 220)}…` : first;
             })()}
@@ -844,27 +849,6 @@ const WorkspaceSheet: React.FC<{
 };
 
 /** Meta pill — 10px caps faint on a .04 well, radius 4 (§B row 3). */
-/** Synopsis stat — a plain number over an engraved label. The tile face
- *  summarizes; it never headlines one asset or wears a siren (owner spec,
- *  docs/design/BLAST-RADIUS.md "Tile-face synopsis"). */
-const TileStat: React.FC<{
-  value: React.ReactNode;
-  label: string;
-  tone?: string;
-  title?: string;
-}> = ({ value, label, tone, title }) => (
-  <span className="flex flex-col min-w-0" title={title}>
-    <span style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.1, color: tone ?? ladder.mid, ...tabular }}>
-      {value}
-    </span>
-    <span
-      className="whitespace-nowrap"
-      style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: ladder.faint }}
-    >
-      {label}
-    </span>
-  </span>
-);
 
 
 /**
@@ -881,7 +865,7 @@ const WorkspaceTile: React.FC<{
   affectedCount: number;
   ghost: boolean;
   onOpen: (rect: DOMRect, el: HTMLElement) => void;
-}> = ({ group, access, affectedCount, ghost, onOpen }) => {
+}> = ({ group, affectedCount, ghost, onOpen }) => {
   const pulseItem =
     group.items.find((i) => i.lastStatus === group.worst && (i.recentRuns?.length ?? 0) > 0) ??
     group.items.find((i) => (i.recentRuns?.length ?? 0) > 0);
@@ -894,9 +878,6 @@ const WorkspaceTile: React.FC<{
     : degraded
       ? luce.warn
       : 'rgba(63,182,139,0.7)'; // muted lineageColor.healthy
-  const flows = group.items.filter((i) => i.kind === 'dataflow').length;
-  const sets = group.items.length - flows;
-  const members = !access || access.users === null ? null : access.users.length;
   return (
     <div className="relative">
       {broken && <span aria-hidden="true" className="luce-tile-underglow" />}
@@ -921,30 +902,22 @@ const WorkspaceTile: React.FC<{
             {group.workspaceName}
           </span>
         </div>
-        {/* Synopsis body (owner spec): plain numbers, engraved labels.
-            Staleness is a count among counts — never a siren, never a
-            single asset's name headlining the whole client. */}
-        <div className="mt-4 flex items-start" style={{ gap: 22 }}>
-          <TileStat
-            value={group.counts.broken}
-            label="broken"
-            tone={broken ? luce.broken : ladder.faint}
-          />
-          <TileStat value={group.counts.ok + group.counts.live} label="ok" />
-          <TileStat value={sets} label={sets === 1 ? 'dataset' : 'datasets'} />
-          <TileStat value={flows} label={flows === 1 ? 'dataflow' : 'dataflows'} />
-          <TileStat
-            value={members === null ? '—' : members}
-            label={members === 1 ? 'member' : 'members'}
-            title={members === null ? 'Member list not visible to your account' : undefined}
-          />
-          {affectedCount > 0 && (
-            <TileStat
-              value={affectedCount}
-              label={affectedCount === 1 ? 'stale rpt' : 'stale rpts'}
-              tone={luce.broken}
-              title={`${affectedCount} report${affectedCount === 1 ? '' : 's'} may be reading stale data — open to trace`}
-            />
+        {/* The dial's grammar at card scale (owner v8): ONE health figure,
+            damage named only when it exists. Detail lives in the sheet. */}
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <span
+            style={{ fontSize: 30, lineHeight: 1, fontWeight: 600, color: broken ? luce.broken : ladder.hi, ...tabular }}
+          >
+            {Math.round(((group.items.length - group.counts.broken) / Math.max(1, group.items.length)) * 100)}
+            <span style={{ fontSize: 14, color: ladder.low }}>%</span>
+          </span>
+          {(group.counts.broken > 0 || affectedCount > 0) && (
+            <span className="text-right" style={{ fontSize: 12, color: luce.broken, ...tabular }}>
+              {[
+                group.counts.broken > 0 ? `${group.counts.broken} broken` : null,
+                affectedCount > 0 ? `${affectedCount} stale rpt${affectedCount === 1 ? '' : 's'}` : null,
+              ].filter(Boolean).join(' · ')}
+            </span>
           )}
         </div>
         {/* Pulse: pattern without a name — the worst asset's last 12 runs. */}

@@ -191,9 +191,9 @@ describe('InsightsPage — Luce board', () => {
     ]);
     // The tile face still carries the wayfinding — broken/OK are now stats,
     // stacked and sized like every other metric (owner v4).
-    const brokenStat = within(tiles[0]!).getByText('broken');
-    expect(within(brokenStat.parentElement as HTMLElement).getByText('1')).toBeInTheDocument();
-    expect(within(tiles[0]!).getByText('ok')).toBeInTheDocument();
+    // Tile v3 (owner v8): dial grammar — health % + a red damage line.
+    expect(within(tiles[0]!).getByText(/^1 broken/)).toBeInTheDocument();
+    expect(within(tiles[0]!).getByText('%')).toBeInTheDocument();
 
     // Opening Sales reveals its rows in the sheet, worst first. Status reads
     // as colored TEXT in the meta column now (owner v3 #6) — no chips. Names
@@ -594,7 +594,7 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     expect(within(sheet).queryByText('STALE DATA')).not.toBeInTheDocument();
     const rows = within(sheet).getAllByRole('row');
     const suspectRow = rows.find((r) => r.textContent?.includes('Suspect Model'))!;
-    const staleWord = within(suspectRow).getByText('stale');
+    const staleWord = within(suspectRow).getByText('FAILED · upstream') /* one vocabulary (owner v8) */;
     expect(staleWord).toBeInTheDocument();
     expect((staleWord as HTMLElement).style.color).toBe('rgb(229, 72, 77)');
     expect(within(suspectRow).queryByText('OK')).not.toBeInTheDocument();
@@ -831,11 +831,9 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     expect(screen.queryByTestId('luce-hero-tile')).not.toBeInTheDocument();
     // Tile-face synopsis (owner revision): the count is a stat among stats —
     // an amber number over an engraved 'stale rpt' label, never a sentence.
-    const stat = screen.getByText('stale rpt');
+    const stat = screen.getByText(/1 stale rpt/); // tile v3 damage line
     expect(stat).toBeInTheDocument();
-    const statBlock = stat.parentElement as HTMLElement;
-    expect(within(statBlock).getByText('1')).toBeInTheDocument();
-    expect(statBlock.title).toMatch(/may be reading stale data — open to trace/);
+    expect(stat).toBeInTheDocument();
     // The sentence form is dead on tiles.
     expect(screen.queryByText('1 report may be reading stale data')).not.toBeInTheDocument();
   });
