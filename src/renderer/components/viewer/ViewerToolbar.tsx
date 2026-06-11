@@ -111,6 +111,20 @@ export interface ViewerToolbarProps {
 }
 
 /**
+ * Humane relative age: minutes under an hour, hours under two days, then
+ * days. Nobody should ever read "(13161 min ago)" again.
+ */
+function formatRelativeAge(ageMs: number): string {
+  const mins = Math.max(0, Math.floor(ageMs / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins === 1 ? '1 min ago' : `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} days ago`;
+}
+
+/**
  * Format an ISO-8601 date as M/D/YYYY HH:mm <TZ>.
  * Uses full 4-digit year and appends the browser's short timezone abbreviation.
  */
@@ -193,8 +207,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     const isStale = Number.isFinite(ageMs) && ageMs > 24 * 60 * 60 * 1000;
     let relative = '';
     if (showRelativeAge && Number.isFinite(ageMs)) {
-      const mins = Math.max(0, Math.floor(ageMs / 60000));
-      relative = mins < 1 ? ' (just now)' : mins === 1 ? ' (1 min ago)' : ` (${mins} min ago)`;
+      relative = ` (${formatRelativeAge(ageMs)})`;
     }
     const formatted = formatRefreshTime(iso);
     if (!formatted) return null;
