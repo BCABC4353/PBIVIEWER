@@ -88,6 +88,16 @@ export function apex(): void {
 }
 
 /**
+ * Light detent as an overlay LATCHES — a tile-sheet reaching fully open, or
+ * landing fully closed (blast-radius expansion). Exactly one per latch, two
+ * per round trip; the travel itself is silent. Skipped entirely under
+ * Reduce Motion (the latch moment doesn't exist when the move is instant).
+ */
+export function latch(): void {
+  fire(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+}
+
+/**
  * Detent tick while scrubbing across data points — feels like machined
  * detents under the finger. Internally rate-limited to ≤30/s so fast scrubs
  * read as a purr of clicks, never a buzz-saw.
@@ -117,6 +127,7 @@ const PROBE_VERBS: ReadonlyArray<[string, () => Promise<void>]> = [
   ['fault', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)],
   ['thunk', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid)],
   ['apex', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)],
+  ['latch', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)],
   ['detent', () => Haptics.selectionAsync()],
 ];
 
