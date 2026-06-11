@@ -63,10 +63,16 @@ them together (contract tests in `src/test/` enforce this):
 
 ## Styling (desktop renderer)
 
-Four coexisting systems currently — keep each to its lane until the planned
-styling consolidation: Tailwind utilities (layout/spacing), Fluent UI v9
-components, `src/renderer/styles/globals.css` (app chrome), and
-`src/renderer/components/insights/insights-luce.css` (Insights board only).
+- **Brand color: Safety Orange #FF5F15 (owner decision).** Keep it as the
+  brand; meet contrast standards by pairing it with dark ink on fills (white
+  text on this orange fails WCAG AA) rather than by changing the color.
+- **The Insights board ("the dashboard") is on a temporary island (owner
+  decision): do NOT modify `src/renderer/components/insights/**` or
+  `insights-luce.css`** — no restyling, no token migration, no cleanup —
+  until the owner ends the freeze.
+- Elsewhere: four coexisting systems are being consolidated into one
+  token-driven layer — Tailwind utilities, Fluent UI v9, and
+  `src/renderer/styles/globals.css`. Don't add a new styling mechanism.
 
 ## Product priorities (owner's words)
 
