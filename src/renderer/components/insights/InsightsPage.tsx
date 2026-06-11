@@ -336,14 +336,9 @@ const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boolean }> =
         <div
           className="overflow-hidden text-ellipsis whitespace-nowrap"
           style={{ fontSize: 11, color: ladder.low }}
+          title={formatTime(anchor)}
         >
           {rel || '—'} · {item.kind === 'dataset' ? triggerLabel(item.lastRefreshType) : '—'}
-        </div>
-        <div
-          className="overflow-hidden text-ellipsis whitespace-nowrap"
-          style={{ fontSize: 11, color: ladder.faint, ...tabular }}
-        >
-          {formatTime(anchor)}
         </div>
       </div>
     </div>
@@ -403,7 +398,9 @@ const LineageDiagram: React.FC<{
       role="img"
       aria-label={`${group.workspaceName} lineage — dataflows to datasets to reports`}
       data-testid="lineage-diagram"
-      style={{ display: 'block', height: 'auto', maxHeight: 360 }}
+      // Natural height — every node at full size; the SHEET scrolls, the
+      // diagram never compresses the owner's data (owner v4).
+      style={{ display: 'block', height: layout.height }}
     >
       {/* Column headers in the engraved legend style. */}
       {(['DATAFLOWS', 'DATASETS', 'REPORTS'] as const).map((label, i) => (
@@ -575,6 +572,9 @@ const WorkspaceSheet: React.FC<{
       }
       return;
     }
+    // FLIP translate math is only valid about the top-left corner; the
+    // default 50%/50% origin made every flight read as a rise from below.
+    el.style.transformOrigin = '0 0';
     const to = el.getBoundingClientRect();
     const sx = fromRect.width / to.width;
     const sy = fromRect.height / to.height;
@@ -898,7 +898,11 @@ const WorkspaceTile: React.FC<{
       {broken && <span aria-hidden="true" className="luce-tile-underglow" />}
       <button
         className={`luce-tile${broken ? ' luce-tile--broken' : ''}`}
-        style={ghost ? { opacity: 0 } : undefined}
+        style={
+          ghost
+            ? { opacity: 0, transition: 'opacity 60ms linear 100ms' } // hide AFTER the sheet covers it
+            : { transition: 'opacity 120ms linear 200ms' } // reappear after the sheet has shrunk away
+        }
         onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect(), e.currentTarget)}
         aria-haspopup="dialog"
         aria-label={`Open ${group.workspaceName} details`}
@@ -912,12 +916,17 @@ const WorkspaceTile: React.FC<{
           <span className="truncate" style={{ fontSize: 15, fontWeight: 600, color: ladder.hi }}>
             {group.workspaceName}
           </span>
-          <DamageCounts counts={group.counts} />
         </div>
         {/* Synopsis body (owner spec): plain numbers, engraved labels.
             Staleness is a count among counts — never a siren, never a
             single asset's name headlining the whole client. */}
         <div className="mt-4 flex items-start" style={{ gap: 22 }}>
+          <TileStat
+            value={group.counts.broken}
+            label="broken"
+            tone={broken ? luce.broken : ladder.faint}
+          />
+          <TileStat value={group.counts.ok + group.counts.live} label="ok" />
           <TileStat value={sets} label={sets === 1 ? 'dataset' : 'datasets'} />
           <TileStat value={flows} label={flows === 1 ? 'dataflow' : 'dataflows'} />
           <TileStat
