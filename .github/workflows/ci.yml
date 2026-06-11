@@ -2,8 +2,14 @@ name: CI
 
 on:
   pull_request:
+    # ready_for_review included so a draft-opened PR re-triggers CI when marked
+    # ready; without it the draft-skip `if` below would let it merge unchecked.
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [master, main]
+
+permissions:
+  contents: read
 
 # NEW-CI-6: cancel any in-flight run for the same ref/PR so overlapping pushes
 # don't queue and race. pull_request events use the PR number; push events on a
@@ -19,10 +25,10 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -48,3 +54,27 @@ jobs:
       - name: Audit dependencies (report-only)
         run: npm audit --audit-level=high || true
         continue-on-error: true
+
+  mobile:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test

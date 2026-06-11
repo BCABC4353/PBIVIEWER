@@ -4,6 +4,9 @@
   "description": "Power BI Desktop Viewer - A clean, isolated viewing experience",
   "author": "BC-ABC",
   "main": "dist/main/main/index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "npm run generate-config && concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",

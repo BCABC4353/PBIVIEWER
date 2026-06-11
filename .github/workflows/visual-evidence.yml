@@ -8,14 +8,17 @@ on:
     paths:
       - 'src/renderer/**'
 
+permissions:
+  contents: read
+
 jobs:
   screenshots:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version-file: .nvmrc
       - run: npm ci
       - name: Stub generated configs
         run: |
@@ -28,7 +31,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:5180/ >/dev/null && break; sleep 1; done
           mkdir -p visual-out
           node scripts/visual/shoot-board.cjs visual-out/board.png visual-out/sheet.png
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: insights-screenshots
           path: visual-out/*.png
