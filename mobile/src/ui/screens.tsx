@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList, Platform, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import type { DataSource, FleetSnapshot, Refreshable } from '../core/types';
 import { sortWorstFirst } from '../core/refresh-health';
-import { DetailLine, FleetHero, FleetRow, StatusChip, detailTrigger } from './components';
+import { groupFleetByWorkspace, type WorkspaceTile } from '../core/blast-radius';
+import { DetailLine, FleetHero, StatusChip, detailTrigger } from './components';
+import { BlastSheet, WorkspaceTileCard, type FrameRect } from './BlastRadius';
 import { Sparkline } from './Sparkline';
 import { SkeletonPulse } from '../feel/primitives';
 import { thunk } from '../feel/haptics';
@@ -19,6 +21,14 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [progress, setProgress] = useState<{ pct: number; items: number } | null>(null);
+  // Blast radius: the tile being expanded into a sheet, with its measured
+  // origin frame and the overlay host's size (both host-relative).
+  const [expanded, setExpanded] = useState<{
+    tile: WorkspaceTile;
+    origin: FrameRect;
+    host: { width: number; height: number };
+  } | null>(null);
+  const hostRef = useRef<View>(null);
   const now = Date.now();
 
   const load = useCallback(
@@ -55,6 +65,32 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
     (r) => r.lastStatus === 'Failed' || r.lastStatus === 'Cancelled' || r.scheduleOverdue,
   ).length;
 
+  // Workspace tiles, worst workspace first — works on whatever the snapshot
+  // carries (mock or live); pure grouping, unit-tested in core/blast-radius.
+  const tiles = useMemo(
+    () => (snapshot ? groupFleetByWorkspace(snapshot.refreshables) : []),
+    [snapshot],
+  );
+
+  // A reload means the expanded tile's data is gone — drop the sheet rather
+  // than show a sheet of stale facts (no contraction; the data changed).
+  useEffect(() => {
+    setExpanded(null);
+  }, [snapshot]);
+
+  /** Tile tapped: translate its window frame into host coordinates, open. */
+  const expandTile = useCallback((tile: WorkspaceTile, windowFrame: FrameRect) => {
+    const host = hostRef.current;
+    if (!host) return;
+    host.measureInWindow((hx, hy, hw, hh) => {
+      setExpanded({
+        tile,
+        origin: { x: windowFrame.x - hx, y: windowFrame.y - hy, width: windowFrame.width, height: windowFrame.height },
+        host: { width: hw, height: hh },
+      });
+    });
+  }, []);
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" />
@@ -77,42 +113,56 @@ export const FleetHealthScreen: React.FC<{ source: DataSource; onOpen: (r: Refre
         // The caption beneath reports REAL progress on long live fetches.
         <FleetSkeleton progress={progress} />
       ) : (
-        <FlatList
-          data={sorted}
-          keyExtractor={(r) => `${r.kind}-${r.workspaceId}-${r.id}`}
-          ListHeaderComponent={
-            <>
-              <FleetHero broken={broken} total={sorted.length} generatedAt={snapshot.generatedAt} now={now} />
-              {snapshot.partialFailure ? (
-                <Text style={styles.partial}>
-                  {snapshot.failedWorkspaces.length}{' '}
-                  {snapshot.failedWorkspaces.length === 1 ? 'workspace' : 'workspaces'} couldn't be
-                  read
+        // The host view is what the sheet must cover and what frames are
+        // measured against — the BlastSheet overlay is its absolute child.
+        <View ref={hostRef} collapsable={false} style={styles.host}>
+          <FlatList
+            data={tiles}
+            keyExtractor={(t) => t.workspaceId}
+            ListHeaderComponent={
+              <>
+                <FleetHero broken={broken} total={sorted.length} generatedAt={snapshot.generatedAt} now={now} />
+                {snapshot.partialFailure ? (
+                  <Text style={styles.partial}>
+                    {snapshot.failedWorkspaces.length}{' '}
+                    {snapshot.failedWorkspaces.length === 1 ? 'workspace' : 'workspaces'} couldn't be
+                    read
+                  </Text>
+                ) : null}
+              </>
+            }
+            ListEmptyComponent={
+              <View style={styles.center}>
+                <Text style={styles.errorText}>
+                  No refreshable datasets or dataflows in your workspaces yet.
                 </Text>
-              ) : null}
-            </>
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.errorText}>
-                No refreshable datasets or dataflows in your workspaces yet.
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => <FleetRow item={item} now={now} onPress={() => onOpen(item)} />}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              tintColor={color.accent}
-              onRefresh={() => {
-                thunk(); // the catch — pull-to-refresh engages with weight
-                setRefreshing(true);
-                void load(true).finally(() => setRefreshing(false));
-              }}
+              </View>
+            }
+            renderItem={({ item }) => <WorkspaceTileCard tile={item} onExpand={expandTile} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                tintColor={color.accent}
+                onRefresh={() => {
+                  thunk(); // the catch — pull-to-refresh engages with weight
+                  setRefreshing(true);
+                  void load(true).finally(() => setRefreshing(false));
+                }}
+              />
+            }
+            contentInsetAdjustmentBehavior="automatic"
+          />
+          {expanded ? (
+            <BlastSheet
+              tile={expanded.tile}
+              origin={expanded.origin}
+              host={expanded.host}
+              now={now}
+              onClose={() => setExpanded(null)}
+              onOpenItem={onOpen}
             />
-          }
-          contentInsetAdjustmentBehavior="automatic"
-        />
+          ) : null}
+        </View>
       )}
     </SafeAreaView>
   );
@@ -184,6 +234,7 @@ const styles = StyleSheet.create({
     // under the status bar without this.
     paddingTop: Platform.select({ android: StatusBar.currentHeight ?? 0, default: 0 }),
   },
+  host: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.m, padding: space.l },
   errorTitle: { ...type.body, color: color.textPrimary, fontWeight: '600', textAlign: 'center' },
   errorText: { ...type.body, color: color.textSecondary, textAlign: 'center' },
