@@ -28,25 +28,6 @@
   background: var(--colorNeutralStroke1Hover, #a0a0a0);
 }
 
-.title-bar-drag {
-  -webkit-app-region: drag;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.title-bar-no-drag {
-  -webkit-app-region: no-drag;
-}
-
-.title-bar-drag button,
-.title-bar-drag input,
-.title-bar-drag a,
-.title-bar-drag [role="button"],
-.title-bar-drag [role="menu"],
-.title-bar-drag [role="menuitem"] {
-  -webkit-app-region: no-drag;
-}
-
 .fui-Slider {
   --slider-thumb-size: 20px;
   --slider-rail-size: 4px;

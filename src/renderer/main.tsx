@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { FluentProvider } from '@fluentui/react-components';
-import { brandLightTheme, brandDarkTheme } from './theme/brandRamp';
+import { brandLightTheme, brandDarkTheme } from './theme/brand-ramp';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles/globals.css';

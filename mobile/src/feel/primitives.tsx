@@ -16,7 +16,7 @@ import {
   formatAnimatedValue,
   NumberFormat,
   staggerDelay,
-} from './motionCore';
+} from './motion-core';
 import { ease, motionEnabled, springs, timing } from './springs';
 
 
@@ -313,4 +313,4 @@ export function SkeletonPulse({ style, children }: SkeletonPulseProps) {
 
 export { motionEnabled, springs, timing, ease } from './springs';
 export * as haptics from './haptics';
-export { staggerDelay, defaultNumberFormat } from './motionCore';
+export { staggerDelay, defaultNumberFormat } from './motion-core';

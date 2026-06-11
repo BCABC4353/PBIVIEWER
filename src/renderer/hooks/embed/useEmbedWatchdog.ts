@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { EmbedContext } from './embedTypes';
+import type { EmbedContext } from './embed-types';
 
 export interface UseEmbedWatchdogResult {
   clearWatchdog: () => void;

@@ -4,7 +4,7 @@ import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 
 import { useEmbedWatchdog } from './useEmbedWatchdog';
-import type { EmbedContext } from './embedTypes';
+import type { EmbedContext } from './embed-types';
 
 const WATCHDOG_MS = 45000;
 

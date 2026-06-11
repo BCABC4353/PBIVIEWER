@@ -1,5 +1,5 @@
 import * as pbi from 'powerbi-client';
-import type { ErrorPolicy } from './errorPolicy';
+import type { ErrorPolicy } from './error-policy';
 
 
 export type EmbedEvent<T = unknown> = pbi.service.ICustomEvent<T>;

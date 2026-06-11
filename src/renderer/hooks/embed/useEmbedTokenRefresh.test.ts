@@ -4,8 +4,8 @@ import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 
 import { useEmbedTokenRefresh } from './useEmbedTokenRefresh';
-import { TOKEN_REFRESH_LEAD_MS } from './embedTypes';
-import type { EmbedContext } from './embedTypes';
+import { TOKEN_REFRESH_LEAD_MS } from './embed-types';
+import type { EmbedContext } from './embed-types';
 
 interface FakeEmbed {
   setAccessToken: ReturnType<typeof vi.fn>;

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as pbi from 'powerbi-client';
 import { getErrorMessage, isTokenExpiredError } from '../../../shared/powerbi-errors';
 import { usePowerBIService } from '../usePowerBIService';
-import type { EmbedContext, UsePowerBIEmbedOptions } from './embedTypes';
-import type { ErrorPolicy } from './errorPolicy';
+import type { EmbedContext, UsePowerBIEmbedOptions } from './embed-types';
+import type { ErrorPolicy } from './error-policy';
 import type { UseEmbedWatchdogResult } from './useEmbedWatchdog';
 import type { UseEmbedTokenRefreshResult } from './useEmbedTokenRefresh';
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import * as pbi from 'powerbi-client';
-import type { EmbedContext } from './embedTypes';
-import { TOKEN_REFRESH_LEAD_MS } from './embedTypes';
+import type { EmbedContext } from './embed-types';
+import { TOKEN_REFRESH_LEAD_MS } from './embed-types';
 
 export interface UseEmbedTokenRefreshOptions {
   workspaceId: string | undefined;

@@ -10,19 +10,9 @@ export const TITLE_BAR_COLORS = {
 export const PARTITION_NAME = 'persist:powerbi-viewer';
 
 export const POWERBI_API_BASE = 'https://api.powerbi.com/v1.0/myorg';
-export const POWERBI_EMBED_BASE = 'https://app.powerbi.com';
 
 export const SLIDESHOW_INTERVAL = { MIN: 5, MAX: 300, STEP: 5, DEFAULT: 60 } as const;
 
-
-export const NETWORK = {
-  FETCH_TIMEOUT_MS: 20_000,
-  POLL_TIMEOUT_MS: 10_000,
-  RETRY_MAX_ATTEMPTS: 3,
-  RETRY_BASE_DELAY_MS: 500,
-  RETRY_MAX_DELAY_MS: 8_000,
-  MAX_RETRY_AFTER_MS: 60_000,
-} as const;
 
 export const TOKEN = {
   FALLBACK_LIFETIME_MS: 3_600_000,
@@ -55,20 +45,10 @@ export const USAGE = {
   ACCOUNT_ID_MAX_LENGTH: 512,
 } as const;
 
-export const POWERBI_API = {
-  EXPORT_MAX_POLL_ATTEMPTS: 30,
-  EXPORT_POLL_INTERVAL_MS: 2_000,
-  ALL_ITEMS_BATCH_SIZE: 5,
-} as const;
-
 export const AUTH = {
   AUTO_REFRESH_MIN_MINUTES: 1,
   AUTO_REFRESH_MAX_MINUTES: 120,
   AUTO_REFRESH_DEFAULT_MINUTES: 10,
-} as const;
-
-export const CACHE = {
-  ERROR_BODY_MAX_LENGTH: 256,
 } as const;
 
 export const DEFAULT_SETTINGS: AppSettings = {

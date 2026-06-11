@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { createRateLimiter } from './motionCore';
+import { createRateLimiter } from './motion-core';
 
 let enabled = true;
 

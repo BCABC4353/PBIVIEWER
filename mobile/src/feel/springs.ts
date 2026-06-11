@@ -1,5 +1,5 @@
 import { AccessibilityInfo, Easing } from 'react-native';
-import { createReduceMotionCache, springFromResponse } from './motionCore';
+import { createReduceMotionCache, springFromResponse } from './motion-core';
 
 export interface FeelSpring {
   stiffness: number;

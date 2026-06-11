@@ -52,7 +52,6 @@
     "@vitest/coverage-v8": "^2.1.0",
     "autoprefixer": "^10.4.17",
     "concurrently": "^8.2.2",
-    "dotenv": "^16.4.0",
     "electron": "^42.3.3",
     "electron-builder": "^26.15.2",
     "eslint": "^9.15.0",

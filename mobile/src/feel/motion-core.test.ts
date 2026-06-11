@@ -6,7 +6,7 @@ import {
   formatAnimatedValue,
   springFromResponse,
   staggerDelay,
-} from './motionCore';
+} from './motion-core';
 
 
 describe('springFromResponse', () => {

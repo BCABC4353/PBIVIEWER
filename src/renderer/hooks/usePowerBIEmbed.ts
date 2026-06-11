@@ -3,13 +3,13 @@ import * as pbi from 'powerbi-client';
 import {
   DEFAULT_WATCHDOG_MS,
   DEFAULT_ERROR_FALLBACK,
-} from './embed/embedTypes';
+} from './embed/embed-types';
 import type {
   EmbedContext,
   UsePowerBIEmbedOptions,
   UsePowerBIEmbedResult,
-} from './embed/embedTypes';
-import { resolveErrorPolicy } from './embed/errorPolicy';
+} from './embed/embed-types';
+import { resolveErrorPolicy } from './embed/error-policy';
 import { useEmbedWatchdog } from './embed/useEmbedWatchdog';
 import { useEmbedTokenRefresh } from './embed/useEmbedTokenRefresh';
 import { useEmbedLifecycle } from './embed/useEmbedLifecycle';
@@ -19,7 +19,7 @@ export type {
   EmbedEventHandlers,
   UsePowerBIEmbedOptions,
   UsePowerBIEmbedResult,
-} from './embed/embedTypes';
+} from './embed/embed-types';
 
 export function usePowerBIEmbed(
   options: UsePowerBIEmbedOptions
