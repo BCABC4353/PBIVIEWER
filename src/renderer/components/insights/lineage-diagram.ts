@@ -292,7 +292,10 @@ export function layoutLineage(
   const nodeHeight = opts.nodeHeight ?? 30;
   const rowGap = opts.rowGap ?? 10;
   const headerHeight = opts.headerHeight ?? 26;
-  const cap = opts.cap ?? LINEAGE_CAP;
+  // Owner mandate: the diagram shows EVERY node — his data is never elided
+  // ("you don't get to cut off and say +10 others"). The sheet scrolls; the
+  // diagram takes the height it needs. capColumn remains for explicit opts.
+  const cap = opts.cap ?? Number.MAX_SAFE_INTEGER;
 
   const columns = [graph.dataflows, graph.datasets, graph.reports];
   const xs: [number, number, number] = [0, (width - nodeWidth) / 2, width - nodeWidth];

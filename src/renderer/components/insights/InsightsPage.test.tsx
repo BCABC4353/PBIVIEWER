@@ -189,8 +189,11 @@ describe('InsightsPage — Luce board', () => {
       'Open Sales details',
       'Open Ops details',
     ]);
-    // The tile face still carries the wayfinding: the damage summary chips.
-    expect(within(tiles[0]!).getByText('1 broken')).toBeInTheDocument();
+    // The tile face still carries the wayfinding — broken/OK are now stats,
+    // stacked and sized like every other metric (owner v4).
+    const brokenStat = within(tiles[0]!).getByText('broken');
+    expect(within(brokenStat.parentElement as HTMLElement).getByText('1')).toBeInTheDocument();
+    expect(within(tiles[0]!).getByText('ok')).toBeInTheDocument();
 
     // Opening Sales reveals its rows in the sheet, worst first. Status reads
     // as colored TEXT in the meta column now (owner v3 #6) — no chips. Names
@@ -615,7 +618,7 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     expect(diagram.querySelector('[data-node-id="ds-sus"]')?.getAttribute('data-health')).toBe('stale');
   });
 
-  it('caps a real-scale column at 8 nodes, damage first, folding the rest into a "+N more" ash node (owner v3 #3)', async () => {
+  it('renders EVERY dataset node at real scale — the diagram never elides the data (owner v4)', async () => {
     // FALLON-shaped: 20 dormant datasets + 2 suspects behind a failed flow.
     const old = '2024-01-01T00:00:00.000Z';
     const dormants = Array.from({ length: 20 }, (_, i) => ({
@@ -662,16 +665,10 @@ describe('InsightsPage — blast radius (DESIGN-CONTRACT stories 2/4/5)', () => 
     const sheet = await openSheet('Sales');
     const diagram = within(sheet).getByTestId('lineage-diagram');
     const datasetNodes = diagram.querySelectorAll('[data-testid="lineage-node"][data-column="dataset"]');
-    expect(datasetNodes).toHaveLength(8); // 7 named + the +N more node
-    // Damage-first: both suspects survive the cap as named nodes.
+    expect(datasetNodes).toHaveLength(22); // 2 suspects + 20 dormant — all of them
     expect(diagram.querySelector('[data-node-id="ds-s0"]')).not.toBeNull();
-    expect(diagram.querySelector('[data-node-id="ds-s1"]')).not.toBeNull();
-    // The rest of the FALLON fleet folds into one ash stand-in.
-    const more = diagram.querySelector('[data-node-id="more:dataset"]')!;
-    expect(more).not.toBeNull();
-    expect(more.getAttribute('data-health')).toBe('dormant'); // ash, not failure
-    expect(more.getAttribute('aria-label')).toBe('15 more datasets');
-    expect(more.textContent).toContain('+15 more');
+    expect(diagram.querySelector('[data-node-id="ds-d19"]')).not.toBeNull(); // even the dustiest
+    expect(within(sheet).queryByText(/\+\d+ more/)).not.toBeInTheDocument();
   });
 
   it('sorts damaged workspaces first in the tile grid: broken, then suspects-only, then quiet (§B)', async () => {

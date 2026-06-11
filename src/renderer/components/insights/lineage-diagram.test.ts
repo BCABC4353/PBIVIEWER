@@ -245,29 +245,19 @@ describe('layoutLineage — placement, +N more node, edge remapping', () => {
     expect(red.path).toMatch(/^M [\d.]+ [\d.]+ C /);
   });
 
-  it('folds a FALLON-scale dormant fleet into a "+N more" ash node and re-routes its edges', () => {
-    const old = new Date(NOW - 482 * 24 * 3600_000).toISOString();
-    const dormants = Array.from({ length: 20 }, (_, i) =>
-      item({ id: `ds-d${i}`, name: `Dusty ${i}`, lastAttemptTime: old, lastSuccessTime: old }),
-    );
-    const g = deriveLineage([flow, sus, ...dormants], blastOf(['ds-sus'], [['df-1', [sus]]]), [
-      { id: 'r-1', name: 'Exec Daily', datasetId: 'ds-sus' },
-      // Bound to ds-d15 — far enough down the ash fleet to be capped away.
-      { id: 'r-d', name: 'Dusty Report', datasetId: 'ds-d15' },
-    ], NOW);
-    const layout = layoutLineage(g);
-    const datasetNodes = layout.nodes.filter((n) => n.column === 'dataset');
-    expect(datasetNodes).toHaveLength(LINEAGE_CAP); // 7 named + the +N more node
-    const more = datasetNodes.find((n) => n.id === overflowNodeId('dataset'))!;
-    expect(more.label).toBe('+14 more');
-    expect(more.overflow).toBe(14);
-    expect(more.health).toBe('dormant'); // ash, never a failure read
-    // The suspect survives the cap (damage-first) — it is a named node.
-    expect(datasetNodes[0]?.id).toBe('ds-sus');
-    // The dusty report's edge re-routes from its hidden dataset to +N more.
-    expect(
-      layout.edges.some((e) => e.from === overflowNodeId('dataset') && e.to === 'r-d' && e.health === 'dormant'),
-    ).toBe(true);
+  it('shows EVERY node at FALLON scale by default — capping only via explicit opts (owner: data is never elided)', () => {
+    const flows = Array.from({ length: 17 }, (_, i): LineageNodeSpec => ({ id: `df-${i}`, name: `Flow ${i}`, health: i === 0 ? 'failed' : 'dormant' }));
+    const graph = { dataflows: flows, datasets: [{ id: 'ds-1', name: 'Set', health: 'healthy' } as LineageNodeSpec], reports: [], links: [] };
+    const layout = layoutLineage(graph);
+    // Default: every node renders — the sheet scrolls, the data is whole.
+    expect(layout.nodes.filter((n) => n.column === 'dataflow')).toHaveLength(17);
+    expect(layout.nodes.some((n) => (n.overflow ?? 0) > 0)).toBe(false);
+    // Explicit cap remains available for callers that opt in.
+    const cappedLayout = layoutLineage(graph, { cap: 8 });
+    const dfCapped = cappedLayout.nodes.filter((n) => n.column === 'dataflow');
+    expect(dfCapped).toHaveLength(8); // 7 named + the "+N more" ash node
+    expect(dfCapped.some((n) => (n.overflow ?? 0) > 0)).toBe(true);
+
   });
 
   it('dedupes parallel edges into one, keeping the WORST health', () => {
