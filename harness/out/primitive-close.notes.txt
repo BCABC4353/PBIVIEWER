@@ -1,0 +1,10 @@
+PRIMITIVE REEL — FLIP MomentumSpring morph (Sprint 3)
+
+Speed multiplier: 0.15 (timeScale=0.15, ~2800ms total)
+
+The FLIP primitive uses useSharedElementMorph with createMomentumSpring.
+The morph node [data-morph-node="true"] is the REAL DOM element receiving CSS transform.
+getBoundingClientRect on it moves frame-by-frame during the animation.
+All 40 frames should have present:true with continuously moving rects.
+
+Close scenario: tile opens fully, then close triggered.
