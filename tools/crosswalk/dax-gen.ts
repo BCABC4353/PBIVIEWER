@@ -3,6 +3,7 @@ import {
   measureRef,
   daxStringLiteral,
 } from './escape.ts';
+import { buildPredicateFilterClause } from './predicate-gen.ts';
 import type { VisualRecord, Projection, FieldExpr, FilterEntry, Diagnostic } from './reader.ts';
 
 const AGG_DAX: Record<number, string> = {
@@ -146,6 +147,21 @@ export function buildDax(visual: VisualRecord, outerDiags: Diagnostic[]): DaxRes
           message: `Categorical filter ${fe.name} field is not a Column; omitted`,
           path: visual.name,
         });
+        continue;
+      }
+
+      if (fe.status === 'not-in' || fe.status === 'comparison' || fe.status === 'between' || fe.status === 'and-or') {
+        if (!fe.predicate) {
+          filtersIncomplete = true;
+          diags.push({
+            level: 'warn',
+            code: 'FILTER_OMITTED',
+            message: `Categorical filter ${fe.name} missing predicate; omitted`,
+            path: visual.name,
+          });
+          continue;
+        }
+        filterClauses.push(buildPredicateFilterClause(field.table, field.property, fe.predicate));
         continue;
       }
 

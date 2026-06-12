@@ -130,7 +130,7 @@ function parseFilterEntry(raw: unknown, ctxPath: string, diags: Diagnostic[]): F
   }
 
   const parsed = parseCategoricalFilter(f['filter'] as Record<string, unknown> | undefined);
-  return { name, field, type, values: parsed.values, status: parsed.status, reason: parsed.reason };
+  return { name, field, type, values: parsed.values, predicate: parsed.predicate, status: parsed.status, reason: parsed.reason };
 }
 
 function parseVisualJson(raw: unknown, visualPath: string, diags: Diagnostic[]): Partial<VisualRecord> | null {

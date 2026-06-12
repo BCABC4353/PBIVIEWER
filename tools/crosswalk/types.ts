@@ -51,13 +51,46 @@ export interface VisualPosition {
   tabOrder?: number;
 }
 
-export type FilterStatus = 'in-values' | 'unparseable' | 'not-applicable';
+export type FilterStatus = 'in-values' | 'not-in' | 'comparison' | 'between' | 'and-or' | 'unparseable' | 'not-applicable';
+
+export type ComparisonOp = '>=' | '>' | '<=' | '<' | '=';
+
+export interface PredicateComparison {
+  kind: 'comparison';
+  op: ComparisonOp;
+  value: string;
+  isString: boolean;
+}
+
+export interface PredicateBetween {
+  kind: 'between';
+  lo: string;
+  hi: string;
+  isString: boolean;
+}
+
+export interface PredicateNotIn {
+  kind: 'not-in';
+  values: string[];
+  isString: boolean;
+}
+
+export interface PredicateAndOr {
+  kind: 'and-or';
+  op: 'AND' | 'OR';
+  left: LeafPredicate;
+  right: LeafPredicate;
+}
+
+export type LeafPredicate = PredicateComparison | PredicateBetween | PredicateNotIn;
+export type FilterPredicate = LeafPredicate | PredicateAndOr;
 
 export interface FilterEntry {
   name: string;
   field: FieldExpr | null;
   type: string;
   values?: string[];
+  predicate?: FilterPredicate;
   status: FilterStatus;
   reason?: string;
 }

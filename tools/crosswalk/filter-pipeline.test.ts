@@ -129,7 +129,7 @@ describe('C1 — real PBIR Categorical In-filter: nested Literal.Value is unwrap
 });
 
 describe('C2 — empty / non-In Categorical filter is flagged, never silently dropped', () => {
-  it('Comparison-only Categorical filter -> filtersIncomplete + diagnostic', () => {
+  it('Comparison-Equal Categorical filter is now translated to KEEPFILTERS(FILTER(ALL(...), ...))', () => {
     const filter = {
       name: 'cmp',
       field: colField('SALES', 'AMOUNT'),
@@ -149,12 +149,13 @@ describe('C2 — empty / non-In Categorical filter is flagged, never silently dr
       },
     };
     const visual = readVisual('c2a', 'v1', chartVisual([filter]));
-    expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
     const diags: import('./reader').Diagnostic[] = [];
     const result = buildDax(visual, diags);
-    expect(result.filtersIncomplete).toBe(true);
-    expect(result.dax).not.toContain('KEEPFILTERS');
-    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[AMOUNT]), 'SALES'[AMOUNT] = 100))");
+    expect(result.dax).not.toContain('[object Object]');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(false);
   });
 
   it('empty Where Categorical filter -> filtersIncomplete + diagnostic', () => {
@@ -182,8 +183,8 @@ describe('C2 — empty / non-In Categorical filter is flagged, never silently dr
   });
 });
 
-describe('C3 — Not(In) exclude filter is flagged, never silently inverted', () => {
-  it('negated In condition -> unparseable + filtersIncomplete + diagnostic', () => {
+describe('C3 — Not(In) exclude filter is now translated, never silently inverted', () => {
+  it('negated In condition -> not-in status + KEEPFILTERS(FILTER(ALL(...), NOT(...IN...)))', () => {
     const filter = {
       name: 'notin',
       field: colField('SALES', 'CATEGORY'),
@@ -206,13 +207,46 @@ describe('C3 — Not(In) exclude filter is flagged, never silently inverted', ()
       },
     };
     const visual = readVisual('c3a', 'v1', chartVisual([filter]));
+    expect(visual.filterConfig!.filters[0].status).toBe('not-in');
+    const diags: import('./reader').Diagnostic[] = [];
+    const result = buildDax(visual, diags);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[CATEGORY]), NOT('SALES'[CATEGORY] IN {\"ALPHA\", \"BRAVO\"})))");
+    expect(result.dax).not.toContain('[object Object]');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(false);
+  });
+
+  it('Not wrapping a non-In condition is still refused and flagged', () => {
+    const filter = {
+      name: 'notcmp',
+      field: colField('SALES', 'AMOUNT'),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              Not: {
+                Expression: {
+                  Comparison: {
+                    ComparisonKind: 1,
+                    Left: srcCol('q', 'AMOUNT'),
+                    Right: { Literal: { Value: '500L' } },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const visual = readVisual('c3b', 'v1', chartVisual([filter]));
     expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
     expect(visual.filterConfig!.filters[0].reason).toContain('Not');
     const diags: import('./reader').Diagnostic[] = [];
     const result = buildDax(visual, diags);
     expect(result.filtersIncomplete).toBe(true);
     expect(result.dax).not.toContain('KEEPFILTERS');
-    expect(result.dax).not.toContain('ALPHA');
+    expect(result.dax).not.toContain('500');
     expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
   });
 });
@@ -248,6 +282,343 @@ describe('H2 — compound multi-condition Where is flagged, conditions not silen
     const visual = readVisual('h2b', 'v1', chartVisual([filter]));
     expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
     expect(buildDax(visual, []).filtersIncomplete).toBe(true);
+  });
+});
+
+describe('C4 — Comparison filter shapes translate to correct DAX predicates', () => {
+  function comparisonFilter(name: string, col: string, kind: number, rawValue: string) {
+    return {
+      name,
+      field: colField('SALES', col),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              Comparison: {
+                ComparisonKind: kind,
+                Left: srcCol('q', col),
+                Right: { Literal: { Value: rawValue } },
+              },
+            },
+          },
+        ],
+      },
+    };
+  }
+
+  it('GreaterThan (kind=1) integer -> FILTER(ALL(...), col > val)', () => {
+    const visual = readVisual('c4a', 'v1', chartVisual([comparisonFilter('f', 'AMOUNT', 1, '200L')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[AMOUNT]), 'SALES'[AMOUNT] > 200))");
+    expect(result.dax).not.toContain('[object Object]');
+  });
+
+  it('GreaterThanOrEqual (kind=2) decimal -> FILTER(ALL(...), col >= val)', () => {
+    const visual = readVisual('c4b', 'v1', chartVisual([comparisonFilter('f', 'SCORE', 2, '3.14D')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[SCORE]), 'SALES'[SCORE] >= 3.14))");
+  });
+
+  it('LessThan (kind=3) -> FILTER(ALL(...), col < val)', () => {
+    const visual = readVisual('c4c', 'v1', chartVisual([comparisonFilter('f', 'AMOUNT', 3, '999L')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
+    const result = buildDax(visual, []);
+    expect(result.dax).toContain("'SALES'[AMOUNT] < 999");
+  });
+
+  it('LessThanOrEqual (kind=4) -> FILTER(ALL(...), col <= val)', () => {
+    const visual = readVisual('c4d', 'v1', chartVisual([comparisonFilter('f', 'AMOUNT', 4, '50L')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
+    const result = buildDax(visual, []);
+    expect(result.dax).toContain("'SALES'[AMOUNT] <= 50");
+  });
+
+  it('Equal (kind=0) string value -> FILTER(ALL(...), col = "val")', () => {
+    const visual = readVisual('c4e', 'v1', chartVisual([comparisonFilter('f', 'REGION', 0, "'NORTH'")]));
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain(`KEEPFILTERS(FILTER(ALL('SALES'[REGION]), 'SALES'[REGION] = "NORTH"))`);
+  });
+
+  it('datetime midnight -> DATE(yyyy,mm,dd)', () => {
+    const visual = readVisual('c4f', 'v1', chartVisual([comparisonFilter('f', 'ORDERDATE', 2, "datetime'2024-01-15'")]));
+    expect(visual.filterConfig!.filters[0].status).toBe('comparison');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("'SALES'[ORDERDATE] >= DATE(2024,01,15)");
+  });
+
+  it('datetime with non-midnight time -> omitted and flagged', () => {
+    const visual = readVisual('c4g', 'v1', chartVisual([comparisonFilter('f', 'ORDERDATE', 2, "datetime'2024-01-15T13:30:00'")]));
+    expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
+    const diags: import('./reader').Diagnostic[] = [];
+    const result = buildDax(visual, diags);
+    expect(result.filtersIncomplete).toBe(true);
+    expect(result.dax).not.toContain('KEEPFILTERS');
+    expect(result.dax).not.toContain('13:30');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
+  });
+
+  it('Comparison with unrecognised ComparisonKind -> omitted and flagged', () => {
+    const visual = readVisual('c4h', 'v1', chartVisual([comparisonFilter('f', 'AMOUNT', 99, '100L')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
+    const diags: import('./reader').Diagnostic[] = [];
+    const result = buildDax(visual, diags);
+    expect(result.filtersIncomplete).toBe(true);
+    expect(result.dax).not.toContain('KEEPFILTERS');
+    expect(result.dax).not.toContain('100');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
+  });
+});
+
+describe('C5 — Between filter shape translates to dual-predicate FILTER', () => {
+  function betweenFilter(name: string, col: string, lo: string, hi: string) {
+    return {
+      name,
+      field: colField('SALES', col),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              Between: {
+                Expression: srcCol('q', col),
+                Lower: { Literal: { Value: lo } },
+                Upper: { Literal: { Value: hi } },
+              },
+            },
+          },
+        ],
+      },
+    };
+  }
+
+  it('integer range -> KEEPFILTERS(FILTER(ALL(col), col >= lo && col <= hi))', () => {
+    const visual = readVisual('c5a', 'v1', chartVisual([betweenFilter('f', 'AMOUNT', '100L', '500L')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('between');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[AMOUNT]), 'SALES'[AMOUNT] >= 100 && 'SALES'[AMOUNT] <= 500))");
+    expect(result.dax).not.toContain('[object Object]');
+  });
+
+  it('string range -> KEEPFILTERS(FILTER(ALL(col), col >= "lo" && col <= "hi"))', () => {
+    const visual = readVisual('c5b', 'v1', chartVisual([betweenFilter('f', 'REGION', "'ALPHA'", "'ZULU'")]));
+    expect(visual.filterConfig!.filters[0].status).toBe('between');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain(`'SALES'[REGION] >= "ALPHA" && 'SALES'[REGION] <= "ZULU"`);
+  });
+
+  it('datetime midnight bounds -> DATE()', () => {
+    const visual = readVisual('c5c', 'v1', chartVisual([betweenFilter('f', 'ORDERDATE', "datetime'2023-01-01'", "datetime'2023-12-31'")]));
+    expect(visual.filterConfig!.filters[0].status).toBe('between');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("DATE(2023,01,01)");
+    expect(result.dax).toContain("DATE(2023,12,31)");
+  });
+
+  it('Between with non-literal bound -> omitted and flagged, no value leakage', () => {
+    const filter = {
+      name: 'badbet',
+      field: colField('SALES', 'AMOUNT'),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              Between: {
+                Expression: srcCol('q', 'AMOUNT'),
+                Lower: { Literal: { Value: "datetime'2024-01-15T09:00:00'" } },
+                Upper: { Literal: { Value: '500L' } },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const visual = readVisual('c5d', 'v1', chartVisual([filter]));
+    expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
+    const diags: import('./reader').Diagnostic[] = [];
+    const result = buildDax(visual, diags);
+    expect(result.filtersIncomplete).toBe(true);
+    expect(result.dax).not.toContain('KEEPFILTERS');
+    expect(result.dax).not.toContain('09:00');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
+  });
+});
+
+describe('C6 — And/Or composition of leaf shapes', () => {
+  function andFilter(name: string, col: string, lo: string, hi: string) {
+    return {
+      name,
+      field: colField('SALES', col),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              And: {
+                Left: {
+                  Comparison: {
+                    ComparisonKind: 2,
+                    Left: srcCol('q', col),
+                    Right: { Literal: { Value: lo } },
+                  },
+                },
+                Right: {
+                  Comparison: {
+                    ComparisonKind: 4,
+                    Left: srcCol('q', col),
+                    Right: { Literal: { Value: hi } },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+  }
+
+  it('And of two Comparisons on same column -> (col >= lo) && (col <= hi)', () => {
+    const visual = readVisual('c6a', 'v1', chartVisual([andFilter('f', 'AMOUNT', '10L', '90L')]));
+    expect(visual.filterConfig!.filters[0].status).toBe('and-or');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[AMOUNT]), ('SALES'[AMOUNT] >= 10) && ('SALES'[AMOUNT] <= 90)))");
+    expect(result.dax).not.toContain('[object Object]');
+  });
+
+  it('Or of two Comparisons on same column -> (col < lo) || (col > hi)', () => {
+    const filter = {
+      name: 'orf',
+      field: colField('SALES', 'SCORE'),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              Or: {
+                Left: {
+                  Comparison: {
+                    ComparisonKind: 3,
+                    Left: srcCol('q', 'SCORE'),
+                    Right: { Literal: { Value: '10L' } },
+                  },
+                },
+                Right: {
+                  Comparison: {
+                    ComparisonKind: 1,
+                    Left: srcCol('q', 'SCORE'),
+                    Right: { Literal: { Value: '90L' } },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const visual = readVisual('c6b', 'v1', chartVisual([filter]));
+    expect(visual.filterConfig!.filters[0].status).toBe('and-or');
+    const result = buildDax(visual, []);
+    expect(result.filtersIncomplete).toBe(false);
+    expect(result.dax).toContain("KEEPFILTERS(FILTER(ALL('SALES'[SCORE]), ('SALES'[SCORE] < 10) || ('SALES'[SCORE] > 90)))");
+  });
+
+  it('And on DIFFERENT columns -> omitted and flagged (cross-column guard)', () => {
+    const filter = {
+      name: 'crosscol',
+      field: colField('SALES', 'AMOUNT'),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              And: {
+                Left: {
+                  Comparison: {
+                    ComparisonKind: 2,
+                    Left: srcCol('q', 'AMOUNT'),
+                    Right: { Literal: { Value: '10L' } },
+                  },
+                },
+                Right: {
+                  Comparison: {
+                    ComparisonKind: 4,
+                    Left: srcCol('q', 'REGION'),
+                    Right: { Literal: { Value: '90L' } },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const visual = readVisual('c6c', 'v1', chartVisual([filter]));
+    expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
+    expect(visual.filterConfig!.filters[0].reason).toContain('cross-column');
+    const diags: import('./reader').Diagnostic[] = [];
+    const result = buildDax(visual, diags);
+    expect(result.filtersIncomplete).toBe(true);
+    expect(result.dax).not.toContain('KEEPFILTERS');
+    expect(result.dax).not.toContain('10');
+    expect(result.dax).not.toContain('90');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
+  });
+
+  it('And/Or depth > 3 -> omitted and flagged', () => {
+    const filter = {
+      name: 'deep',
+      field: colField('SALES', 'AMOUNT'),
+      type: 'Categorical',
+      filter: {
+        Where: [
+          {
+            Condition: {
+              And: {
+                Left: {
+                  And: {
+                    Left: {
+                      And: {
+                        Left: {
+                          Comparison: { ComparisonKind: 2, Left: srcCol('q', 'AMOUNT'), Right: { Literal: { Value: '1L' } } },
+                        },
+                        Right: {
+                          Comparison: { ComparisonKind: 4, Left: srcCol('q', 'AMOUNT'), Right: { Literal: { Value: '2L' } } },
+                        },
+                      },
+                    },
+                    Right: {
+                      Comparison: { ComparisonKind: 4, Left: srcCol('q', 'AMOUNT'), Right: { Literal: { Value: '3L' } } },
+                    },
+                  },
+                },
+                Right: {
+                  Comparison: { ComparisonKind: 4, Left: srcCol('q', 'AMOUNT'), Right: { Literal: { Value: '4L' } } },
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+    const visual = readVisual('c6d', 'v1', chartVisual([filter]));
+    expect(visual.filterConfig!.filters[0].status).toBe('unparseable');
+    const diags: import('./reader').Diagnostic[] = [];
+    const result = buildDax(visual, diags);
+    expect(result.filtersIncomplete).toBe(true);
+    expect(result.dax).not.toContain('KEEPFILTERS');
+    expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
   });
 });
 

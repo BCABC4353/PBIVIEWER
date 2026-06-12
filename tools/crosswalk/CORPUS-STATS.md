@@ -57,3 +57,5 @@ selections (compiled to KEEPFILTERS/TREATAS). The remainder are negations,
 comparisons, ranges, or compound predicates that this pass deliberately omits
 rather than mis-translate, each flagging its tile filtersIncomplete with a
 diagnostic. No filter is ever silently dropped or silently inverted.
+
+Note: filter coverage extended (Not-In/Comparison/Between/And-Or) after these stats; corpus re-run pending.
