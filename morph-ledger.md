@@ -103,6 +103,22 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
   regression, reusability (primitive importable with only spring + flip files), 46 jsdom tests green.
 - Integrator merges S5 with full gate. Then Sprint 4: MORPH-REPORT.md + push all branches.
 
+### Sprint 3 — S5 wire — DONE + INTEGRATED
+- S5 (branch morph/s5-wire): replaced VT sheet morph with useSharedElementMorph. morphRef -> .luce-sheet
+  node (same-node contract). Deleted ::view-transition(sheet-morph) CSS + --morph vars. toggleFilter VT
+  kept (literal 60ms for the one --morph-open ref). Broke the 689L InsightsPage god-file into
+  use-sheet-morph.ts (68L), use-insights-data.ts (151L), InsightsAdmin.tsx (173L) + CSS split
+  (luce-buttons/luce-motion/workspace-tile.css); InsightsPage now 181L. All insights files <300L.
+  Integrator independently re-gated: tsc x2 + lint clean, 728/728, the 46 InsightsPage tests 46/46.
+  Merged to morph/main; re-gated post-merge 728/728. SCOPE NOTE: S5 did more than pure wiring (god-file
+  breakup + CSS split) — defensible under anti-god-code (morph wiring forced touching the 689L file),
+  flagged for the integration antagonist to confirm behavior-preserving.
+
+### Sprint 3 — verification (parallel): real-tile capture + integration antagonist — IN PROGRESS
+- S4-real: capture the REAL Insights tile morph in the harness; verify A-1..A-6 on the real integration.
+- F-int: antagonize the integration — focus/a11y, reduced-motion, NO global pointer interceptor, the 46
+  tests truly green for the right reasons, S5's extraction is behavior-preserving, reusability holds.
+
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
 Uses fake timers, no real network. Times out (5000ms) only under full-suite parallel CPU saturation;
