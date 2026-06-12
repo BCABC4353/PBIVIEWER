@@ -58,7 +58,11 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
   the dt-cap test per F1. Gate: tsc x2 + lint clean, 670/670.
 - merged S2 flip-geometry (--no-ff). flip-geometry.ts 85L, test 264L (both <300). Gate: tsc x2 + lint
   clean, 704/704. S1+S2 now on morph/main.
-- S4-fix running in background (verifier hardening). S3 next, on reviewed S1+S2.
+- S4-fix DONE (commit 17c6f33 on morph/s4-harness): all 4 F4 findings closed. Dead-band shut
+  (1px creep now FAILs, 680px morph PASSes, identical FAILs). A-1 fail-not-skip. A-4 numeric snap
+  backstop. Baseline record honestly corrected to 6 PASS / 10 FAIL (the true before-story).
+  harness/CONTRACT.md documents same-node rule for S3/S5. App gate 660 green. verify.mjs 235L.
+- S3-primitive running in background (off morph/main w/ S1+S2). Briefed with the F4 same-node contract.
 
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
