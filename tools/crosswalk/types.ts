@@ -51,11 +51,15 @@ export interface VisualPosition {
   tabOrder?: number;
 }
 
+export type FilterStatus = 'in-values' | 'unparseable' | 'not-applicable';
+
 export interface FilterEntry {
   name: string;
   field: FieldExpr | null;
   type: string;
-  values?: unknown[];
+  values?: string[];
+  status: FilterStatus;
+  reason?: string;
 }
 
 export interface VisualRecord {

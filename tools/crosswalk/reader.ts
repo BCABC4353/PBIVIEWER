@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { parseCategoricalFilter } from './filter-parse.ts';
 import type {
   Diagnostic,
   FieldExpr,
@@ -23,6 +24,7 @@ export type {
   QueryRole,
   VisualQuery,
   FilterEntry,
+  FilterStatus,
   VisualRecord,
   VisualPosition,
   MobilePosition,
@@ -123,22 +125,12 @@ function parseFilterEntry(raw: unknown, ctxPath: string, diags: Diagnostic[]): F
   const type = typeof f['type'] === 'string' ? f['type'] : '';
   const field = parseFieldExpr(f['field'], ctxPath + '/field', diags);
 
-  let values: unknown[] | undefined;
-  if (type === 'Categorical') {
-    const filterBody = f['filter'] as Record<string, unknown> | undefined;
-    if (filterBody) {
-      const where = filterBody['Where'] as Array<Record<string, unknown>> | undefined;
-      if (Array.isArray(where)) {
-        const inCond = where[0];
-        const inVals = (inCond?.['Condition'] as Record<string, unknown>)?.['In'] as Record<string, unknown> | undefined;
-        if (inVals?.['Values']) {
-          values = (inVals['Values'] as unknown[][]).map((v) => (Array.isArray(v) ? v[0] : v));
-        }
-      }
-    }
+  if (type !== 'Categorical') {
+    return { name, field, type, status: 'not-applicable' };
   }
 
-  return { name, field, type, values };
+  const parsed = parseCategoricalFilter(f['filter'] as Record<string, unknown> | undefined);
+  return { name, field, type, values: parsed.values, status: parsed.status, reason: parsed.reason };
 }
 
 function parseVisualJson(raw: unknown, visualPath: string, diags: Diagnostic[]): Partial<VisualRecord> | null {

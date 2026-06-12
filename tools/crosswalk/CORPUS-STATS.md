@@ -9,8 +9,10 @@ Aggregate statistics from local corpus run. No real table/measure/field/page nam
 | Reports | 6 |
 | Pages | 121 |
 | Visuals (non-hidden tiles) | 898 |
-| Supported visuals | 734 |
+| Supported visuals | 738 |
 | Coverage | 82% |
+| Tiles with compiled TREATAS filter | 166 |
+| Tiles flagged filtersIncomplete | 228 |
 
 ## Visual Type Tallies
 
@@ -30,7 +32,7 @@ Aggregate statistics from local corpus run. No real table/measure/field/page nam
 | FlowVisual (custom) | 6 | unsupported |
 | asTimeline (custom) | 5 | timeline |
 | heatmapCalendar (custom) | 5 | calendar |
-| textFilter (custom) | 4 | filter |
+| textFilter (custom, GUID-suffixed) | 4 | filter |
 | donutChart | 4 | donut |
 | waterfallChart | 3 | waterfall |
 | bciCalendar (custom) | 3 | calendar |
@@ -45,7 +47,13 @@ Aggregate statistics from local corpus run. No real table/measure/field/page nam
 
 | Code | Count | Notes |
 |---|---|---|
+| FILTER_OMITTED | 960 | Categorical filter not a simple In-values (Not/Comparison/Between/And/Or/compound/empty); omitted, tile flagged filtersIncomplete |
 | FIELD_UNKNOWN_KIND | 47 | field expression with unrecognized structure |
-| FILTER_FIELD_NOT_COLUMN | 12 | Categorical filter field is not a Column |
-| FILTER_OMITTED | 12 | filter omitted; tile flagged filtersIncomplete |
+| FILTER_FIELD_NOT_COLUMN | 6 | In-values Categorical filter whose field is not a Column; omitted, tile flagged |
 | FIELD_NOT_OBJECT | 2 | field expression not an object |
+
+The corpus carries 1228 Categorical filters; only ~249 are simple In-value
+selections (compiled to KEEPFILTERS/TREATAS). The remainder are negations,
+comparisons, ranges, or compound predicates that this pass deliberately omits
+rather than mis-translate, each flagging its tile filtersIncomplete with a
+diagnostic. No filter is ever silently dropped or silently inverted.

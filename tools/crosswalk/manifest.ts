@@ -48,7 +48,7 @@ export interface PageManifest {
   diagnostics: Diagnostic[];
 }
 
-const CHROME_TYPES = new Set(['actionButton', 'image', 'textbox', 'text']);
+const CHROME_TYPES = new Set(['actionbutton', 'image', 'textbox', 'text']);
 
 function mapRender(visualType: string, queryState: Record<string, { projections: Projection[] }>): string {
   const vt = visualType.toLowerCase();
@@ -72,9 +72,9 @@ function mapRender(visualType: string, queryState: Record<string, { projections:
 
   if (vt === 'gauge') return 'tickstrip';
 
-  if (vt === 'slicer' || vt === 'textfilter') return 'filter';
+  if (vt === 'slicer' || vt.startsWith('textfilter')) return 'filter';
 
-  if (CHROME_TYPES.has(visualType)) return 'chrome';
+  if (CHROME_TYPES.has(vt)) return 'chrome';
 
   if (visualType.toLowerCase().includes('gantt') || visualType.toLowerCase().includes('gantt1448688115699')) {
     const roles = Object.keys(queryState);

@@ -59,7 +59,7 @@ function inferRender(vt) {
   if (v === 'tableex') return 'table';
   if (v === 'pivottable') return 'ledger';
   if (v === 'gauge') return 'tickstrip';
-  if (v === 'slicer' || v === 'textfilter') return 'filter';
+  if (v === 'slicer' || v.startsWith('textfilter')) return 'filter';
   if (v.startsWith('astimeline') || v.includes('gantt')) return 'timeline';
   if (v.startsWith('bcicalendar') || v.startsWith('heatmapcalendar')) return 'calendar';
   return 'unsupported';
@@ -190,9 +190,6 @@ for (const dir of reportDirs) {
   for (const manifest of manifests) {
     totalVisuals += manifest.tiles.length;
     allDiags.push(...manifest.diagnostics);
-    for (const tile of manifest.tiles) {
-      if (tile.diagnostics) allDiags.push(...tile.diagnostics);
-    }
     const safeName = manifest.displayName.replace(/[^a-zA-Z0-9_-]/g, '_');
     const outFile = join(resolve(outDir), `${reportName}__${safeName}.json`);
     writeFileSync(outFile, JSON.stringify(manifest.tiles, null, 2), 'utf-8');

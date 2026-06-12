@@ -19,7 +19,7 @@ const AGG_DAX: Record<number, string> = {
 
 const GROUP_ROLES = new Set(['Category', 'Axis', 'Rows', 'Columns', 'Data', 'Legend', 'Series', 'Location']);
 const MEASURE_ROLES = new Set(['Y', 'Values', 'Value', 'X', 'Size', 'Tooltips', 'Measure']);
-const SKIP_ROLES = new Set(['actionButton', 'image', 'textbox', 'text']);
+const SKIP_TYPES = new Set(['actionbutton', 'image', 'textbox', 'text']);
 
 export interface DaxResult {
   dax: string | null;
@@ -57,32 +57,13 @@ function safeValueName(property: string, queryRef: string): string {
   return base + '_0';
 }
 
-function buildFilterClause(
-  filterEntry: FilterEntry,
-  path: string,
-  diags: Diagnostic[],
-): string | null {
-  if (filterEntry.type !== 'Categorical') return null;
+function buildFilterClause(filterEntry: FilterEntry): string | null {
   const field = filterEntry.field;
-  if (!field || field.kind !== 'Column') {
-    diags.push({
-      level: 'warn',
-      code: 'FILTER_FIELD_NOT_COLUMN',
-      message: `Categorical filter ${filterEntry.name} field is not a Column`,
-      path,
-    });
-    return null;
-  }
+  if (!field || field.kind !== 'Column') return null;
   const values = filterEntry.values;
-  if (!Array.isArray(values) || values.length === 0) {
-    return null;
-  }
+  if (!Array.isArray(values) || values.length === 0) return null;
   const colRef = columnRef(field.table, field.property);
-  const valueLiterals = values.map((v) => {
-    if (typeof v === 'string') return daxStringLiteral(v);
-    if (typeof v === 'number') return String(v);
-    return daxStringLiteral(String(v));
-  });
+  const valueLiterals = values.map((v) => daxStringLiteral(v));
   return `KEEPFILTERS(TREATAS({${valueLiterals.join(', ')}}, ${colRef}))`;
 }
 
@@ -90,7 +71,7 @@ export function buildDax(visual: VisualRecord, outerDiags: Diagnostic[]): DaxRes
   const diags: Diagnostic[] = [];
   const visualType = visual.visualType.toLowerCase();
 
-  if (SKIP_ROLES.has(visualType) || visualType === 'actionbutton' || visualType === 'image') {
+  if (SKIP_TYPES.has(visualType)) {
     return { dax: null, filtersIncomplete: false, diagnostics: diags };
   }
 
@@ -143,9 +124,32 @@ export function buildDax(visual: VisualRecord, outerDiags: Diagnostic[]): DaxRes
 
   if (visual.filterConfig?.filters) {
     for (const fe of visual.filterConfig.filters) {
-      if (fe.type !== 'Categorical') continue;
-      if (!fe.values || fe.values.length === 0) continue;
-      const clause = buildFilterClause(fe, `${visual.name}/filterConfig`, diags);
+      if (fe.status === 'not-applicable') continue;
+
+      if (fe.status === 'unparseable') {
+        filtersIncomplete = true;
+        diags.push({
+          level: 'warn',
+          code: 'FILTER_OMITTED',
+          message: `Categorical filter ${fe.name} omitted (${fe.reason ?? 'unparseable'})`,
+          path: visual.name,
+        });
+        continue;
+      }
+
+      const field = fe.field;
+      if (!field || field.kind !== 'Column') {
+        filtersIncomplete = true;
+        diags.push({
+          level: 'warn',
+          code: 'FILTER_FIELD_NOT_COLUMN',
+          message: `Categorical filter ${fe.name} field is not a Column; omitted`,
+          path: visual.name,
+        });
+        continue;
+      }
+
+      const clause = buildFilterClause(fe);
       if (clause) {
         filterClauses.push(clause);
       } else {
@@ -153,7 +157,7 @@ export function buildDax(visual: VisualRecord, outerDiags: Diagnostic[]): DaxRes
         diags.push({
           level: 'warn',
           code: 'FILTER_OMITTED',
-          message: `filter ${fe.name} could not be compiled and was omitted`,
+          message: `Categorical filter ${fe.name} could not be compiled and was omitted`,
           path: visual.name,
         });
       }

@@ -161,7 +161,7 @@ describe('DAX generation — filter: Categorical In-values', () => {
       },
       filterConfig: {
         filters: [
-          { name: 'filter1', type: 'Categorical', field: { kind: 'Column', table: 'SALES', property: 'REGION' }, values: ['North', 'South'] },
+          { name: 'filter1', type: 'Categorical', field: { kind: 'Column', table: 'SALES', property: 'REGION' }, values: ['North', 'South'], status: 'in-values' },
         ],
       },
     });
@@ -189,7 +189,7 @@ describe('DAX generation — filter: Categorical In-values', () => {
         },
       },
       filterConfig: {
-        filters: [{ name: 'advFilter', type: 'Advanced', field: null, values: undefined }],
+        filters: [{ name: 'advFilter', type: 'Advanced', field: null, values: undefined, status: 'not-applicable' }],
       },
     });
     const diags: Diagnostic[] = [];
