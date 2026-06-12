@@ -1,13 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import React from 'react';
 import { makeScheduler } from '../../components/insights/spring-test-clock';
-import {
-  morphTransformAt,
-  transformToCss,
-} from './flip-geometry';
-import type { Rect } from './flip-geometry';
+import { morphTransformAt, transformToCss } from './flip-geometry';
 import type { MomentumSpring } from '../../components/insights/spring-physics';
+import { TILE, SHEET, makeRefs } from './morph-test-harness';
 
 let capturedSpring: MomentumSpring | undefined;
 let clockRef: ReturnType<typeof makeScheduler> | undefined;
@@ -38,42 +34,6 @@ vi.mock('../../components/insights/luce-motion', async (importOriginal) => {
 
 import { useSharedElementMorph } from './use-shared-element-morph';
 
-const TILE: Rect = { x: 40, y: 80, width: 160, height: 90 };
-const SHEET: Rect = { x: 0, y: 0, width: 800, height: 600 };
-
-function makeMorphEl(rect: Rect = SHEET): HTMLElement {
-  const el = document.createElement('div');
-  el.getBoundingClientRect = () => ({
-    x: rect.x, y: rect.y,
-    width: rect.width, height: rect.height,
-    top: rect.y, left: rect.x,
-    right: rect.x + rect.width, bottom: rect.y + rect.height,
-    toJSON: () => ({}),
-  });
-  return el;
-}
-
-function makeSourceEl(rect: Rect = TILE): Element {
-  const el = document.createElement('div');
-  el.getBoundingClientRect = () => ({
-    x: rect.x, y: rect.y,
-    width: rect.width, height: rect.height,
-    top: rect.y, left: rect.x,
-    right: rect.x + rect.width, bottom: rect.y + rect.height,
-    toJSON: () => ({}),
-  });
-  return el;
-}
-
-function makeRefs(sourceRect = TILE, morphRect = SHEET): {
-  morphRef: React.RefObject<HTMLElement | null>;
-  sourceRef: React.RefObject<Element | null>;
-} {
-  const morphRef = { current: makeMorphEl(morphRect) } as React.RefObject<HTMLElement | null>;
-  const sourceRef = { current: makeSourceEl(sourceRect) } as React.RefObject<Element | null>;
-  return { morphRef, sourceRef };
-}
-
 beforeEach(() => {
   reducedMotionValue = false;
   capturedSpring = undefined;
@@ -87,9 +47,7 @@ afterEach(() => {
 describe('useSharedElementMorph — open drives progress 0→1', () => {
   it('at p=0 (initial open frame) transform equals tileRect placement', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
 
@@ -99,9 +57,7 @@ describe('useSharedElementMorph — open drives progress 0→1', () => {
 
   it('progress reaches 1 after spring settles', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => {
@@ -114,9 +70,7 @@ describe('useSharedElementMorph — open drives progress 0→1', () => {
 
   it('at p=1 (settled) transform is the identity (sheetRect)', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => {
@@ -132,9 +86,7 @@ describe('useSharedElementMorph — open drives progress 0→1', () => {
 describe('useSharedElementMorph — interrupt carries momentum (A-3/A-4)', () => {
   it('close during open uses the SAME spring instance (retarget, not new spring)', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     const springAfterOpen = capturedSpring;
@@ -154,9 +106,7 @@ describe('useSharedElementMorph — interrupt carries momentum (A-3/A-4)', () =>
 
   it('progress does NOT snap to 0 on mid-open close (continuity)', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => {
@@ -171,9 +121,7 @@ describe('useSharedElementMorph — interrupt carries momentum (A-3/A-4)', () =>
 
   it('velocity is non-zero immediately after interrupt (momentum carries)', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => {
@@ -187,9 +135,7 @@ describe('useSharedElementMorph — interrupt carries momentum (A-3/A-4)', () =>
 
   it('open during close also reuses same spring (round-trip interrupt)', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => {
@@ -210,9 +156,7 @@ describe('useSharedElementMorph — interrupt carries momentum (A-3/A-4)', () =>
 
   it('after interrupt spring eventually settles at new target', () => {
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => {
@@ -234,9 +178,7 @@ describe('useSharedElementMorph — reduced motion (A-7)', () => {
     reducedMotionValue = true;
     const { morphRef, sourceRef } = makeRefs();
     const onOpened = vi.fn();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef, onOpened }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef, onOpened }));
 
     act(() => { result.current.open(); });
 
@@ -250,9 +192,7 @@ describe('useSharedElementMorph — reduced motion (A-7)', () => {
     reducedMotionValue = true;
     const { morphRef, sourceRef } = makeRefs();
     const onClosed = vi.fn();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef, onClosed }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef, onClosed }));
 
     act(() => { result.current.open(); });
     act(() => { result.current.close(); });
@@ -266,9 +206,7 @@ describe('useSharedElementMorph — reduced motion (A-7)', () => {
   it('no frames scheduled under prefersReducedMotion', () => {
     reducedMotionValue = true;
     const { morphRef, sourceRef } = makeRefs();
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     act(() => { result.current.open(); });
     act(() => { result.current.close(); });
@@ -279,11 +217,9 @@ describe('useSharedElementMorph — reduced motion (A-7)', () => {
 
 describe('useSharedElementMorph — jsdom safety (zero rects)', () => {
   it('zero-dimension rects do not throw or produce NaN transforms', () => {
-    const zeroRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
+    const zeroRect = { x: 0, y: 0, width: 0, height: 0 };
     const { morphRef, sourceRef } = makeRefs(zeroRect, zeroRect);
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     expect(() => {
       act(() => { result.current.open(); });
@@ -295,13 +231,10 @@ describe('useSharedElementMorph — jsdom safety (zero rects)', () => {
   });
 
   it('missing source element (null ref) does not throw', () => {
-    const morphEl = makeMorphEl(SHEET);
-    const morphRef = { current: morphEl } as React.RefObject<HTMLElement | null>;
+    const { morphRef } = makeRefs();
     const sourceRef = { current: null } as React.RefObject<Element | null>;
 
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     expect(() => {
       act(() => { result.current.open(); });
@@ -309,12 +242,10 @@ describe('useSharedElementMorph — jsdom safety (zero rects)', () => {
   });
 
   it('missing morph element (null ref) does not throw', () => {
+    const { sourceRef } = makeRefs();
     const morphRef = { current: null } as React.RefObject<HTMLElement | null>;
-    const sourceRef = { current: makeSourceEl() } as React.RefObject<Element | null>;
 
-    const { result } = renderHook(() =>
-      useSharedElementMorph({ morphRef, sourceRef }),
-    );
+    const { result } = renderHook(() => useSharedElementMorph({ morphRef, sourceRef }));
 
     expect(() => {
       act(() => { result.current.open(); });
