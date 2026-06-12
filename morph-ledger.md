@@ -152,5 +152,40 @@ INTEGRATOR GATE PROTOCOL: run `npm test`; if the ONLY failure is this updater ti
 bounded workers; a clean pass is authoritative. Morph code is gated additionally on the targeted suites
 (spring-physics, flip-geometry, InsightsPage, luce-motion) which must be deterministically green.
 
-## Reconciliation
-(pending)
+## Reconciliation (FINAL)
+
+### Agents — all completed, no zombies
+| Agent | Role | Branch | Final status |
+|-------|------|--------|--------------|
+| S1-spring | impl momentum spring | morph/s1-spring | DONE, merged |
+| S2-flip | impl FLIP geometry | morph/s2-flip | DONE, merged |
+| S4-harness | capture rig + baseline | morph/s4-harness | DONE, merged |
+| F1-antagonist | review S1 | — | PASS, closed |
+| F2-antagonist | review S2 | — | PASS, closed |
+| F4-antagonist | review S4 harness | — | PASS-w-fixes, closed |
+| S4-fix | harden verifier (F4) | morph/s4-harness | DONE, merged |
+| S3-primitive | impl useSharedElementMorph | morph/s3-primitive | DONE, merged |
+| S4-cap | capture S3 demo | morph/s4-capture-s3 | DONE, merged |
+| F-cap-antagonist | audit verifier honesty | — | PASS-w-fixes, closed (integrator fixed A-1 1px) |
+| S5-wire | wire tile, delete VT | morph/s5-wire | DONE, merged |
+| F-int-antagonist | audit integration | — | PASS, closed |
+| S4-real | capture REAL tile | morph/s4-real | DONE, merged |
+
+### Branches (all pushed to origin; morph/main is the integration line)
+morph/main, morph/s1-spring, morph/s2-flip, morph/s3-primitive, morph/s4-harness,
+morph/s4-capture-s3, morph/s4-real, morph/s5-wire.
+
+### Final gate on morph/main
+tsc main 0 · tsc renderer 0 · lint 0 · npm test 728/728 · every source file <300L · comment-free.
+Visual proof: real 16/16 PASS, primitive 16/16 PASS, baseline 7/9 FAIL (before/after contrast).
+Verifier independently re-audited by integrator (injected teleport still caught).
+
+### Prime-directive compliance
+main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.json version (2.2.16)
+— NOT touched. All work on morph/* branches. No force-push. Mock data only, no network beyond npm+git.
+
+### Known limitation (in MORPH-REPORT QUESTIONS)
+Primitive imports spring-physics + prefersReducedMotion from components/insights/, not lib/morph/
+(pre-existing). Relocation flagged as owner question, not done (touches shared files).
+
+### Outcome: ALL FOUR SPRINTS COMPLETE. Morph rebuilt, proven, reusable. Awaiting owner review.
