@@ -23,25 +23,17 @@ interface LedgerViewProps {
   rows: LedgerRow[];
   measures: string[];
   title: string;
+  onDrillNode?: (node: LedgerNode, colorIndex: number) => void;
 }
 
-function FlatRow({
-  node,
-  level,
-  tree,
-  onToggle,
-  measureLabel,
-  grandTotal,
-  colorIndex,
-}: {
-  node: LedgerNode;
-  level: number;
-  tree: LedgerTree;
-  onToggle: (path: string[]) => void;
-  measureLabel: string;
-  grandTotal: number;
-  colorIndex: number;
-}) {
+interface FlatRowProps {
+  node: LedgerNode; level: number; tree: LedgerTree;
+  onToggle: (path: string[]) => void; measureLabel: string;
+  grandTotal: number; colorIndex: number;
+  onDrillNode?: (node: LedgerNode, colorIndex: number) => void;
+}
+
+function FlatRow({ node, level, tree, onToggle, measureLabel, grandTotal, colorIndex, onDrillNode }: FlatRowProps) {
   const expanded = isExpanded(tree, node.fullPath);
   const pct = grandTotal > 0 ? node.value / grandTotal : 0;
   const barWidth = Math.round(pct * 100);
@@ -51,14 +43,20 @@ function FlatRow({
   return (
     <View>
       <Pressable
-        onPress={() => !node.isLeaf && onToggle(node.fullPath)}
-        accessibilityRole={node.isLeaf ? 'text' : 'button'}
+        onPress={() => {
+          if (node.isLeaf && onDrillNode) {
+            onDrillNode(node, colorIndex);
+          } else if (!node.isLeaf) {
+            onToggle(node.fullPath);
+          }
+        }}
+        accessibilityRole="button"
         accessibilityState={node.isLeaf ? undefined : { expanded }}
         accessibilityLabel={`${node.key}: ${node.value} ${measureLabel}`}
         style={({ pressed }) => [
           styles.trow,
           level === 0 ? styles.trowLv0 : styles.trowLv1,
-          pressed && !node.isLeaf && styles.rowPressed,
+          pressed && styles.rowPressed,
         ]}
       >
         <View style={[styles.nameCell, { paddingLeft: indent }]}>
@@ -96,6 +94,7 @@ function FlatRow({
               measureLabel={measureLabel}
               grandTotal={grandTotal}
               colorIndex={colorIndex + i}
+              onDrillNode={onDrillNode}
             />
           ))
         : null}
@@ -108,6 +107,7 @@ export const LedgerView: React.FC<LedgerViewProps> = ({
   rows,
   measures,
   title,
+  onDrillNode,
 }) => {
   const count = measures.length;
   const [carousel, setCarousel] = useState<CarouselState>({ index: 0, count: Math.max(count, 1) });
@@ -186,6 +186,7 @@ export const LedgerView: React.FC<LedgerViewProps> = ({
               measureLabel={measureLabel}
               grandTotal={tree.grandTotal}
               colorIndex={i}
+              onDrillNode={onDrillNode}
             />
           ))}
         </ScrollView>
