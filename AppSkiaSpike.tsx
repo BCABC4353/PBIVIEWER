@@ -8,7 +8,7 @@ export default function AppSkiaSpike() {
     <View style={styles.root}>
       <WithSkiaWeb
         opts={{ locateFile: () => '/canvaskit.wasm' }}
-        getComponent={() => import('./src/instruments/TickStripSpikeInner')}
+        getComponent={() => import('./src/instruments/SkiaGalleryInner')}
         fallback={null}
       />
     </View>

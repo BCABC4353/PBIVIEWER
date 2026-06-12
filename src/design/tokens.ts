@@ -24,12 +24,32 @@ export const color = {
 export const brand = {
   orange: '#FF7900',
   blue: '#0F4D97',
-  blueBacklit: '#156AD1',
+  blueBacklit: '#5D9FEF',
 } as const;
 
 export const direction = {
   up: brand.orange,
-  down: brand.blue,
+  down: brand.blueBacklit,
+} as const;
+
+export const waterfall = {
+  increment: brand.orange,
+  decrement: brand.blueBacklit,
+  total: '#A0A4AF',
+  connector: 'rgba(255,255,255,0.10)',
+} as const;
+
+export const strip = {
+  track: 'rgba(255,255,255,0.14)',
+  minor: 'rgba(255,255,255,0.16)',
+  minute: 'rgba(255,255,255,0.34)',
+  major: 'rgba(255,255,255,0.60)',
+  fill: 'rgba(201,203,209,0.75)',
+  label: '#80848F',
+  labelOverdue: '#FFB02E',
+  mark: 'rgba(255,255,255,0.85)',
+  overdueBand: 'rgba(255,176,46,0.30)',
+  amberOverdue: '#FFB02E',
 } as const;
 
 export const categorical = {
