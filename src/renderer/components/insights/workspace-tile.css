@@ -1,0 +1,79 @@
+.luce-tile-lamp {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.luce-tile {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  contain: layout;
+  display: block;
+  width: 100%;
+  height: 124px;
+  border: 0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 100% at 50% -25%, rgba(255, 255, 255, 0.09), transparent 60%),
+    linear-gradient(180deg, #202026 0%, var(--luce-s2) 40%, #121215 100%);
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--luce-shadow-1);
+  transition:
+    transform 250ms var(--spring-settle),
+    box-shadow 250ms var(--spring-settle);
+}
+
+.luce-tile:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    var(--luce-shadow-2);
+}
+
+.luce-tile:active {
+  transform: scale(0.99);
+  transition-duration: 80ms;
+}
+
+.luce-tile--broken {
+  background:
+    radial-gradient(130% 100% at 50% -25%, rgba(255, 255, 255, 0.1), transparent 60%),
+    linear-gradient(180deg, #2c2c33 0%, var(--luce-s3) 40%, #17171b 100%);
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--luce-shadow-2);
+}
+
+.luce-tile-underglow {
+  position: absolute;
+  inset: 30% -14px -22px;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(60% 50% at 50% 65%, rgba(229, 72, 77, 0.14), transparent 70%);
+  filter: blur(24px);
+}
+
+.luce-hero-tile {
+  width: min(1040px, 100% - 48px);
+  height: auto;
+  min-height: 280px;
+  margin: 0 auto;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow:
+    0 0 0 1px var(--luce-seam),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    var(--luce-shadow-2);
+}

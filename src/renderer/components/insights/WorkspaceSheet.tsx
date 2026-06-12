@@ -21,7 +21,8 @@ export const WorkspaceSheet: React.FC<{
   catalog: Array<{ id: string; name: string }>;
   settled: boolean;
   onClose: () => void;
-}> = ({ group, access, blast, reports, usage, catalog, settled, onClose }) => {
+  sheetRef?: React.RefObject<HTMLDivElement | null>;
+}> = ({ group, access, blast, reports, usage, catalog, settled, onClose, sheetRef }) => {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -109,13 +110,15 @@ export const WorkspaceSheet: React.FC<{
         onClick={onClose}
       />
       <div
-        ref={panelRef}
+        ref={(node) => {
+          (panelRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+          if (sheetRef) (sheetRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }}
         tabIndex={-1}
         className={`luce-sheet relative flex flex-col${settled ? ' luce-sheet--settled' : ''}`}
         style={{
           width: 'min(880px, 100vw - 96px)',
           maxHeight: 'calc(100vh - 96px)',
-          viewTransitionName: 'sheet-morph',
         }}
         onClick={onPanelClick}
       >

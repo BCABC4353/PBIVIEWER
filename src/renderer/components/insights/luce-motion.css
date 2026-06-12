@@ -1,0 +1,152 @@
+.luce-meter {
+  position: relative;
+  height: 6px;
+}
+
+.luce-meter-pos {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.luce-needle {
+  position: absolute;
+  left: -1px;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--luce-amber);
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+.luce-dial-needle {
+  position: static;
+  width: auto;
+  height: auto;
+  background: none;
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+@keyframes luce-dial-tremor {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(0.35deg); }
+  62% { transform: rotate(-0.3deg); }
+}
+
+.luce-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--luce-amber);
+  filter: drop-shadow(0 0 6px rgba(232, 163, 61, 0.35));
+}
+
+@keyframes luce-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes luce-tremor {
+  0%, 100% { transform: rotate(0deg); }
+  33% { transform: rotate(0.4deg); }
+  66% { transform: rotate(-0.3deg); }
+}
+
+@keyframes luce-deck-drift {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.015); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .luce-board .luce-live-dot {
+    animation: luce-breathe 4.8s ease-in-out infinite;
+  }
+  .luce-board .luce-needle {
+    animation: luce-tremor 7s steps(24) infinite;
+  }
+  .luce-board .luce-dial-needle {
+    animation: luce-dial-tremor 7s steps(24) infinite;
+  }
+  .luce-board .luce-backlight--live {
+    animation: luce-deck-drift 9s ease-in-out infinite;
+  }
+}
+
+.luce-board.luce-asleep .luce-live-dot,
+.luce-board.luce-asleep .luce-needle,
+.luce-board.luce-asleep .luce-backlight--live {
+  animation-play-state: paused;
+}
+
+.luce-flow {
+  position: absolute;
+  top: 0;
+  left: 18%;
+  width: 200px;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(60% 60% at 50% 50%, rgba(232, 163, 61, 0.18), transparent 70%);
+  filter: blur(12px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes luce-keyset {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes luce-rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes luce-wing-l {
+    from { opacity: 0; transform: translateX(-24px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes luce-wing-r {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes luce-flow-travel {
+    0% { opacity: 0; }
+    35% { opacity: 0.9; }
+    100% { opacity: 0; }
+  }
+  .luce-ignite .luce-backlight {
+    animation: luce-keyset 150ms ease-out both;
+  }
+  .luce-ignite .luce-flow {
+    animation: luce-flow-travel 400ms var(--spring-settle) both;
+    animation-delay: 150ms;
+  }
+  .luce-ignite .luce-rise {
+    animation: luce-rise 400ms var(--spring-settle) both;
+    animation-delay: calc(150ms + var(--luce-i, 0) * 60ms);
+  }
+  .luce-ignite .luce-wing-l {
+    animation: luce-wing-l 400ms var(--spring-settle) both;
+    animation-delay: calc(800ms + var(--luce-i, 0) * 60ms);
+  }
+  .luce-ignite .luce-wing-r {
+    animation: luce-wing-r 400ms var(--spring-settle) both;
+    animation-delay: calc(800ms + var(--luce-i, 0) * 60ms);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .luce-board *,
+  .luce-board *::before,
+  .luce-board *::after {
+    animation-duration: 0.001s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+  .luce-btn:active:not(:disabled),
+  .luce-press:active {
+    transform: none;
+  }
+}

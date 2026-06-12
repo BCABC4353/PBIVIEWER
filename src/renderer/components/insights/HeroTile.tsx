@@ -21,9 +21,8 @@ export const HeroTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   blast: BlastRadius;
-  morphSource: boolean;
   onOpen: (el: HTMLElement) => void;
-}> = ({ group, access, blast, morphSource, onOpen }) => {
+}> = ({ group, access, blast, onOpen }) => {
   const broken = group.counts.broken > 0;
   const suspectCount = workspaceSuspectCount(group, blast.suspectDatasetIds);
   const edge = broken
@@ -47,7 +46,6 @@ export const HeroTile: React.FC<{
       className="luce-tile luce-hero-tile"
       data-testid="luce-hero-tile"
       data-workspace-tile={group.workspaceId}
-      style={morphSource ? { viewTransitionName: 'sheet-morph' } : undefined}
       onClick={(e) => onOpen(e.currentTarget)}
       aria-haspopup="dialog"
       aria-label={`Open ${group.workspaceName} details`}
