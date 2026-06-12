@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { makeScheduler } from '../../components/insights/spring-test-clock';
+import { makeScheduler } from './spring-test-clock';
 import { morphTransformAt, transformToCss } from './flip-geometry';
-import type { MomentumSpring } from '../../components/insights/spring-physics';
+import type { MomentumSpring } from './spring-physics';
 import { TILE, SHEET, makeRefs } from './morph-test-harness';
 
 let capturedSpring: MomentumSpring | undefined;
 let clockRef: ReturnType<typeof makeScheduler> | undefined;
 
-vi.mock('../../components/insights/spring-physics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../components/insights/spring-physics')>();
+vi.mock('./spring-physics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./spring-physics')>();
   return {
     ...actual,
     createMomentumSpring: (opts: Parameters<typeof actual.createMomentumSpring>[0]) => {
@@ -24,8 +24,8 @@ vi.mock('../../components/insights/spring-physics', async (importOriginal) => {
 });
 
 let reducedMotionValue = false;
-vi.mock('../../components/insights/luce-motion', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../components/insights/luce-motion')>();
+vi.mock('./reduced-motion', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./reduced-motion')>();
   return {
     ...actual,
     prefersReducedMotion: () => reducedMotionValue,

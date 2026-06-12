@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  createMomentumSpring,
-  createSpringTicker,
-  MOMENTUM_DT_CAP_MS,
-} from './luce-motion';
+import { createMomentumSpring, MOMENTUM_DT_CAP_MS } from './spring-physics';
+import { createSpringTicker } from '../../components/insights/luce-motion';
 import { makeScheduler } from './spring-test-clock';
 
 describe('createMomentumSpring — momentum + retarget', () => {

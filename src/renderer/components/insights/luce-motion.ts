@@ -7,8 +7,10 @@ export {
   MOMENTUM_EPSILON_POS,
   MOMENTUM_EPSILON_VEL,
   createMomentumSpring,
-} from './spring-physics';
-export type { MomentumSpringOptions, MomentumSpring } from './spring-physics';
+} from '../../lib/morph/spring-physics';
+export type { MomentumSpringOptions, MomentumSpring } from '../../lib/morph/spring-physics';
+export { prefersReducedMotion } from '../../lib/morph/reduced-motion';
+import { prefersReducedMotion } from '../../lib/morph/reduced-motion';
 
 
 export const SPRING_NEEDLE =
@@ -157,12 +159,6 @@ export function createSpringTicker(opts: SpringTickerOptions): SpringTicker {
     },
     value: () => current,
   };
-}
-
-
-export function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 

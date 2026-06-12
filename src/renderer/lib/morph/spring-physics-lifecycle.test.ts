@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMomentumSpring } from './luce-motion';
+import { createMomentumSpring } from './spring-physics';
 import { makeScheduler } from './spring-test-clock';
 
 describe('createMomentumSpring — lifecycle', () => {

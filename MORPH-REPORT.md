@@ -43,19 +43,18 @@ Before/after contrast (same verifier): the current View-Transition baseline scor
 - `MorphSurface` — a `forwardRef` component wrapper over the hook.
 - `flip-geometry.ts` — pure, zero imports.
 
-**Drop-in (5 lines):**
-1. Copy `src/renderer/lib/morph/` (hook + `flip-geometry.ts` + `morph-surface.tsx`) into the target project.
-2. Copy `spring-physics.ts` (the momentum spring) as its companion.
-3. Give the morphing element a ref → `morphRef`; give the source element a ref → `sourceRef`.
-4. Call `const m = useSharedElementMorph({ morphRef, sourceRef })`; mount the target, then `m.open()` on the next frame; `m.close()` to reverse.
-5. **Contract:** the FLIP transform is applied to the node `morphRef` points at — that SAME node must be the one whose geometry should morph (see `harness/CONTRACT.md`).
+**Drop-in (4 lines):**
+1. Copy `src/renderer/lib/morph/` into the target project — the directory is fully self-contained (hook, `MorphSurface`, `flip-geometry.ts`, `spring-physics.ts`, `reduced-motion.ts`; zero imports from elsewhere in this repo).
+2. Give the morphing element a ref → `morphRef`; give the source element a ref → `sourceRef`.
+3. Call `const m = useSharedElementMorph({ morphRef, sourceRef })`; mount the target, then `m.open()` on the next frame; `m.close()` to reverse.
+4. **Contract:** the FLIP transform is applied to the node `morphRef` points at — that SAME node must be the one whose geometry should morph (see `harness/CONTRACT.md`).
 
-### Known limitation (reusability) — flagged for the owner
-The primitive currently imports the momentum spring and `prefersReducedMotion` from `src/renderer/components/insights/` (spring-physics.ts, luce-motion.ts) rather than from inside `src/renderer/lib/morph/`. This predates this work (the spring lives in the insights folder), so "copy with only the spring file" is not literally true today — you'd also copy `prefersReducedMotion` (a 3-line matchMedia helper). Recommended follow-up: relocate `spring-physics.ts` + the `prefersReducedMotion` helper into `lib/morph/` to make the directory fully self-contained. Not done here to avoid restructuring shared files mid-build. **QUESTION below.**
+### Reusability limitation — RESOLVED in the morning audit
+The spring (`spring-physics.ts`) and `prefersReducedMotion` (`reduced-motion.ts`) now live inside `src/renderer/lib/morph/`; `luce-motion.ts` re-exports both so every existing insights consumer is unchanged. Verified after relocation: both tsconfigs clean, lint clean, 728/728 tests.
 
 ## QUESTIONS FOR THE OWNER
 1. **Spring feel (subjective — needs your eyes on a live build).** The morph uses a damped-harmonic spring with `MOMENTUM_STIFFNESS = 400`, `MOMENTUM_DAMPING = 36` (damping ratio ζ ≈ 0.9 — slightly underdamped, ~350–420ms visual settle with a small ~2–4% overshoot). These are named constants in `spring-physics.ts`. Numbers prove correctness but not feel: do you want it snappier (raise stiffness), or zero overshoot (raise damping toward 40 = critically damped)? I cannot judge feel from captured rects — this is yours to tune.
-2. **Reusability relocation.** Should I relocate `spring-physics.ts` + `prefersReducedMotion` into `lib/morph/` so the primitive is fully self-contained (truly copy-pasteable with no insights coupling)? It touches shared files, so I left it for your call.
+2. **Reusability relocation.** RESOLVED — done in the morning audit (see above).
 3. **Cross-fade depth (A-6).** Today the geometry morphs and the sheet content reveals via the existing `.luce-wave` opacity animations; the tile's % content is not explicitly cross-faded against the sheet roster (the primitive supports it via `sourceContentRef`/`targetContentRef`, unwired for the tile to keep the 46 tests untouched). Do you want the tile %→roster content cross-fade wired, or is the current reveal enough?
 
 ## Exact verify commands (for the morning reviewer)

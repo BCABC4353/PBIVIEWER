@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
-import { createMomentumSpring } from '../../components/insights/spring-physics';
-import type { MomentumSpring } from '../../components/insights/spring-physics';
+import { createMomentumSpring } from './spring-physics';
+import type { MomentumSpring } from './spring-physics';
 import {
   morphTransformAt,
   transformToCss,
@@ -8,7 +8,7 @@ import {
   normalizeRect,
 } from './flip-geometry';
 import type { Rect } from './flip-geometry';
-import { prefersReducedMotion } from '../../components/insights/luce-motion';
+import { prefersReducedMotion } from './reduced-motion';
 
 export type MorphPhase = 'idle' | 'opening' | 'open' | 'closing';
 
