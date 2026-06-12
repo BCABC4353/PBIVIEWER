@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Lab — 04 Controls</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  body { max-width: 430px; margin: 0 auto; }
+  .page { padding: 24px 22px 56px; }
+
+  .dial-wrap { display: flex; flex-direction: column; align-items: center; padding: 26px 18px 20px; }
+
+  .dialA { position: relative; width: 250px; height: 250px; touch-action: none; cursor: grab; }
+  .dialA .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    background:
+      repeating-conic-gradient(rgba(255,255,255,0.085) 0deg 1.7deg, rgba(255,255,255,0) 1.7deg 4.5deg),
+      radial-gradient(circle at 50% 32%, #1A1A20 0%, #101014 58%, #0A0A0C 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -2px 6px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .dialA .face {
+    position: absolute; inset: 34px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 28%, #121216 0%, #0B0B0D 70%);
+    box-shadow: var(--shadow-recess-deep), 0 0 0 1px rgba(0,0,0,0.8);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dialA .face .fn { font-size: 9px; letter-spacing: 0.26em; color: var(--ink-faint); text-transform: uppercase; margin-top: 56px; }
+  .dialA .pointer {
+    position: absolute; left: 50%; top: 8px; width: 3px; height: 26px; margin-left: -1.5px;
+    border-radius: 2px; background: var(--live); box-shadow: 0 0 6px rgba(255,95,21,0.5);
+  }
+  .dialA .spin { position: absolute; inset: 0; will-change: transform; }
+  .dlabel {
+    position: absolute; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-low); cursor: pointer; user-select: none; transition: color 0.18s;
+  }
+  .dlabel.active { color: var(--live); }
+
+  .dialB-wrap { position: relative; width: 300px; height: 190px; touch-action: none; cursor: grab; }
+  .dialB-wrap svg { display: block; }
+  .blabel { position: absolute; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-low); cursor: pointer; user-select: none; transition: color 0.18s; }
+  .blabel.active { color: var(--live); }
+
+  .btn-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .btn-cell { display: flex; flex-direction: column; gap: 9px; align-items: stretch; }
+  .pressbtn {
+    height: 58px; border-radius: 13px; border: 1px solid var(--hairline);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 580; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-mid); background: var(--well-2); cursor: pointer; user-select: none;
+    box-shadow: var(--edge-top);
+    transition: transform 0.09s ease-out, background 0.09s ease-out, box-shadow 0.09s ease-out, color 0.09s ease-out;
+  }
+  .b1.pressed, .b1:active { transform: scale(0.95); background: #202026; color: var(--ink-hi); }
+  .b2 { box-shadow: var(--edge-top), inset 0 -2px 3px rgba(0,0,0,0.5); }
+  .b2.pressed, .b2:active { background: #0B0B0D; box-shadow: var(--shadow-recess-deep); transform: translateY(1.5px); color: var(--ink-low); }
+  .b3.pressed, .b3:active {
+    border-color: rgba(255,255,255,0.45);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 0 0 1px rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.18);
+    color: var(--ink-hi);
+  }
+  .btn-cap { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); text-align: center; }
+
+  .chips-row { display: flex; gap: 9px; flex-wrap: wrap; padding: 18px; }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; }
+  .toggle-id .tn { font-size: 13px; font-weight: 520; }
+  .toggle-id .td { font-size: 10px; color: var(--ink-low); margin-top: 3px; letter-spacing: 0.06em; }
+  .toggle { position: relative; width: 64px; height: 34px; border-radius: 17px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); cursor: pointer; }
+  .toggle .thumb {
+    position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
+    will-change: transform;
+  }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,95,21,0.85); }
+  .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--ink-faint); transition: background 0.15s; }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,95,21,0.6); }
+
+  .hint { font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN LAB</div>
+      <div class="lab-title">04 — Controls</div>
+      <div class="lab-sub">Physical controls with detents, travel and press feedback. Sound stands in for haptics — drag the dials.</div>
+    </div>
+  </header>
+
+  <div class="section-label">Rotary 1 — knurled ring · 3 detents</div>
+  <div class="well dial-wrap">
+    <div class="dialA" id="dialA">
+      <div class="spin" id="spinA"><div class="ring"></div><div class="pointer"></div></div>
+      <div class="face"><span class="fn">Display mode</span></div>
+      <span class="dlabel" data-a="0" style="left:-4px; top:64px;">Wall</span>
+      <span class="dlabel active" data-a="1" style="left:50%; transform:translateX(-50%); top:-24px;">Ops</span>
+      <span class="dlabel" data-a="2" style="right:-10px; top:64px;">Audit</span>
+    </div>
+    <div class="hint">Drag the ring · snaps with detent tick</div>
+  </div>
+
+  <div class="section-label">Rotary 2 — arc segment · 3 detents</div>
+  <div class="well dial-wrap">
+    <div class="dialB-wrap" id="dialB">
+      <svg id="svgB" width="300" height="190" viewBox="0 0 300 190"></svg>
+      <span class="blabel active" data-b="0" style="left:18px; top:34px;">15 min</span>
+      <span class="blabel" data-b="1" style="left:50%; transform:translateX(-50%); top:-6px;">1 hr</span>
+      <span class="blabel" data-b="2" style="right:18px; top:34px;">24 hr</span>
+    </div>
+    <div class="hint">Refresh window · drag the lever</div>
+  </div>
+
+  <div class="section-label">Press feedback — 3 styles</div>
+  <div class="btn-row">
+    <div class="btn-cell"><div class="pressbtn b1" id="b1">ACK</div><div class="btn-cap">scale + brighten</div></div>
+    <div class="btn-cell"><div class="pressbtn b2" id="b2">RETRY</div><div class="btn-cap">recessed well</div></div>
+    <div class="btn-cell"><div class="pressbtn b3" id="b3">MUTE</div><div class="btn-cap">edge light</div></div>
+  </div>
+
+  <div class="section-label">Status chips</div>
+  <div class="well chips-row">
+    <span class="chip ok">VERIFIED</span>
+    <span class="chip live">LIVE</span>
+    <span class="chip behind">OVERDUE</span>
+    <span class="chip broken">FAULT</span>
+    <span class="chip idle">OFFLINE</span>
+    <span class="chip idle quiet">OK</span>
+  </div>
+
+  <div class="section-label">Toggle with travel</div>
+  <div class="well toggle-row">
+    <div class="toggle-id">
+      <div class="tn">Kiosk wall mode</div>
+      <div class="td">Locks this display to the OR board</div>
+    </div>
+    <div class="toggle" id="kiosk"><div class="arm"></div><div class="thumb" id="thumb"></div></div>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+
+  function makeRotary(opts) {
+    const detents = opts.detents;
+    let index = opts.index;
+    let angle = detents[index];
+    let anim = null;
+    let dragging = false;
+    let lastNearest = index;
+
+    function nearest(a) {
+      let best = 0, bd = 1e9;
+      detents.forEach((d, i) => { const dd = Math.abs(d - a); if (dd < bd) { bd = dd; best = i; } });
+      return best;
+    }
+    function render(a) {
+      angle = a;
+      opts.render(a, index);
+      const n = nearest(a);
+      if (n !== lastNearest) { lab.tick(opts.pitch); lastNearest = n; }
+    }
+    function settle(i, withSpring) {
+      index = i;
+      opts.onIndex(i);
+      if (anim) anim.cancel();
+      if (withSpring === false) { render(detents[i]); opts.render(detents[i], i); return; }
+      anim = lab.spring({ from: angle, to: detents[i], response: 0.32, damping: 0.55, onUpdate: (v) => render(v) });
+    }
+
+    const elx = opts.el;
+    elx.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      if (anim) anim.cancel();
+      elx.setPointerCapture(e.pointerId);
+    });
+    elx.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const r = elx.getBoundingClientRect();
+      const px = r.left + r.width / 2;
+      const py = r.top + (opts.pivotYpx ?? r.height / 2);
+      const dx = e.clientX - px;
+      const dy = e.clientY - py;
+      const deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+      render(lab.clamp(deg, opts.min, opts.max));
+    });
+    function up() {
+      if (!dragging) return;
+      dragging = false;
+      settle(nearest(angle));
+    }
+    elx.addEventListener('pointerup', up);
+    elx.addEventListener('pointercancel', up);
+
+    return {
+      set(i, transientDeg) {
+        if (anim) anim.cancel();
+        if (typeof transientDeg === 'number') { index = i; opts.onIndex(i); render(transientDeg); opts.render(transientDeg, i); }
+        else { index = i; opts.onIndex(i); render(detents[i]); opts.render(detents[i], i); }
+      },
+      go(i) { lab.tick(opts.pitch); settle(i); },
+    };
+  }
+
+  const spinA = document.getElementById('spinA');
+  const dialAEl = document.getElementById('dialA');
+  const aLabels = Array.from(document.querySelectorAll('.dlabel'));
+  const rotaryA = makeRotary({
+    el: dialAEl,
+    detents: [-60, 0, 60],
+    index: 1,
+    min: -76, max: 76,
+    pitch: 2300,
+    render: (a) => { spinA.style.transform = `rotate(${a}deg)`; },
+    onIndex: (i) => aLabels.forEach((l, j) => l.classList.toggle('active', i === j)),
+  });
+  aLabels.forEach((l) => l.addEventListener('click', (e) => { e.stopPropagation(); rotaryA.go(Number(l.dataset.a)); }));
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svgB = document.getElementById('svgB');
+  const bcx = 150, bcy = 168, brr = 128;
+  function polar(r, deg) { const a = (deg - 90) * Math.PI / 180; return [bcx + r * Math.cos(a), bcy + r * Math.sin(a)]; }
+  function eln(n, at, p) { const x = document.createElementNS(NS, n); for (const k in at) x.setAttribute(k, at[k]); p.appendChild(x); return x; }
+  const [ax0, ay0] = polar(brr, -55);
+  const [ax1, ay1] = polar(brr, 55);
+  eln('path', { d: `M ${ax0} ${ay0} A ${brr} ${brr} 0 0 1 ${ax1} ${ay1}`, fill: 'none', stroke: '#15151A', 'stroke-width': 13, 'stroke-linecap': 'round' }, svgB);
+  for (let i = 0; i <= 22; i++) {
+    const deg = -55 + (110 * i) / 22;
+    const major = i === 0 || i === 11 || i === 22;
+    const [x0p, y0p] = polar(brr + 12, deg);
+    const [x1p, y1p] = polar(brr + (major ? 24 : 19), deg);
+    eln('line', { x1: x0p, y1: y0p, x2: x1p, y2: y1p, stroke: `rgba(255,255,255,${major ? 0.5 : 0.16})`, 'stroke-width': major ? 1.7 : 1 }, svgB);
+  }
+  const lever = eln('g', {}, svgB);
+  eln('polygon', { points: `${bcx - 2.4},${bcy - 20} ${bcx + 2.4},${bcy - 20} ${bcx + 0.8},${bcy - 122} ${bcx - 0.8},${bcy - 122}`, fill: '#FF5F15' }, lever);
+  eln('circle', { cx: bcx, cy: bcy, r: 26, fill: '#101014', stroke: 'rgba(255,255,255,0.1)', 'stroke-width': 1 }, lever);
+  eln('circle', { cx: bcx, cy: bcy, r: 26, fill: 'none', stroke: 'rgba(0,0,0,0.7)', 'stroke-width': 5, opacity: 0.5 }, lever);
+  eln('circle', { cx: bcx, cy: bcy, r: 3, fill: 'rgba(255,255,255,0.25)' }, lever);
+
+  const dialBEl = document.getElementById('dialB');
+  const bLabels = Array.from(document.querySelectorAll('.blabel'));
+  const rotaryB = makeRotary({
+    el: dialBEl,
+    detents: [-55, 0, 55],
+    index: 0,
+    min: -64, max: 64,
+    pitch: 1700,
+    pivotYpx: 168,
+    render: (a) => { lever.setAttribute('transform', `rotate(${a} ${bcx} ${bcy})`); },
+    onIndex: (i) => bLabels.forEach((l, j) => l.classList.toggle('active', i === j)),
+  });
+  rotaryB.set(0);
+  bLabels.forEach((l) => l.addEventListener('click', (e) => { e.stopPropagation(); rotaryB.go(Number(l.dataset.b)); }));
+
+  ['b1', 'b2', 'b3'].forEach((id) => {
+    const b = document.getElementById(id);
+    b.addEventListener('pointerdown', () => { b.classList.add('pressed'); lab.tick(2800); });
+    b.addEventListener('pointerup', () => b.classList.remove('pressed'));
+    b.addEventListener('pointerleave', () => b.classList.remove('pressed'));
+  });
+
+  const kiosk = document.getElementById('kiosk');
+  const thumb = document.getElementById('thumb');
+  let on = false;
+  let tAnim = null;
+  function setToggle(v, instant) {
+    on = v;
+    kiosk.classList.toggle('on', on);
+    const target = on ? 30 : 0;
+    if (tAnim) tAnim.cancel();
+    if (instant) { thumb.style.transform = `translateX(${target}px)`; return; }
+    const fromM = thumb.style.transform.match(/([-\d.]+)px/);
+    const from = fromM ? Number(fromM[1]) : (on ? 0 : 30);
+    tAnim = lab.spring({ from, to: target, response: 0.34, damping: 0.6, onUpdate: (v2) => { thumb.style.transform = `translateX(${v2}px)`; } });
+    lab.tick(on ? 2100 : 1500);
+  }
+  kiosk.addEventListener('click', () => setToggle(!on));
+
+  lab.api.setDialA = (i, t) => rotaryA.set(i, t);
+  lab.api.setDialB = (i, t) => rotaryB.set(i, t);
+  lab.api.press = (id, v) => document.getElementById(id).classList.toggle('pressed', v);
+  lab.api.setToggle = (v) => setToggle(v, true);
+})();
+</script>
+</body>
+</html>

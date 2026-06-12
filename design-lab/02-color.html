@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Lab — 02 Color roles</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .states { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; align-items: start; }
+  .state-head { min-height: 76px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .state-name { font-size: 14px; font-weight: 560; letter-spacing: 0.04em; }
+  .state-name .ix { font-family: var(--font-num); font-size: 11px; color: var(--live); margin-right: 8px; }
+
+  .screen { display: flex; flex-direction: column; }
+  .topline { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 13px; border-bottom: 1px solid var(--hairline); }
+  .topline .brand { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-low); }
+  .topline .clock { font-family: var(--font-num); font-size: 12px; color: var(--ink-mid); }
+
+  .hero { padding: 22px 0 4px; }
+  .hero .big { font-family: var(--font-num); font-weight: 200; font-size: 96px; line-height: 0.95; font-feature-settings: 'tnum' 1; }
+  .hero .label { margin-top: 10px; font-size: 10.5px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-mid); }
+  .hero .stamp { margin-top: 5px; font-size: 11px; color: var(--ink-low); }
+  .hero .delta { margin-top: 8px; font-family: var(--font-num); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; }
+  .delta.behind { color: var(--behind); }
+  .delta.broken { color: var(--broken); }
+
+  .micro { margin-top: 14px; padding: 8px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+    font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: flex; gap: 8px; }
+
+  .row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
+  .row .name { font-size: 13px; font-weight: 480; }
+  .row .ws { display: block; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .row .age { font-family: var(--font-num); font-size: 11px; color: var(--ink-mid); }
+  .row .age.behind { color: var(--behind); }
+  .row .age.broken { color: var(--broken); }
+
+  .modes { display: flex; gap: 8px; margin-top: 16px; }
+  .mode { flex: 1; text-align: center; padding: 9px 0 7px; border: 1px solid var(--hairline); border-radius: 9px;
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); position: relative; }
+  .mode.active { color: var(--live); border-color: rgba(255, 95, 21, 0.5); }
+  .mode.active::after { content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 3px; width: 14px; height: 2px; border-radius: 1px; background: var(--live); }
+
+  .roles { margin-top: 12px; display: grid; grid-template-columns: 3fr 2fr; gap: 28px; align-items: start; }
+  .role-table { padding: 8px 22px; }
+  .role-row { display: grid; grid-template-columns: 64px 200px 1fr; gap: 18px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--hairline); }
+  .role-row:last-child { border-bottom: none; }
+  .swatch { height: 44px; border-radius: 9px; border: 1px solid var(--hairline-strong); box-shadow: var(--edge-top); }
+  .role-id .nm { font-size: 13px; font-weight: 560; }
+  .role-id .hx { font-family: var(--font-num); font-size: 10.5px; color: var(--ink-low); letter-spacing: 0.1em; margin-top: 3px; }
+  .role-rule { font-size: 11px; color: var(--ink-mid); line-height: 1.55; }
+  .role-rule b { color: var(--ink-hi); font-weight: 560; }
+
+  .ink-table { padding: 8px 22px; }
+  .ink-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+  .ink-row:last-child { border-bottom: none; }
+  .ink-dot { height: 30px; border-radius: 7px; border: 1px solid var(--hairline-strong); }
+  .ink-nm { font-size: 12px; color: var(--ink-mid); }
+  .ink-hx { font-family: var(--font-num); font-size: 10px; color: var(--ink-low); letter-spacing: 0.1em; }
+
+  .ack-demo { display: inline-flex; align-items: center; gap: 10px; margin-top: 4px; }
+  .ack { display: inline-flex; align-items: center; height: 30px; padding: 0 16px; border-radius: 8px;
+    background: var(--live); color: var(--live-ink); font-size: 10px; font-weight: 650; letter-spacing: 0.18em; text-transform: uppercase;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN LAB</div>
+      <div class="lab-title">02 — Color arriving is the information</div>
+      <div class="lab-sub">Role-locked palette. At rest the screen is monochrome with exactly one lit element. Amber and red are not styling — they are events. When a color appears, something changed.</div>
+    </div>
+    <div class="lab-meta">OPTION B · SCARCE · ROLE-LOCKED</div>
+  </header>
+
+  <div class="states">
+    <section>
+      <div class="state-head">
+        <div class="state-name"><span class="ix">S1</span>ALL HEALTHY</div>
+        <div class="caption">Nothing is colored because nothing needs you. The single lit element is the active mode selector.</div>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+          <div class="hero">
+            <div class="big">23</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated 4 min ago</div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 14:45</span></div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">6m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">12m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">9m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age">3m</span><span class="chip idle quiet">OK</span></div>
+          <div class="modes"><span class="mode">Wall</span><span class="mode active">Ops</span><span class="mode">Audit</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="state-head">
+        <div class="state-name"><span class="ix">S2</span>ONE BEHIND</div>
+        <div class="caption">Census missed its window. One amber chip arrives; the count annotates itself. Everything else stays dark.</div>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">15:13</span></div>
+          <div class="hero">
+            <div class="big">22</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated 1 min ago</div>
+            <div class="delta behind">1 behind schedule</div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 15:15</span></div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">2m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">8m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age behind">41m</span><span class="chip behind">OVERDUE</span></div>
+          <div class="row"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age">5m</span><span class="chip idle quiet">OK</span></div>
+          <div class="modes"><span class="mode">Wall</span><span class="mode active">Ops</span><span class="mode">Audit</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="state-head">
+        <div class="state-name"><span class="ix">S3</span>ONE BROKEN</div>
+        <div class="caption">A refresh failed. Red exists only here — the broken thing — so the eye lands on it before reading a word.</div>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">15:42</span></div>
+          <div class="hero">
+            <div class="big">21</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated just now</div>
+            <div class="delta broken">1 failed · 1 behind</div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 15:45</span></div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">1m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">4m</span><span class="chip idle quiet">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age behind">70m</span><span class="chip behind">OVERDUE</span></div>
+          <div class="row"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age broken">15:07</span><span class="chip broken">FAILED</span></div>
+          <div class="modes"><span class="mode">Wall</span><span class="mode active">Ops</span><span class="mode">Audit</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="section-label">Role table</div>
+  <div class="roles">
+    <div class="well role-table">
+      <div class="role-row">
+        <div class="swatch" style="background:#FF5F15"></div>
+        <div class="role-id"><div class="nm">Safety Orange</div><div class="hx">#FF5F15</div></div>
+        <div class="role-rule"><b>LIVE / ARMED / ATTENTION only.</b> Sweep needles, the active selection, an armed control. Never decoration. On fills, pair with dark ink — white on this orange fails AA.
+          <div class="ack-demo"><span class="ack">Acknowledge</span><span class="chip live">LIVE</span></div>
+        </div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #3DD68C"></div>
+        <div class="role-id"><div class="nm">Signal Green</div><div class="hx">#3DD68C</div></div>
+        <div class="role-rule"><b>VERIFIED HEALTHY.</b> Tiny outlined chips only — the moment after a verification pass confirms data landed. Never fills, never large areas. <span class="chip ok" style="margin-left:8px">VERIFIED</span></div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #FFB02E"></div>
+        <div class="role-id"><div class="nm">Amber</div><div class="hx">#FFB02E</div></div>
+        <div class="role-rule"><b>BEHIND / OVERDUE.</b> A refresh missed its window but nothing is broken yet. Chips and the affected numeral only. <span class="chip behind" style="margin-left:8px">OVERDUE</span></div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #FF453A"></div>
+        <div class="role-id"><div class="nm">Signal Red</div><div class="hx">#FF453A</div></div>
+        <div class="role-rule"><b>BROKEN only.</b> Failed refresh, dead gateway, expired credential. If red is on screen, someone has a job to do. <span class="chip broken" style="margin-left:8px">FAILED</span></div>
+      </div>
+    </div>
+
+    <div class="well ink-table">
+      <div class="ink-row"><div class="ink-dot" style="background:#F2F3F5"></div><div class="ink-nm">Backlit white — primary figures</div><div class="ink-hx">#F2F3F5</div></div>
+      <div class="ink-row"><div class="ink-dot" style="background:#A9ACB6"></div><div class="ink-nm">Silver — secondary values</div><div class="ink-hx">#A9ACB6</div></div>
+      <div class="ink-row"><div class="ink-dot" style="background:#62656E"></div><div class="ink-nm">Low ink — labels, engraving</div><div class="ink-hx">#62656E</div></div>
+      <div class="ink-row"><div class="ink-dot" style="background:#3A3C44"></div><div class="ink-nm">Faint — micro-metadata</div><div class="ink-hx">#3A3C44</div></div>
+      <div class="ink-row"><div class="ink-dot" style="background:#15151A"></div><div class="ink-nm">Recessed well, upper</div><div class="ink-hx">#15151A</div></div>
+      <div class="ink-row"><div class="ink-dot" style="background:#0B0B0D"></div><div class="ink-nm">Recessed well, lower</div><div class="ink-hx">#0B0B0D</div></div>
+      <div class="ink-row"><div class="ink-dot" style="background:#000000"></div><div class="ink-nm">Canvas — true black</div><div class="ink-hx">#000000</div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

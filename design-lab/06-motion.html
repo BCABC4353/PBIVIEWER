@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Lab — 06 Motion</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .pcard { padding: 18px 18px 16px; cursor: pointer; user-select: none; }
+  .pname { font-size: 13px; font-weight: 580; letter-spacing: 0.03em; }
+  .pname .ix { font-family: var(--font-num); font-size: 10px; color: var(--live); margin-right: 7px; }
+  .pparams { font-family: var(--font-num); font-size: 10px; color: var(--ink-low); letter-spacing: 0.1em; margin-top: 4px; }
+  .track { position: relative; height: 72px; margin-top: 14px; border-radius: 12px; background: var(--bg);
+    border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); overflow: hidden; }
+  .track::before, .track::after { content: ''; position: absolute; top: 12px; bottom: 12px; width: 1px; background: var(--hairline); }
+  .track::before { left: 14px; } .track::after { right: 14px; }
+  .puck {
+    position: absolute; top: 50%; left: 10px; margin-top: -21px; width: 42px; height: 42px; border-radius: 11px;
+    background: var(--well-2); border: 1px solid var(--hairline-strong); box-shadow: var(--edge-top);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-num); font-size: 15px; font-weight: 300; color: var(--ink-hi);
+    will-change: transform;
+  }
+  .puck::after { content: ''; position: absolute; bottom: 5px; width: 10px; height: 2px; border-radius: 1px; background: var(--live); }
+  .phint { margin-top: 10px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .stagger-zone { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
+  .slist { padding: 6px 20px; }
+  .srow { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--hairline); will-change: transform, opacity; }
+  .srow:last-child { border-bottom: none; }
+  .srow .name { font-size: 13px; font-weight: 480; }
+  .srow .ws { display: block; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .srow .age { font-family: var(--font-num); font-size: 11px; color: var(--ink-mid); }
+  .stagger-side { padding: 18px 20px; }
+  .stagger-side .pname { margin-bottom: 4px; }
+  .replay { cursor: pointer; user-select: none; margin-top: 14px; display: inline-flex; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN LAB</div>
+      <div class="lab-title">06 — Motion</div>
+      <div class="lab-sub">Four spring presets, one move. Tap a card to replay its translate-and-settle. Pick the one that feels like a machined detent, not a cartoon.</div>
+    </div>
+    <div class="lab-meta">DAMPED SPRINGS · NO BEZIER FAKES</div>
+  </header>
+
+  <div class="section-label">Spring presets — tap to replay</div>
+  <div class="presets">
+    <div class="well pcard" data-r="0.15" data-d="0.90">
+      <div class="pname"><span class="ix">P1</span>SNAPPY</div>
+      <div class="pparams">response 0.15 s · damping 0.90</div>
+      <div class="track"><div class="puck">23</div></div>
+      <div class="phint">selection moves · chips</div>
+    </div>
+    <div class="well pcard" data-r="0.30" data-d="0.85">
+      <div class="pname"><span class="ix">P2</span>STANDARD</div>
+      <div class="pparams">response 0.30 s · damping 0.85</div>
+      <div class="track"><div class="puck">23</div></div>
+      <div class="phint">cards · sheets · rows</div>
+    </div>
+    <div class="well pcard" data-r="0.45" data-d="0.80">
+      <div class="pname"><span class="ix">P3</span>WEIGHTY</div>
+      <div class="pparams">response 0.45 s · damping 0.80</div>
+      <div class="track"><div class="puck">23</div></div>
+      <div class="phint">dials · needles · mode swaps</div>
+    </div>
+    <div class="well pcard" data-r="0.60" data-d="0.90">
+      <div class="pname"><span class="ix">P4</span>GLIDE</div>
+      <div class="pparams">response 0.60 s · damping 0.90</div>
+      <div class="track"><div class="puck">23</div></div>
+      <div class="phint">kiosk wall transitions</div>
+    </div>
+  </div>
+
+  <div class="section-label">Stagger entrance — list arrival</div>
+  <div class="stagger-zone">
+    <div class="well slist" id="slist">
+      <div class="srow"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">6m</span><span class="chip idle quiet">OK</span></div>
+      <div class="srow"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">12m</span><span class="chip idle quiet">OK</span></div>
+      <div class="srow"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">9m</span><span class="chip idle quiet">OK</span></div>
+      <div class="srow"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age">3m</span><span class="chip idle quiet">OK</span></div>
+      <div class="srow"><div><span class="name">Payroll — CORE</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">7m</span><span class="chip idle quiet">OK</span></div>
+      <div class="srow"><div><span class="name">Bed Occupancy — EAST</span><span class="ws">WS / OPS-PROD</span></div><span class="age">2m</span><span class="chip idle quiet">OK</span></div>
+    </div>
+    <div class="well stagger-side">
+      <div class="pname">LIST ARRIVAL</div>
+      <div class="pparams">standard spring · 55 ms stagger<br>y +14 px → 0 · fade in</div>
+      <span class="chip live replay" id="replayStagger">REPLAY ENTRANCE</span>
+    </div>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+
+  document.querySelectorAll('.pcard').forEach((card) => {
+    const puck = card.querySelector('.puck');
+    const track = card.querySelector('.track');
+    let atEnd = false;
+    let anim = null;
+    function run() {
+      const span = track.clientWidth - puck.offsetWidth - 20;
+      const from = atEnd ? span : 0;
+      const to = atEnd ? 0 : span;
+      atEnd = !atEnd;
+      if (anim) anim.cancel();
+      anim = lab.spring({
+        from, to,
+        response: Number(card.dataset.r),
+        damping: Number(card.dataset.d),
+        onUpdate: (v) => { puck.style.transform = `translateX(${v}px)`; },
+      });
+    }
+    card.addEventListener('click', run);
+    setTimeout(run, 500 + Math.random() * 80);
+  });
+
+  const rows = Array.from(document.querySelectorAll('#slist .srow'));
+  const anims = [];
+  function entrance() {
+    anims.forEach((a) => a.cancel());
+    anims.length = 0;
+    rows.forEach((row, i) => {
+      row.style.opacity = '0';
+      row.style.transform = 'translateY(14px)';
+      setTimeout(() => {
+        anims.push(lab.spring({
+          from: 14, to: 0, response: 0.38, damping: 0.8,
+          onUpdate: (v, p) => {
+            row.style.transform = `translateY(${v}px)`;
+            row.style.opacity = String(lab.clamp(p * 1.4, 0, 1));
+          },
+          onSettle: () => { row.style.opacity = '1'; },
+        }));
+      }, i * 55);
+    });
+  }
+  document.getElementById('replayStagger').addEventListener('click', entrance);
+  setTimeout(entrance, 700);
+
+  lab.api.replayStagger = entrance;
+})();
+</script>
+</body>
+</html>

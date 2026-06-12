@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Lab — 01 Type</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .stack-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+    min-height: 86px;
+  }
+  .stack-name { font-size: 15px; font-weight: 560; letter-spacing: 0.02em; }
+  .stack-name .ix { color: var(--live); font-family: var(--font-num); font-size: 12px; margin-right: 8px; }
+  .stack-src { font-size: 10.5px; color: var(--ink-low); line-height: 1.5; }
+  .stack-src em { color: var(--ink-mid); font-style: normal; }
+
+  .screen { display: flex; flex-direction: column; gap: 0; width: 100%; }
+  .topline {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: 14px; border-bottom: 1px solid var(--hairline);
+  }
+  .topline .brand { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-low); }
+  .topline .clock { font-size: 12px; color: var(--ink-mid); letter-spacing: 0.08em; }
+
+  .hero { padding: 26px 0 6px; }
+  .hero .big { font-size: 124px; line-height: 0.92; color: var(--ink-hi); letter-spacing: -0.01em; }
+  .hero .label { margin-top: 12px; font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-mid); }
+  .hero .stamp { margin-top: 6px; font-size: 11px; color: var(--ink-low); letter-spacing: 0.06em; }
+
+  .micro {
+    margin-top: 16px; padding: 9px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .micro b { font-weight: 500; color: var(--ink-low); }
+
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--hairline);
+  }
+  .row .name { font-size: 13px; font-weight: 480; color: var(--ink-hi); }
+  .row .ws { display: block; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .row .age { font-size: 12px; color: var(--ink-mid); letter-spacing: 0.04em; }
+
+  .ramp { margin-top: 18px; padding: 18px; }
+  .ramp-line { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--hairline); padding: 8px 0; overflow: hidden; }
+  .ramp-line:last-child { border-bottom: none; }
+  .ramp-size { width: 44px; flex: none; font-family: var(--font-num); font-size: 9px; color: var(--ink-faint); letter-spacing: 0.1em; }
+  .ramp-glyphs { white-space: nowrap; color: var(--ink-hi); }
+
+  .tabular { margin-top: 14px; padding: 16px 18px; }
+  .tabular .t-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; }
+  .tab-rows { display: flex; flex-direction: column; gap: 2px; }
+  .tab-row { display: flex; justify-content: space-between; font-size: 15px; color: var(--ink-mid); }
+  .tab-row .k { font-size: 11px; color: var(--ink-low); align-self: center; letter-spacing: 0.08em; }
+
+  .s-a .num, .s-a .hero .big, .s-a .ramp-glyphs, .s-a .tab-row .v, .s-a .topline .clock, .s-a .row .age {
+    font-family: var(--font-num); font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums;
+  }
+  .s-a { font-family: var(--font-ui); }
+  .s-a .hero .big { font-weight: 200; }
+  .s-a .ramp-glyphs { font-weight: 200; }
+
+  .s-b, .s-b .num, .s-b .hero .big, .s-b .ramp-glyphs, .s-b .tab-row .v, .s-b .topline .clock, .s-b .row .age {
+    font-family: 'D-DIN PRO', sans-serif; font-variant-numeric: tabular-nums;
+  }
+  .s-b .hero .big { font-weight: 400; }
+  .s-b .ramp-glyphs { font-weight: 400; }
+  .s-b .hero .label, .s-b .topline .brand, .s-b .micro, .s-b .row .ws { font-weight: 500; }
+
+  .s-c { font-family: 'IBM Plex Sans', sans-serif; }
+  .s-c .num, .s-c .hero .big, .s-c .ramp-glyphs, .s-c .tab-row .v, .s-c .topline .clock, .s-c .row .age {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .s-c .hero .big { font-weight: 100; }
+  .s-c .ramp-glyphs { font-weight: 200; }
+
+  .panel { padding: 24px 22px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN LAB</div>
+      <div class="lab-title">01 — Type specimens</div>
+      <div class="lab-sub">The same fleet screen set in three candidate stacks. Hero numerals are the instrument; labels are the engraving. Judge the numerals first.</div>
+    </div>
+    <div class="lab-meta">TRUE BLACK #000 · BACKLIT INK · 3 STACKS</div>
+  </header>
+
+  <div class="grid">
+    <section class="s-a">
+      <div class="stack-head">
+        <div class="stack-name"><span class="ix">A</span>SYSTEM — Inter + JetBrains Mono</div>
+        <div class="stack-src">Labels: <em>Inter Variable</em> (genuine, @fontsource-variable/inter). Numerals: <em>JetBrains Mono Variable</em> (genuine, @fontsource-variable/jetbrains-mono), tabular. Neutral, OS-native feel.</div>
+      </div>
+      <div class="well panel">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+          <div class="hero">
+            <div class="big num">23</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated <span class="num">4</span> min ago</div>
+          </div>
+          <div class="micro"><b>GATEWAY OK</b><span>·</span><b>SSO ACTIVE</b><span>·</span><b>NEXT SWEEP <span class="num">14:45</span></b></div>
+          <div class="rows">
+            <div class="row">
+              <div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div>
+              <div class="age num">6m ago</div>
+              <span class="chip ok">OK</span>
+            </div>
+            <div class="row">
+              <div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div>
+              <div class="age num">12m ago</div>
+              <span class="chip ok">OK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="well-deep ramp">
+        <div class="ramp-line"><span class="ramp-size">96</span><span class="ramp-glyphs" style="font-size:96px">0123</span></div>
+        <div class="ramp-line"><span class="ramp-size">56</span><span class="ramp-glyphs" style="font-size:56px">0123456789</span></div>
+        <div class="ramp-line"><span class="ramp-size">28</span><span class="ramp-glyphs" style="font-size:28px">06:12 · 99.2% · 14:45</span></div>
+        <div class="ramp-line"><span class="ramp-size">14</span><span class="ramp-glyphs" style="font-size:14px; font-weight:400">0123456789 06:12 99.2%</span></div>
+      </div>
+      <div class="well-deep tabular">
+        <div class="t-label">Tabular alignment</div>
+        <div class="tab-rows">
+          <div class="tab-row"><span class="k">SWEEP 1</span><span class="v num">14:45:09</span></div>
+          <div class="tab-row"><span class="k">SWEEP 2</span><span class="v num">09:07:41</span></div>
+          <div class="tab-row"><span class="k">SWEEP 3</span><span class="v num">23:58:00</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="s-b">
+      <div class="stack-head">
+        <div class="stack-name"><span class="ix">B</span>ENGINEERING — D-DIN PRO</div>
+        <div class="stack-src">Everything: <em>D-DIN PRO</em> — genuine D-DIN (Datto, SIL OFL) via npm @sarap422/font-d-din. No thin cut exists; hero set in Regular 400. The instrument-cluster typeface itself.</div>
+      </div>
+      <div class="well panel">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+          <div class="hero">
+            <div class="big num">23</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated <span class="num">4</span> min ago</div>
+          </div>
+          <div class="micro"><b>GATEWAY OK</b><span>·</span><b>SSO ACTIVE</b><span>·</span><b>NEXT SWEEP <span class="num">14:45</span></b></div>
+          <div class="rows">
+            <div class="row">
+              <div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div>
+              <div class="age num">6m ago</div>
+              <span class="chip ok">OK</span>
+            </div>
+            <div class="row">
+              <div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div>
+              <div class="age num">12m ago</div>
+              <span class="chip ok">OK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="well-deep ramp">
+        <div class="ramp-line"><span class="ramp-size">96</span><span class="ramp-glyphs" style="font-size:96px">0123</span></div>
+        <div class="ramp-line"><span class="ramp-size">56</span><span class="ramp-glyphs" style="font-size:56px">0123456789</span></div>
+        <div class="ramp-line"><span class="ramp-size">28</span><span class="ramp-glyphs" style="font-size:28px">06:12 · 99.2% · 14:45</span></div>
+        <div class="ramp-line"><span class="ramp-size">14</span><span class="ramp-glyphs" style="font-size:14px">0123456789 06:12 99.2%</span></div>
+      </div>
+      <div class="well-deep tabular">
+        <div class="t-label">Tabular alignment</div>
+        <div class="tab-rows">
+          <div class="tab-row"><span class="k">SWEEP 1</span><span class="v num">14:45:09</span></div>
+          <div class="tab-row"><span class="k">SWEEP 2</span><span class="v num">09:07:41</span></div>
+          <div class="tab-row"><span class="k">SWEEP 3</span><span class="v num">23:58:00</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="s-c">
+      <div class="stack-head">
+        <div class="stack-name"><span class="ix">C</span>PLEX — IBM Plex Sans + Plex Mono</div>
+        <div class="stack-src">Labels: <em>IBM Plex Sans</em> (genuine, @fontsource/ibm-plex-sans). Numerals: <em>IBM Plex Mono</em> (genuine, @fontsource/ibm-plex-mono), Thin 100 hero. Technical, terminal-adjacent warmth.</div>
+      </div>
+      <div class="well panel">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+          <div class="hero">
+            <div class="big num">23</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated <span class="num">4</span> min ago</div>
+          </div>
+          <div class="micro"><b>GATEWAY OK</b><span>·</span><b>SSO ACTIVE</b><span>·</span><b>NEXT SWEEP <span class="num">14:45</span></b></div>
+          <div class="rows">
+            <div class="row">
+              <div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div>
+              <div class="age num">6m ago</div>
+              <span class="chip ok">OK</span>
+            </div>
+            <div class="row">
+              <div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div>
+              <div class="age num">12m ago</div>
+              <span class="chip ok">OK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="well-deep ramp">
+        <div class="ramp-line"><span class="ramp-size">96</span><span class="ramp-glyphs" style="font-size:96px">0123</span></div>
+        <div class="ramp-line"><span class="ramp-size">56</span><span class="ramp-glyphs" style="font-size:56px">0123456789</span></div>
+        <div class="ramp-line"><span class="ramp-size">28</span><span class="ramp-glyphs" style="font-size:28px">06:12 · 99.2% · 14:45</span></div>
+        <div class="ramp-line"><span class="ramp-size">14</span><span class="ramp-glyphs" style="font-size:14px; font-weight:400">0123456789 06:12 99.2%</span></div>
+      </div>
+      <div class="well-deep tabular">
+        <div class="t-label">Tabular alignment</div>
+        <div class="tab-rows">
+          <div class="tab-row"><span class="k">SWEEP 1</span><span class="v num">14:45:09</span></div>
+          <div class="tab-row"><span class="k">SWEEP 2</span><span class="v num">09:07:41</span></div>
+          <div class="tab-row"><span class="k">SWEEP 3</span><span class="v num">23:58:00</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>
