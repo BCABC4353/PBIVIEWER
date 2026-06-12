@@ -118,6 +118,13 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
 - S4-real: capture the REAL Insights tile morph in the harness; verify A-1..A-6 on the real integration.
 - F-int: antagonize the integration — focus/a11y, reduced-motion, NO global pointer interceptor, the 46
   tests truly green for the right reasons, S5's extraction is behavior-preserving, reusability holds.
+- F-int VERDICT: OVERALL PASS. Test files byte-identical (git diff empty) -> 46 green are trustworthy.
+  CSS-rule survival: no rule lost (only deliberate VT deletions + 1 dead-duplicate .luce-tile--active).
+  Focus/a11y, A-5, A-7, same-node, reusability all PROVEN. Own gate: tsc x2+lint clean, 728/728.
+  2 MINOR non-regressions: (a) settled={true} correctly retires a VT-snapshot hack (visual end identical);
+  (b) PRE-EXISTING: primitive imports spring-physics + prefersReducedMotion from components/insights/,
+  not lib/morph/ -> "portable with only spring file" not literally true today. Identical pre-S5, so not
+  an S5 defect. -> REPORT as known limitation + owner QUESTION; do NOT restructure shared files now.
 
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
