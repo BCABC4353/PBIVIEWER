@@ -43,3 +43,4 @@ src/auth/azure-config.local.json
 # generated native folders
 /ios
 /android
+night-out/

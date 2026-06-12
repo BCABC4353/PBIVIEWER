@@ -22,8 +22,12 @@
     "react-native-worklets": "0.8.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "typescript": "~6.0.3",
+    "typescript-eslint": "^8.61.0",
     "vitest": "^4.1.8"
   },
   "scripts": {
@@ -33,6 +37,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "private": true
