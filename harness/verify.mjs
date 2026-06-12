@@ -73,6 +73,25 @@ function monotonicCheck(rects, axis, direction, expectMotion) {
   return { pass, detail: `axis=${axis} first=${first.toFixed(1)} last=${last.toFixed(1)} direction=${direction} overshoot_violations=${violations}` };
 }
 
+function originAtZero(frames) {
+  const pts = frames.filter((f) => f.rect && typeof f.progress === 'number');
+  if (pts.length < 2) return null;
+  let a = pts[0];
+  let b = pts[0];
+  for (const p of pts) {
+    if (p.progress < a.progress) a = p;
+    if (p.progress > b.progress) b = p;
+  }
+  if (Math.abs(b.progress - a.progress) < 0.05) return null;
+  const ex = (va, vb) => va - ((vb - va) / (b.progress - a.progress)) * a.progress;
+  return {
+    x: ex(a.rect.x, b.rect.x),
+    y: ex(a.rect.y, b.rect.y),
+    width: ex(a.rect.width, b.rect.width),
+    height: ex(a.rect.height, b.rect.height),
+  };
+}
+
 function checkA1(openFrames, closeFrames) {
   const openRects = openFrames.map((f) => f.rect).filter(Boolean);
   const closeRects = closeFrames.map((f) => f.rect).filter(Boolean);
@@ -90,13 +109,25 @@ function checkA1(openFrames, closeFrames) {
       const c = monotonicCheck(closeRects, ax, dir, true);
       assert('A-1', lbl, c.pass, c.detail);
     }
-    const closingRects = closeFrames.filter((f) => f.phase === 'closing' && f.rect).map((f) => f.rect);
-    const compareRect = closingRects.length > 0 ? closingRects[closingRects.length - 1] : closeRects[closeRects.length - 1];
-    const firstOpen = openRects[0];
-    const ORIGIN_TOL = 12;
-    const ok = Math.abs(compareRect.x - firstOpen.x) <= ORIGIN_TOL && Math.abs(compareRect.y - firstOpen.y) <= ORIGIN_TOL;
-    assert('A-1', `${PREFIX}-close-returns-origin`, ok,
-      `lastClosingRect={x:${compareRect.x.toFixed(1)},y:${compareRect.y.toFixed(1)}} vs firstOpen={x:${firstOpen.x.toFixed(1)},y:${firstOpen.y.toFixed(1)}} tol=${ORIGIN_TOL}px`);
+    const ORIGIN_TOL = 1;
+    const closeOrigin = originAtZero(closeFrames);
+    const openOrigin = originAtZero(openFrames);
+    if (closeOrigin && openOrigin) {
+      const dx = Math.abs(closeOrigin.x - openOrigin.x);
+      const dy = Math.abs(closeOrigin.y - openOrigin.y);
+      const dw = Math.abs(closeOrigin.width - openOrigin.width);
+      const dh = Math.abs(closeOrigin.height - openOrigin.height);
+      const ok = dx <= ORIGIN_TOL && dy <= ORIGIN_TOL && dw <= ORIGIN_TOL && dh <= ORIGIN_TOL;
+      assert('A-1', `${PREFIX}-close-returns-origin`, ok,
+        `progress=0 extrapolation: close={x:${closeOrigin.x.toFixed(2)},y:${closeOrigin.y.toFixed(2)},w:${closeOrigin.width.toFixed(2)},h:${closeOrigin.height.toFixed(2)}} vs open={x:${openOrigin.x.toFixed(2)},y:${openOrigin.y.toFixed(2)},w:${openOrigin.width.toFixed(2)},h:${openOrigin.height.toFixed(2)}} d=(${dx.toFixed(2)},${dy.toFixed(2)},${dw.toFixed(2)},${dh.toFixed(2)}) tol=${ORIGIN_TOL}px`);
+    } else {
+      const closingRects = closeFrames.filter((f) => f.phase === 'closing' && f.rect).map((f) => f.rect);
+      const compareRect = closingRects.length > 0 ? closingRects[closingRects.length - 1] : closeRects[closeRects.length - 1];
+      const firstOpen = openRects[0];
+      const ok = Math.abs(compareRect.x - firstOpen.x) <= ORIGIN_TOL && Math.abs(compareRect.y - firstOpen.y) <= ORIGIN_TOL;
+      assert('A-1', `${PREFIX}-close-returns-origin`, ok,
+        `no progress data; lastClosingRect={x:${compareRect.x.toFixed(1)},y:${compareRect.y.toFixed(1)}} vs firstOpen={x:${firstOpen.x.toFixed(1)},y:${firstOpen.y.toFixed(1)}} tol=${ORIGIN_TOL}px`);
+    }
   } else {
     assert('A-1', `${PREFIX}-close-width`, false, `Only ${closeRects.length} rects in close — cannot verify monotonic`);
     assert('A-1', `${PREFIX}-close-returns-origin`, false, 'Insufficient close rects');
@@ -149,6 +180,27 @@ function checkA4(interruptFrames) {
     assert('A-4', `${PREFIX}-open-then-reverse-at-40`, false, `Only ${rects.length} frames with rect. Expected for VT baseline.`);
     return;
   }
+  const animSteps = [];
+  for (let i = 1; i < rects.length; i++) {
+    animSteps.push(Math.hypot(rects[i].x - rects[i - 1].x, rects[i].y - rects[i - 1].y));
+  }
+  const sortedSteps = [...animSteps].sort((a, b) => a - b);
+  const medianStep = sortedSteps.length > 0 ? sortedSteps[Math.floor(sortedSteps.length / 2)] : 0;
+  const SNAP_RATIO = 3.0;
+  const ABS_SNAP_PX = Math.max(150, medianStep * SNAP_RATIO);
+
+  let allPairsJump = null;
+  for (let i = 2; i < rects.length; i++) {
+    const step = Math.hypot(rects[i].x - rects[i - 1].x, rects[i].y - rects[i - 1].y);
+    const prevStep = Math.hypot(rects[i - 1].x - rects[i - 2].x, rects[i - 1].y - rects[i - 2].y);
+    const ratioJump = step > Math.max(prevStep, 0.1) * SNAP_RATIO && step > 20;
+    const absJump = step > ABS_SNAP_PX;
+    if (ratioJump || absJump) {
+      allPairsJump = `step=${step.toFixed(1)} vs prev=${prevStep.toFixed(1)} (ratio=${(step / Math.max(prevStep, 0.1)).toFixed(1)}, median=${medianStep.toFixed(1)}, absCap=${ABS_SNAP_PX.toFixed(0)}) at pair ${i - 1}->${i}`;
+      break;
+    }
+  }
+
   let phaseIdx = -1;
   for (let i = 1; i < interruptFrames.length; i++) {
     if (interruptFrames[i - 1].phase === 'opening' && (interruptFrames[i].phase === 'closing' || interruptFrames[i].phase === 'idle')) {
@@ -162,27 +214,16 @@ function checkA4(interruptFrames) {
     if (!pre || !post) { assert('A-4', `${PREFIX}-open-then-reverse-at-40`, false, 'Rects missing around phase-transition frame'); return; }
     const stepAtTransition = Math.hypot(post.x - pre.x, post.y - pre.y);
     const stepBefore = pre2 ? Math.hypot(pre.x - pre2.x, pre.y - pre2.y) : stepAtTransition;
-    const SNAP_RATIO = 3.0;
-    const isSnap = stepAtTransition > stepBefore * SNAP_RATIO && stepAtTransition > 20;
+    const transitionSnap = (stepAtTransition > stepBefore * SNAP_RATIO && stepAtTransition > 20) || stepAtTransition > ABS_SNAP_PX;
+    const isSnap = transitionSnap || allPairsJump !== null;
     const dx = Math.abs(post.x - pre.x);
     const dy = Math.abs(post.y - pre.y);
     assert('A-4', `${PREFIX}-open-then-reverse-at-40`, !isSnap,
-      `Phase-check at frame ${phaseIdx}: pre={x:${pre.x.toFixed(1)},y:${pre.y.toFixed(1)}} post={x:${post.x.toFixed(1)},y:${post.y.toFixed(1)}} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} stepAtTransition=${stepAtTransition.toFixed(1)} stepBefore=${stepBefore.toFixed(1)} snapRatio=${(stepAtTransition/Math.max(stepBefore,0.1)).toFixed(1)} isSnap=${isSnap}`);
+      `Phase-check at frame ${phaseIdx}: pre={x:${pre.x.toFixed(1)},y:${pre.y.toFixed(1)}} post={x:${post.x.toFixed(1)},y:${post.y.toFixed(1)}} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} stepAtTransition=${stepAtTransition.toFixed(1)} stepBefore=${stepBefore.toFixed(1)} snapRatio=${(stepAtTransition / Math.max(stepBefore, 0.1)).toFixed(1)} absCap=${ABS_SNAP_PX.toFixed(0)} isSnap=${isSnap}${allPairsJump ? ` | other-pair snap: ${allPairsJump}` : ''}`);
     return;
   }
-  let hasLargeJump = false;
-  let jumpDetail = '';
-  for (let i = 2; i < rects.length; i++) {
-    const step = Math.hypot(rects[i].x - rects[i-1].x, rects[i].y - rects[i-1].y);
-    const prevStep = Math.hypot(rects[i-1].x - rects[i-2].x, rects[i-1].y - rects[i-2].y);
-    if (step > prevStep * 3.0 && step > 20) {
-      hasLargeJump = true;
-      jumpDetail = `step=${step.toFixed(1)} vs prev=${prevStep.toFixed(1)} at pair ${i-1}->${i}`;
-      break;
-    }
-  }
-  if (hasLargeJump) {
-    assert('A-4', `${PREFIX}-open-then-reverse-at-40`, false, `Numeric backstop: snap detected — ${jumpDetail} (no phase labels)`);
+  if (allPairsJump !== null) {
+    assert('A-4', `${PREFIX}-open-then-reverse-at-40`, false, `Numeric backstop: snap detected — ${allPairsJump} (no phase labels)`);
     return;
   }
   assert('A-4', `${PREFIX}-open-then-reverse-at-40`, false, 'No phase transition found — cannot verify momentum.');
@@ -243,11 +284,8 @@ const colW = [12, 50, 8, 60];
 const pad = (s, n) => String(s).padEnd(n);
 const line = '-'.repeat(colW.reduce((a, b) => a + b + 3, -3));
 
-process.stdout.write('\n');
-process.stdout.write(`Verifying: ${PREFIX}-* scenarios\n`);
-process.stdout.write(line + '\n');
-process.stdout.write(pad('ID', colW[0]) + ' | ' + pad('Scenario', colW[1]) + ' | ' + pad('Status', colW[2]) + ' | Detail\n');
-process.stdout.write(line + '\n');
+process.stdout.write(`\nVerifying: ${PREFIX}-* scenarios\n${line}\n`);
+process.stdout.write(pad('ID', colW[0]) + ' | ' + pad('Scenario', colW[1]) + ' | ' + pad('Status', colW[2]) + ' | Detail\n' + line + '\n');
 for (const r of results) {
   process.stdout.write(pad(r.id, colW[0]) + ' | ' + pad(r.scenario, colW[1]) + ' | ' + pad(r.status, colW[2]) + ' | ' + r.detail + '\n');
 }
