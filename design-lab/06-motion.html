@@ -3,94 +3,91 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FLEET Design Lab — 06 Motion</title>
+<title>FLEET Design Contract v2 — 06 Motion</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/lab.css">
 <style>
-  .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-  .pcard { padding: 18px 18px 16px; cursor: pointer; user-select: none; }
-  .pname { font-size: 13px; font-weight: 580; letter-spacing: 0.03em; }
-  .pname .ix { font-family: var(--font-num); font-size: 10px; color: var(--live); margin-right: 7px; }
-  .pparams { font-family: var(--font-num); font-size: 10px; color: var(--ink-low); letter-spacing: 0.1em; margin-top: 4px; }
-  .track { position: relative; height: 72px; margin-top: 14px; border-radius: 12px; background: var(--bg);
-    border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); overflow: hidden; }
-  .track::before, .track::after { content: ''; position: absolute; top: 12px; bottom: 12px; width: 1px; background: var(--hairline); }
-  .track::before { left: 14px; } .track::after { right: 14px; }
-  .puck {
-    position: absolute; top: 50%; left: 10px; margin-top: -21px; width: 42px; height: 42px; border-radius: 11px;
-    background: var(--well-2); border: 1px solid var(--hairline-strong); box-shadow: var(--edge-top);
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-num); font-size: 15px; font-weight: 300; color: var(--ink-hi);
+  .rm-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px; margin-bottom: 24px; }
+  .rm-id .tn { font-size: 13px; font-weight: 500; }
+  .rm-id .td { font-size: 10px; color: var(--ink-low); margin-top: 3px; letter-spacing: 0.06em; }
+  .toggle { position: relative; width: 64px; height: 34px; border-radius: 17px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); cursor: pointer; flex: none; }
+  .toggle .thumb {
+    position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
     will-change: transform;
   }
-  .puck::after { content: ''; position: absolute; bottom: 5px; width: 10px; height: 2px; border-radius: 1px; background: var(--live); }
-  .phint { margin-top: 10px; font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,95,21,0.85); }
+  .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,95,21,0.6); }
 
-  .stagger-zone { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
-  .slist { padding: 6px 20px; }
-  .srow { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--hairline); will-change: transform, opacity; }
-  .srow:last-child { border-bottom: none; }
-  .srow .name { font-size: 13px; font-weight: 480; }
-  .srow .ws { display: block; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
-  .srow .age { font-family: var(--font-num); font-size: 11px; color: var(--ink-mid); }
-  .stagger-side { padding: 18px 20px; }
-  .stagger-side .pname { margin-bottom: 4px; }
-  .replay { cursor: pointer; user-select: none; margin-top: 14px; display: inline-flex; }
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .demo { padding: 18px 20px 16px; cursor: pointer; user-select: none; }
+  .d-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .d-name { font-size: 13px; font-weight: 500; letter-spacing: 0.03em; }
+  .d-name .ix { font-size: 10px; color: var(--live); margin-right: 7px; }
+  .d-params { font-size: 10px; font-weight: 500; color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .d-zone { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); }
+  .d-zone svg { display: block; width: 100%; height: auto; }
+  .d-hint { margin-top: 10px; font-size: 9px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .countbox { display: flex; align-items: baseline; gap: 22px; padding: 8px 6px 2px; }
+  .countbox .n { font-size: 110px; font-weight: 400; line-height: 0.95; color: var(--ink-hi); min-width: 160px; }
+  .countbox .meta { display: flex; flex-direction: column; gap: 7px; }
+  .countbox .k { font-size: 10px; font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-mid); }
+  .countbox .s { font-size: 11px; color: var(--ink-low); }
+
+  .stripzone { padding: 10px 6px 4px; }
 </style>
 </head>
 <body>
 <div class="page">
   <header class="lab-head">
     <div class="left">
-      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN LAB</div>
-      <div class="lab-title">06 — Motion</div>
-      <div class="lab-sub">Four spring presets, one move. Tap a card to replay its translate-and-settle. Pick the one that feels like a machined detent, not a cartoon.</div>
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">06 — Data draws itself</div>
+      <div class="lab-sub">Motion ruling: data may perform its own arrival; chrome may never perform. Bars grow to value, lines draw in, numbers count up — fast, spring-settled, interruptible. No needle sweeps, no staggered chrome, no load rituals. Tap a board to re-present its data — replay is allowed here because replay is re-arrival.</div>
     </div>
-    <div class="lab-meta">DAMPED SPRINGS · NO BEZIER FAKES</div>
+    <div class="lab-meta">RULING 5 · DAMPED SPRINGS · REV B</div>
   </header>
 
-  <div class="section-label">Spring presets — tap to replay</div>
-  <div class="presets">
-    <div class="well pcard" data-r="0.15" data-d="0.90">
-      <div class="pname"><span class="ix">P1</span>SNAPPY</div>
-      <div class="pparams">response 0.15 s · damping 0.90</div>
-      <div class="track"><div class="puck">23</div></div>
-      <div class="phint">selection moves · chips</div>
+  <div class="well rm-bar">
+    <div class="rm-id">
+      <div class="tn">Reduced motion</div>
+      <div class="td">Every arrival below collapses to its settled state — instantly, mid-flight included</div>
     </div>
-    <div class="well pcard" data-r="0.30" data-d="0.85">
-      <div class="pname"><span class="ix">P2</span>STANDARD</div>
-      <div class="pparams">response 0.30 s · damping 0.85</div>
-      <div class="track"><div class="puck">23</div></div>
-      <div class="phint">cards · sheets · rows</div>
-    </div>
-    <div class="well pcard" data-r="0.45" data-d="0.80">
-      <div class="pname"><span class="ix">P3</span>WEIGHTY</div>
-      <div class="pparams">response 0.45 s · damping 0.80</div>
-      <div class="track"><div class="puck">23</div></div>
-      <div class="phint">dials · needles · mode swaps</div>
-    </div>
-    <div class="well pcard" data-r="0.60" data-d="0.90">
-      <div class="pname"><span class="ix">P4</span>GLIDE</div>
-      <div class="pparams">response 0.60 s · damping 0.90</div>
-      <div class="track"><div class="puck">23</div></div>
-      <div class="phint">kiosk wall transitions</div>
-    </div>
+    <div class="toggle" id="rmToggle"><div class="arm"></div><div class="thumb" id="rmThumb"></div></div>
   </div>
 
-  <div class="section-label">Stagger entrance — list arrival</div>
-  <div class="stagger-zone">
-    <div class="well slist" id="slist">
-      <div class="srow"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">6m</span><span class="chip idle quiet">OK</span></div>
-      <div class="srow"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">12m</span><span class="chip idle quiet">OK</span></div>
-      <div class="srow"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">9m</span><span class="chip idle quiet">OK</span></div>
-      <div class="srow"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age">3m</span><span class="chip idle quiet">OK</span></div>
-      <div class="srow"><div><span class="name">Payroll — CORE</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">7m</span><span class="chip idle quiet">OK</span></div>
-      <div class="srow"><div><span class="name">Bed Occupancy — EAST</span><span class="ws">WS / OPS-PROD</span></div><span class="age">2m</span><span class="chip idle quiet">OK</span></div>
+  <div class="board">
+    <div class="well demo" id="demoBars">
+      <div class="d-head"><span class="d-name"><span class="ix">M1</span>BARS GROW TO VALUE</span><span class="d-params">response 0.50 s · damping 0.85</span></div>
+      <div class="d-zone"><svg id="barsSvg" viewBox="0 0 520 190"></svg></div>
+      <div class="d-hint">Refresh durations, last six sweeps · tap — data re-arrives</div>
     </div>
-    <div class="well stagger-side">
-      <div class="pname">LIST ARRIVAL</div>
-      <div class="pparams">standard spring · 55 ms stagger<br>y +14 px → 0 · fade in</div>
-      <span class="chip live replay" id="replayStagger">REPLAY ENTRANCE</span>
+
+    <div class="well demo" id="demoLine">
+      <div class="d-head"><span class="d-name"><span class="ix">M2</span>LINE DRAWS IN</span><span class="d-params">response 0.80 s · damping 1.00</span></div>
+      <div class="d-zone"><svg id="lineSvg" viewBox="0 0 520 190"></svg></div>
+      <div class="d-hint">Sweep latency, 12 cycles · tap — data re-arrives</div>
+    </div>
+
+    <div class="well demo" id="demoCount">
+      <div class="d-head"><span class="d-name"><span class="ix">M3</span>NUMBER COUNTS UP</span><span class="d-params">response 0.60 s · damping 1.00 · integer snap</span></div>
+      <div class="d-zone">
+        <div class="countbox">
+          <span class="n" id="countN">0</span>
+          <span class="meta"><span class="k">Datasets healthy</span><span class="s">D-DIN hero in a reserved-width box — no layout shift while counting</span></span>
+        </div>
+      </div>
+      <div class="d-hint">Interruptible — tap mid-count and it restarts without a hitch</div>
+    </div>
+
+    <div class="well demo" id="demoStrip">
+      <div class="d-head"><span class="d-name"><span class="ix">M4</span>STRIP FILL ARRIVES</span><span class="d-params">response 0.45 s · damping 0.85</span></div>
+      <div class="d-zone"><div class="stripzone"><svg id="stripSvg" width="346" height="96" viewBox="0 0 346 96"></svg></div></div>
+      <div class="d-hint">The instrument's only performance · tap — data re-arrives</div>
     </div>
   </div>
 </div>
@@ -99,53 +96,123 @@
 <script>
 (function () {
   const lab = window.__lab;
+  const eln = lab.eln;
+  const demos = [];
 
-  document.querySelectorAll('.pcard').forEach((card) => {
-    const puck = card.querySelector('.puck');
-    const track = card.querySelector('.track');
-    let atEnd = false;
-    let anim = null;
-    function run() {
-      const span = track.clientWidth - puck.offsetWidth - 20;
-      const from = atEnd ? span : 0;
-      const to = atEnd ? 0 : span;
-      atEnd = !atEnd;
-      if (anim) anim.cancel();
-      anim = lab.spring({
-        from, to,
-        response: Number(card.dataset.r),
-        damping: Number(card.dataset.d),
-        onUpdate: (v) => { puck.style.transform = `translateX(${v}px)`; },
-      });
-    }
-    card.addEventListener('click', run);
-    setTimeout(run, 500 + Math.random() * 80);
+  const barVals = [42, 38, 51, 44, 40, 46];
+  const barsSvg = document.getElementById('barsSvg');
+  const bBase = 156, bMaxH = 118, bMax = 60, bW = 46, bGap = 32;
+  eln('line', { x1: 18, y1: bBase, x2: 502, y2: bBase, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, barsSvg);
+  const bars = barVals.map((v, i) => {
+    const x = 36 + i * (bW + bGap);
+    const live = i === barVals.length - 1;
+    const rect = eln('rect', { x, y: bBase, width: bW, height: 0, rx: 3, fill: live ? '#FF5F15' : '#C9CBD1', opacity: live ? 0.95 : 0.78 }, barsSvg);
+    const num = eln('text', { x: x + bW / 2, y: bBase - 8, 'text-anchor': 'middle', fill: live ? '#FF5F15' : '#A9ACB6', 'font-size': 14, 'font-family': "'D-DIN PRO', sans-serif" }, barsSvg);
+    const lbl = eln('text', { x: x + bW / 2, y: bBase + 18, 'text-anchor': 'middle', fill: '#747882', 'font-size': 9.5, 'letter-spacing': '1.4', 'font-family': "'D-DIN PRO', sans-serif" }, barsSvg);
+    lbl.textContent = 'S' + (i + 1);
+    return { v: v, rect, num };
   });
-
-  const rows = Array.from(document.querySelectorAll('#slist .srow'));
-  const anims = [];
-  function entrance() {
-    anims.forEach((a) => a.cancel());
-    anims.length = 0;
-    rows.forEach((row, i) => {
-      row.style.opacity = '0';
-      row.style.transform = 'translateY(14px)';
-      setTimeout(() => {
-        anims.push(lab.spring({
-          from: 14, to: 0, response: 0.38, damping: 0.8,
-          onUpdate: (v, p) => {
-            row.style.transform = `translateY(${v}px)`;
-            row.style.opacity = String(lab.clamp(p * 1.4, 0, 1));
-          },
-          onSettle: () => { row.style.opacity = '1'; },
-        }));
-      }, i * 55);
+  function setBars(frac) {
+    bars.forEach((b) => {
+      const h = (b.v / bMax) * bMaxH * frac;
+      b.rect.setAttribute('y', String(bBase - h));
+      b.rect.setAttribute('height', String(Math.max(h, 0)));
+      b.num.setAttribute('y', String(bBase - h - 8));
+      b.num.textContent = Math.round(b.v * frac) + 's';
     });
   }
-  document.getElementById('replayStagger').addEventListener('click', entrance);
-  setTimeout(entrance, 700);
+  let barsAnim = null;
+  demos.push({
+    el: document.getElementById('demoBars'),
+    set: setBars,
+    cancel() { if (barsAnim) barsAnim.cancel(); },
+    present() {
+      this.cancel();
+      setBars(0);
+      barsAnim = lab.spring({ from: 0, to: 1, response: 0.5, damping: 0.85, onUpdate: (v) => setBars(lab.clamp(v, 0, 1.06)) });
+    },
+  });
 
-  lab.api.replayStagger = entrance;
+  const lineVals = [44, 41, 47, 39, 43, 52, 48, 42, 38, 45, 41, 40];
+  const lineSvg = document.getElementById('lineSvg');
+  const lx0 = 24, lx1 = 496, lBase = 156, lTop = 28, lMin = 30, lMax = 60;
+  eln('line', { x1: 18, y1: lBase, x2: 502, y2: lBase, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, lineSvg);
+  for (let i = 0; i < lineVals.length; i++) {
+    const x = lx0 + ((lx1 - lx0) * i) / (lineVals.length - 1);
+    eln('line', { x1: x, y1: lBase, x2: x, y2: lBase - 5, stroke: 'rgba(255,255,255,0.22)', 'stroke-width': 1 }, lineSvg);
+  }
+  const pts = lineVals.map((v, i) => [
+    lx0 + ((lx1 - lx0) * i) / (lineVals.length - 1),
+    lBase - ((v - lMin) / (lMax - lMin)) * (lBase - lTop),
+  ]);
+  const path = eln('path', {
+    d: 'M ' + pts.map((p) => p.join(' ')).join(' L '),
+    fill: 'none', stroke: '#C9CBD1', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1,
+  }, lineSvg);
+  const dot = eln('circle', { cx: pts[0][0], cy: pts[0][1], r: 4, fill: '#FF5F15' }, lineSvg);
+  const pathLen = path.getTotalLength();
+  function setLine(frac) {
+    const f = lab.clamp(frac, 0, 1);
+    path.setAttribute('stroke-dashoffset', String(1 - f));
+    const p = path.getPointAtLength(pathLen * f);
+    dot.setAttribute('cx', String(p.x));
+    dot.setAttribute('cy', String(p.y));
+  }
+  let lineAnim = null;
+  demos.push({
+    el: document.getElementById('demoLine'),
+    set: setLine,
+    cancel() { if (lineAnim) lineAnim.cancel(); },
+    present() {
+      this.cancel();
+      setLine(0);
+      lineAnim = lab.spring({ from: 0, to: 1, response: 0.8, damping: 1.0, onUpdate: (v) => setLine(v) });
+    },
+  });
+
+  const countN = document.getElementById('countN');
+  const COUNT_TO = 23;
+  function setCount(frac) { countN.textContent = String(Math.round(COUNT_TO * lab.clamp(frac, 0, 1))); }
+  let countAnim = null;
+  demos.push({
+    el: document.getElementById('demoCount'),
+    set: setCount,
+    cancel() { if (countAnim) countAnim.cancel(); },
+    present() {
+      this.cancel();
+      setCount(0);
+      countAnim = lab.spring({ from: 0, to: 1, response: 0.6, damping: 1.0, onUpdate: (v) => setCount(v) });
+    },
+  });
+
+  const strip = lab.strip(document.getElementById('stripSvg'), { size: 'large', w: 346, value: 6.2, valueText: '06:12' });
+  demos.push({
+    el: document.getElementById('demoStrip'),
+    set: (f) => strip.set(lab.clamp(f, 0, 1)),
+    cancel() {},
+    present() { strip.arrive(); },
+  });
+
+  demos.forEach((d) => d.el.addEventListener('click', () => d.present()));
+  setTimeout(() => demos.forEach((d) => d.present()), 300);
+
+  const rm = document.getElementById('rmToggle');
+  const rmThumb = document.getElementById('rmThumb');
+  let rmAnim = null;
+  function setReduced(v) {
+    lab.reduced = v;
+    rm.classList.toggle('on', v);
+    if (rmAnim) rmAnim.cancel();
+    const fromM = rmThumb.style.transform.match(/([-\d.]+)px/);
+    rmAnim = lab.spring({ from: fromM ? Number(fromM[1]) : (v ? 0 : 30), to: v ? 30 : 0, response: 0.34, damping: 0.6, onUpdate: (x) => { rmThumb.style.transform = `translateX(${x}px)`; } });
+    if (v) demos.forEach((d) => { d.cancel(); d.set(1); });
+  }
+  rm.addEventListener('click', () => setReduced(!lab.reduced));
+  if (lab.reduced) setReduced(true);
+
+  lab.api.setDraw = (frac) => demos.forEach((d) => { d.cancel(); d.set(frac); });
+  lab.api.setReduced = setReduced;
 })();
 </script>
 </body>

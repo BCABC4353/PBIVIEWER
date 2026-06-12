@@ -3,71 +3,72 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FLEET Design Lab</title>
+<title>FLEET Design Contract v2</title>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/lab.css">
 <style>
   body { max-width: 430px; margin: 0 auto; }
   .page { padding: 28px 22px 56px; }
   .hero { padding: 18px 0 26px; }
-  .hero .big { font-family: var(--font-num); font-weight: 200; font-size: 64px; line-height: 1; }
+  .hero .big { font-weight: 400; font-size: 56px; line-height: 1.04; }
   .hero .big .accent { color: var(--live); }
-  .hero .sub { margin-top: 10px; font-size: 12px; color: var(--ink-mid); line-height: 1.6; max-width: 38ch; }
+  .hero .sub { margin-top: 12px; font-size: 12px; color: var(--ink-mid); line-height: 1.6; max-width: 40ch; }
+  .hero .sub .ph { color: var(--ink-low); }
   .cards { display: flex; flex-direction: column; gap: 12px; }
   .card { display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center; padding: 16px 18px; }
-  .card .ix { font-family: var(--font-num); font-size: 13px; font-weight: 300; color: var(--ink-low);
+  .card .ix { font-size: 13px; font-weight: 400; color: var(--ink-low);
     width: 44px; height: 44px; border-radius: 11px; background: var(--bg); box-shadow: var(--shadow-recess-deep);
     border: 1px solid var(--hairline); display: flex; align-items: center; justify-content: center; }
-  .card .t { font-size: 14px; font-weight: 540; }
+  .card .t { font-size: 14px; font-weight: 500; }
   .card .d { font-size: 10.5px; color: var(--ink-low); margin-top: 3px; line-height: 1.45; }
-  .card .go { font-family: var(--font-num); font-size: 12px; color: var(--ink-faint); }
+  .card .go { font-size: 12px; color: var(--ink-faint); }
   .card:hover .go { color: var(--live); }
   .foot { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--hairline);
-    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); display: flex; justify-content: space-between; }
+    font-size: 9px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); display: flex; justify-content: space-between; }
 </style>
 </head>
 <body>
 <div class="page">
   <header class="lab-head" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
     <div class="left">
-      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN LAB</div>
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
     </div>
-    <div class="lab-meta">REV A · 2026-06</div>
+    <div class="lab-meta">REV B · 2026-06</div>
   </header>
   <div class="hero">
-    <div class="big">Design<br>Lab <span class="accent">/06</span></div>
-    <div class="sub">Instrument-cluster grammar for the fleet app. True black, backlit information, one light source, color only when it means something. Pick from the samples — each page is a decision.</div>
+    <div class="big">Design<br>Contract <span class="accent">v2</span></div>
+    <div class="sub">The locked rulings. One typeface, tapes and type, engraved status, monochrome at rest, data that performs only its own arrival. These boards are what the app gets built against. <span class="ph">FLEET is a placeholder — the name is undecided.</span></div>
   </div>
 
   <div class="cards">
     <a class="well card" href="01-type.html">
       <span class="ix">01</span>
-      <span><span class="t">Type</span><span class="d" style="display:block">Three numeral stacks, same screen — Inter+JetBrains, genuine D-DIN PRO, IBM Plex.</span></span>
+      <span><span class="t">Type</span><span class="d" style="display:block">One stack — D-DIN PRO for everything, hero numerals at Regular/Medium. Measured proof its figures are proportional, and the one mono exception.</span></span>
       <span class="go">→</span>
     </a>
     <a class="well card" href="02-color.html">
       <span class="ix">02</span>
-      <span><span class="t">Color roles</span><span class="d" style="display:block">Healthy is monochrome. Amber and red arrive only as events — color is the information.</span></span>
+      <span><span class="t">Color roles</span><span class="d" style="display:block">No chips — status is engraved text on the black. Monochrome plus one orange element at rest; green only as a decaying verified moment. Ratios computed on the board.</span></span>
       <span class="go">→</span>
     </a>
     <a class="well card" href="03-instruments.html">
       <span class="ix">03</span>
-      <span><span class="t">Instruments</span><span class="d" style="display:block">One refresh datum, three gauges — watch ring with sweep needle, minimal arc, tick strip.</span></span>
+      <span><span class="t">Instrument</span><span class="d" style="display:block">The tick strip is THE instrument — large, row and inline scales, plus the amber overdue grammar. The watch ring and arc gauge are deleted. No dials anywhere.</span></span>
       <span class="go">→</span>
     </a>
     <a class="well card" href="04-controls.html">
       <span class="ix">04</span>
-      <span><span class="t">Controls</span><span class="d" style="display:block">Two rotary detent dials with tick sound, three press styles, chips, a travelling toggle.</span></span>
+      <span><span class="t">Controls</span><span class="d" style="display:block">Rotaries are dead. One segmented control on a recessed track, three press styles kept to feel, a toggle with travel. All labels engraved.</span></span>
       <span class="go">→</span>
     </a>
     <a class="well card" href="05-fluid.html">
       <span class="ix">05</span>
-      <span><span class="t">Fluidity</span><span class="d" style="display:block">Drag one screen from phone to tablet width — everything reflows, nothing snaps.</span></span>
+      <span><span class="t">Fluidity</span><span class="d" style="display:block">The v1 mechanism kept — drag from phone to tablet width, nothing snaps — re-skinned: D-DIN PRO, tick strip, chipless.</span></span>
       <span class="go">→</span>
     </a>
     <a class="well card" href="06-motion.html">
       <span class="ix">06</span>
-      <span><span class="t">Motion</span><span class="d" style="display:block">Four spring presets and a stagger entrance — tap to replay, choose the house physics.</span></span>
+      <span><span class="t">Motion</span><span class="d" style="display:block">Data draws itself: bars grow, a line draws in, a number counts up, a strip fill arrives — each with its spring printed. Chrome never performs. Reduced motion collapses to instant.</span></span>
       <span class="go">→</span>
     </a>
   </div>

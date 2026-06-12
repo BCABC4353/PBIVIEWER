@@ -35,29 +35,24 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
 
 {
   const p = await open(browser, '01-type.html', WIDE);
+  await sleep(500);
   await shoot(p, '01-type.png', { fullPage: true });
   await p.close();
 }
 
 {
   const p = await open(browser, '02-color.html', WIDE);
+  await sleep(300);
   await shoot(p, '02-color.png', { fullPage: true });
   await p.close();
 }
 
 {
   const p = await open(browser, '03-instruments.html', PHONE);
-  await sleep(2600);
+  await sleep(2200);
+  await p.evaluate(() => window.__lab.api.setStrips(1));
+  await sleep(120);
   await shoot(p, '03-instruments.png', { fullPage: true });
-  await p.evaluate(() => window.__lab.api.setSweep(0));
-  await sleep(120);
-  await shoot(p, '03-instruments-needle-1-start.png');
-  await p.evaluate(() => window.__lab.api.setSweep(0.47));
-  await sleep(120);
-  await shoot(p, '03-instruments-needle-2-overshoot.png');
-  await p.evaluate(() => window.__lab.api.setSweep(0.4));
-  await sleep(120);
-  await shoot(p, '03-instruments-needle-3-settled.png');
   await p.close();
 }
 
@@ -65,32 +60,28 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
   const p = await open(browser, '04-controls.html', PHONE);
   await sleep(600);
   await shoot(p, '04-controls.png', { fullPage: true });
-  await p.evaluate(() => {
-    document.querySelector('.section-label').scrollIntoView();
-    window.__lab.api.setDialA(1);
-    window.__lab.api.setDialB(0);
-  });
+  await p.evaluate(() => window.__lab.api.setSeg(1));
   await sleep(150);
-  await shoot(p, '04-controls-rotary-1-rest.png');
-  await p.evaluate(() => {
-    window.__lab.api.setDialA(1, 34);
-    window.__lab.api.setDialB(0, -18);
-  });
+  await shoot(p, '04-controls-seg-1-rest.png');
+  await p.evaluate(() => window.__lab.api.setSeg(2, 0.45));
   await sleep(150);
-  await shoot(p, '04-controls-rotary-2-middrag.png');
+  await shoot(p, '04-controls-seg-2-midtravel.png');
   await p.evaluate(() => {
-    window.__lab.api.setDialA(2);
-    window.__lab.api.setDialB(1);
+    window.__lab.api.setSeg(2);
     window.__lab.api.setToggle(true);
   });
   await sleep(150);
-  await shoot(p, '04-controls-rotary-3-settled.png');
+  await shoot(p, '04-controls-seg-3-settled.png');
   await p.close();
 }
 
 {
   const p = await open(browser, '05-fluid.html', WIDE);
-  await p.evaluate(() => window.__lab.api.setWidth(700));
+  await sleep(2200);
+  await p.evaluate(() => {
+    window.__lab.api.setStrips(1);
+    window.__lab.api.setWidth(700);
+  });
   await sleep(250);
   await shoot(p, '05-fluid.png', { fullPage: true });
   await p.evaluate(() => window.__lab.api.setWidth(360));
@@ -105,7 +96,18 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
 {
   const p = await open(browser, '06-motion.html', WIDE);
   await sleep(3200);
+  await p.evaluate(() => window.__lab.api.setDraw(1));
+  await sleep(120);
   await shoot(p, '06-motion.png', { fullPage: true });
+  await p.evaluate(() => window.__lab.api.setDraw(0.12));
+  await sleep(120);
+  await shoot(p, '06-motion-draw-1-early.png');
+  await p.evaluate(() => window.__lab.api.setDraw(0.55));
+  await sleep(120);
+  await shoot(p, '06-motion-draw-2-midflight.png');
+  await p.evaluate(() => window.__lab.api.setDraw(1));
+  await sleep(120);
+  await shoot(p, '06-motion-draw-3-settled.png');
   await p.close();
 }
 
