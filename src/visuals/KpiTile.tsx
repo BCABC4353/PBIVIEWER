@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { color, space, type } from '../design/tokens';
+import { color, direction, space, type } from '../design/tokens';
 import { formatValue, type KpiData, type ValueFormat } from '../core/dax';
 
 export const KpiTile: React.FC<{
@@ -12,7 +12,7 @@ export const KpiTile: React.FC<{
   const hasDelta = delta !== undefined && Number.isFinite(delta);
   const up = hasDelta && delta! > 0;
   const flat = hasDelta && delta === 0;
-  const deltaColor = flat ? color.textTertiary : up ? color.ok : color.broken;
+  const deltaColor = flat ? color.textTertiary : up ? direction.up : direction.down;
   const deltaGlyph = flat ? '—' : up ? '▲' : '▼';
   const deltaText = hasDelta ? formatValue(Math.abs(delta!), 'percent') : '';
 

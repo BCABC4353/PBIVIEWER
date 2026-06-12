@@ -9,9 +9,14 @@ import {
   ALL_LEDGERS,
   type MockLedgerDataset,
 } from './denials-mock-data';
+import { computeControlBands } from './bar-chart-vm';
 import MANIFEST_RAW from '../../design-lab/board11-data/denials-manifest.json';
 
 const MANIFEST: ParsedManifest = parseManifest(MANIFEST_RAW);
+
+const TREND_WINDOW = 4;
+const TREND_SIGMA = 2;
+const TREND_BANDS = computeControlBands(DENIALS_BAR_DATA.points, TREND_WINDOW, TREND_SIGMA);
 
 function findLedger(tileId: string): MockLedgerDataset | undefined {
   return ALL_LEDGERS.find((d) => d.tileId === tileId);
@@ -49,7 +54,11 @@ export const DenialsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
         {barTiles.map((tile) => (
           <View key={tile.id} style={styles.tileCard}>
             <SectionLabel text={tile.measure[0] ?? 'Denials by Week'} />
-            <BarChart data={DENIALS_BAR_DATA} />
+            <BarChart
+              data={DENIALS_BAR_DATA}
+              band={TREND_BANDS.kind === 'ok' ? TREND_BANDS.data.band : undefined}
+              flags={TREND_BANDS.kind === 'ok' ? TREND_BANDS.data.flags : undefined}
+            />
           </View>
         ))}
         {ledgerTiles.length > 0 ? (
