@@ -2,22 +2,21 @@ BASELINE REEL — Current View-Transition morph (Sprint 1)
 
 View-Transition API available: true
 
-HONESTY CAVEAT — View-Transition measurability:
-The current morph uses document.startViewTransition with CSS ::view-transition-group(sheet-morph).
-During a View Transition, the browser creates pseudo-element snapshots (::view-transition-old,
-::view-transition-new) that are NOT addressable via getBoundingClientRect from JS.
-The .luce-sheet div only exists in the DOM AFTER the transition callback completes (open)
-or is REMOVED before the transition starts (close). So:
-  - During "opening": .luce-sheet is absent from DOM until the callback fires mid-transition.
-    getTrackedRect() returns null for most opening frames, then the final rect once sheet mounts.
-  - During "closing": .luce-sheet is removed immediately; getTrackedRect() returns null.
-  - The ::view-transition-group pseudo-element that IS moving cannot be measured via JS.
+HONEST BASELINE FAILURES (after S4 harness hardening):
 
-This is the fundamental reason for the Sprint 2+ FLIP refactor: FLIP keeps the real DOM
-element present and moving continuously, making every frame measurable.
+The current morph uses document.startViewTransition with CSS ::view-transition-group.
+During a View Transition the browser animates pseudo-element snapshots that are NOT
+addressable via getBoundingClientRect from JS. .luce-sheet mounts at its final settled
+size before the pseudo-element animation starts, so all 40 frames capture an identical
+settled rect — the pseudo-element is moving, but .luce-sheet is static.
 
-For this baseline Sprint 1 reel, capture honestly records what IS measurable:
-  - present:false during most of the View-Transition frames (the pseudo-element is moving,
-    not the real DOM node)
-  - rect appears only when the real sheet node is mounted/visible
-  - A-2/A-3/A-4 will FAIL on this baseline — expected, this is the before story
+Genuine failures on this baseline:
+  - SELF-CHECK baseline-open: FAIL — 40/40 rects all identical (static capture)
+  - A-1 open-width: FAIL — totalDelta=0px, motion expected but absent
+  - A-1 open-height: FAIL — totalDelta=0px, motion expected but absent
+
+A-1 and A-2 do NOT skip-to-PASS on this baseline (old harness did; hardened harness does not).
+SELF-CHECK passes the interrupt scenario because the VT snap produces two distinct rect positions.
+
+Sprint 2 FLIP will keep .luce-sheet in the DOM and apply the animating transform directly to it,
+producing continuously-varying rects and turning these failures into passes.

@@ -5,64 +5,66 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(__dirname, 'out');
 
-function loadFrames(scenario) {
-  const p = path.join(OUT, `${scenario}.frames.json`);
-  if (!existsSync(p)) return null;
-  return JSON.parse(readFileSync(p, 'utf8'));
-}
+const loadFrames = (s) => {
+  const p = path.join(OUT, `${s}.frames.json`);
+  return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null;
+};
 
 const results = [];
 let anyFail = false;
 
 function assert(id, scenario, pass, detail) {
-  const status = pass ? 'PASS' : 'FAIL';
   if (!pass) anyFail = true;
-  results.push({ id, scenario, status, detail });
+  results.push({ id, scenario, status: pass ? 'PASS' : 'FAIL', detail });
 }
 
-function selfCheck(frames) {
+const MIN_MORPH_SPAN = 20;
+
+function selfCheck(frames, expectMorph) {
   if (!frames || frames.length < 2) return { pass: false, detail: 'no frames' };
   const rects = frames.map((f) => f.rect).filter(Boolean);
   if (rects.length === 0) {
-    return {
-      pass: false,
-      detail: `All ${frames.length} frames: rect=null — DOM node absent throughout. VT explanation: sheet is removed before close VT starts; tile is absent during open VT. EXPECTED VT BASELINE FAILURE — Sprint 2 FLIP will keep element in DOM.`,
-    };
+    return { pass: false, detail: `All ${frames.length} frames: rect=null — DOM node absent throughout. EXPECTED VT BASELINE FAILURE.` };
   }
-  if (rects.length < 2) {
-    return { pass: true, detail: `1 rect frame — borderline, accepted` };
-  }
+  if (rects.length < 2) return { pass: true, detail: '1 rect frame — borderline, accepted' };
   const allSame = rects.every((r) =>
-    Math.abs(r.x - rects[0].x) < 0.5 &&
-    Math.abs(r.y - rects[0].y) < 0.5 &&
-    Math.abs(r.width - rects[0].width) < 0.5 &&
-    Math.abs(r.height - rects[0].height) < 0.5,
+    Math.abs(r.x - rects[0].x) < 0.5 && Math.abs(r.y - rects[0].y) < 0.5 &&
+    Math.abs(r.width - rects[0].width) < 0.5 && Math.abs(r.height - rects[0].height) < 0.5,
   );
   if (allSame) {
-    return {
-      pass: false,
-      detail: `${rects.length}/${frames.length} rects all identical {w:${rects[0].width.toFixed(0)},h:${rects[0].height.toFixed(0)}} — VT mounts sheet at final size before pseudo-element animation; only the CSS pseudo-elements move (not JS-measurable). EXPECTED VT BASELINE FAILURE — Sprint 2 FLIP will expose continuously-varying rect.`,
-    };
+    if (!expectMorph) return { pass: true, detail: `${rects.length}/${frames.length} rects all identical — static/instant is correct for this scenario` };
+    return { pass: false, detail: `${rects.length}/${frames.length} rects all identical {w:${rects[0].width.toFixed(0)},h:${rects[0].height.toFixed(0)}} — static capture, no measurable motion.` };
   }
-  return { pass: true, detail: `${frames.length} frames, rects vary (not all-identical) — capture is real` };
+  if (expectMorph) {
+    const span = Math.max(
+      Math.max(...rects.map((r) => r.x)) - Math.min(...rects.map((r) => r.x)),
+      Math.max(...rects.map((r) => r.y)) - Math.min(...rects.map((r) => r.y)),
+      Math.max(...rects.map((r) => r.width)) - Math.min(...rects.map((r) => r.width)),
+      Math.max(...rects.map((r) => r.height)) - Math.min(...rects.map((r) => r.height)),
+    );
+    if (span < MIN_MORPH_SPAN) {
+      return { pass: false, detail: `${rects.length}/${frames.length} rects present but max span=${span.toFixed(1)}px < ${MIN_MORPH_SPAN}px — near-static, dead-band creep detected.` };
+    }
+  }
+  return { pass: true, detail: `${frames.length} frames, rects vary (span >= ${MIN_MORPH_SPAN}px) — capture is real` };
 }
 
-function monotonicCheck(rects, axis, direction) {
+function monotonicCheck(rects, axis, direction, expectMotion) {
   const OVERSHOOT_TOL = 0.08;
   const vals = rects.map((r) => (axis === 'x' ? r.x : axis === 'y' ? r.y : axis === 'w' ? r.width : r.height));
   if (vals.length < 2) return { pass: true, detail: 'insufficient data' };
   const first = vals[0];
   const last = vals[vals.length - 1];
   const totalDelta = last - first;
-  if (Math.abs(totalDelta) < 2) return { pass: true, detail: 'delta < 2px, skip' };
+  if (Math.abs(totalDelta) < 2) {
+    if (expectMotion) return { pass: false, detail: `axis=${axis} totalDelta=${totalDelta.toFixed(2)}px — motion expected but absent (< 2px)` };
+    return { pass: true, detail: `axis=${axis} delta < 2px, static (no motion expected)` };
+  }
   const sign = direction === 'grow' ? 1 : -1;
-  const expected = totalDelta * sign > 0;
-  if (!expected) return { pass: false, detail: `axis=${axis} first=${first.toFixed(1)} last=${last.toFixed(1)} expected direction=${direction}` };
+  if (totalDelta * sign <= 0) return { pass: false, detail: `axis=${axis} first=${first.toFixed(1)} last=${last.toFixed(1)} expected direction=${direction}` };
   let violations = 0;
   for (let i = 1; i < vals.length; i++) {
-    const step = (vals[i] - vals[i - 1]) * sign;
-    const maxAllowedReverse = Math.abs(totalDelta) * OVERSHOOT_TOL;
-    if (step < -maxAllowedReverse) violations++;
+    if ((vals[i] - vals[i - 1]) * sign < -(Math.abs(totalDelta) * OVERSHOOT_TOL)) violations++;
   }
   const pass = violations <= 2;
   return { pass, detail: `axis=${axis} first=${first.toFixed(1)} last=${last.toFixed(1)} direction=${direction} overshoot_violations=${violations}` };
@@ -71,155 +73,114 @@ function monotonicCheck(rects, axis, direction) {
 function checkA1(openFrames, closeFrames) {
   const openRects = openFrames.map((f) => f.rect).filter(Boolean);
   const closeRects = closeFrames.map((f) => f.rect).filter(Boolean);
-
   if (openRects.length < 4) {
-    assert('A-1', 'open', false, `Only ${openRects.length} frames with rect — View-Transition does not expose DOM node during transition (expected for baseline)`);
+    assert('A-1', 'open', false, `Only ${openRects.length} frames with rect — VT does not expose DOM node during transition`);
     assert('A-1', 'close', false, `Only ${closeRects.length} frames with rect during close — expected for baseline VT`);
     return;
   }
-
-  const wCheck = monotonicCheck(openRects, 'w', 'grow');
-  const hCheck = monotonicCheck(openRects, 'h', 'grow');
-  assert('A-1', 'open-width', wCheck.pass, wCheck.detail);
-  assert('A-1', 'open-height', hCheck.pass, hCheck.detail);
-
+  for (const [lbl, ax, dir] of [['open-width', 'w', 'grow'], ['open-height', 'h', 'grow']]) {
+    const c = monotonicCheck(openRects, ax, dir, true);
+    assert('A-1', lbl, c.pass, c.detail);
+  }
   if (closeRects.length >= 4) {
-    const cwCheck = monotonicCheck(closeRects, 'w', 'shrink');
-    const chCheck = monotonicCheck(closeRects, 'h', 'shrink');
-    assert('A-1', 'close-width', cwCheck.pass, cwCheck.detail);
-    assert('A-1', 'close-height', chCheck.pass, chCheck.detail);
-
+    for (const [lbl, ax, dir] of [['close-width', 'w', 'shrink'], ['close-height', 'h', 'shrink']]) {
+      const c = monotonicCheck(closeRects, ax, dir, true);
+      assert('A-1', lbl, c.pass, c.detail);
+    }
     const lastClose = closeRects[closeRects.length - 1];
     const firstOpen = openRects[0];
-    const originMatch = Math.abs(lastClose.x - firstOpen.x) <= 1 && Math.abs(lastClose.y - firstOpen.y) <= 1;
-    assert('A-1', 'close-returns-origin', originMatch,
+    const ok = Math.abs(lastClose.x - firstOpen.x) <= 1 && Math.abs(lastClose.y - firstOpen.y) <= 1;
+    assert('A-1', 'close-returns-origin', ok,
       `lastClose={x:${lastClose.x.toFixed(1)},y:${lastClose.y.toFixed(1)}} vs firstOpen={x:${firstOpen.x.toFixed(1)},y:${firstOpen.y.toFixed(1)}}`);
   } else {
     assert('A-1', 'close-width', false, `Only ${closeRects.length} rects in close — cannot verify monotonic`);
-    assert('A-1', 'close-returns-origin', false, `Insufficient close rects`);
+    assert('A-1', 'close-returns-origin', false, 'Insufficient close rects');
   }
 }
 
 function checkA2(frames, scenario) {
-  const presentFrames = frames.filter((f) => f.present);
-  const absentFrames = frames.filter((f) => !f.present);
-
-  const presentPct = ((presentFrames.length / frames.length) * 100).toFixed(0);
-  const allPresent = absentFrames.length === 0;
-
-  if (!allPresent) {
+  const absent = frames.filter((f) => !f.present);
+  if (absent.length > 0) {
+    const pct = ((frames.filter((f) => f.present).length / frames.length) * 100).toFixed(0);
     assert('A-2', scenario, false,
-      `${absentFrames.length}/${frames.length} frames have present:false (${presentPct}% present). ` +
-      `First absent at frame ${absentFrames[0]?.frame ?? '?'}. ` +
-      `This is EXPECTED for VT baseline — pseudo-elements are not DOM nodes.`);
+      `${absent.length}/${frames.length} frames have present:false (${pct}% present). First absent at frame ${absent[0]?.frame ?? '?'}. EXPECTED for VT baseline.`);
     return;
   }
-
   const rects = frames.map((f) => f.rect).filter(Boolean);
-  if (rects.length < 2) {
-    assert('A-2', scenario, false, 'No rect data to check jumps');
-    return;
-  }
-
-  const xVals = rects.map((r) => r.x);
-  const yVals = rects.map((r) => r.y);
-  const totalDx = Math.abs(xVals[xVals.length - 1] - xVals[0]);
-  const totalDy = Math.abs(yVals[yVals.length - 1] - yVals[0]);
-  const totalDelta = Math.max(totalDx, totalDy, 1);
-
+  if (rects.length < 2) { assert('A-2', scenario, false, 'No rect data'); return; }
+  const totalDelta = Math.max(Math.abs(rects[rects.length - 1].x - rects[0].x), Math.abs(rects[rects.length - 1].y - rects[0].y), 1);
   let maxJump = 0;
   for (let i = 1; i < rects.length; i++) {
-    const dx = Math.abs(rects[i].x - rects[i - 1].x);
-    const dy = Math.abs(rects[i].y - rects[i - 1].y);
-    maxJump = Math.max(maxJump, dx, dy);
+    maxJump = Math.max(maxJump, Math.abs(rects[i].x - rects[i - 1].x), Math.abs(rects[i].y - rects[i - 1].y));
   }
-
   const jumpPct = maxJump / totalDelta;
-  const pass = jumpPct <= 0.4;
-  assert('A-2', scenario, pass, `maxJump=${maxJump.toFixed(1)}px totalDelta=${totalDelta.toFixed(1)}px jumpPct=${(jumpPct * 100).toFixed(0)}%`);
+  assert('A-2', scenario, jumpPct <= 0.4, `maxJump=${maxJump.toFixed(1)}px totalDelta=${totalDelta.toFixed(1)}px jumpPct=${(jumpPct * 100).toFixed(0)}%`);
 }
 
 function checkA3(interruptFrames) {
   const rects = interruptFrames.map((f) => f.rect).filter(Boolean);
   if (rects.length < 4) {
-    assert('A-3', 'open-then-reverse-at-40', false,
-      `Only ${rects.length} frames with rect. Cannot verify direction reversal. ` +
-      `Expected for VT baseline — skipTransition() causes snap not smooth reverse.`);
+    assert('A-3', 'open-then-reverse-at-40', false, `Only ${rects.length} frames with rect. Expected for VT baseline — snap not smooth reverse.`);
     return;
   }
-
-  const midIdx = Math.floor(rects.length / 2);
-  const firstHalf = rects.slice(0, midIdx);
-  const secondHalf = rects.slice(midIdx);
-
-  const firstW = firstHalf[firstHalf.length - 1]?.width ?? 0;
-  const firstH = firstHalf[firstHalf.length - 1]?.height ?? 0;
-  const lastW = secondHalf[secondHalf.length - 1]?.width ?? 0;
-  const lastH = secondHalf[secondHalf.length - 1]?.height ?? 0;
-
-  const wReversed = lastW < firstW;
-  const hReversed = lastH < firstH;
-  const pass = wReversed && hReversed;
+  const mid = Math.floor(rects.length / 2);
+  const fW = rects[mid - 1]?.width ?? 0;
+  const fH = rects[mid - 1]?.height ?? 0;
+  const lW = rects[rects.length - 1]?.width ?? 0;
+  const lH = rects[rects.length - 1]?.height ?? 0;
+  const pass = lW < fW && lH < fH;
   assert('A-3', 'open-then-reverse-at-40', pass,
-    `At interrupt midpoint: w=${firstW.toFixed(1)} h=${firstH.toFixed(1)}; final: w=${lastW.toFixed(1)} h=${lastH.toFixed(1)}; wReversed=${wReversed} hReversed=${hReversed}`);
+    `At midpoint: w=${fW.toFixed(1)} h=${fH.toFixed(1)}; final: w=${lW.toFixed(1)} h=${lH.toFixed(1)}; wReversed=${lW < fW} hReversed=${lH < fH}`);
 }
 
 function checkA4(interruptFrames) {
   const rects = interruptFrames.map((f) => f.rect).filter(Boolean);
   if (rects.length < 4) {
-    assert('A-4', 'open-then-reverse-at-40', false,
-      `Only ${rects.length} frames with rect. Cannot verify momentum continuity. ` +
-      `Expected for VT baseline — skipTransition() causes position snap.`);
+    assert('A-4', 'open-then-reverse-at-40', false, `Only ${rects.length} frames with rect. Expected for VT baseline.`);
     return;
   }
-
-  let interruptIdx = -1;
+  let phaseIdx = -1;
   for (let i = 1; i < interruptFrames.length; i++) {
-    const prev = interruptFrames[i - 1];
-    const curr = interruptFrames[i];
-    if (prev.phase === 'opening' && (curr.phase === 'closing' || curr.phase === 'idle')) {
-      interruptIdx = i;
-      break;
+    if (interruptFrames[i - 1].phase === 'opening' && (interruptFrames[i].phase === 'closing' || interruptFrames[i].phase === 'idle')) {
+      phaseIdx = i; break;
     }
   }
-
-  if (interruptIdx < 0) {
-    assert('A-4', 'open-then-reverse-at-40', false,
-      'No phase transition from opening->closing found in frames. Cannot verify momentum.');
+  let numericDetail = '';
+  for (let i = 1; i < rects.length; i++) {
+    const dx = Math.abs(rects[i].x - rects[i - 1].x);
+    const dy = Math.abs(rects[i].y - rects[i - 1].y);
+    if (dx > 2 || dy > 2) { numericDetail = `dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} at rect pair ${i - 1}->${i}`; break; }
+  }
+  if (phaseIdx >= 0) {
+    const pre = interruptFrames[phaseIdx - 1]?.rect;
+    const post = interruptFrames[phaseIdx]?.rect;
+    if (!pre || !post) { assert('A-4', 'open-then-reverse-at-40', false, 'Rects missing around phase-transition frame'); return; }
+    const dx = Math.abs(post.x - pre.x);
+    const dy = Math.abs(post.y - pre.y);
+    const snap = dx > 2 || dy > 2;
+    assert('A-4', 'open-then-reverse-at-40', !snap,
+      `Phase-check at frame ${phaseIdx}: pre={x:${pre.x.toFixed(1)},y:${pre.y.toFixed(1)}} post={x:${post.x.toFixed(1)},y:${post.y.toFixed(1)}} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} snap=${snap}`);
     return;
   }
-
-  const preRect = interruptFrames[interruptIdx - 1]?.rect;
-  const postRect = interruptFrames[interruptIdx]?.rect;
-  if (!preRect || !postRect) {
-    assert('A-4', 'open-then-reverse-at-40', false, 'Rects missing around interrupt frame');
+  if (numericDetail) {
+    assert('A-4', 'open-then-reverse-at-40', false, `Numeric backstop: snap detected — ${numericDetail} (no phase labels)`);
     return;
   }
-
-  const dx = Math.abs(postRect.x - preRect.x);
-  const dy = Math.abs(postRect.y - preRect.y);
-  const snap = dx > 2 || dy > 2;
-  assert('A-4', 'open-then-reverse-at-40', !snap,
-    `At interrupt frame ${interruptIdx}: preRect={x:${preRect.x.toFixed(1)},y:${preRect.y.toFixed(1)}} ` +
-    `postRect={x:${postRect.x.toFixed(1)},y:${postRect.y.toFixed(1)}} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} snap=${snap}`);
+  assert('A-4', 'open-then-reverse-at-40', false, 'No phase transition or numeric snap found — cannot verify momentum.');
 }
 
 function checkA5(frames, scenario) {
   const blocked = frames.filter((f) => f.pointerBlockedAtCenter);
-  const pass = blocked.length === 0;
-  assert('A-5', scenario, pass,
-    pass
+  assert('A-5', scenario, blocked.length === 0,
+    blocked.length === 0
       ? `All ${frames.length} frames: pointerBlockedAtCenter=false`
       : `${blocked.length}/${frames.length} frames had pointerBlockedAtCenter=true (frames: ${blocked.slice(0, 5).map((f) => f.frame).join(',')})`);
 }
 
-function selfCheckAssert(frames, scenario) {
-  if (!frames) {
-    assert('SELF-CHECK', scenario, false, 'No frames.json found');
-    return;
-  }
-  const result = selfCheck(frames);
-  assert('SELF-CHECK', scenario, result.pass, result.detail);
+function selfCheckAssert(frames, scenario, expectMorph) {
+  if (!frames) { assert('SELF-CHECK', scenario, false, 'No frames.json found'); return; }
+  const r = selfCheck(frames, expectMorph);
+  assert('SELF-CHECK', scenario, r.pass, r.detail);
 }
 
 const openFrames = loadFrames('baseline-open');
@@ -227,10 +188,10 @@ const closeFrames = loadFrames('baseline-close');
 const interruptFrames = loadFrames('baseline-open-then-reverse-at-40');
 const reducedFrames = loadFrames('baseline-reduced-motion');
 
-selfCheckAssert(openFrames, 'baseline-open');
-selfCheckAssert(closeFrames, 'baseline-close');
-selfCheckAssert(interruptFrames, 'baseline-open-then-reverse-at-40');
-selfCheckAssert(reducedFrames, 'baseline-reduced-motion');
+selfCheckAssert(openFrames, 'baseline-open', true);
+selfCheckAssert(closeFrames, 'baseline-close', true);
+selfCheckAssert(interruptFrames, 'baseline-open-then-reverse-at-40', true);
+selfCheckAssert(reducedFrames, 'baseline-reduced-motion', false);
 
 if (openFrames && closeFrames) {
   checkA1(openFrames, closeFrames);
@@ -260,7 +221,7 @@ const line = '-'.repeat(colW.reduce((a, b) => a + b + 3, -3));
 
 process.stdout.write('\n');
 process.stdout.write(line + '\n');
-process.stdout.write(pad('ID', colW[0]) + ' | ' + pad('Scenario', colW[1]) + ' | ' + pad('Status', colW[2]) + ' | ' + pad('Detail', colW[3]) + '\n');
+process.stdout.write(pad('ID', colW[0]) + ' | ' + pad('Scenario', colW[1]) + ' | ' + pad('Status', colW[2]) + ' | Detail\n');
 process.stdout.write(line + '\n');
 for (const r of results) {
   process.stdout.write(pad(r.id, colW[0]) + ' | ' + pad(r.scenario, colW[1]) + ' | ' + pad(r.status, colW[2]) + ' | ' + r.detail + '\n');
@@ -270,11 +231,5 @@ process.stdout.write(line + '\n');
 const passCount = results.filter((r) => r.status === 'PASS').length;
 const failCount = results.filter((r) => r.status === 'FAIL').length;
 process.stdout.write(`\n${passCount} PASS  ${failCount} FAIL\n`);
-
-if (anyFail) {
-  process.stdout.write('\nOVERALL: FAIL\n');
-  process.exit(1);
-} else {
-  process.stdout.write('\nOVERALL: PASS\n');
-  process.exit(0);
-}
+if (anyFail) { process.stdout.write('\nOVERALL: FAIL\n'); process.exit(1); }
+else { process.stdout.write('\nOVERALL: PASS\n'); process.exit(0); }

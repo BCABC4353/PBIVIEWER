@@ -2,24 +2,18 @@ BASELINE REEL — Current View-Transition morph (Sprint 1)
 
 View-Transition API available: true
 
-HONESTY CAVEAT — View-Transition measurability:
-The current morph uses document.startViewTransition with CSS ::view-transition-group(sheet-morph).
-During a View Transition, the browser creates pseudo-element snapshots (::view-transition-old,
-::view-transition-new) that are NOT addressable via getBoundingClientRect from JS.
-The .luce-sheet div only exists in the DOM AFTER the transition callback completes (open)
-or is REMOVED before the transition starts (close). So:
-  - During "opening": .luce-sheet is absent from DOM until the callback fires mid-transition.
-    getTrackedRect() returns null for most opening frames, then the final rect once sheet mounts.
-  - During "closing": .luce-sheet is removed immediately; getTrackedRect() returns null.
-  - The ::view-transition-group pseudo-element that IS moving cannot be measured via JS.
+HONEST BASELINE FAILURES (after S4 harness hardening):
 
-This is the fundamental reason for the Sprint 2+ FLIP refactor: FLIP keeps the real DOM
-element present and moving continuously, making every frame measurable.
+Close scenario: sheet opens first (setted at final rect), then close is triggered.
+On close, .luce-sheet is removed from the DOM before the VT fires, so the node is
+absent for all closing frames and getTrackedRect() returns null for most.
 
-For this baseline Sprint 1 reel, capture honestly records what IS measurable:
-  - present:false during most of the View-Transition frames (the pseudo-element is moving,
-    not the real DOM node)
-  - rect appears only when the real sheet node is mounted/visible
-  - A-2/A-3/A-4 will FAIL on this baseline — expected, this is the before story
+Genuine failures on this baseline:
+  - SELF-CHECK baseline-close: FAIL — 9/40 rects all identical (static at tile origin)
+  - A-1 close-width: FAIL — totalDelta=0px, motion expected but absent
+  - A-1 close-height: FAIL — totalDelta=0px, motion expected but absent
+  - A-1 close-returns-origin: FAIL — close lands at y=109 vs open origin y=251
+  - A-2 baseline-close: FAIL — 31/40 frames have present:false (sheet removed before VT)
 
-Close scenario: sheet opens first, then close is triggered.
+Sprint 2 FLIP will keep .luce-sheet in the DOM and apply the animating transform directly
+to it, turning these failures into passes.
