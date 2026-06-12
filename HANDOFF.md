@@ -81,8 +81,13 @@ owner's Power BI consulting clients. Two pillars:
   Reanimated/New-Arch regression (reanimated #7984) — run a 2-day Skia
   gauge spike on a real ProMotion iPhone BEFORE building the instrument
   layer. iOS 120Hz needs CADisableMinimumFrameDurationOnPhone plist flag.
-- Store path: org enrollment under BCABC LLC (entity exists). D-U-N-S
-  application = longest lead item (owner action, may be in flight).
+- Store path: org enrollment under BCABC LLC SUBMITTED 2026-06-12,
+  Apple Enrollment ID 8RLJ635SG6 (in authority-to-sign review; Apple
+  emails when ready). D-U-N-S obtained. Website: single static page
+  live at htmlpreview URL off the pbiviewer `bcabc-site` branch
+  (index.html); upgrade to bc-abc.com via DNS->GitHub Pages only if
+  Apple requires the org domain. NEXT owner action: accept Apple's
+  agreement email, then nothing blocks the dev build.
   Demo/sample mode doubles as App Review's demo-account answer.
   Sign-in-with-Apple NOT required (enterprise-login exemption 4.8).
   Export compliance: set ITSAppUsesNonExemptEncryption=false.
