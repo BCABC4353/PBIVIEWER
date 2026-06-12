@@ -16,6 +16,7 @@ import { presentError, type PresentableError } from '../core/error-presenter';
 import { thunk } from '../feel/haptics';
 import { gateTabBody } from './tab-gate';
 import { ErrorState, ListSkeleton, ScreenHeader } from './states';
+import { DenialsEntryButton, DenialsEntryRow } from './DenialsEntry';
 import {
   defaultExpandedKeys,
   filterCatalogGroups,
@@ -33,10 +34,11 @@ export const ReportsScreen: React.FC<{
   mode: DataMode;
   onOpen: (report: ReportRef) => void;
   onSignIn: () => void;
-}> = ({ model, mode, onOpen, onSignIn }) => {
+  onOpenDenials?: () => void;
+}> = ({ model, mode, onOpen, onSignIn, onOpenDenials }) => {
   const gate = gateTabBody('reports', mode, model !== null);
   if (gate === 'data' && model) {
-    return <LiveReportList model={model} onOpen={onOpen} onSignIn={onSignIn} />;
+    return <LiveReportList model={model} onOpen={onOpen} onSignIn={onSignIn} onOpenDenials={onOpenDenials} />;
   }
   if (gate === 'sample-reports-card') {
     return (
@@ -44,20 +46,23 @@ export const ReportsScreen: React.FC<{
         onSignIn={onSignIn}
         title="Sample data has no live reports"
         body="The built-in sample fleet only covers the Fleet and Alerts tabs. Your Power BI apps and workspaces appear here once you're connected."
+        onOpenDenials={onOpenDenials}
       />
     );
   }
-  return <SignedOutCard onSignIn={onSignIn} />;
+  return <SignedOutCard onSignIn={onSignIn} onOpenDenials={onOpenDenials} />;
 };
 
 export const SignedOutCard: React.FC<{
   onSignIn: () => void;
+  onOpenDenials?: () => void;
   title?: string;
   body?: string;
   screenTitle?: string;
   screenSubtitle?: string;
 }> = ({
   onSignIn,
+  onOpenDenials,
   title = 'Sign in to see your reports',
   body = "Your Power BI apps and workspaces appear here once you're connected.",
   screenTitle = 'Reports',
@@ -78,6 +83,7 @@ export const SignedOutCard: React.FC<{
         >
           <Text style={styles.signInButtonText}>Connect to Power BI</Text>
         </Pressable>
+        <DenialsEntryButton onPress={onOpenDenials} />
       </View>
     </View>
   </SafeAreaView>
@@ -121,7 +127,8 @@ const LiveReportList: React.FC<{
   model: ReportsModel;
   onOpen: (report: ReportRef) => void;
   onSignIn: () => void;
-}> = ({ model, onOpen, onSignIn }) => {
+  onOpenDenials?: () => void;
+}> = ({ model, onOpen, onSignIn, onOpenDenials }) => {
   const [result, setResult] = useState<ReportCatalogResult | null>(null);
   const [error, setError] = useState<PresentableError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -197,6 +204,7 @@ const LiveReportList: React.FC<{
         ListHeaderComponent={
           <>
             <ScreenHeader title="Reports" subtitle={REPORTS_SUBTITLE} />
+            <DenialsEntryRow onPress={onOpenDenials} />
             {result ? (
               <View style={styles.searchWrap}>
                 <TextInput
