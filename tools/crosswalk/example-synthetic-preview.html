@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Crosswalk Preview</title>
+<style>
+body { font-family: monospace; background: #111; color: #ccc; margin: 0; padding: 1rem; }
+.tile { border: 1px solid #333; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.75rem; background: #1a1a1a; }
+.tile-header { display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.4rem; }
+.tile-id { font-weight: bold; color: #eee; }
+.tile-render { background: #2a3a2a; color: #8f8; padding: 1px 6px; border-radius: 3px; font-size: 0.85em; }
+.tile-source { color: #888; font-size: 0.8em; }
+.tile-layout { font-size: 0.75em; color: #666; margin-bottom: 0.4rem; }
+.refs { margin: 0.25rem 0; padding-left: 1.2rem; font-size: 0.8em; }
+.group-refs .ref { color: #adf; }
+.measure-refs .ref { color: #fca; }
+.dax-block { background: #0d1117; border: 1px solid #2a2a2a; padding: 0.5rem; font-size: 0.75em; overflow-x: auto; white-space: pre; color: #c9d1d9; }
+.warn-tag { color: #f80; font-size: 0.75em; margin-top: 0.3rem; }
+</style>
+</head>
+<body>
+<h1 style="color:#eee;font-size:1.1rem;margin-bottom:1rem;">Crosswalk Preview — example-synthetic</h1>
+<div class="tile">
+  <div class="tile-header">
+    <span class="tile-id">v0</span>
+    <span class="tile-render">bar</span>
+    <span class="tile-source">columnChart</span>
+  </div>
+  <div class="tile-layout">x:15 y:14 w:640 h:300</div>
+  <ul class="refs group-refs"><li class="ref">'SALES'[REGION]</li></ul>
+  <ul class="refs measure-refs"><li class="ref">SUM('SALES'[Revenue])</li></ul>
+  <pre class="dax-block">EVALUATE
+SUMMARIZECOLUMNS(
+  'SALES'[REGION],
+  &quot;Revenue_0&quot;, SUM('SALES'[Revenue])
+)</pre>
+  
+</div>
+<div class="tile">
+  <div class="tile-header">
+    <span class="tile-id">v1</span>
+    <span class="tile-render">ledger</span>
+    <span class="tile-source">pivotTable</span>
+  </div>
+  <div class="tile-layout">x:15 y:330 w:300 h:250</div>
+  <ul class="refs group-refs"><li class="ref">'SALES'[REGION]</li><li class="ref">'SALES'[PRODUCT]</li></ul>
+  <ul class="refs measure-refs"><li class="ref">COUNTA('SALES'[OrderId])</li></ul>
+  <pre class="dax-block">EVALUATE
+SUMMARIZECOLUMNS(
+  'SALES'[REGION],
+  'SALES'[PRODUCT],
+  &quot;OrderId_0&quot;, COUNTA('SALES'[OrderId])
+)</pre>
+  
+</div>
+<div class="tile">
+  <div class="tile-header">
+    <span class="tile-id">v2</span>
+    <span class="tile-render">filter</span>
+    <span class="tile-source">slicer</span>
+  </div>
+  <div class="tile-layout">x:670 y:14 w:200 h:120</div>
+  <ul class="refs group-refs"><li class="ref">'SALES'[REGION]</li></ul>
+  
+  
+  
+</div>
+<div class="tile">
+  <div class="tile-header">
+    <span class="tile-id">v3</span>
+    <span class="tile-render">kpi</span>
+    <span class="tile-source">card</span>
+  </div>
+  <div class="tile-layout">x:670 y:150 w:200 h:80</div>
+  
+  <ul class="refs measure-refs"><li class="ref">[Revenue]</li></ul>
+  <pre class="dax-block">EVALUATE
+SUMMARIZECOLUMNS(
+  &quot;Revenue_0&quot;, [Revenue]
+)</pre>
+  
+</div>
+<div class="tile">
+  <div class="tile-header">
+    <span class="tile-id">v4</span>
+    <span class="tile-render">chrome</span>
+    <span class="tile-source">actionButton</span>
+  </div>
+  <div class="tile-layout">x:0 y:0 w:10 h:10</div>
+  
+  
+  
+  
+</div>
+</body>
+</html>
