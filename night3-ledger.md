@@ -20,7 +20,7 @@ Orchestrator: lead session (Opus). One agent per worktree. Reconciled on every r
 
 | Squad | Branch | Worktree | Agent | Status |
 |---|---|---|---|---|
-| W — Enhancement Wiring | night3/enhance-wire | fleet-n3-W | squad-W (sonnet) | DISPATCHED (running) |
+| W — Enhancement Wiring | night3/enhance-wire | fleet-n3-W | squad-W (sonnet) | R1 PARTIAL (commit 0b374ce, 679 tests) -> SENT BACK to wire Q1 trend-tile bands+anomaly |
 | M — Morph Drill Screen | night3/drill | fleet-n3-M | squad-M (sonnet) | DISPATCHED (running) |
 | S — Skia Graduation (QUARANTINE) | night3/skia-grad | fleet-n3-S | squad-S (sonnet) | DISPATCHED (running) |
 
@@ -31,8 +31,12 @@ Worktrees: W/M junction node_modules -> fleet-n3. S own real install (675 pkgs, 
 |---|---|---|
 | (after each squad DoD) | F-series (Opus) | NOT STARTED |
 
-## Open QUESTIONS for owner
-- (none yet)
+## Open QUESTIONS for owner (from Squad W board analysis)
+- Q2 (W): No board shows a pareto cut-line / cumulative-share annotation on the Denials ledgers; ledgers already sort descending by data. Add a faint 80% threshold separator? where + what token?
+- Q3 (W): No board places a distribution strip anywhere ("strip" on boards = tick-strip instrument only). Which series feeds it, which screen, where?
+- Q4 (W): Ledger rows carry single-period {groups,value}; period deltas need prior-period data. Thread priorValue onto LedgerRow? Where does the delta render?
+- Q5 (W): Which ledger tile gets which math enhancement (pareto fits CODES, deltas fit PAYOR)?
+- (Q1 control-bands+anomaly on trend tile is an explicit directive, not a question -> sent back to W to implement.)
 
 ## Reconciliation log
 - Baseline + Task 0 complete; worktree setup next.
