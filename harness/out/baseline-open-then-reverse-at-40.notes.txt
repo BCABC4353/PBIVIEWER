@@ -1,0 +1,18 @@
+BASELINE REEL — Current View-Transition morph (Sprint 1)
+
+View-Transition API available: true
+
+Interrupt-at-40 scenario: open triggered, close fired at ~40% progress.
+With View-Transitions, interrupt calls skipTransition() on the in-flight VT,
+which snaps the browser to the end state rather than reversing mid-flight.
+This is the RESTART problem: position snaps rather than reversing smoothly.
+
+HONEST BASELINE FAILURES (after S4 harness hardening):
+
+  - SELF-CHECK interrupt: PASS — rects DO vary (span >= 20px) because the VT snap
+    produces two distinct rect positions (opening at y=251 then snapping to y=109)
+  - A-3: FAIL — no measurable reversal at midpoint (w=318, h=124 both halves)
+  - A-4: FAIL — numeric backstop detects snap: dy=142px at rect pair 6->7 (no phase labels)
+
+The A-4 numeric backstop correctly catches the position snap even without phase labels.
+Sprint 2 FLIP will keep .luce-sheet animating and reverse it smoothly, turning A-3/A-4 into passes.

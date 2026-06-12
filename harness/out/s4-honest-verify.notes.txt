@@ -1,0 +1,25 @@
+
+---------------------------------------------------------------------------------------------------------------------------------
+ID           | Scenario                                 | Status   | Detail
+---------------------------------------------------------------------------------------------------------------------------------
+SELF-CHECK   | baseline-open                            | FAIL     | 40/40 rects all identical {w:880,h:530} — static capture, no measurable motion.
+SELF-CHECK   | baseline-close                           | FAIL     | 9/40 rects all identical {w:318,h:124} — static capture, no measurable motion.
+SELF-CHECK   | baseline-open-then-reverse-at-40         | PASS     | 40 frames, rects vary (span >= 20px) — capture is real
+SELF-CHECK   | baseline-reduced-motion                  | PASS     | 40/40 rects all identical — static/instant is correct for this scenario
+A-1          | open-width                               | FAIL     | axis=w totalDelta=0.00px — motion expected but absent (< 2px)
+A-1          | open-height                              | FAIL     | axis=h totalDelta=0.00px — motion expected but absent (< 2px)
+A-1          | close-width                              | FAIL     | axis=w totalDelta=0.00px — motion expected but absent (< 2px)
+A-1          | close-height                             | FAIL     | axis=h totalDelta=0.00px — motion expected but absent (< 2px)
+A-1          | close-returns-origin                     | FAIL     | lastClose={x:40.0,y:109.0} vs firstOpen={x:40.0,y:251.0}
+A-2          | baseline-open                            | PASS     | maxJump=0.0px totalDelta=1.0px jumpPct=0%
+A-2          | baseline-close                           | FAIL     | 31/40 frames have present:false (23% present). First absent at frame 9. EXPECTED for VT baseline.
+A-2          | baseline-reduced-motion                  | PASS     | maxJump=0.0px totalDelta=1.0px jumpPct=0%
+A-3          | open-then-reverse-at-40                  | FAIL     | At midpoint: w=318.0 h=124.0; final: w=318.0 h=124.0; wReversed=false hReversed=false
+A-4          | open-then-reverse-at-40                  | FAIL     | Numeric backstop: snap detected — dx=0.0 dy=142.0 at rect pair 6->7 (no phase labels)
+A-5          | baseline-open                            | PASS     | All 40 frames: pointerBlockedAtCenter=false
+A-5          | baseline-reduced-motion                  | PASS     | All 40 frames: pointerBlockedAtCenter=false
+---------------------------------------------------------------------------------------------------------------------------------
+
+6 PASS  10 FAIL
+
+OVERALL: FAIL

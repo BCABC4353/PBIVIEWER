@@ -1,0 +1,22 @@
+BASELINE REEL — Current View-Transition morph (Sprint 1)
+
+View-Transition API available: true
+
+HONEST BASELINE FAILURES (after S4 harness hardening):
+
+The current morph uses document.startViewTransition with CSS ::view-transition-group.
+During a View Transition the browser animates pseudo-element snapshots that are NOT
+addressable via getBoundingClientRect from JS. .luce-sheet mounts at its final settled
+size before the pseudo-element animation starts, so all 40 frames capture an identical
+settled rect — the pseudo-element is moving, but .luce-sheet is static.
+
+Genuine failures on this baseline:
+  - SELF-CHECK baseline-open: FAIL — 40/40 rects all identical (static capture)
+  - A-1 open-width: FAIL — totalDelta=0px, motion expected but absent
+  - A-1 open-height: FAIL — totalDelta=0px, motion expected but absent
+
+A-1 and A-2 do NOT skip-to-PASS on this baseline (old harness did; hardened harness does not).
+SELF-CHECK passes the interrupt scenario because the VT snap produces two distinct rect positions.
+
+Sprint 2 FLIP will keep .luce-sheet in the DOM and apply the animating transform directly to it,
+producing continuously-varying rects and turning these failures into passes.
