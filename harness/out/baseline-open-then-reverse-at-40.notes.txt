@@ -1,0 +1,28 @@
+BASELINE REEL — Current View-Transition morph (Sprint 1)
+
+View-Transition API available: true
+
+HONESTY CAVEAT — View-Transition measurability:
+The current morph uses document.startViewTransition with CSS ::view-transition-group(sheet-morph).
+During a View Transition, the browser creates pseudo-element snapshots (::view-transition-old,
+::view-transition-new) that are NOT addressable via getBoundingClientRect from JS.
+The .luce-sheet div only exists in the DOM AFTER the transition callback completes (open)
+or is REMOVED before the transition starts (close). So:
+  - During "opening": .luce-sheet is absent from DOM until the callback fires mid-transition.
+    getTrackedRect() returns null for most opening frames, then the final rect once sheet mounts.
+  - During "closing": .luce-sheet is removed immediately; getTrackedRect() returns null.
+  - The ::view-transition-group pseudo-element that IS moving cannot be measured via JS.
+
+This is the fundamental reason for the Sprint 2+ FLIP refactor: FLIP keeps the real DOM
+element present and moving continuously, making every frame measurable.
+
+For this baseline Sprint 1 reel, capture honestly records what IS measurable:
+  - present:false during most of the View-Transition frames (the pseudo-element is moving,
+    not the real DOM node)
+  - rect appears only when the real sheet node is mounted/visible
+  - A-2/A-3/A-4 will FAIL on this baseline — expected, this is the before story
+
+Interrupt-at-40 scenario: open triggered, close fired at ~40% progress.
+With View-Transitions, interrupt calls skipTransition() on the in-flight VT,
+which causes the browser to jump to the end state rather than reversing mid-flight.
+This is the RESTART problem: position snaps rather than reversing smoothly.

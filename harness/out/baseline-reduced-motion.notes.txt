@@ -1,0 +1,4 @@
+REDUCED-MOTION scenario: prefers-reduced-motion: reduce emulated.
+InsightsPage skips View-Transition when prefersReducedMotion() returns true,
+so the sheet mounts instantly. All frames should show the settled sheet.
+This scenario should be a clean PASS for presence/rect (sheet is static).
