@@ -23,10 +23,15 @@ defer to it when present). The locked rules:
 - **The tick strip is the only instrument.** No dials, no gauges.
 - **NO chips, NO badges.** Status is an engraved glyph + tinted text.
 - **Color roles:**
-  - Safety Orange `#FF5F15` — live/armed only.
+  - Brand orange `#FF7900` (the logo orange; `#FF5F15` is RETIRED) —
+    live/armed/attention only.
+  - Directional pair (data movement only, not status): orange `#FF7900` up,
+    backlit logo blue down.
   - Green — transient verified-event only.
   - Amber — behind.
   - Red — broken only.
+  - Categorical data series use the engineered 8-hue palette (orange is the
+    highlighter, never a category). Chrome stays monochrome.
   - Healthy screens are monochrome.
 - **Data may animate its own arrival; chrome never performs.** No launch
   rituals, no sweeps.
