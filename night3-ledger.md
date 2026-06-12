@@ -20,9 +20,11 @@ Orchestrator: lead session (Opus). One agent per worktree. Reconciled on every r
 
 | Squad | Branch | Worktree | Agent | Status |
 |---|---|---|---|---|
-| W — Enhancement Wiring | night3/enhance-wire | fleet-n3-W | (pending dispatch) | NOT STARTED |
-| M — Morph Drill Screen | night3/drill | fleet-n3-M | (pending dispatch) | NOT STARTED |
-| S — Skia Graduation (QUARANTINE) | night3/skia-grad | fleet-n3-S | (pending dispatch) | NOT STARTED |
+| W — Enhancement Wiring | night3/enhance-wire | fleet-n3-W | squad-W (sonnet) | DISPATCHED (running) |
+| M — Morph Drill Screen | night3/drill | fleet-n3-M | squad-M (sonnet) | DISPATCHED (running) |
+| S — Skia Graduation (QUARANTINE) | night3/skia-grad | fleet-n3-S | squad-S (sonnet) | DISPATCHED (running) |
+
+Worktrees: W/M junction node_modules -> fleet-n3. S own real install (675 pkgs, skia). S merged night3/main into skia-spike (lockfile conflict resolved to spike base + install; baseline 659 tests green post-merge).
 
 ## Antagonists
 | Target | Agent | Status |
