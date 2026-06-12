@@ -79,9 +79,29 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
   capture-timing artifact: spring overshoots ~9px then panel unmounts pre-settle). The agent that needed
   the pass also loosened the bar -> dispatched F-cap antagonist to audit honesty before Sprint 2 exits.
 
-### Sprint 2 EXIT — antagonist audit of verifier honesty (F-cap) — IN PROGRESS
-- F-cap (Opus): is A-1 12px hiding a return-to-origin defect or a capture artifact? Does baseline still
-  honestly FAIL under modified verifier? Do #2/#3/#4 still catch a broken morph? Independent re-run.
+### Sprint 2 EXIT — antagonist audit of verifier honesty (F-cap) — DONE, SPRINT 2 EXITED
+- F-cap (Opus) VERDICT PASS-WITH-FIXES: the 16/16 primitive PASS is HONEST. Proved the FLIP morph
+  returns to origin within 0.32px (math + 2 independent captures); the "~9px overshoot" was FICTIONAL
+  — a verifier measurement bug (A-1 compared close-settled p~0 vs openFrames[0] at p=0.019). baseline
+  still FAILS 9 ways under modified verifier (contrast intact). Probed #2/#3/#4: each still FAILs a
+  genuinely broken morph. timeScale confirmed a clean clock-stretch of the one real spring (728 green).
+- INTEGRATOR FIX (commit 33468a1): reverted A-1 to ORIGIN_TOL=1, comparing open+close rects
+  extrapolated to progress=0 (kills the artifact). Hardened A-4: absolute snap backstop
+  (>max(150px,3x median)) + scan ALL animating pairs. Re-captured + re-verified:
+    PRIMITIVE: 16 PASS / 0 FAIL at 1px bar. A-1 close-returns-origin d=(0.00,0.00,0.00,0.00).
+    BASELINE: 7 PASS / 9 FAIL (exit 1) — before/after contrast holds.
+  Gate: tsc main+renderer + lint clean, npm test 728/728. verify.mjs 298L.
+
+## SPRINT 2 COMPLETE — morph/main holds S1+S2+S3+S4+evidence, 728 green, primitive proven 16/16 at spec bar.
+
+## SPRINT 3 PLAN
+- S5: wire InsightsPage to useSharedElementMorph; DELETE the View-Transition open/close path +
+  ::view-transition CSS + --morph vars; WorkspaceTile/Sheet consume the primitive; KEEP all 46
+  InsightsPage tests green; honor harness/CONTRACT.md (FLIP transform on the measured .luce-sheet node).
+- S4: capture the REAL tile in the harness; verify A-1..A-6 on the real integration.
+- F (fresh antagonist): attack integration — focus/a11y, reduced-motion, NO global pointer interceptor
+  regression, reusability (primitive importable with only spring + flip files), 46 jsdom tests green.
+- Integrator merges S5 with full gate. Then Sprint 4: MORPH-REPORT.md + push all branches.
 
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
