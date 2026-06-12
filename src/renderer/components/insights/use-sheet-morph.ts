@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useSharedElementMorph } from '../../lib/morph/use-shared-element-morph';
 import { prefersReducedMotion } from './luce-motion';
@@ -10,6 +10,7 @@ export interface SheetState {
 
 export interface UseSheetMorphOptions {
   setSheet: React.Dispatch<React.SetStateAction<SheetState | null>>;
+  timeScale?: number;
 }
 
 export interface SheetMorphResult {
@@ -25,7 +26,7 @@ function isLaidOut(el: Element | null): boolean {
   return r.width > 0 || r.height > 0;
 }
 
-export function useSheetMorph({ setSheet }: UseSheetMorphOptions): SheetMorphResult {
+export function useSheetMorph({ setSheet, timeScale }: UseSheetMorphOptions): SheetMorphResult {
   const morphRef = useRef<HTMLDivElement | null>(null);
   const sourceRef = useRef<Element | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -40,6 +41,7 @@ export function useSheetMorph({ setSheet }: UseSheetMorphOptions): SheetMorphRes
     morphRef,
     sourceRef,
     onClosed,
+    timeScale,
   });
 
   const openSheet = useCallback(
@@ -77,6 +79,14 @@ export function useSheetMorph({ setSheet }: UseSheetMorphOptions): SheetMorphRes
     },
     [morph, setSheet],
   );
+
+  useEffect(() => {
+    if (!(window as Window & { __HARNESS?: boolean }).__HARNESS) return;
+    (window as Window & { __morphHandle?: { phase: () => string; progress: () => number } }).__morphHandle = {
+      phase: () => morph.phase(),
+      progress: () => morph.progress(),
+    };
+  });
 
   return { morphRef, sourceRef, openSheet, closeSheet };
 }

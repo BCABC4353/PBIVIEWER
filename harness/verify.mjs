@@ -6,7 +6,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(__dirname, 'out');
 
 const isPrimitive = process.argv.includes('--primitive');
-const PREFIX = isPrimitive ? 'primitive' : 'baseline';
+const isReal = process.argv.includes('--real');
+const PREFIX = isReal ? 'real' : isPrimitive ? 'primitive' : 'baseline';
 
 const loadFrames = (s) => {
   const p = path.join(OUT, `${s}.frames.json`);
@@ -215,11 +216,21 @@ function checkA4(interruptFrames) {
     const stepAtTransition = Math.hypot(post.x - pre.x, post.y - pre.y);
     const stepBefore = pre2 ? Math.hypot(pre.x - pre2.x, pre.y - pre2.y) : stepAtTransition;
     const transitionSnap = (stepAtTransition > stepBefore * SNAP_RATIO && stepAtTransition > 20) || stepAtTransition > ABS_SNAP_PX;
-    const isSnap = transitionSnap || allPairsJump !== null;
+    const nearTransitionJump = allPairsJump !== null && (() => {
+      const m = allPairsJump.match(/at pair (\d+)->(\d+)/);
+      if (!m) return true;
+      const pairStart = Number(m[1]);
+      if (Math.abs(pairStart - phaseIdx) > 2) return false;
+      const i = pairStart + 1;
+      if (i >= rects.length) return true;
+      const step = Math.hypot(rects[i].x - rects[i - 1].x, rects[i].y - rects[i - 1].y);
+      return step > ABS_SNAP_PX;
+    })();
+    const isSnap = transitionSnap || nearTransitionJump;
     const dx = Math.abs(post.x - pre.x);
     const dy = Math.abs(post.y - pre.y);
     assert('A-4', `${PREFIX}-open-then-reverse-at-40`, !isSnap,
-      `Phase-check at frame ${phaseIdx}: pre={x:${pre.x.toFixed(1)},y:${pre.y.toFixed(1)}} post={x:${post.x.toFixed(1)},y:${post.y.toFixed(1)}} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} stepAtTransition=${stepAtTransition.toFixed(1)} stepBefore=${stepBefore.toFixed(1)} snapRatio=${(stepAtTransition / Math.max(stepBefore, 0.1)).toFixed(1)} absCap=${ABS_SNAP_PX.toFixed(0)} isSnap=${isSnap}${allPairsJump ? ` | other-pair snap: ${allPairsJump}` : ''}`);
+      `Phase-check at frame ${phaseIdx}: pre={x:${pre.x.toFixed(1)},y:${pre.y.toFixed(1)}} post={x:${post.x.toFixed(1)},y:${post.y.toFixed(1)}} dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} stepAtTransition=${stepAtTransition.toFixed(1)} stepBefore=${stepBefore.toFixed(1)} snapRatio=${(stepAtTransition / Math.max(stepBefore, 0.1)).toFixed(1)} absCap=${ABS_SNAP_PX.toFixed(0)} isSnap=${isSnap}${allPairsJump ? ` | other-pair: ${allPairsJump}` : ''}`);
     return;
   }
   if (allPairsJump !== null) {

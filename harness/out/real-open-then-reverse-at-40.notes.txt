@@ -1,0 +1,9 @@
+REAL INTEGRATION REEL — S5 wired Insights tile FLIP morph
+
+Speed multiplier: 0.15 (timeScale=0.15, ~2667ms total)
+
+InsightsPage renders real WorkspaceTile -> WorkspaceSheet via useSheetMorph -> useSharedElementMorph.
+getTrackedRect measures .luce-sheet (the FLIP target node), same contract as primitive harness.
+phase/progress sourced from window.__morphHandle (injected by use-sheet-morph shim under __HARNESS=true).
+
+Interrupt-at-40: open triggered, close at ~40% spring progress.
