@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "FLEET",
+    "slug": "fleet-mobile",
+    "version": "0.1.0",
+    "orientation": "default",
+    "scheme": "fleet",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "primaryColor": "#FF5F15",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bcabc.fleet",
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000"
+      }
+    },
+    "android": {
+      "package": "com.bcabc.fleet",
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#000000"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#000000"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser"
+    ]
+  }
+}
