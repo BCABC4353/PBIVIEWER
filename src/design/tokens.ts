@@ -35,7 +35,7 @@ export const direction = {
 export const waterfall = {
   increment: brand.orange,
   decrement: brand.blueBacklit,
-  total: '#A0A4AF',
+  total: '#A9ACB6',
   connector: 'rgba(255,255,255,0.10)',
 } as const;
 
