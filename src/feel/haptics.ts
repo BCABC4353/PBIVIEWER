@@ -1,5 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { createRateLimiter } from './motion-core';
+import { buildLadder } from './haptics-ladder';
 
 let enabled = true;
 
@@ -50,6 +51,15 @@ export function detent(): void {
   fire(() => Haptics.selectionAsync());
 }
 
+const ladder = buildLadder({ getEnabled: () => enabled });
+
+export function pushThrough(): void {
+  ladder.pushThrough();
+}
+
+export function resurface(): void {
+  ladder.resurface();
+}
 
 export interface HapticProbeResult {
   verb: string;
