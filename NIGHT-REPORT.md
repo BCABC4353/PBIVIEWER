@@ -94,7 +94,8 @@ senior model can audit against the exact commands at the bottom.
 - Antagonist (PASS after fix): color/forbidden-primitive (no chips/dials)/HIPAA/
   integration all clean; wiring tests hand-verified genuine; fluid layout
   legitimate (no fixed-width data containers). Two items fixed: the touched
-  `ReportsScreen` was shrunk by extracting `DenialsEntry` (421 → 387), and an
+  `ReportsScreen` was shrunk by extracting `DenialsEntry` (399 baseline → 407
+  final, net +8 routing lines), and an
   assertion-free `expect(true)` morph stub was replaced with two real invariants
   that fail if morph is half-wired. morph-choreo drill is honestly unwired (out
   of skeleton scope) behind those named-TODO real-assertion tests.
@@ -130,13 +131,14 @@ Run from integrated `night/main`, reproducing the committed `CORPUS-STATS.md`:
 - Full type tallies and diagnostics are in `tools/crosswalk/CORPUS-STATS.md`.
 
 ## QUESTIONS FOR THE OWNER (things I could not lawfully decide)
-1. **`ReportsScreen.tsx` is 387 lines — over the 300 cap.** It was already 379 at
+1. **`ReportsScreen.tsx` is 407 lines — over the 300 cap.** It was already 399 at
    baseline (a pre-existing violator, one of several below); Squad H added only
    +8 irreducible routing lines and extracted everything else cohesive into
    `DenialsEntry.tsx`. I accepted the pre-existing debt rather than refactor
    working code out of scope. Do you want the pre-existing screens split, as a
-   separate cleanup? Other pre-existing >300 files (untouched tonight):
-   `src/core/canvas-crosswalk.ts` (466), `src/ui/SettingsScreen.tsx` (493).
+   separate cleanup? Other pre-existing >300 files (untouched in substance):
+   `src/core/canvas-crosswalk.ts` (466), `src/ui/SettingsScreen.tsx` (493),
+   `src/feel/primitives.tsx` (316), `src/ui/BlastRadius.tsx` (311).
 2. **CLAUDE.md said live-color `#FF5F15`; HANDOFF.md says that's RETIRED and
    `#FF7900` is canon.** HANDOFF is newer and explicit, so I encoded `#FF7900`.
    CLAUDE.md's color section is now stale — want me to correct it (one-line edit)
@@ -170,7 +172,8 @@ node tools/crosswalk/cli.mjs <a-local-pbip-report-dir> --out ./_cw && cat ./_cw/
 ```
 To see a manifest without the app:
 ```
-node tools/crosswalk/cli.mjs tools/crosswalk/example-synthetic.json --render-preview <out.html>
+node tools/crosswalk/cli.mjs --render-preview tools/crosswalk/example-synthetic.json
+# writes tools/crosswalk/example-synthetic-preview.html next to the manifest
 ```
 Branches pushed: `night/main` + `night/{enhance,interaction,haptics,crosswalk,
 shell,skia-spike,design-07}`. The Skia branch is quarantined (do not merge as-is).

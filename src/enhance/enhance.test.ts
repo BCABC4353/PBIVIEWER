@@ -7,9 +7,6 @@ import { periodDeltas } from './deltas';
 import { anomalyFlags } from './anomaly';
 import { linearInterpolationPercentile, ok, insufficient, isOk, isInsufficient } from './types';
 
-// ---------------------------------------------------------------------------
-// types helpers
-// ---------------------------------------------------------------------------
 describe('types helpers', () => {
   it('ok wraps a value', () => {
     const r = ok(42);
@@ -46,13 +43,10 @@ describe('types helpers', () => {
   });
 
   it('linearInterpolationPercentile p=0.5 on [1,3,5] returns 3', () => {
-    // idx = 0.5 * 2 = 1.0, lo=hi=1, sorted[1]=3
     expect(linearInterpolationPercentile([1, 3, 5], 0.5)).toBe(3);
   });
 
   it('linearInterpolationPercentile p=0.25 on [2,4,6,8] interpolates correctly', () => {
-    // idx = 0.25 * 3 = 0.75, lo=0 (value 2), hi=1 (value 4), frac=0.75
-    // 2 + 0.75*(4-2) = 2 + 1.5 = 3.5
     expect(linearInterpolationPercentile([2, 4, 6, 8], 0.25)).toBeCloseTo(3.5);
   });
 
@@ -73,9 +67,6 @@ describe('types helpers', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// rolling
-// ---------------------------------------------------------------------------
 describe('rollingStats', () => {
   it('returns insufficient for empty series', () => {
     const r = rollingStats([], 3, 2);
@@ -115,7 +106,6 @@ describe('rollingStats', () => {
   });
 
   it('window larger than series uses full series as effective window', () => {
-    // series=[2,4,6], window=10 -> effective=3
     const r = rollingStats([2, 4, 6], 10, 1);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -123,13 +113,6 @@ describe('rollingStats', () => {
   });
 
   it('hand-computed: window=3 on [2,4,6,8], sigma=1', () => {
-    // i=0: slice=[2], mean=2, stddev=0, upper=2, lower=2
-    // i=1: slice=[2,4], mean=3, sampleStddev=sqrt(((2-3)^2+(4-3)^2)/1)=sqrt(2)~1.4142
-    //       upper=3+1.4142, lower=3-1.4142
-    // i=2: slice=[2,4,6], mean=4, sampleStddev=sqrt(((2-4)^2+(4-4)^2+(6-4)^2)/2)=sqrt(8/2)=sqrt(4)=2
-    //       upper=6, lower=2
-    // i=3: slice=[4,6,8], mean=6, sampleStddev=sqrt(((4-6)^2+(6-6)^2+(8-6)^2)/2)=sqrt(8/2)=2
-    //       upper=8, lower=4
     const r = rollingStats([2, 4, 6, 8], 3, 1);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -160,9 +143,6 @@ describe('rollingStats', () => {
   });
 
   it('sigma multiplier scales band proportionally', () => {
-    // series=[1,3,5], window=3, sigma=2
-    // at i=2: slice=[1,3,5], mean=3, sampleStddev=sqrt(((1-3)^2+(3-3)^2+(5-3)^2)/2)=sqrt(8/2)=2
-    // upper=3+2*2=7, lower=3-2*2=-1
     const r = rollingStats([1, 3, 5], 3, 2);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -174,9 +154,6 @@ describe('rollingStats', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// pareto
-// ---------------------------------------------------------------------------
 describe('paretoAnalysis', () => {
   it('returns insufficient for empty values', () => {
     expect(paretoAnalysis([]).kind).toBe('insufficient');
@@ -197,10 +174,6 @@ describe('paretoAnalysis', () => {
   });
 
   it('hand-computed: [40, 30, 20, 10] threshold=0.8', () => {
-    // sorted desc: [40,30,20,10], total=100
-    // shares: 0.4, 0.3, 0.2, 0.1
-    // cumulative: 0.4, 0.7, 0.9, 1.0
-    // threshold=0.8 crossed at rank 2 (cumulative 0.9 >= 0.8)
     const r = paretoAnalysis([40, 30, 20, 10], 0.8);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -213,8 +186,6 @@ describe('paretoAnalysis', () => {
   });
 
   it('80% threshold hit exactly at boundary', () => {
-    // [50, 30, 20]: total=100, shares=0.5,0.3,0.2, cumulative=0.5,0.8,1.0
-    // threshold=0.8 crossed at rank 1 (cumulative=0.8 >= 0.8)
     const r = paretoAnalysis([50, 30, 20], 0.8);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -231,7 +202,6 @@ describe('paretoAnalysis', () => {
   });
 
   it('all-equal values distributes shares equally', () => {
-    // [10,10,10,10]: total=40, each share=0.25
     const r = paretoAnalysis([10, 10, 10, 10], 0.8);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -240,8 +210,6 @@ describe('paretoAnalysis', () => {
   });
 
   it('rejects negative values with insufficient (H3)', () => {
-    // [10,-5,3] previously produced shares 1.25/0.375/-0.625 with
-    // non-monotonic cumulative and threshold landing at rank 0 - meaningless.
     const r = paretoAnalysis([10, -5, 3], 0.8);
     expect(r.kind).toBe('insufficient');
     if (r.kind !== 'insufficient') return;
@@ -270,9 +238,6 @@ describe('paretoAnalysis', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// bridge
-// ---------------------------------------------------------------------------
 describe('varianceBridge', () => {
   it('returns insufficient when both series empty', () => {
     expect(varianceBridge(new Map(), new Map()).kind).toBe('insufficient');
@@ -287,8 +252,6 @@ describe('varianceBridge', () => {
   });
 
   it('only-changed keys: correct deltas', () => {
-    // before: a=10, b=20; after: a=15, b=18
-    // a: delta=5 changed; b: delta=-2 changed
     const r = varianceBridge({ a: 10, b: 20 }, { a: 15, b: 18 });
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -322,7 +285,6 @@ describe('varianceBridge', () => {
   });
 
   it('mixed new, dropped, changed', () => {
-    // before: kept=100, gone=50; after: kept=120, fresh=30
     const before = new Map([['kept', 100], ['gone', 50]]);
     const after = new Map([['kept', 120], ['fresh', 30]]);
     const r = varianceBridge(before, after);
@@ -345,9 +307,6 @@ describe('varianceBridge', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// distribution
-// ---------------------------------------------------------------------------
 describe('distributionStrip', () => {
   it('returns insufficient for empty values', () => {
     expect(distributionStrip([]).kind).toBe('insufficient');
@@ -377,10 +336,6 @@ describe('distributionStrip', () => {
   });
 
   it('hand-computed: [1,2,3,4,5]', () => {
-    // sorted=[1,2,3,4,5], n=5
-    // p25: idx=0.25*4=1.0 -> sorted[1]=2
-    // median: idx=0.5*4=2.0 -> sorted[2]=3
-    // p75: idx=0.75*4=3.0 -> sorted[3]=4
     const r = distributionStrip([3, 1, 5, 2, 4]);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -392,7 +347,6 @@ describe('distributionStrip', () => {
   });
 
   it('hand-computed p25 on [2,4,6,8]: 3.5', () => {
-    // sorted=[2,4,6,8], idx=0.25*3=0.75, lo=0(2),hi=1(4),frac=0.75, 2+0.75*2=3.5
     const r = distributionStrip([8, 2, 4, 6]);
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -435,9 +389,6 @@ describe('distributionStrip', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// deltas
-// ---------------------------------------------------------------------------
 describe('periodDeltas', () => {
   it('returns insufficient for empty series', () => {
     expect(periodDeltas(new Map(), 'MoM').kind).toBe('insufficient');
@@ -448,7 +399,6 @@ describe('periodDeltas', () => {
   });
 
   it('MoM: entry with no prior month returns insufficient delta', () => {
-    // only 2024-01 present, no 2023-12
     const r = periodDeltas(new Map([['2024-01-01', 100]]), 'MoM');
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -456,8 +406,6 @@ describe('periodDeltas', () => {
   });
 
   it('MoM hand-computed: [2024-01-01=100, 2024-02-01=120]', () => {
-    // 2024-01: prior=2023-12 (missing) -> insufficient
-    // 2024-02: prior=2024-01=100, delta=20, deltaPercent=20%
     const series = new Map([['2024-01-01', 100], ['2024-02-01', 120]]);
     const r = periodDeltas(series, 'MoM');
     expect(r.kind).toBe('ok');
@@ -472,8 +420,6 @@ describe('periodDeltas', () => {
   });
 
   it('MoM missing period gap returns insufficient for the skipped date', () => {
-    // 2024-01-01=100, 2024-03-01=150 (no Feb)
-    // 2024-03 needs prior=2024-02 which is absent -> insufficient
     const series = new Map([['2024-01-01', 100], ['2024-03-01', 150]]);
     const r = periodDeltas(series, 'MoM');
     expect(r.kind).toBe('ok');
@@ -483,7 +429,6 @@ describe('periodDeltas', () => {
   });
 
   it('YoY hand-computed: 2023 and 2024', () => {
-    // 2023-01-01=200, 2024-01-01=250: delta=50, deltaPercent=25%
     const series = new Map([['2023-01-01', 200], ['2024-01-01', 250]]);
     const r = periodDeltas(series, 'YoY');
     expect(r.kind).toBe('ok');
@@ -514,9 +459,6 @@ describe('periodDeltas', () => {
   });
 
   it('MoM resolves on month-end keys spanning Feb (H1 regression)', () => {
-    // Month-end snapshot keys: Jan 31, Feb 29 (leap), Mar 31.
-    // Old addMonths(2024-03-31, -1) overflowed to 2024-03-02 and matched
-    // nothing, so EVERY entry returned insufficient. Year-month matching fixes it.
     const series = new Map([
       ['2024-01-31', 100],
       ['2024-02-29', 130],
@@ -530,19 +472,16 @@ describe('periodDeltas', () => {
     const feb = byDate['2024-02-29']!.delta;
     expect(feb.kind).toBe('ok');
     if (feb.kind !== 'ok') return;
-    // 130 - 100 = 30; 30/100*100 = 30%
     expect(feb.value.delta).toBeCloseTo(30);
     expect(feb.value.deltaPercent).toBeCloseTo(30);
     const mar = byDate['2024-03-31']!.delta;
     expect(mar.kind).toBe('ok');
     if (mar.kind !== 'ok') return;
-    // 160 - 130 = 30; 30/130*100 ~= 23.0769%
     expect(mar.value.delta).toBeCloseTo(30);
     expect(mar.value.deltaPercent).toBeCloseTo((30 / 130) * 100);
   });
 
   it('YoY resolves on month-end keys across a year (H1 regression)', () => {
-    // 2023-02-28 (non-leap) -> 2024-02-29 (leap): prior month 2023-02 found.
     const series = new Map([
       ['2023-02-28', 200],
       ['2024-02-29', 260],
@@ -555,13 +494,11 @@ describe('periodDeltas', () => {
     const y24 = byDate['2024-02-29']!.delta;
     expect(y24.kind).toBe('ok');
     if (y24.kind !== 'ok') return;
-    // 260 - 200 = 60; 60/200*100 = 30%
     expect(y24.value.delta).toBeCloseTo(60);
     expect(y24.value.deltaPercent).toBeCloseTo(30);
   });
 
   it('YoY crosses year boundary correctly for December (H1)', () => {
-    // 2023-12-15 -> 2024-12-15: prior year-month 2023-12 must resolve.
     const series = new Map([
       ['2023-12-15', 50],
       ['2024-12-15', 75],
@@ -576,7 +513,6 @@ describe('periodDeltas', () => {
   });
 
   it('MoM crosses January->December year boundary (H1)', () => {
-    // 2024-01 prior month is 2023-12.
     const series = new Map([
       ['2023-12-01', 80],
       ['2024-01-01', 100],
@@ -591,10 +527,6 @@ describe('periodDeltas', () => {
   });
 
   it('negative prior: deltaPercent semantics pinned to delta/abs(prior) (M1)', () => {
-    // prior = -50 (Jan), value = -30 (Feb). delta = -30 - (-50) = 20.
-    // Intended semantics: percent magnitude relative to |prior|, signed by delta.
-    // 20 / abs(-50) * 100 = +40%. A move from -50 to -30 is a +20 absolute
-    // improvement; percent is positive because delta is positive.
     const series = new Map([['2024-01-01', -50], ['2024-02-01', -30]]);
     const r = periodDeltas(series, 'MoM');
     expect(r.kind).toBe('ok');
@@ -608,7 +540,6 @@ describe('periodDeltas', () => {
   });
 
   it('negative prior with further decline gives negative percent (M1)', () => {
-    // prior = -50, value = -80. delta = -30. -30/abs(-50)*100 = -60%.
     const series = new Map([['2024-01-01', -50], ['2024-02-01', -80]]);
     const r = periodDeltas(series, 'MoM');
     expect(r.kind).toBe('ok');
@@ -625,9 +556,6 @@ describe('periodDeltas', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// anomaly
-// ---------------------------------------------------------------------------
 describe('anomalyFlags', () => {
   it('returns insufficient for empty series', () => {
     expect(anomalyFlags([], []).kind).toBe('insufficient');
@@ -665,7 +593,6 @@ describe('anomalyFlags', () => {
   });
 
   it('flags point above upper band with correct magnitude', () => {
-    // value=10, upper=7 -> magnitude=3, side=above
     const band = [{ mean: 5, stddev: 1, upper: 7, lower: 3 }];
     const r = anomalyFlags([10], band);
     expect(r.kind).toBe('ok');
@@ -677,7 +604,6 @@ describe('anomalyFlags', () => {
   });
 
   it('flags point below lower band with correct magnitude', () => {
-    // value=1, lower=3 -> magnitude=2, side=below
     const band = [{ mean: 5, stddev: 1, upper: 7, lower: 3 }];
     const r = anomalyFlags([1], band);
     expect(r.kind).toBe('ok');
@@ -704,9 +630,6 @@ describe('anomalyFlags', () => {
   });
 
   it('mixed series: correct flags and indices', () => {
-    // series=[5, 10, 4, 1], band: all upper=7, lower=3
-    // index 1 (value=10 > 7): above, magnitude=3
-    // index 3 (value=1 < 3): below, magnitude=2
     const band = Array(4).fill({ mean: 5, stddev: 1, upper: 7, lower: 3 });
     const r = anomalyFlags([5, 10, 4, 1], band);
     expect(r.kind).toBe('ok');

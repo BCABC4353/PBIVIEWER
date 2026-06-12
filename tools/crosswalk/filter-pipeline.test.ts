@@ -186,7 +186,7 @@ describe('C3 — Not(In) exclude filter is flagged, never silently inverted', ()
   it('negated In condition -> unparseable + filtersIncomplete + diagnostic', () => {
     const filter = {
       name: 'notin',
-      field: colField('SALES', 'CALLTYPE'),
+      field: colField('SALES', 'CATEGORY'),
       type: 'Categorical',
       filter: {
         Where: [
@@ -195,8 +195,8 @@ describe('C3 — Not(In) exclude filter is flagged, never silently inverted', ()
               Not: {
                 Expression: {
                   In: {
-                    Expressions: [srcCol('q', 'CALLTYPE')],
-                    Values: [[literal("'REMINDER'")], [literal("'STANDBY'")]],
+                    Expressions: [srcCol('q', 'CATEGORY')],
+                    Values: [[literal("'ALPHA'")], [literal("'BRAVO'")]],
                   },
                 },
               },
@@ -212,7 +212,7 @@ describe('C3 — Not(In) exclude filter is flagged, never silently inverted', ()
     const result = buildDax(visual, diags);
     expect(result.filtersIncomplete).toBe(true);
     expect(result.dax).not.toContain('KEEPFILTERS');
-    expect(result.dax).not.toContain('REMINDER');
+    expect(result.dax).not.toContain('ALPHA');
     expect(diags.some((d) => d.code === 'FILTER_OMITTED')).toBe(true);
   });
 });
