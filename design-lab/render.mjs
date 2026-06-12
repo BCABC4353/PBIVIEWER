@@ -168,6 +168,21 @@ if (want('11')) {
   await p.close();
 }
 
+if (want('12')) {
+  const p = await browser.newPage();
+  await p.setViewport({ width: 3480, height: 1400, deviceScaleFactor: 2 });
+  await p.goto('file://' + join(root, '12-app.html'), { waitUntil: 'networkidle0' });
+  await p.evaluate(() => document.fonts.ready);
+  await sleep(1400);
+  await p.evaluate(() => window.__lab.api.settleAll());
+  await sleep(250);
+  await shoot(p, '12-app.png', { fullPage: true });
+  const trio = await p.$('#fluidRow');
+  await trio.screenshot({ path: join(out, '12-home-fluid.png') });
+  console.log('shot', '12-home-fluid.png');
+  await p.close();
+}
+
 await browser.close();
 
 let failed = false;

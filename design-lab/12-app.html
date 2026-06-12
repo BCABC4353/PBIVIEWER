@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 12 The App</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .page { width: max-content; min-width: 100%; padding: 28px 30px 64px; }
+  .lab-head { max-width: 1380px; }
+
+  .gallery { display: flex; gap: 30px; align-items: flex-start; }
+  .shot { width: 390px; flex: none; }
+  .shot-k { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); }
+  .shot-k .ix { color: var(--live); margin-right: 8px; }
+  .shot-k .m { font-size: 8.5px; color: var(--ink-faint); letter-spacing: 0.14em; }
+  .shot .caption { margin-top: 12px; }
+
+  .frame { position: relative; width: 100%; height: 844px; background: var(--bg);
+    border: 1px solid var(--hairline-strong); border-radius: 34px; overflow: hidden;
+    box-shadow: 0 0 0 5px #0B0B0D, 0 0 0 6px rgba(255,255,255,0.07); container-type: inline-size; }
+  .frame.mini { height: 560px; border-radius: 26px; }
+
+  .scr { display: flex; flex-direction: column; height: 100%; }
+  .sbar { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 16px 24px 6px; }
+  .sbar .time { font-family: var(--font-tab); font-size: 12.5px; color: var(--ink-mid); letter-spacing: 0.04em; }
+  .sbar .sic { display: flex; align-items: center; color: var(--ink-low); }
+
+  .shead { flex: none; display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; padding: 8px 20px 12px; border-bottom: 1px solid var(--hairline); }
+  .shead .hl { min-width: 0; }
+  .shead .bc { font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-low); white-space: nowrap; }
+  .shead .bc .bk { color: var(--live); margin-right: 6px; }
+  .shead .ttl { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 500; letter-spacing: 0.02em; margin-top: 4px; color: var(--ink-hi); }
+  .shead .ttl .tswat { width: 9px; height: 9px; border-radius: 2.5px; flex: none; }
+  .shead .fresh { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .shead .fresh svg { display: block; }
+  .shead .fresh .fage { font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-low); }
+  .shead .fresh .fage.behind { color: var(--behind); }
+  .accentline { flex: none; height: 2px; }
+
+  .sbody { flex: 1; min-height: 0; position: relative; padding: 0 20px; overflow: hidden; }
+  .scrollhint { position: absolute; left: 0; right: 0; bottom: 0; height: 42px; pointer-events: none;
+    background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.92)); }
+
+  .tabbar { flex: none; display: grid; grid-template-columns: repeat(4, 1fr); padding: 10px 8px 4px; border-top: 1px solid var(--hairline); }
+  .tab { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--ink-faint); }
+  .tab .tic { height: 19px; display: flex; align-items: center; }
+  .tab .tlb { font-size: 7.5px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; }
+  .tab.active { color: var(--live); }
+  .homeind { flex: none; height: 17px; display: flex; align-items: center; justify-content: center; }
+  .homeind::after { content: ''; width: 116px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.16); }
+
+  .hero2 { padding: 14px 0 4px; }
+  .hero2 .big { font-size: clamp(54px, 18cqw, 88px); line-height: 0.98; font-weight: 400; color: var(--ink-hi); }
+  .hero2 .label { margin-top: 8px; font-size: 10px; font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-mid); }
+  .hero2 .stamp { margin-top: 4px; font-size: 10.5px; color: var(--ink-low); }
+  .hero2 .deltas { margin-top: 8px; display: flex; gap: 16px; flex-wrap: wrap; }
+
+  .agg { margin-top: 4px; }
+  .agg svg { display: block; }
+  .sweep { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 0 10px; border-bottom: 1px solid var(--hairline); }
+  .sweep .mk { font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .lsec { padding: 12px 0 4px; font-size: 9px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-low);
+    display: flex; justify-content: space-between; align-items: baseline; }
+  .lsec .m { color: var(--ink-faint); letter-spacing: 0.14em; font-size: 8.5px; }
+
+  .wslist { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); column-gap: 30px; }
+  .wrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
+  .wrow .name { font-size: 12.5px; color: var(--ink-hi); }
+  .wrow .ws { display: block; font-size: 8.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .wrow .rt { display: flex; align-items: baseline; gap: 9px; flex: none; }
+  .age { font-size: 10.5px; color: var(--ink-mid); letter-spacing: 0.05em; }
+  .age.behind { color: var(--behind); }
+  .age.broken { color: var(--broken); }
+
+  .search { display: flex; align-items: center; gap: 9px; margin: 14px 0 2px; padding: 0 14px; height: 40px; border-radius: 11px;
+    background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep);
+    color: var(--ink-faint); font-size: 9.5px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; }
+  .search svg { flex: none; }
+  .prow { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
+  .prow .pn { font-size: 12.5px; color: var(--ink-hi); letter-spacing: 0.03em; }
+  .prow .pv { display: block; font-size: 8.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .prow svg { display: block; }
+  .prow .rt { display: flex; align-items: baseline; gap: 8px; }
+  .libfoot { padding: 12px 0; font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .ill { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0 6px; }
+  .illus { font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--behind); }
+  .illus .g { margin-right: 3px; }
+  .ill .m { font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .gpanel { padding: 2px 0 0; }
+  .gpanel svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 8px 0 10px; border-bottom: 1px solid var(--hairline); }
+  .lg { display: inline-flex; align-items: center; gap: 7px; font-size: 9px; letter-spacing: 0.05em; color: var(--ink-mid); }
+  .lg .sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+
+  .ledblock { padding-top: 10px; }
+  .ledtop { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 7px; }
+  .ledtop .lt-n { font-size: 11.5px; font-weight: 500; color: var(--ink-hi); }
+  .ledtop .lt-n .ix { font-size: 9px; color: var(--live); margin-right: 6px; }
+  .ledtop .lt-m { font-size: 8.5px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .carousel { display: grid; grid-template-columns: 28px 1fr 28px; gap: 8px; align-items: center; padding: 2px 0 8px; }
+  .cbtn { height: 30px; border-radius: 8px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--ink-low); }
+  .cbtn.off { opacity: 0.3; }
+  .cmid { text-align: center; }
+  .cmid .ml { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; color: var(--ink-hi); }
+  .cmid .mu { font-size: 7.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; }
+  .cmid svg { display: inline-block; margin-top: 3px; }
+  .ledger { border-top: 1px solid var(--hairline); }
+  .trow { display: grid; grid-template-columns: 1fr 64px 66px; gap: 10px; align-items: center; border-bottom: 1px solid var(--hairline); }
+  .trow .nm { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .trow .chev { font-size: 8px; color: var(--deco); flex: none; }
+  .trow .chev.open { transform: rotate(90deg); }
+  .trow .swat { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+  .trow .lbl { white-space: nowrap; }
+  .trow.lv0 { height: 40px; }
+  .trow.lv0 .lbl { font-size: 11.5px; font-weight: 500; color: var(--ink-hi); letter-spacing: 0.03em; }
+  .trow.lv1 { height: 34px; }
+  .trow.lv1 .nm { padding-left: 16px; }
+  .trow.lv1 .lbl { font-size: 10.5px; color: var(--ink-mid); letter-spacing: 0.02em; }
+  .trow.grand { height: 36px; border-bottom: 1px solid var(--hairline-strong); }
+  .trow.grand .lbl { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; color: var(--ink-low); }
+  .vbar { position: relative; height: 3px; border-radius: 1.5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .vbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1.5px; background: #A9ACB6; opacity: 0.78; }
+  .trow.lv0 .vbar i, .trow.grand .vbar i { opacity: 0.92; }
+  .val { text-align: right; font-size: 10.5px; color: var(--ink-mid); letter-spacing: 0.02em; }
+  .trow.lv0 .val, .trow.grand .val { color: var(--ink-hi); font-size: 11px; }
+
+  .ltable { border-top: 1px solid var(--hairline); }
+  .lrow2 { display: grid; grid-template-columns: 56px 1fr 44px 58px; gap: 10px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+  .lrow2 .cd { font-size: 11.5px; color: var(--ink-hi); letter-spacing: 0.05em; }
+  .lrow2 .ds { font-size: 8.5px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+  .lrow2 .ct { text-align: right; font-size: 11px; color: var(--ink-mid); }
+  .lrow2 .am { text-align: right; font-size: 11px; color: var(--ink-hi); }
+  .lrow2.hd { padding: 6px 0 8px; border-bottom: 1px solid var(--hairline-strong); }
+  .lrow2.hd span { font-size: 7.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+  .lrow2.tot { border-bottom: none; }
+  .lrow2.tot .cd { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; color: var(--ink-low); }
+  .drillfoot { padding: 10px 0; border-top: 1px solid var(--hairline); margin-top: 2px;
+    font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .pullhint { text-align: center; padding: 10px 0 0; font-size: 8.5px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+  .pullhint .c { display: block; font-size: 11px; margin-bottom: 2px; color: var(--deco); }
+  .arow { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
+  .arow .name { font-size: 12px; color: var(--ink-hi); }
+  .arow .ws { display: block; font-size: 8.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .arow .rt { display: flex; align-items: baseline; gap: 9px; }
+  .arow.q .name { color: var(--ink-mid); }
+  .arow.pressed { margin: 4px -12px; padding: 11px 12px; border-radius: 12px; border-bottom-color: transparent;
+    background: var(--well-1); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess); }
+  .arow .reveal { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid var(--hairline);
+    font-family: var(--font-tab); font-size: 9.5px; color: var(--ink-mid); letter-spacing: 0.03em; }
+  .arow .reveal .r { color: var(--broken); }
+
+  .tlsum { display: flex; gap: 26px; padding: 10px 0 12px; border-bottom: 1px solid var(--hairline); }
+  .tlsum .k { font-size: 8px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-low); }
+  .tlsum .v { font-size: 21px; font-weight: 400; color: var(--ink-hi); margin-top: 4px; }
+  .tlsum .v .u { font-size: 11px; color: var(--ink-low); margin-left: 2px; }
+  .tl-axis { position: relative; height: 26px; margin-top: 8px; }
+  .tl-axis svg { display: block; width: 100%; }
+  .tllane { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+  .tllane .ln { font-size: 9px; font-weight: 500; letter-spacing: 0.06em; color: var(--ink-mid); white-space: nowrap; }
+  .tllane .track { position: relative; height: 20px; }
+  .tlbar { position: absolute; top: 4px; height: 12px; border-radius: 3px; overflow: hidden; display: flex; align-items: center; }
+  .tlbar .tlab { font-size: 7.5px; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; padding: 0 5px; }
+  .tl-leg { display: flex; flex-wrap: wrap; gap: 5px 13px; padding: 10px 0; }
+  .tlverdict { padding: 9px 0; border-top: 1px solid var(--hairline);
+    font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .srow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+  .srow .sn { font-size: 12.5px; color: var(--ink-hi); }
+  .srow .sd { display: block; font-size: 9px; color: var(--ink-low); margin-top: 3px; line-height: 1.45; max-width: 30ch; }
+  .srow .sv { display: flex; align-items: baseline; gap: 8px; font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mid); }
+  .srow .sv .go { color: var(--ink-faint); font-size: 12px; }
+  .toggle { position: relative; width: 52px; height: 28px; border-radius: 14px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); flex: none; }
+  .toggle .thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8); }
+
+  .si { display: flex; flex-direction: column; height: 100%; }
+  .si .brand { padding: 26px 0 0; font-size: 10px; font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-low); }
+  .si .brand .dot { color: var(--live); }
+  .si .h { margin-top: 22px; font-size: clamp(30px, 9.5cqw, 38px); font-weight: 400; line-height: 1.08; color: var(--ink-hi); }
+  .si .s { margin-top: 10px; font-size: 11px; color: var(--ink-mid); line-height: 1.6; max-width: 36ch; }
+  .si .codewell { margin-top: 24px; padding: 20px 18px 16px; border-radius: 14px; background: var(--bg);
+    border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); text-align: center; }
+  .si .code { font-family: var(--font-tab); font-size: clamp(26px, 8.5cqw, 34px); letter-spacing: 0.22em; color: var(--ink-hi); }
+  .si .url { margin-top: 10px; font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-mid); }
+  .si .cd { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .si .cd svg { display: block; }
+  .si .steps { margin-top: 22px; }
+  .si .step { display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+  .si .step .n { font-size: 10px; color: var(--ink-faint); letter-spacing: 0.1em; }
+  .si .step .t { font-size: 11px; color: var(--ink-mid); letter-spacing: 0.04em; }
+  .si .step .t b { color: var(--ink-hi); font-weight: 500; }
+  .si .wait { margin-top: auto; padding: 14px 0 18px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--hairline); }
+  .si .mk { font-size: 8px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+  .si .sample { margin-top: 26px; text-align: center; }
+
+  .skelwrap { padding-top: 10px; }
+  .skel { height: 9px; border-radius: 4.5px; background: var(--well-2); box-shadow: var(--edge-top); }
+  .skelbars { display: flex; align-items: flex-end; gap: 10px; height: 130px; padding: 14px 4px 0; border-bottom: 1px solid var(--hairline); }
+  .skelbars i { flex: 1; background: var(--well-2); border-radius: 3px 3px 0 0; box-shadow: var(--edge-top); }
+  .skelrow { display: grid; grid-template-columns: 1fr 64px 66px; gap: 10px; align-items: center; height: 38px; border-bottom: 1px solid var(--hairline); }
+  .skelnote { padding-top: 12px; font-size: 8px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+  .cstate { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; height: 72%; }
+  .cstate .t1 { font-size: 13.5px; font-weight: 500; color: var(--ink-hi); letter-spacing: 0.03em; }
+  .cstate .t2 { font-size: 9.5px; color: var(--ink-low); letter-spacing: 0.08em; line-height: 1.6; max-width: 30ch; }
+  .cstate .t2 .mono { font-family: var(--font-tab); font-size: 9px; color: var(--ink-mid); }
+  .cstate .act { margin-top: 6px; display: inline-flex; align-items: center; height: 36px; padding: 0 24px; border-radius: 10px;
+    background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep);
+    font-size: 9px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--live); }
+  .cstate .act.quiet { color: var(--ink-mid); }
+  .dimmed { opacity: 0.42; filter: saturate(0.4); }
+
+  .states { display: flex; gap: 26px; align-items: flex-start; }
+  .states .shot { width: 300px; }
+
+  .fluidrow { display: flex; gap: 30px; align-items: flex-start; width: max-content; }
+
+  .foot { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--hairline); max-width: 1380px;
+    font-size: 9px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">12 — The app: full product screens</div>
+      <div class="lab-sub">Every prior board assembled into one product. Seven screens in phone frames, sharing one grammar: freshness always top-right, status always glyph + label left of its timestamp, one lit element per screen, categorical hues for data only, chrome monochrome and silent. Below: the DENIALS screen under weather, and the fluid law proven at three widths.</div>
+    </div>
+    <div class="lab-meta">BOARD 12 · THE PRODUCT · REV A</div>
+  </header>
+
+  <div class="section-label">The seven screens — 390 × 844</div>
+  <div class="gallery">
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">1</span>HOME — FLEET HEALTH</span><span class="m">TAB · FLEET</span></div>
+      <div class="frame" data-screen="home" data-tab="fleet"></div>
+      <div class="caption">Worst first. The hero counts what is healthy; the tape is the sweep cycle; the one orange chrome element is the live sweep readout. FAILED and OVERDUE are engraved on the rows that earn them.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">2</span>REPORTS — LIBRARY</span><span class="m">TAB · REPORTS</span></div>
+      <div class="frame" data-screen="reports" data-tab="reports"></div>
+      <div class="caption">The crosswalked catalog. Real LIFELINE page names, each row a page with its visual count and a micro tape for dataset freshness — the overdue report wears amber because it is true.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">3</span>DENIALS — CROSSWALKED</span><span class="m">TAB · REPORTS</span></div>
+      <div class="frame" data-screen="denials" data-tab="reports"></div>
+      <div class="caption">Board 11's Section A as a product screen: breadcrumb and freshness in the fixed positions, the column chart as a grouped bar on sticky hues, the pivots as Ledgers scrolling beneath.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">4</span>DRILL — MEDICARE</span><span class="m">TAB · REPORTS</span></div>
+      <div class="frame" data-screen="drill" data-tab="reports"></div>
+      <div class="caption">A leaf after the board-09 morph. The header carries the payor and its sticky categorical hue as an accent line; the slice is one azure bar set and the leaf table; the breadcrumb reverses it.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">5</span>ALERTS — EVENT FEED</span><span class="m">TAB · ALERTS</span></div>
+      <div class="frame" data-screen="alerts" data-tab="alerts"></div>
+      <div class="caption">One red, two ambers, the rest quiet history. The pressed row reveals its exact mono timestamp and the queued retry; pull down to sweep. Color is on screen only where it is true.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">6</span>REVENUE CYCLE — TIMELINE</span><span class="m">TAB · REPORTS</span></div>
+      <div class="frame" data-screen="timeline" data-tab="reports"></div>
+      <div class="caption">The custom Gantt rebuilt native, full screen: a date tape up top, a lane per RUN, event hues from the categorical palette, and the one orange span marking each cycle's critical path.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">7</span>SETTINGS</span><span class="m">TAB · SETTINGS</span></div>
+      <div class="frame" data-screen="settings" data-tab="settings"></div>
+      <div class="caption">The desktop's cleaned settings idiom: account, data source, appearance, about. Engraved rows, hairline rules, a recessed toggle. Reduce motion honored — every arrival collapses to instant.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">7b</span>SIGN-IN — DEVICE CODE</span><span class="m">PRE-AUTH</span></div>
+      <div class="frame" data-screen="signin"></div>
+      <div class="caption">Sign in once. The device-code flow with the code engraved in the well, the countdown riding a tick strip, and the waiting state as the screen's one live orange readout. Tokens renew silently after.</div>
+    </section>
+  </div>
+
+  <div class="section-label">States — the DENIALS screen under weather</div>
+  <div class="states">
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">S1</span>LOADING</span><span class="m">NO SPINNERS</span></div>
+      <div class="frame mini" data-screen="st-loading"></div>
+      <div class="caption">Skeleton strips hold the exact geometry; data draws itself when it lands.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">S2</span>EMPTY</span><span class="m">ZERO ROWS</span></div>
+      <div class="frame mini" data-screen="st-empty"></div>
+      <div class="caption">An honest zero, engraved. The filter that caused it is named; the way out is one action.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">S3</span>ERROR</span><span class="m">ENGRAVED RED</span></div>
+      <div class="frame mini" data-screen="st-error"></div>
+      <div class="caption">Red only because something broke. The cause in mono, and RETRY as the one lit element.</div>
+    </section>
+    <section class="shot">
+      <div class="shot-k"><span><span class="ix">S4</span>OFFLINE</span><span class="m">CACHED</span></div>
+      <div class="frame mini" data-screen="st-offline"></div>
+      <div class="caption">Not broken — behind. Amber freshness, cached data dimmed but still readable, age declared.</div>
+    </section>
+  </div>
+
+  <div class="section-label">The fluid law — HOME at 320 · 390 · 744, one DOM, no breakpoints</div>
+  <div class="fluidrow" id="fluidRow">
+    <section class="shot" style="width:320px;">
+      <div class="shot-k"><span><span class="ix">F1</span>320 — PHONE S</span><span class="m">1 COLUMN</span></div>
+      <div class="frame" data-screen="home" data-tab="fleet"></div>
+    </section>
+    <section class="shot" style="width:390px;">
+      <div class="shot-k"><span><span class="ix">F2</span>390 — PHONE</span><span class="m">1 COLUMN</span></div>
+      <div class="frame" data-screen="home" data-tab="fleet"></div>
+    </section>
+    <section class="shot" style="width:744px;">
+      <div class="shot-k"><span><span class="ix">F3</span>744 — TABLET / FOLD</span><span class="m">LIST REGRIDS · TYPE SCALES</span></div>
+      <div class="frame" data-screen="home" data-tab="fleet"></div>
+    </section>
+  </div>
+  <div class="caption" style="margin-top:14px; max-width:80ch;">Same builder, three widths. The hero numeral scales on container units, the sweep tape is measured at mount and calibrated to its real width, and the workspace list regrids continuously — at fold width it becomes two columns without a breakpoint. Nothing truncates, nothing scrolls sideways.</div>
+
+  <div class="foot"><span>ONE GRAMMAR · SEVEN SCREENS · STRUCTURE REAL · VALUES ILLUSTRATIVE</span><span>TRUE BLACK #000 · ORANGE #FF7900</span></div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+  const c01 = (v) => lab.clamp(v, 0, 1);
+  const NS = 'http://www.w3.org/2000/svg';
+  const FU = "'D-DIN PRO', sans-serif";
+
+  const HUE = { AZURE: '#4F9DDE', CYAN: '#3FC0C9', MINT: '#74B79E', OLIVE: '#B7B24E', SLATE: '#8294CF', VIOLET: '#9A8BEC', PLUM: '#C77BD8', MAGENTA: '#E0789F' };
+
+  const strips = [];
+  const paints = [];
+
+  function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+  function svgEl(w, h) { const s = document.createElementNS(NS, 'svg'); s.setAttribute('width', w); s.setAttribute('height', h); s.setAttribute('viewBox', `0 0 ${w} ${h}`); return s; }
+  function eln(name, attrs, parent) { const n = document.createElementNS(NS, name); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; }
+  function txt(svg, x, y, s, fill, size, attrs) { const t = eln('text', Object.assign({ x, y, fill, 'font-size': size, 'font-family': FU }, attrs || {}), svg); t.textContent = s; return t; }
+  function strip(svg, opts) { const s = lab.strip(svg, opts); strips.push(s); return s; }
+  function bw(body) { return body.clientWidth - 40; }
+  function stat(kind, glyph, label) { return `<span class="stat${kind ? ' ' + kind : ''}">${glyph ? `<span class="g">${glyph}</span>` : ''}${label}</span>`; }
+
+  const SIC = `<svg width="48" height="12" viewBox="0 0 48 12" fill="none">
+    <rect x="0" y="7" width="2.6" height="4" rx="0.8" fill="currentColor"/>
+    <rect x="4.2" y="5" width="2.6" height="6" rx="0.8" fill="currentColor"/>
+    <rect x="8.4" y="3" width="2.6" height="8" rx="0.8" fill="currentColor"/>
+    <rect x="12.6" y="1" width="2.6" height="10" rx="0.8" fill="currentColor" opacity="0.3"/>
+    <path d="M21.5 7.6 a4.6 4.6 0 0 1 6.4 0 M19.7 5.2 a7.6 7.6 0 0 1 10 0" stroke="currentColor" stroke-width="1.2"/>
+    <circle cx="24.7" cy="10.2" r="1.1" fill="currentColor"/>
+    <rect x="34" y="2" width="11" height="8" rx="2.2" stroke="currentColor" stroke-width="1"/>
+    <rect x="35.6" y="3.6" width="6" height="4.8" rx="1.1" fill="currentColor"/>
+    <path d="M46.6 4.6 v2.8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+  </svg>`;
+
+  const TG = {
+    fleet: `<svg width="22" height="18" viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 14.5 H20"/><path d="M5 14.5 V11"/><path d="M8 14.5 V12.6"/><path d="M14 14.5 V12.6"/><path d="M17 14.5 V11"/><path d="M11 14.5 V8.4"/><path d="M8.9 3.6 H13.1 L11 6.6 Z" fill="currentColor" stroke="none"/></svg>`,
+    reports: `<svg width="22" height="18" viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4.5 H19"/><path d="M3 9 H12.4"/><path d="M3 13.5 H15.8"/></svg>`,
+    alerts: `<svg width="22" height="18" viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11 3.2 L19.6 15.4 H2.4 Z" stroke-linejoin="round"/><path d="M11 7.6 V10.6"/><path d="M11 12.8 V12.9"/></svg>`,
+    settings: `<svg width="22" height="18" viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 5.5 H20"/><path d="M2 12.5 H20"/><circle cx="14.5" cy="5.5" r="2.4" fill="#000000"/><circle cx="7.5" cy="12.5" r="2.4" fill="#000000"/></svg>`,
+  };
+
+  function tabbar(active) {
+    const names = [['fleet', 'FLEET'], ['reports', 'REPORTS'], ['alerts', 'ALERTS'], ['settings', 'SETTINGS']];
+    return `<div class="tabbar">${names.map(([k, l]) => `<span class="tab${k === active ? ' active' : ''}"><span class="tic">${TG[k]}</span><span class="tlb">${l}</span></span>`).join('')}</div>`;
+  }
+
+  function scaffold(frame, o) {
+    frame.innerHTML = '';
+    const scr = el('<div class="scr"></div>');
+    scr.appendChild(el(`<div class="sbar"><span class="time">10:10</span><span class="sic">${SIC}</span></div>`));
+    if (o.title) {
+      const head = el(`<div class="shead"><div class="hl">${o.bc ? `<div class="bc">${o.bc}</div>` : ''}<div class="ttl">${o.swat ? `<span class="tswat" style="background:${o.swat}"></span>` : ''}${o.title}</div></div></div>`);
+      if (o.fresh) {
+        const f = el(`<div class="fresh"><span class="fage${o.fresh.behind ? ' behind' : ''}">${o.fresh.age}</span></div>`);
+        const svg = svgEl(56, 14);
+        strip(svg, { size: 'small', w: 56, value: o.fresh.value, overdue: o.fresh.overdue || 0 });
+        f.insertBefore(svg, f.firstChild);
+        head.appendChild(f);
+      }
+      scr.appendChild(head);
+      if (o.accent) scr.appendChild(el(`<div class="accentline" style="background:${o.accent}"></div>`));
+    }
+    const body = el('<div class="sbody"></div>');
+    scr.appendChild(body);
+    if (o.tab) scr.appendChild(el(tabbar(o.tab)));
+    scr.appendChild(el('<div class="homeind"></div>'));
+    frame.appendChild(scr);
+    return body;
+  }
+
+  function groupedBar(host, W, series, cats, max, dim) {
+    const H = 198, padB = 24, padT = 14, padL = 4, padR = 4;
+    const svg = svgEl(W, H);
+    if (dim) svg.classList.add('dimmed');
+    host.appendChild(svg);
+    eln('line', { x1: 0, y1: H - padB, x2: W, y2: H - padB, stroke: 'rgba(255,255,255,0.16)', 'stroke-width': 1 }, svg);
+    const inner = W - padL - padR;
+    const groupW = inner / cats.length;
+    const barW = Math.min(20, groupW / (series.length + 1.2));
+    const gap = 5;
+    const setW = barW * series.length + gap * (series.length - 1);
+    const bars = [];
+    cats.forEach((ct, ci) => {
+      const gx = padL + groupW * ci + (groupW - setW) / 2;
+      series.forEach((s, si) => {
+        const x = gx + si * (barW + gap);
+        const val = s.vals[ci];
+        const fullH = (val / max) * (H - padB - padT);
+        const yb = H - padB;
+        const rect = eln('rect', { x, y: yb, width: barW, height: 0, rx: 2, fill: s.hue, opacity: 0.92 }, svg);
+        const lb = txt(svg, x + barW / 2, yb - 5, s.fmt ? s.fmt(val) : String(val), '#A9ACB6', 8.5, { 'text-anchor': 'middle', opacity: 0 });
+        bars.push({ rect, lb, fullH, yb });
+      });
+      txt(svg, padL + groupW * ci + groupW / 2, H - padB + 14, ct, '#80848F', 9, { 'text-anchor': 'middle' });
+    });
+    const paint = (f) => {
+      bars.forEach((b, i) => {
+        const g = c01((c01(f) - (i % series.length) * 0.04 - Math.floor(i / series.length) * 0.07) / 0.7);
+        const h = b.fullH * g;
+        b.rect.setAttribute('height', h.toFixed(1));
+        b.rect.setAttribute('y', (b.yb - h).toFixed(1));
+        b.lb.setAttribute('y', (b.yb - h - 5).toFixed(1));
+        b.lb.setAttribute('opacity', g > 0.9 ? ((g - 0.9) / 0.1).toFixed(2) : '0');
+      });
+    };
+    paint(dim ? 1 : 0);
+    if (!dim) paints.push(paint);
+  }
+
+  function legend(host, items, dim) {
+    host.appendChild(el(`<div class="legend${dim ? ' dimmed' : ''}">${items.map(([n, c]) => `<span class="lg"><span class="sw" style="background:${c}"></span>${n}</span>`).join('')}</div>`));
+  }
+
+  function ledRow(level, label, val, pct, opts) {
+    const o = opts || {};
+    const r = el(`<div class="trow ${o.grand ? 'grand' : 'lv' + level}">
+      <span class="nm">${o.chev ? `<span class="chev${o.open ? ' open' : ''}">▶</span>` : ''}${o.swat ? `<span class="swat" style="background:${o.swat}"></span>` : ''}<span class="lbl">${label}</span></span>
+      <span class="vbar"><i></i></span><span class="val">${val}</span></div>`);
+    const bar = r.querySelector('.vbar i');
+    paints.push((f) => { bar.style.width = (pct * c01(f)).toFixed(1) + '%'; });
+    bar.style.width = '0%';
+    return r;
+  }
+
+  function staticLedger(body, cfg) {
+    const blk = el(`<div class="ledblock">
+      <div class="ledtop"><span class="lt-n"><span class="ix">${cfg.ix}</span>${cfg.name}</span><span class="lt-m">${cfg.meta}</span></div>
+      <div class="carousel"><div class="cbtn off">‹</div><div class="cmid"><div class="ml">${cfg.ml}</div><div class="mu">${cfg.mu}</div></div><div class="cbtn">›</div></div>
+      <div class="ledger"></div></div>`);
+    const mid = blk.querySelector('.cmid');
+    const cs = svgEl(56, 14);
+    strip(cs, { size: 'small', w: 56, cycle: 1, value: 0 });
+    mid.appendChild(cs);
+    const led = blk.querySelector('.ledger');
+    const grand = cfg.tree.reduce((a, t) => a + t.kids.reduce((b, k) => b + k.v, 0), 0);
+    const maxP = Math.max(...cfg.tree.map((t) => t.kids.reduce((b, k) => b + k.v, 0)));
+    const maxK = Math.max(...cfg.tree.flatMap((t) => t.kids.map((k) => k.v)));
+    led.appendChild(ledRow(0, 'BOOK TOTAL', cfg.fmt(grand), 100, { grand: true }));
+    cfg.tree.forEach((t, ti) => {
+      const sum = t.kids.reduce((b, k) => b + k.v, 0);
+      const open = ti === cfg.open;
+      led.appendChild(ledRow(0, t.name, cfg.fmt(sum), sum / maxP * 100, { chev: true, open, swat: t.hue }));
+      if (open) t.kids.forEach((k) => led.appendChild(ledRow(1, k.name, cfg.fmt(k.v), k.v / maxK * 100)));
+    });
+    body.appendChild(blk);
+  }
+
+  const HOME_ROWS = [
+    ['TRIP DENIALS', 'WS / LIFELINE-PROD', 'broken', '⬣', 'FAILED', '09:12'],
+    ['BILLING', 'WS / APEX-PROD', 'behind', '▲', 'OVERDUE', '47m'],
+    ['DISPATCH', 'WS / COASTAL-PROD', 'behind', '▲', 'OVERDUE', '18m'],
+    ['REPORTS', 'WS / LIFELINE-PROD', '', '', 'OK', '4m'],
+    ['TRIPS', 'WS / NORTHWING-PROD', '', '', 'OK', '9m'],
+    ['PAYROLL', 'WS / ORTHO-PROD', '', '', 'OK', '12m'],
+    ['CTC CALLS', 'WS / LIFELINE-PROD', '', '', 'OK', '14m'],
+    ['UNIT HOURS', 'WS / NORTHWING-PROD', '', '', 'OK', '21m'],
+  ];
+
+  function buildHome(frame) {
+    const body = scaffold(frame, { title: 'FLEET', bc: 'BC-ABC · 5 WORKSPACES', fresh: { age: 'SWEPT 10M', value: 10.2 }, tab: frame.dataset.tab });
+    body.appendChild(el(`<div class="hero2"><div class="big">11</div><div class="label">Datasets healthy</div><div class="stamp">of 14 · swept 10:00 · all workspaces</div>
+      <div class="deltas">${stat('broken', '⬣', '1 FAILED 09:12')}${stat('behind', '▲', '2 OVERDUE')}</div></div>`));
+    const agg = el('<div class="agg"></div>');
+    body.appendChild(agg);
+    const w = bw(body);
+    const svg = svgEl(w, 96);
+    agg.appendChild(svg);
+    strip(svg, { size: 'large', w, value: 10.2, valueText: '10:12' });
+    body.appendChild(el(`<div class="sweep"><span class="mk">GATEWAY OK · SSO ACTIVE · CYCLE 15 MIN</span>${stat('live', '●', 'NEXT SWEEP <span class="tabval">04:48</span>')}</div>`));
+    body.appendChild(el('<div class="lsec"><span>Datasets — worst first</span><span class="m">14 TOTAL</span></div>'));
+    const list = el('<div class="wslist"></div>');
+    HOME_ROWS.forEach(([n, ws, k, g, l, a]) => {
+      list.appendChild(el(`<div class="wrow"><div><span class="name">${n}</span><span class="ws">${ws}</span></div>
+        <span class="rt">${stat(k, g, l)}<span class="age${k ? ' ' + k : ''}">${a}</span></span></div>`));
+    });
+    body.appendChild(list);
+    body.appendChild(el('<div class="scrollhint"></div>'));
+  }
+
+  function pageRow(host, name, meta, value, overdue, age, ageCls) {
+    const r = el(`<div class="prow"><div><span class="pn">${name}</span><span class="pv">${meta}</span></div><span class="rt"></span></div>`);
+    const svg = svgEl(56, 14);
+    strip(svg, { size: 'small', w: 56, value, overdue: overdue || 0 });
+    r.insertBefore(svg, r.lastElementChild);
+    r.lastElementChild.innerHTML = `<span class="age${ageCls ? ' ' + ageCls : ''}">${age}</span>`;
+    host.appendChild(r);
+  }
+
+  function buildReports(frame) {
+    const body = scaffold(frame, { title: 'REPORTS', bc: 'LIBRARY · CROSSWALKED NATIVE', fresh: { age: 'SWEPT 10M', value: 10.2 }, tab: frame.dataset.tab });
+    body.appendChild(el(`<div class="search"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="5.4" cy="5.4" r="4"/><path d="M8.4 8.4 L12 12"/></svg>SEARCH PAGES</div>`));
+    body.appendChild(el('<div class="lsec"><span>LIFELINE — REPORTS</span><span class="m">6 PAGES · OK · 4M</span></div>'));
+    [['DENIALS', '4 VISUALS'], ['REVENUE CYCLE', '6 VISUALS'], ['AGING BY TRIP', '7 VISUALS'], ['PAYOR SUMMARY', '9 VISUALS'], ['USER KPIS', '8 VISUALS'], ['CTC CALLER CALENDAR', '4 VISUALS']]
+      .forEach(([n, m]) => pageRow(body, n, m, 4, 0, '4m'));
+    body.appendChild(el('<div class="lsec"><span>LIFELINE — OPS</span><span class="m">2 PAGES · OK · 11M</span></div>'));
+    [['TRIP VOLUME', '5 VISUALS'], ['UNIT HOURS — UHU', '6 VISUALS']].forEach(([n, m]) => pageRow(body, n, m, 11, 0, '11m'));
+    body.appendChild(el(`<div class="lsec"><span>APEX — BILLING</span><span class="m">${stat('behind', '▲', 'OVERDUE · 47M')}</span></div>`));
+    [['A/R AGING', '7 VISUALS'], ['PAYMENTS', '5 VISUALS']].forEach(([n, m]) => pageRow(body, n, m, 15, 47, '47m', 'behind'));
+    body.appendChild(el('<div class="libfoot">6 REPORTS · 211 VISUALS · ~98% CROSSWALKED NATIVE</div>'));
+    body.appendChild(el('<div class="scrollhint"></div>'));
+  }
+
+  function buildDenials(frame) {
+    const body = scaffold(frame, { bc: '<span class="bk">‹</span>LIFELINE — REPORTS', title: 'DENIALS', fresh: { age: 'DATA 4M', value: 4 }, tab: frame.dataset.tab });
+    body.appendChild(el('<div class="ill"><span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span><span class="m">STRUCTURE REAL · PBIR</span></div>'));
+    body.appendChild(el('<div class="ledtop" style="padding-bottom:4px;"><span class="lt-n"><span class="ix">v0</span>DENIALS BY POST DATE WEEK</span><span class="lt-m">MIN(MERGED)</span></div>'));
+    const gz = el('<div class="gpanel"></div>');
+    body.appendChild(gz);
+    groupedBar(gz, bw(body), [
+      { hue: HUE.AZURE, vals: [38, 44, 41, 49, 46] },
+      { hue: HUE.OLIVE, vals: [21, 19, 26, 23, 28] },
+    ], ['W22', 'W23', 'W24', 'W25', 'W26'], 56);
+    legend(body, [['INCLUDED', HUE.AZURE], ['ASSUMED', HUE.OLIVE]]);
+    staticLedger(body, {
+      ix: 'v1', name: 'DENIAL $ BY PAYOR', meta: 'PAYOR CAT ▸ PAYOR', ml: 'DENIAL $', mu: '$K · MIN(MERGED)', open: 1,
+      fmt: (v) => '$' + v.toFixed(1) + 'K',
+      tree: [
+        { name: 'COMMERCIAL', hue: HUE.AZURE, kids: [{ name: 'BCBS', v: 62.4 }, { name: 'UHC', v: 48.1 }, { name: 'AETNA', v: 33.6 }] },
+        { name: 'GOVERNMENT', hue: HUE.OLIVE, kids: [{ name: 'MEDICARE', v: 71.2 }, { name: 'MEDICAID', v: 54.8 }] },
+        { name: 'OTHER', hue: HUE.CYAN, kids: [{ name: 'SELF-PAY', v: 22.9 }, { name: 'WORKERS COMP', v: 14.3 }] },
+      ],
+    });
+    staticLedger(body, {
+      ix: 'v2', name: 'DENIAL CODES BY CATEGORY', meta: 'MINOR CAT ▸ DESC ▸ CODE', ml: 'COUNT', mu: 'COUNTA(MERGED)', open: -1,
+      fmt: (v) => Math.round(v).toLocaleString('en-US'),
+      tree: [
+        { name: 'ELIGIBILITY', hue: HUE.VIOLET, kids: [{ name: 'COVERAGE TERMINATED', v: 184 }, { name: 'NOT ELIGIBLE ON DOS', v: 121 }] },
+        { name: 'AUTHORIZATION', hue: HUE.MAGENTA, kids: [{ name: 'NO AUTH ON FILE', v: 156 }, { name: 'AUTH EXPIRED', v: 88 }] },
+        { name: 'CODING', hue: HUE.MINT, kids: [{ name: 'INVALID MODIFIER', v: 97 }, { name: 'DX NOT SUPPORTED', v: 64 }] },
+      ],
+    });
+    body.appendChild(el('<div class="scrollhint"></div>'));
+  }
+
+  function buildDrill(frame) {
+    const body = scaffold(frame, { bc: '<span class="bk">‹</span>DENIALS · DENIAL $ BY PAYOR', title: 'MEDICARE', swat: HUE.AZURE, accent: HUE.AZURE, fresh: { age: 'DATA 4M', value: 4 }, tab: frame.dataset.tab });
+    body.appendChild(el('<div class="ill"><span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span><span class="m">GOVERNMENT · STICKY HUE AZURE</span></div>'));
+    body.appendChild(el('<div class="ledtop" style="padding-bottom:4px;"><span class="lt-n">DENIAL $ BY POST DATE WEEK</span><span class="lt-m">SLICE · MEDICARE</span></div>'));
+    const gz = el('<div class="gpanel"></div>');
+    body.appendChild(gz);
+    groupedBar(gz, bw(body), [
+      { hue: HUE.AZURE, vals: [13.2, 15.8, 14.1, 16.0, 12.1], fmt: (v) => v.toFixed(1) },
+    ], ['W22', 'W23', 'W24', 'W25', 'W26'], 18);
+    body.appendChild(el('<div class="ledtop" style="padding:12px 0 8px;"><span class="lt-n">LEAVES — DENIAL CODES</span><span class="lt-m">COUNTA(MERGED)</span></div>'));
+    const tbl = el('<div class="ltable"></div>');
+    tbl.appendChild(el('<div class="lrow2 hd"><span>CODE</span><span>DESCRIPTION</span><span style="text-align:right">CLAIMS</span><span style="text-align:right">DENIED $</span></div>'));
+    [['CO-45', 'FEE SCHEDULE', 118, '$21.4K'], ['CO-16', 'MISSING INFO', 84, '$14.9K'], ['PR-1', 'DEDUCTIBLE', 60, '$11.2K'],
+     ['CO-29', 'TIMELY FILING', 41, '$9.8K'], ['CO-97', 'BUNDLED', 38, '$7.6K'], ['OTHER', '14 CODES', 61, '$6.3K']]
+      .forEach(([c, d, n, a]) => tbl.appendChild(el(`<div class="lrow2"><span class="cd">${c}</span><span class="ds">${d}</span><span class="ct">${n}</span><span class="am">${a}</span></div>`)));
+    tbl.appendChild(el('<div class="lrow2 tot"><span class="cd">TOTAL</span><span class="ds"></span><span class="ct">402</span><span class="am">$71.2K</span></div>'));
+    body.appendChild(tbl);
+    body.appendChild(el('<div class="drillfoot">SLICE · GOVERNMENT / MEDICARE · ROLLS INTO BOOK TOTAL</div>'));
+  }
+
+  function alertRow(host, name, ws, k, g, l, ts, opts) {
+    const o = opts || {};
+    const r = el(`<div class="arow${o.q ? ' q' : ''}${o.pressed ? ' pressed' : ''}"><div><span class="name">${name}</span><span class="ws">${ws}</span></div>
+      <span class="rt">${stat(k, g, l)}<span class="age${k ? ' ' + k : ''}">${ts}</span></span>
+      ${o.reveal ? `<div class="reveal">${o.reveal}</div>` : ''}</div>`);
+    host.appendChild(r);
+  }
+
+  function buildAlerts(frame) {
+    const body = scaffold(frame, { title: 'ALERTS', bc: 'FLEET EVENTS', fresh: { age: 'SWEPT 10M', value: 10.2 }, tab: frame.dataset.tab });
+    body.appendChild(el('<div class="pullhint"><span class="c"><svg width="14" height="7" viewBox="0 0 14 7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1.5 1 L7 6 L12.5 1"/></svg></span>PULL TO SWEEP</div>'));
+    body.appendChild(el('<div class="lsec"><span>Today</span><span class="m">PRESS A ROW FOR THE EXACT CLOCK</span></div>'));
+    alertRow(body, 'TRIP DENIALS', 'WS / LIFELINE-PROD', 'broken', '⬣', 'FAILED', '09:12',
+      { pressed: true, reveal: '<span class="r">09:12:47</span> · GATEWAY TIMEOUT 240S · RETRY QUEUED 10:15' });
+    alertRow(body, 'BILLING', 'WS / APEX-PROD', 'behind', '▲', 'OVERDUE', '47m');
+    alertRow(body, 'DISPATCH', 'WS / COASTAL-PROD', 'behind', '▲', 'OVERDUE', '18m');
+    alertRow(body, 'REPORTS — REFRESH COMPLETED', 'WS / LIFELINE-PROD', '', '', 'OK', '09:58', { q: true });
+    alertRow(body, 'TRIPS — REFRESH COMPLETED', 'WS / NORTHWING-PROD', '', '', 'OK', '09:47', { q: true });
+    body.appendChild(el('<div class="lsec"><span>Yesterday</span><span class="m">QUIET</span></div>'));
+    alertRow(body, 'PAYROLL — REFRESH COMPLETED', 'WS / ORTHO-PROD', '', '', 'OK', '22:10', { q: true });
+    alertRow(body, 'BILLING — REFRESH COMPLETED', 'WS / APEX-PROD', '', '', 'OK', '18:04', { q: true });
+    alertRow(body, 'GATEWAY CREDENTIAL RENEWED', 'TENANT BC-ABC', '', '', 'OK', '16:30', { q: true });
+    alertRow(body, 'SWEEP CADENCE SET — 15 MIN', 'ALL WORKSPACES', '', '', 'OK', '09:02', { q: true });
+    body.appendChild(el('<div class="scrollhint"></div>'));
+  }
+
+  const EVENTS = ['TRIP COMPLETE', 'BATCH', 'SUBMIT', 'PAYOR RECEIVED', 'PAID'];
+  const EV_HUE = { 'TRIP COMPLETE': HUE.SLATE, 'BATCH': HUE.CYAN, 'SUBMIT': HUE.VIOLET, 'PAYOR RECEIVED': HUE.MAGENTA, 'PAID': '#A9ACB6' };
+  const RUNS = [
+    { run: 'RUN 4471', segs: [[0, 1], [1, 2], [3, 2], [5, 4], [9, 6]], crit: 4 },
+    { run: 'RUN 4472', segs: [[2, 1], [3, 3], [6, 2], [8, 5], [13, 8]], crit: 3 },
+    { run: 'RUN 4473', segs: [[1, 1], [2, 2], [4, 3], [7, 6], [13, 5]], crit: 4 },
+    { run: 'RUN 4474', segs: [[3, 1], [4, 2], [6, 3], [9, 7], [16, 6]], crit: 3 },
+    { run: 'RUN 4475', segs: [[5, 1], [6, 2], [8, 2], [10, 4], [14, 5]], crit: 4 },
+    { run: 'RUN 4476', segs: [[6, 1], [7, 3], [10, 2], [12, 6], [18, 7]], crit: 4 },
+    { run: 'RUN 4477', segs: [[8, 1], [9, 2], [11, 3], [14, 5], [19, 6]], crit: 3 },
+  ];
+
+  function buildTimeline(frame) {
+    const body = scaffold(frame, { bc: '<span class="bk">‹</span>LIFELINE — REPORTS', title: 'REVENUE CYCLE', fresh: { age: 'DATA 4M', value: 4 }, tab: frame.dataset.tab });
+    body.appendChild(el('<div class="ill"><span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span><span class="m">CUSTOM GANTT → NATIVE</span></div>'));
+    body.appendChild(el(`<div class="tlsum">
+      <span><span class="k">MEDIAN CYCLE</span><span class="v" style="display:block">14.2<span class="u">D</span></span></span>
+      <span><span class="k">PAID ≤ 30 D</span><span class="v" style="display:block">87<span class="u">%</span></span></span>
+      <span><span class="k">OPEN RUNS</span><span class="v" style="display:block">23</span></span></div>`));
+    const W = bw(body);
+    const aw = W - 68;
+    const ax = el('<div class="tl-axis" style="margin-left:68px;"></div>');
+    body.appendChild(ax);
+    const svg = svgEl(aw, 26);
+    ax.appendChild(svg);
+    const DAYS = 28, DATES = ['JUN 1', 'JUN 8', 'JUN 15', 'JUN 22', 'JUN 29'];
+    eln('line', { x1: 0, y1: 16, x2: aw, y2: 16, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    for (let d = 0; d <= DAYS; d++) {
+      const x = (d / DAYS) * aw;
+      const major = d % 7 === 0;
+      eln('line', { x1: x, y1: 16, x2: x, y2: 16 - (major ? 9 : 4), stroke: `rgba(255,255,255,${major ? 0.55 : 0.28})`, 'stroke-width': major ? 1.4 : 1 }, svg);
+      if (major) txt(svg, Math.min(Math.max(x, 13), aw - 13), 25, DATES[d / 7], '#80848F', 8, { 'text-anchor': 'middle' });
+    }
+    const lanes = el('<div></div>');
+    body.appendChild(lanes);
+    const barEls = [];
+    RUNS.forEach((r) => {
+      const lane = el(`<div class="tllane"><span class="ln">${r.run}</span><span class="track"></span></div>`);
+      lanes.appendChild(lane);
+      const track = lane.querySelector('.track');
+      r.segs.forEach(([start, dur], si) => {
+        const ev = EVENTS[si];
+        const isCrit = si === r.crit;
+        const fits = (dur / DAYS) * (W - 68) >= ev.length * 5.2 + 12;
+        const bar = el(`<div class="tlbar" style="left:${(start / DAYS * 100).toFixed(2)}%;width:${(dur / DAYS * 100).toFixed(2)}%;background:${isCrit ? '#FF7900' : EV_HUE[ev]};opacity:${isCrit ? 1 : 0.9};">
+          <span class="tlab" style="color:#1A0C00">${fits ? ev : ''}</span></div>`);
+        track.appendChild(bar);
+        barEls.push(bar);
+      });
+    });
+    const paint = (f) => barEls.forEach((b, i) => { b.style.transform = `scaleX(${c01((c01(f) - (i % 5) * 0.05) / 0.7)})`; b.style.transformOrigin = '0 50%'; });
+    paint(0);
+    paints.push(paint);
+    const leg = el('<div class="tl-leg"></div>');
+    EVENTS.forEach((ev) => leg.appendChild(el(`<span class="lg"><span class="sw" style="background:${EV_HUE[ev]}"></span>${ev}</span>`)));
+    leg.appendChild(el('<span class="lg"><span class="sw" style="background:#FF7900"></span>CRITICAL SPAN</span>'));
+    body.appendChild(leg);
+    body.appendChild(el('<div class="tlverdict">TASK · START · END · PARENT — STANDARD ROLES · LANES PER RUN · REAL DATE AXIS</div>'));
+  }
+
+  function buildSettings(frame) {
+    const body = scaffold(frame, { title: 'SETTINGS', bc: 'FLEET 0.9.2', fresh: { age: 'SYNC 4M', value: 4 }, tab: frame.dataset.tab });
+    body.appendChild(el('<div class="lsec"><span>Account</span></div>'));
+    body.appendChild(el(`<div class="srow"><div><span class="sn">Brendan C.</span><span class="sd">brendan@bc-abc.com · AAD · SSO</span></div><span class="sv">SIGNED IN</span></div>`));
+    body.appendChild(el('<div class="srow"><div><span class="sn">Sign out</span><span class="sd">this device only — tokens revoked</span></div><span class="sv"><span class="go">›</span></span></div>'));
+    body.appendChild(el('<div class="lsec"><span>Data source</span></div>'));
+    body.appendChild(el('<div class="srow"><div><span class="sn">Tenant</span><span class="sd">single tenant · gateways under BAA</span></div><span class="sv">BC-ABC LLC</span></div>'));
+    body.appendChild(el(`<div class="srow"><div><span class="sn">Gateway</span><span class="sd">last heartbeat</span></div><span class="sv">${stat('', '', 'OK')}<span class="age">2m</span></span></div>`));
+    body.appendChild(el('<div class="srow"><div><span class="sn">Refresh sweep</span><span class="sd">all workspaces</span></div><span class="sv">15 MIN<span class="go">›</span></span></div>'));
+    body.appendChild(el('<div class="lsec"><span>Appearance</span></div>'));
+    body.appendChild(el('<div class="srow"><div><span class="sn">Reduce motion</span><span class="sd">follows the system — every arrival collapses to instant</span></div><span class="sv"><span class="toggle"><span class="thumb"></span></span></span></div>'));
+    body.appendChild(el('<div class="srow"><div><span class="sn">True black</span><span class="sd">the canvas, not a theme</span></div><span class="sv">ALWAYS</span></div>'));
+    body.appendChild(el('<div class="lsec"><span>About</span></div>'));
+    body.appendChild(el('<div class="srow"><div><span class="sn">Version</span><span class="sd">expo-updates · silent channel</span></div><span class="sv">0.9.2 (184) · PREVIEW</span></div>'));
+    body.appendChild(el('<div class="srow"><div><span class="sn">Check for update</span></div><span class="sv"><span class="go">›</span></span></div>'));
+    body.appendChild(el('<div class="scrollhint"></div>'));
+  }
+
+  function buildSignin(frame) {
+    const body = scaffold(frame, {});
+    const si = el(`<div class="si">
+      <div class="brand">FLEET <span class="dot">●</span> BC-ABC</div>
+      <div class="h">Sign in once.</div>
+      <div class="s">Your Microsoft work account, on this phone, one time. Tokens renew silently — no morning sign-in ritual.</div>
+      <div class="codewell">
+        <div class="code">FJKQ-29XL</div>
+        <div class="url">MICROSOFT.COM / DEVICELOGIN</div>
+        <div class="cd"><span class="mk">CODE EXPIRES</span><span class="cds"></span>${stat('live', '●', '<span class="tabval">11:24</span>')}</div>
+      </div>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><span class="t">On any other device, open <b>microsoft.com/devicelogin</b></span></div>
+        <div class="step"><span class="n">2</span><span class="t">Enter the code <b>FJKQ-29XL</b></span></div>
+        <div class="step"><span class="n">3</span><span class="t">Sign in with your <b>work account</b> — this screen continues by itself</span></div>
+      </div>
+      <div class="sample"><span class="act quiet" style="height:34px; display:inline-flex; align-items:center; padding:0 22px; border-radius:10px; background:var(--bg); border:1px solid var(--hairline); box-shadow:var(--shadow-recess-deep); font-size:9px; font-weight:500; letter-spacing:0.24em; text-transform:uppercase; color:var(--ink-mid);">EXPLORE SAMPLE DATA</span></div>
+      <div class="wait"><span class="mk">DEVICE CODE · AAD · SINGLE TENANT</span><span class="mk" style="color:var(--ink-mid)">WAITING FOR MICROSOFT …</span></div>
+    </div>`);
+    const slot = si.querySelector('.cds');
+    const svg = svgEl(96, 14);
+    strip(svg, { size: 'small', w: 96, value: 3.6 });
+    slot.appendChild(svg);
+    body.appendChild(si);
+  }
+
+  function stateHead(frame, fresh) {
+    return scaffold(frame, { bc: '<span class="bk">‹</span>LIFELINE — REPORTS', title: 'DENIALS', fresh });
+  }
+
+  function buildStLoading(frame) {
+    const body = stateHead(frame, { age: 'DATA —', value: 0 });
+    body.appendChild(el('<div class="ill"><span class="m">ARRIVING</span><span class="m">STRUCTURE REAL · PBIR</span></div>'));
+    const bars = el('<div class="skelbars"></div>');
+    [62, 40, 72, 44, 66, 38, 84, 52, 76, 46].forEach((h) => bars.appendChild(el(`<i style="height:${h}%"></i>`)));
+    body.appendChild(bars);
+    const rows = el('<div class="skelwrap"></div>');
+    [['44%', '78%'], ['36%', '52%'], ['50%', '64%'], ['32%', '40%']].forEach(([a, b]) => {
+      rows.appendChild(el(`<div class="skelrow"><span class="skel" style="width:${a}"></span><span class="skel" style="width:100%"></span><span class="skel" style="width:${b}; justify-self:end"></span></div>`));
+    });
+    body.appendChild(rows);
+    body.appendChild(el('<div class="skelnote">SKELETON STRIPS · NO SPINNERS · DATA DRAWS ITSELF WHEN IT LANDS</div>'));
+  }
+
+  function buildStEmpty(frame) {
+    const body = stateHead(frame, { age: 'DATA 4M', value: 4 });
+    body.appendChild(el('<div class="ill"><span class="m">0 ROWS</span><span class="m">STRUCTURE REAL · PBIR</span></div>'));
+    body.appendChild(el(`<div class="cstate">
+      <div class="t1">No denials this window</div>
+      <div class="t2">W22 – W26 · POST DATE WEEK RETURNS ZERO ROWS<br>FILTERS · PAYOR ALL · FACILITY ALL</div>
+      <span class="act quiet">WIDEN THE WINDOW</span></div>`));
+  }
+
+  function buildStError(frame) {
+    const body = stateHead(frame, { age: 'DATA 26M', value: 15, overdue: 11 });
+    body.appendChild(el('<div class="ill"><span class="m">LAST GOOD 09:44</span><span class="m">STRUCTURE REAL · PBIR</span></div>'));
+    body.appendChild(el(`<div class="cstate">
+      ${stat('broken', '⬣', 'QUERY FAILED')}
+      <div class="t2"><span class="mono">executeQueries · 429 · PER-USER BUDGET EXHAUSTED · 10:09:41</span><br>showing nothing rather than something stale and unmarked</div>
+      <span class="act">RETRY</span></div>`));
+  }
+
+  function buildStOffline(frame) {
+    const body = stateHead(frame, { age: 'CACHED 16M', value: 15, overdue: 16, behind: true });
+    body.appendChild(el(`<div class="ill">${stat('behind', '▲', 'OFFLINE — SHOWING CACHED 09:54')}<span class="m">PBIR</span></div>`));
+    const gz = el('<div class="gpanel"></div>');
+    body.appendChild(gz);
+    groupedBar(gz, bw(body), [
+      { hue: HUE.AZURE, vals: [38, 44, 41, 49, 46] },
+      { hue: HUE.OLIVE, vals: [21, 19, 26, 23, 28] },
+    ], ['W22', 'W23', 'W24', 'W25', 'W26'], 56, true);
+    legend(body, [['INCLUDED', HUE.AZURE], ['ASSUMED', HUE.OLIVE]], true);
+    body.appendChild(el('<div class="skelnote">READ-ONLY · QUERIES RESUME WITH THE NETWORK · NOTHING UNMARKED</div>'));
+  }
+
+  const builders = {
+    home: buildHome, reports: buildReports, denials: buildDenials, drill: buildDrill,
+    alerts: buildAlerts, timeline: buildTimeline, settings: buildSettings, signin: buildSignin,
+    'st-loading': buildStLoading, 'st-empty': buildStEmpty, 'st-error': buildStError, 'st-offline': buildStOffline,
+  };
+  document.querySelectorAll('[data-screen]').forEach((f) => builders[f.dataset.screen](f));
+
+  function settle() {
+    paints.forEach((p) => p(1));
+    strips.forEach((s) => s.set(1));
+  }
+  lab.api.settleAll = settle;
+
+  if (lab.reduced) settle();
+  else setTimeout(() => {
+    strips.forEach((s) => s.arrive());
+    lab.spring({ from: 0, to: 1, response: 0.6, damping: 0.85, onUpdate: (v) => paints.forEach((p) => p(c01(v))) });
+  }, 260);
+})();
+</script>
+</body>
+</html>
