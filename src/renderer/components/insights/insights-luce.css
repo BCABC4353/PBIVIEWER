@@ -1,6 +1,6 @@
 
 :root {
-  --morph-open: 2.6s;
+  --morph-open: 0.42s;
   --morph-close: calc(var(--morph-open) * 0.77);
 }
 

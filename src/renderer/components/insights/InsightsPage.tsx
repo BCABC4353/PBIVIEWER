@@ -48,15 +48,13 @@ export const InsightsPage: React.FC = () => {
   const [sheetSettled, setSheetSettled] = useState(true);
 
   const activeVtRef = useRef<{ skipTransition: () => void } | null>(null);
-  const vtLiveRef = useRef(false);
   const sheetIntentRef = useRef<{ workspaceId: string; el: HTMLElement } | null>(null);
 
   const armVt = useCallback(
     (vt: { skipTransition: () => void; finished: Promise<unknown> }) => {
       activeVtRef.current = vt;
-      vtLiveRef.current = true;
       void vt.finished.finally(() => {
-        if (activeVtRef.current === vt) vtLiveRef.current = false;
+        if (activeVtRef.current === vt) activeVtRef.current = null;
       });
     },
     [],
@@ -107,49 +105,6 @@ export const InsightsPage: React.FC = () => {
       setMorphId((prev) => (prev === current.workspaceId ? null : prev));
     });
   }, [sheet, armVt]);
-
-  useEffect(() => {
-    const onPress = (e: PointerEvent) => {
-      if (!vtLiveRef.current) return;
-      vtLiveRef.current = false;
-      activeVtRef.current?.skipTransition();
-      e.preventDefault();
-      e.stopPropagation();
-      const tile = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-workspace-tile]'),
-      ).find((t) => {
-        const r = t.getBoundingClientRect();
-        return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-      });
-      const closing = document.documentElement.classList.contains('vt-closing');
-      const openWs = sheetIntentRef.current?.workspaceId ?? null;
-      if (closing) {
-        if (tile) openSheet(tile.dataset.workspaceTile as string, tile);
-        return;
-      }
-      if (tile && tile.dataset.workspaceTile !== openWs) {
-        openSheet(tile.dataset.workspaceTile as string, tile);
-        return;
-      }
-      if (openWs) {
-        const top = document.elementsFromPoint(e.clientX, e.clientY)[0];
-        if (
-          top instanceof HTMLElement &&
-          top.closest('.luce-sheet') &&
-          top.closest('button, a, input, select, textarea, [data-selectable]')
-        ) {
-          top.click();
-          return;
-        }
-        closeSheet();
-        return;
-      }
-      const top = document.elementsFromPoint(e.clientX, e.clientY)[0];
-      if (top instanceof HTMLElement) top.click();
-    };
-    document.addEventListener('pointerdown', onPress, true);
-    return () => document.removeEventListener('pointerdown', onPress, true);
-  }, [openSheet, closeSheet]);
 
   const igniting = useIgnition(snapshot !== null);
   const docHidden = useDocumentHidden();

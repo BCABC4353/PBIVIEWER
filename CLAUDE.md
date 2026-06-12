@@ -4,8 +4,8 @@
 
 The **desktop** Power BI Viewer: Electron + React 18 + TS. Source in `src/`.
 The mobile app lives in its own repository (fleet-mobile) — it was fully
-extracted from this repo by owner decision; do not reintroduce mobile code,
-configs, or CI here.
+extracted from this repo, so don't reintroduce mobile code, configs, or CI
+here.
 
 ## Build prerequisites (fresh clone)
 
@@ -31,14 +31,14 @@ npm test
 Both tsconfigs include `src/shared/**` with DIFFERENT module semantics — an
 import style valid under one can fail the other. Always run both.
 
-## Comment policy (owner decision)
+## Comment policy
 
-This codebase is deliberately **comment-free**. Earlier AI sessions filled it
-with prose comments containing fabricated attributions and invented design
-rules; the owner removed all of them. Do NOT add prose comments — put
-rationale in commit messages. The ONLY comments permitted are functional
-directives the toolchain needs (`eslint-disable*`, `@ts-expect-error`,
-`/// <reference …`) and those only where the build genuinely requires them.
+This codebase is deliberately **comment-free**. A past session filled it with
+prose comments full of fabricated attributions and invented design rules, and
+they all got removed. Don't add prose comments — put rationale in commit
+messages. The only comments allowed are functional directives the toolchain
+needs (`eslint-disable*`, `@ts-expect-error`, `/// <reference …`), and only
+where the build genuinely requires them.
 
 ## Things that look like junk but are load-bearing
 
@@ -59,20 +59,20 @@ them together (contract tests in `src/test/` enforce this):
 
 ## Styling (desktop renderer)
 
-- **Brand color: Safety Orange #FF5F15 (owner decision).** Keep it as the
-  brand; meet contrast standards by pairing it with dark ink on fills (white
-  text on this orange fails WCAG AA) rather than by changing the color.
-- **The Insights board ("the dashboard") is on a temporary island (owner
-  decision): do NOT modify `src/renderer/components/insights/**` or
-  `insights-luce.css`** — no restyling, no token migration, no cleanup —
-  until the owner ends the freeze.
-- Elsewhere: four coexisting systems are being consolidated into one
-  token-driven layer — Tailwind utilities, Fluent UI v9, and
-  `src/renderer/styles/globals.css`. Don't add a new styling mechanism.
+- Brand color is Safety Orange #FF5F15. Keep it; meet contrast by pairing it
+  with dark ink on fills (white text on this orange fails WCAG AA) rather than
+  changing the color.
+- The Insights board ("the dashboard") lives in
+  `src/renderer/components/insights/**` and `insights-luce.css`. It's the
+  high-craft, experimental surface — the morph, spring physics, and instrument
+  work happen here. It's where the fun is; treat it with care.
+- Four styling systems coexist and are being consolidated into one
+  token-driven layer: Tailwind utilities, Fluent UI v9, and
+  `src/renderer/styles/globals.css`. Don't add a fifth.
 
-## Product priorities (owner's words)
+## Product priorities
 
 Clients need: workflows that present correctly, data that updates correctly,
 sign in once (not over and over), a reliable program that just works, and
-kiosk wall-display dashboards. The Insights board is the owner's personal
-experiment — fun, but never at the expense of the above.
+kiosk wall-display dashboards. The Insights board is the playground — fun, and
+worth real craft, but never at the expense of the above.
