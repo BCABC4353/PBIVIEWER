@@ -27,6 +27,7 @@ const INITIAL_CONTENT = {
 
 let getRecent: ReturnType<typeof vi.fn>;
 let getFrequent: ReturnType<typeof vi.fn>;
+let getWorkspaces: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   useContentStore.setState(INITIAL_CONTENT);
@@ -34,9 +35,11 @@ beforeEach(() => {
 
   getRecent = vi.fn();
   getFrequent = vi.fn();
+  getWorkspaces = vi.fn();
   (globalThis as unknown as { window: { electronAPI: unknown } }).window = {
     electronAPI: {
       usage: { getRecent, getFrequent },
+      content: { getWorkspaces },
     },
   };
 });
@@ -58,6 +61,55 @@ describe('content-store loadRecentItems (FIX-3: stale cross-account write)', () 
     await useContentStore.getState().loadRecentItems();
 
     expect(useContentStore.getState().recentItems).toEqual([]);
+  });
+});
+
+describe('content-store loadWorkspaces (UX-4: friendly error surfacing)', () => {
+  const FALLBACK =
+    'Could not load your workspaces. Check your network connection, then select Refresh to try again.';
+
+  it('surfaces error.userMessage from the IPC envelope', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    getWorkspaces.mockResolvedValue({
+      success: false,
+      error: {
+        code: 'HTTP_403',
+        message: 'Failed to fetch workspaces: 403 - forbidden',
+        userMessage: 'You do not have access to this content.',
+      },
+    });
+
+    await useContentStore.getState().loadWorkspaces();
+
+    expect(useContentStore.getState().error).toBe('You do not have access to this content.');
+    consoleError.mockRestore();
+  });
+
+  it('falls back to actionable generic copy when userMessage is missing (never raw message)', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    getWorkspaces.mockResolvedValue({
+      success: false,
+      error: { code: 'UNKNOWN', message: 'ECONNRESET at TLSSocket._foo' },
+    });
+
+    await useContentStore.getState().loadWorkspaces();
+
+    expect(useContentStore.getState().error).toBe(FALLBACK);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('uses the generic copy (not String(error)) when the IPC call throws, logging the raw error', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const boom = new Error('boom');
+    getWorkspaces.mockRejectedValue(boom);
+
+    await useContentStore.getState().loadWorkspaces();
+
+    expect(useContentStore.getState().error).toBe(FALLBACK);
+    expect(useContentStore.getState().isLoading).toBe(false);
+    expect(consoleError).toHaveBeenCalledWith('Failed to load workspaces:', boom);
+    consoleError.mockRestore();
   });
 });
 

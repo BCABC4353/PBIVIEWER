@@ -59,16 +59,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       {}
       <div className="flex-1 flex overflow-hidden">
         {}
-        <nav aria-label="Application navigation">
-          <Sidebar
-            collapsed={settings.sidebarCollapsed}
-            onToggleCollapse={() =>
-              updateSettings({ sidebarCollapsed: !settings.sidebarCollapsed })
-            }
-            activeItem={getActiveItem()}
-            onNavigate={handleNavigate}
-          />
-        </nav>
+        <Sidebar
+          collapsed={settings.sidebarCollapsed}
+          onToggleCollapse={() =>
+            updateSettings({ sidebarCollapsed: !settings.sidebarCollapsed })
+          }
+          activeItem={getActiveItem()}
+          onNavigate={handleNavigate}
+        />
 
         {}
         <main

@@ -24,12 +24,14 @@ import {
 import { useAuthStore } from '../../stores/auth-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useContentStore } from '../../stores/content-store';
+import { useSignOutConfirm, SignOutConfirmDialog } from '../../hooks/useSignOutConfirm';
 import { useDebouncedSettings } from '../../hooks/presentation/useDebouncedSettings';
 import { SLIDESHOW_INTERVAL } from '../../../shared/constants';
 import type { ContentItem } from '../../../shared/types';
 
 export const SettingsPage: React.FC = () => {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
+  const { triggerSignOut, dialogProps } = useSignOutConfirm();
   const { settings, isLoading, loadSettings, updateSettings, resetSettings } = useSettingsStore();
   const { recentItems, frequentItems, apps, loadRecentItems, loadFrequentItems, loadApps } =
     useContentStore();
@@ -161,6 +163,7 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="h-full overflow-auto">
+      <SignOutConfirmDialog {...dialogProps} />
       <div className="p-6 max-w-3xl mx-auto">
         <h1 className="text-2xl font-semibold text-neutral-foreground-1 mb-6">
           Settings
@@ -187,7 +190,7 @@ export const SettingsPage: React.FC = () => {
               )}
               <Button
                 appearance="secondary"
-                onClick={() => logout()}
+                onClick={triggerSignOut}
                 className="mt-4"
               >
                 Sign out
@@ -252,7 +255,7 @@ export const SettingsPage: React.FC = () => {
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
-                Slideshow / Presentation Mode
+                Slideshow
               </h2>
               <div className="space-y-5">
                 {}
@@ -263,7 +266,7 @@ export const SettingsPage: React.FC = () => {
                       <Text weight="semibold">{settings.slideshowInterval} seconds</Text>
                     </div>
                   }
-                  hint={`${SLIDESHOW_INTERVAL.MIN}s minimum — 5 minutes maximum`}
+                  hint={`${SLIDESHOW_INTERVAL.MIN} seconds minimum — ${SLIDESHOW_INTERVAL.MAX} seconds maximum`}
                 >
                   <Slider
                     min={SLIDESHOW_INTERVAL.MIN}
@@ -298,6 +301,9 @@ export const SettingsPage: React.FC = () => {
                     label={settings.autoStartSlideshow ? 'On' : 'Off'}
                   />
                 </Field>
+                <Text size={200} className="text-neutral-foreground-3 -mt-3 block">
+                  When on, exiting the slideshow requires holding Esc for 3 seconds.
+                </Text>
               </div>
             </div>
           </Card>
@@ -306,12 +312,12 @@ export const SettingsPage: React.FC = () => {
           <Card>
             <div className="p-4">
               <h2 className="text-lg font-semibold text-neutral-foreground-1 mb-4">
-                Launch on Startup
+                Open at launch
               </h2>
               <div className="space-y-5">
                 {}
                 <Field
-                  label="Startup behavior"
+                  label="What opens at launch"
                   hint="Controls what the app opens when it launches."
                 >
                   <RadioGroup
@@ -444,7 +450,7 @@ export const SettingsPage: React.FC = () => {
                         </Text>
                       </div>
                     }
-                    hint="Applies to slideshow/kiosk auto-refresh; reports refresh automatically when new data is published. 1 minute minimum — 2 hours maximum."
+                    hint="Applies to slideshow/kiosk auto-refresh; reports refresh automatically when new data is published. 1 minute minimum — 120 minutes maximum."
                   >
                     <Slider
                       min={1}

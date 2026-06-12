@@ -42,3 +42,6 @@ src/main/services/beacon-config.generated.ts
 
 # Per-machine Claude Code settings are local-only — never commit them.
 .claude/settings.local.json
+
+# Design-lab sample gallery: deps and heavyweight renders stay local.
+design-lab/node_modules/

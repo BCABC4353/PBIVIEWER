@@ -102,7 +102,7 @@ describe('AppViewer smoke', () => {
     await waitFor(() => {
       const chip = container.querySelector('[data-freshness-chip]');
       expect(chip?.textContent).toMatch(/Updated \d+ min ago/);
-      expect(chip?.getAttribute('title')).toMatch(/Data refreshed: \d{2}\/\d{2}\/2026/);
+      expect(chip?.getAttribute('title')).toMatch(/Data refreshed: .*2026/);
     });
     expect(screen.queryByText(/Oldest data/)).toBeNull();
   });
@@ -118,7 +118,7 @@ describe('AppViewer smoke', () => {
     await waitFor(() => {
       const chip = container.querySelector('[data-freshness-chip]');
       expect(chip?.textContent).toMatch(/Oldest data \d+ min ago/);
-      expect(chip?.getAttribute('title')).toMatch(/Oldest data: \d{2}\/\d{2}\/2026/);
+      expect(chip?.getAttribute('title')).toMatch(/Oldest data: .*2026/);
     });
     expect(window.electronAPI.content.getDataFreshness).toHaveBeenCalledWith('ws-1', [
       { datasetId: 'ds-1', workspaceId: 'ws-1' },

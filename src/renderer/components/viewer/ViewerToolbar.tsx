@@ -16,6 +16,7 @@ import {
   CheckmarkCircleRegular,
 } from '@fluentui/react-icons';
 import { formatAgeNoun, formatRelativeAge, STALE_AFTER_MS } from '../../lib/freshness-format';
+import { formatAbsoluteDateTime } from '../../lib/date-format';
 
 const REFRESH_FLASH_MS = 5000;
 
@@ -43,25 +44,6 @@ export interface ViewerToolbarProps {
   scheduleSummary?: string;
 }
 
-function formatRefreshTime(isoString: string): string {
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return '';
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const year = String(date.getFullYear());
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  let tz = '';
-  try {
-    tz = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
-      .formatToParts(date)
-      .find((p) => p.type === 'timeZoneName')?.value ?? '';
-  } catch {
-  }
-
-  return `${month}/${day}/${year} ${hours}:${minutes}${tz ? ' ' + tz : ''}`;
-}
 
 export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   onBack,
@@ -121,7 +103,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     if (showRelativeAge && Number.isFinite(ageMs)) {
       relative = ` (${formatRelativeAge(ageMs)})`;
     }
-    const formatted = formatRefreshTime(iso);
+    const formatted = formatAbsoluteDateTime(iso);
     if (!formatted) return null;
     const tone = isStale ? 'text-status-warning' : 'text-neutral-foreground-3';
     return (
@@ -142,7 +124,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
     const hasAge = Number.isFinite(ageMs);
     const isStale = hasAge && ageMs > STALE_AFTER_MS;
     const isOverdue = scheduleOverdue === true;
-    const formatted = iso ? formatRefreshTime(iso) : '';
+    const formatted = iso ? formatAbsoluteDateTime(iso) : '';
 
     const tooltipParts = [
       formatted ? `${freshnessLabel}: ${formatted}` : `${freshnessLabel}: not yet known`,
@@ -343,7 +325,7 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
             appearance="subtle"
             icon={<PlayRegular />}
             onClick={onSlideshow}
-            title="Start slideshow presentation"
+            title="Start slideshow"
           >
             Slideshow
           </Button>

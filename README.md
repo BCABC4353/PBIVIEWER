@@ -1,15 +1,11 @@
 # Power BI Viewer
 
-A clean, isolated Power BI viewing experience for the desktop, plus a
-companion mobile fleet-ops console.
+A clean, isolated Power BI viewing experience for the desktop: sign in once
+with your work account, browse workspaces and Power BI Apps, view
+reports/dashboards with live data-freshness stamps, run unattended kiosk
+slideshows on wall displays, and audit refresh health on the Insights board.
 
-- **Desktop** (this directory): Electron + React app. Sign in once with your
-  work account, browse workspaces and Power BI Apps, view reports/dashboards
-  with live data-freshness stamps, run unattended kiosk slideshows on wall
-  displays, and audit refresh health on the Insights board.
-- **Mobile** (`mobile/`): Expo / React Native app focused on refresh health —
-  what broke, what's overdue, what's running — with natively rendered report
-  canvases. See `mobile/README.md`.
+The companion mobile app lives in its own repository (fleet-mobile).
 
 ## Quick start (desktop)
 
@@ -37,7 +33,6 @@ npm run package:win   # or package:mac
 | `src/main/` | Electron main process: auth (MSAL), Power BI REST client, IPC handlers, settings/usage services, auto-updater |
 | `src/renderer/` | React UI: viewers, Insights board, presentation/kiosk mode, stores |
 | `src/preload/` + `src/shared/` | The typed IPC bridge and shared types/validation |
-| `mobile/` | Separate Expo app (own package.json — `cd mobile && npm ci`) |
 | `docs/` | Operator guides (install, updating, go-live runbook) |
 | `scripts/` | Build-time config generation, screenshot/PDF tooling |
 

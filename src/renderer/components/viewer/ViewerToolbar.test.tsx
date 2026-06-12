@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { ViewerToolbar } from './ViewerToolbar';
+import { formatAbsoluteDateTime } from '../../lib/date-format';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -59,16 +60,17 @@ describe('ViewerToolbar freshness chip', () => {
   });
 
   it('keeps the absolute timestamp and owner diagnostic in the hover tooltip', () => {
+    const iso = isoAgo(4 * 60 * 1000);
     const { container } = render(
       <ViewerToolbar
         onBack={vi.fn()}
         showFreshness
-        lastDataRefresh={isoAgo(4 * 60 * 1000)}
+        lastDataRefresh={iso}
         freshnessDiagnostic="mode: report (api lookup)"
       />,
     );
     const title = chipOf(container)?.getAttribute('title') ?? '';
-    expect(title).toMatch(/Data refreshed: \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
+    expect(title).toContain(`Data refreshed: ${formatAbsoluteDateTime(iso)}`);
     expect(title).toContain('mode: report (api lookup)');
   });
 

@@ -56,6 +56,22 @@
   outline-offset: 2px;
 }
 
+@layer components {
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--colorBrandBackground, #ff5f15);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes kiosk-hold-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -64,6 +64,12 @@ export const SearchDialog: React.FC = () => {
     setSelectedIndex(0);
   }, [results]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const selected = document.getElementById(`search-result-${selectedIndex}`);
+    selected?.scrollIntoView?.({ block: 'nearest' });
+  }, [isOpen, selectedIndex, results]);
+
   const handleNavigate = useCallback((result: typeof results[0]) => {
     closeSearch();
 
@@ -115,6 +121,7 @@ export const SearchDialog: React.FC = () => {
         break;
       case 'Escape':
         e.preventDefault();
+        e.stopPropagation();
         closeSearch();
         break;
     }
@@ -169,7 +176,7 @@ export const SearchDialog: React.FC = () => {
               query && (
                 <button
                   onClick={() => setQuery('')}
-                  className="p-1 hover:bg-neutral-background-3 rounded"
+                  className="focus-ring p-1 hover:bg-neutral-background-3 rounded"
                   aria-label="Clear search"
                 >
                   <DismissRegular className="text-sm" />

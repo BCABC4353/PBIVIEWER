@@ -57,7 +57,8 @@ export const LoginScreen: React.FC = () => {
               <MessageBar intent="error">
                 <MessageBarBody>
                   <MessageBarTitle>Sign in failed</MessageBarTitle>
-                  {error}
+                  {error} Try signing in again. If it keeps failing, contact your
+                  administrator.
                 </MessageBarBody>
               </MessageBar>
             </div>

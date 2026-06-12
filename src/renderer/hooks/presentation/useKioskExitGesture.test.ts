@@ -134,4 +134,67 @@ describe('PROD-S1 useKioskExitGesture hook', () => {
     act(() => dispatchKeyDown({ key: 'Q', ctrlKey: true, shiftKey: true }));
     expect(onExit).not.toHaveBeenCalled();
   });
+
+  it('surfaces isHolding while Escape is held and clears it on release without exiting', () => {
+    const onExit = vi.fn();
+    const { result } = renderHook(() => useKioskExitGesture({ onExit }));
+
+    expect(result.current.isHolding).toBe(false);
+
+    act(() => dispatchKeyDown({ key: 'Escape' }));
+    expect(result.current.isHolding).toBe(true);
+
+    act(() => dispatchKeyUp({ key: 'Escape' }));
+    expect(result.current.isHolding).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(KIOSK.ESCAPE_HOLD_MS);
+    });
+    expect(onExit).not.toHaveBeenCalled();
+  });
+
+  it('clears isHolding when the hold completes and the exit fires', () => {
+    const onExit = vi.fn();
+    const { result } = renderHook(() => useKioskExitGesture({ onExit }));
+
+    act(() => dispatchKeyDown({ key: 'Escape' }));
+    expect(result.current.isHolding).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(KIOSK.ESCAPE_HOLD_MS);
+    });
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(result.current.isHolding).toBe(false);
+  });
+
+  it('clears isHolding when another key cancels an in-progress hold', () => {
+    const onExit = vi.fn();
+    const { result } = renderHook(() => useKioskExitGesture({ onExit }));
+
+    act(() => dispatchKeyDown({ key: 'Escape' }));
+    expect(result.current.isHolding).toBe(true);
+
+    act(() => dispatchKeyDown({ key: 'a' }));
+    expect(result.current.isHolding).toBe(false);
+  });
+
+  it('clears isHolding when the window blurs mid-hold', () => {
+    const onExit = vi.fn();
+    const { result } = renderHook(() => useKioskExitGesture({ onExit }));
+
+    act(() => dispatchKeyDown({ key: 'Escape' }));
+    expect(result.current.isHolding).toBe(true);
+
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+    });
+    expect(result.current.isHolding).toBe(false);
+  });
+
+  it('exposes the configured holdMs for progress rendering', () => {
+    const { result } = renderHook(() =>
+      useKioskExitGesture({ onExit: vi.fn(), holdMs: 1234 }),
+    );
+    expect(result.current.holdMs).toBe(1234);
+  });
 });

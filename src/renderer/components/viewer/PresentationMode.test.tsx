@@ -5,6 +5,8 @@ import { act } from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 import { isInteractiveTarget } from './PresentationMode';
+import { useSettingsStore } from '../../stores/settings-store';
+import { DEFAULT_SETTINGS, KIOSK } from '../../../shared/constants';
 import type { SlideItem } from '../../hooks/presentation/useSlideList';
 
 const makeSlides = (n: number): SlideItem[] =>
@@ -15,7 +17,7 @@ const makeSlides = (n: number): SlideItem[] =>
   }));
 
 const MANY = 25;
-const slidesMock = makeSlides(MANY);
+let slidesMock = makeSlides(MANY);
 
 vi.mock('../../hooks/usePowerBIEmbed', () => ({
   usePowerBIEmbed: () => ({
@@ -42,7 +44,7 @@ vi.mock('../../hooks/presentation/useExitOnFullscreenChange', () => ({
 }));
 vi.mock('../../hooks/presentation/useKioskRecovery', () => ({ useKioskRecovery: vi.fn() }));
 vi.mock('../../hooks/presentation/useKioskExitGesture', () => ({
-  useKioskExitGesture: vi.fn(),
+  useKioskExitGesture: vi.fn(() => ({ isHolding: false, holdMs: 3000 })),
 }));
 vi.mock('../../hooks/presentation/useCursorHide', () => ({ useCursorHide: () => false }));
 vi.mock('../../hooks/presentation/useDebouncedSettings', () => ({
@@ -50,6 +52,16 @@ vi.mock('../../hooks/presentation/useDebouncedSettings', () => ({
 }));
 
 import { PresentationMode } from './PresentationMode';
+import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGesture';
+
+beforeEach(() => {
+  slidesMock = makeSlides(MANY);
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS });
+  vi.mocked(useKioskExitGesture).mockImplementation(() => ({
+    isHolding: false,
+    holdMs: KIOSK.ESCAPE_HOLD_MS,
+  }));
+});
 
 function renderPresentation() {
   let result: ReturnType<typeof render>;
@@ -156,7 +168,7 @@ describe('NEW-A11Y-5 PresentationMode keydown does not hijack interactive contro
 
   it('Space/Arrows on the overlay background ARE handled (preventDefault + navigation)', () => {
     renderPresentation();
-    const dialog = screen.getByRole('dialog', { name: 'Presentation mode' });
+    const dialog = screen.getByRole('dialog', { name: 'Slideshow' });
     const scrubber = screen.getByRole('slider', { name: 'Slide scrubber' });
 
     expect(valueNow(scrubber)).toBe(1);
@@ -220,6 +232,77 @@ describe('PROD-S1 / antagonist P0: Escape is a global exit handled regardless of
 
     expect(dispatchKeyFrom(settingsBtn, 'Escape')).toBe(true);
     expect(screen.queryByText('Slideshow Settings')).toBeNull();
-    expect(screen.queryByRole('dialog', { name: 'Presentation mode' })).not.toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Slideshow' })).not.toBeNull();
+  });
+});
+
+const presentationTree = (
+  <MemoryRouter initialEntries={['/presentation/ws-1/report-1']}>
+    <Routes>
+      <Route path="/presentation/:workspaceId/:reportId" element={<PresentationMode />} />
+    </Routes>
+  </MemoryRouter>
+);
+
+describe('UX-14 slide index clamp when the slide list shrinks', () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
+  it('clamps the current slide so "Slide 26 / 5" is impossible', () => {
+    const view = renderPresentation();
+    const scrubber = screen.getByRole('slider', { name: 'Slide scrubber' });
+
+    dispatchKeyFrom(scrubber, 'End');
+    expect(valueNow(scrubber)).toBe(MANY);
+    expect(screen.getByText(`Slide ${MANY} of ${MANY}: Page ${MANY}`)).not.toBeNull();
+
+    slidesMock = makeSlides(5);
+    act(() => {
+      view.rerender(presentationTree);
+    });
+
+    expect(screen.getByText('Slide 5 of 5: Page 5')).not.toBeNull();
+    expect(screen.queryByText(/Slide 2[0-9] of 5/)).toBeNull();
+    const dots = screen.getAllByRole('button', { name: /Go to slide/ });
+    expect(dots).toHaveLength(5);
+    expect(dots[4]!.getAttribute('aria-current')).toBe('true');
+  });
+});
+
+describe('UX-10/11 kiosk exit hints and Esc-hold progress overlay', () => {
+  beforeEach(() => {
+    cleanup();
+    vi.mocked(window.electronAPI.settings.get).mockResolvedValue({
+      success: true,
+      data: { ...DEFAULT_SETTINGS, autoStartSlideshow: true },
+    });
+  });
+
+  async function renderKiosk() {
+    await act(async () => {
+      render(presentationTree);
+    });
+  }
+
+  it('kiosk mode shows the hold-to-exit hint and drops the contradictory "Esc: Exit" row', async () => {
+    await renderKiosk();
+    expect(screen.getByText('Hold Esc 3s to exit')).not.toBeNull();
+    expect(screen.queryByText('Press Esc to exit')).toBeNull();
+    expect(screen.queryByText('Esc: Exit')).toBeNull();
+  });
+
+  it('renders the hold progress overlay while Esc is held', async () => {
+    vi.mocked(useKioskExitGesture).mockImplementation(() => ({
+      isHolding: true,
+      holdMs: KIOSK.ESCAPE_HOLD_MS,
+    }));
+    await renderKiosk();
+    expect(screen.getByText('Keep holding to exit…')).not.toBeNull();
+  });
+
+  it('does not render the hold overlay when no hold is in progress', async () => {
+    await renderKiosk();
+    expect(screen.queryByText('Keep holding to exit…')).toBeNull();
   });
 });
