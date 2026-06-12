@@ -34,6 +34,10 @@ export function distributionStrip(
   const median = linearInterpolationPercentile(sorted, 0.5);
   const p75 = linearInterpolationPercentile(sorted, 0.75);
 
+  if (p25 === null || median === null || p75 === null) {
+    return insufficient('percentile computation failed');
+  }
+
   let currentPosition: number | null = null;
   if (current !== undefined) {
     if (max === min) {

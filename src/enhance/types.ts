@@ -26,8 +26,9 @@ export function isInsufficient<T>(r: Result<T>): r is InsufficientResult {
   return r.kind === 'insufficient';
 }
 
-export function linearInterpolationPercentile(sorted: number[], p: number): number {
+export function linearInterpolationPercentile(sorted: number[], p: number): number | null {
   const n = sorted.length;
+  if (n === 0 || !Number.isFinite(p) || p < 0 || p > 1) return null;
   if (n === 1) return sorted[0]!;
   const idx = p * (n - 1);
   const lo = Math.floor(idx);

@@ -55,6 +55,22 @@ describe('types helpers', () => {
     // 2 + 0.75*(4-2) = 2 + 1.5 = 3.5
     expect(linearInterpolationPercentile([2, 4, 6, 8], 0.25)).toBeCloseTo(3.5);
   });
+
+  it('linearInterpolationPercentile([], p) returns null not NaN (H2)', () => {
+    const r = linearInterpolationPercentile([], 0.5);
+    expect(r).toBeNull();
+    expect(Number.isNaN(r as unknown as number)).toBe(false);
+  });
+
+  it('linearInterpolationPercentile with non-finite p returns null (H2)', () => {
+    expect(linearInterpolationPercentile([1, 2, 3], NaN)).toBeNull();
+    expect(linearInterpolationPercentile([1, 2, 3], Infinity)).toBeNull();
+  });
+
+  it('linearInterpolationPercentile with p out of [0,1] returns null', () => {
+    expect(linearInterpolationPercentile([1, 2, 3], -0.1)).toBeNull();
+    expect(linearInterpolationPercentile([1, 2, 3], 1.5)).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -221,6 +237,19 @@ describe('paretoAnalysis', () => {
     if (r.kind !== 'ok') return;
     expect(r.value.entries[0]!.share).toBeCloseTo(0.25);
     expect(r.value.entries[3]!.cumulativeShare).toBeCloseTo(1);
+  });
+
+  it('rejects negative values with insufficient (H3)', () => {
+    // [10,-5,3] previously produced shares 1.25/0.375/-0.625 with
+    // non-monotonic cumulative and threshold landing at rank 0 - meaningless.
+    const r = paretoAnalysis([10, -5, 3], 0.8);
+    expect(r.kind).toBe('insufficient');
+    if (r.kind !== 'insufficient') return;
+    expect(r.reason).toContain('non-negative');
+  });
+
+  it('rejects a single negative value', () => {
+    expect(paretoAnalysis([-1]).kind).toBe('insufficient');
   });
 
   it('all-zero values returns entries with share=0', () => {
@@ -482,6 +511,117 @@ describe('periodDeltas', () => {
   it('accepts Record input', () => {
     const r = periodDeltas({ '2024-01-01': 50, '2024-02-01': 60 }, 'MoM');
     expect(r.kind).toBe('ok');
+  });
+
+  it('MoM resolves on month-end keys spanning Feb (H1 regression)', () => {
+    // Month-end snapshot keys: Jan 31, Feb 29 (leap), Mar 31.
+    // Old addMonths(2024-03-31, -1) overflowed to 2024-03-02 and matched
+    // nothing, so EVERY entry returned insufficient. Year-month matching fixes it.
+    const series = new Map([
+      ['2024-01-31', 100],
+      ['2024-02-29', 130],
+      ['2024-03-31', 160],
+    ]);
+    const r = periodDeltas(series, 'MoM');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    const byDate = Object.fromEntries(r.value.entries.map((e) => [e.date, e]));
+    expect(byDate['2024-01-31']!.delta.kind).toBe('insufficient');
+    const feb = byDate['2024-02-29']!.delta;
+    expect(feb.kind).toBe('ok');
+    if (feb.kind !== 'ok') return;
+    // 130 - 100 = 30; 30/100*100 = 30%
+    expect(feb.value.delta).toBeCloseTo(30);
+    expect(feb.value.deltaPercent).toBeCloseTo(30);
+    const mar = byDate['2024-03-31']!.delta;
+    expect(mar.kind).toBe('ok');
+    if (mar.kind !== 'ok') return;
+    // 160 - 130 = 30; 30/130*100 ~= 23.0769%
+    expect(mar.value.delta).toBeCloseTo(30);
+    expect(mar.value.deltaPercent).toBeCloseTo((30 / 130) * 100);
+  });
+
+  it('YoY resolves on month-end keys across a year (H1 regression)', () => {
+    // 2023-02-28 (non-leap) -> 2024-02-29 (leap): prior month 2023-02 found.
+    const series = new Map([
+      ['2023-02-28', 200],
+      ['2024-02-29', 260],
+    ]);
+    const r = periodDeltas(series, 'YoY');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    const byDate = Object.fromEntries(r.value.entries.map((e) => [e.date, e]));
+    expect(byDate['2023-02-28']!.delta.kind).toBe('insufficient');
+    const y24 = byDate['2024-02-29']!.delta;
+    expect(y24.kind).toBe('ok');
+    if (y24.kind !== 'ok') return;
+    // 260 - 200 = 60; 60/200*100 = 30%
+    expect(y24.value.delta).toBeCloseTo(60);
+    expect(y24.value.deltaPercent).toBeCloseTo(30);
+  });
+
+  it('YoY crosses year boundary correctly for December (H1)', () => {
+    // 2023-12-15 -> 2024-12-15: prior year-month 2023-12 must resolve.
+    const series = new Map([
+      ['2023-12-15', 50],
+      ['2024-12-15', 75],
+    ]);
+    const r = periodDeltas(series, 'YoY');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    const dec24 = r.value.entries.find((e) => e.date === '2024-12-15')!.delta;
+    expect(dec24.kind).toBe('ok');
+    if (dec24.kind !== 'ok') return;
+    expect(dec24.value.delta).toBeCloseTo(25);
+  });
+
+  it('MoM crosses January->December year boundary (H1)', () => {
+    // 2024-01 prior month is 2023-12.
+    const series = new Map([
+      ['2023-12-01', 80],
+      ['2024-01-01', 100],
+    ]);
+    const r = periodDeltas(series, 'MoM');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    const jan = r.value.entries.find((e) => e.date === '2024-01-01')!.delta;
+    expect(jan.kind).toBe('ok');
+    if (jan.kind !== 'ok') return;
+    expect(jan.value.delta).toBeCloseTo(20);
+  });
+
+  it('negative prior: deltaPercent semantics pinned to delta/abs(prior) (M1)', () => {
+    // prior = -50 (Jan), value = -30 (Feb). delta = -30 - (-50) = 20.
+    // Intended semantics: percent magnitude relative to |prior|, signed by delta.
+    // 20 / abs(-50) * 100 = +40%. A move from -50 to -30 is a +20 absolute
+    // improvement; percent is positive because delta is positive.
+    const series = new Map([['2024-01-01', -50], ['2024-02-01', -30]]);
+    const r = periodDeltas(series, 'MoM');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    const feb = r.value.entries.find((e) => e.date === '2024-02-01')!.delta;
+    expect(feb.kind).toBe('ok');
+    if (feb.kind !== 'ok') return;
+    expect(feb.value.prior).toBe(-50);
+    expect(feb.value.delta).toBeCloseTo(20);
+    expect(feb.value.deltaPercent).toBeCloseTo(40);
+  });
+
+  it('negative prior with further decline gives negative percent (M1)', () => {
+    // prior = -50, value = -80. delta = -30. -30/abs(-50)*100 = -60%.
+    const series = new Map([['2024-01-01', -50], ['2024-02-01', -80]]);
+    const r = periodDeltas(series, 'MoM');
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    const feb = r.value.entries.find((e) => e.date === '2024-02-01')!.delta;
+    expect(feb.kind).toBe('ok');
+    if (feb.kind !== 'ok') return;
+    expect(feb.value.deltaPercent).toBeCloseTo(-60);
+  });
+
+  it('returns insufficient for malformed date keys (H1 guard)', () => {
+    const r = periodDeltas(new Map([['not-a-date', 5]]), 'MoM');
+    expect(r.kind).toBe('insufficient');
   });
 });
 

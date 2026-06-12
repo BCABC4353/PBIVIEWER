@@ -29,6 +29,9 @@ export function paretoAnalysis(
     if (!Number.isFinite(v)) {
       return insufficient('values contains non-finite entries');
     }
+    if (v < 0) {
+      return insufficient('pareto requires non-negative values');
+    }
   }
 
   const indexed = values.map((value, index) => ({ value, index }));

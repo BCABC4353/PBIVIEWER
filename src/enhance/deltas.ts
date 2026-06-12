@@ -20,14 +20,20 @@ export interface DeltasResult {
   entries: DeltaEntry[];
 }
 
-function addMonths(dateStr: string, months: number): string {
-  const d = new Date(dateStr);
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d.toISOString().slice(0, 10);
+function yearMonth(dateStr: string): string | null {
+  const match = /^(\d{4})-(\d{2})/.exec(dateStr);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}`;
 }
 
-function priorDateKey(dateStr: string, kind: DeltaKind): string {
-  return kind === 'MoM' ? addMonths(dateStr, -1) : addMonths(dateStr, -12);
+function priorYearMonth(ym: string, monthsBack: number): string {
+  const [yearStr, monthStr] = ym.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const zeroBased = (year * 12 + (month - 1)) - monthsBack;
+  const priorYear = Math.floor(zeroBased / 12);
+  const priorMonth = (zeroBased % 12) + 1;
+  return `${String(priorYear).padStart(4, '0')}-${String(priorMonth).padStart(2, '0')}`;
 }
 
 export function periodDeltas(
@@ -45,22 +51,31 @@ export function periodDeltas(
     if (!Number.isFinite(v)) return insufficient('series contains non-finite values');
   }
 
+  const byYearMonth = new Map<string, number>();
+  for (const [date, value] of map) {
+    const ym = yearMonth(date);
+    if (ym === null) return insufficient(`date key is not YYYY-MM... format: ${date}`);
+    byYearMonth.set(ym, value);
+  }
+
+  const monthsBack = kind === 'MoM' ? 1 : 12;
   const sortedDates = [...map.keys()].sort();
   const entries: DeltaEntry[] = [];
 
   for (const date of sortedDates) {
     const value = map.get(date)!;
-    const priorKey = priorDateKey(date, kind);
+    const ym = yearMonth(date)!;
+    const priorYm = priorYearMonth(ym, monthsBack);
 
-    if (!map.has(priorKey)) {
+    if (!byYearMonth.has(priorYm)) {
       entries.push({
         date,
-        delta: insufficient(`no prior period found for ${date} (expected ${priorKey})`),
+        delta: insufficient(`no prior period found for ${date} (expected month ${priorYm})`),
       });
       continue;
     }
 
-    const prior = map.get(priorKey)!;
+    const prior = byYearMonth.get(priorYm)!;
     const delta = value - prior;
     const deltaPercent = prior === 0 ? null : (delta / Math.abs(prior)) * 100;
 
