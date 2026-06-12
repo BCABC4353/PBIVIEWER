@@ -1,0 +1,4 @@
+{ "source":"Gantt1448688115699", "render":"timeline", "page":"REVENUE CYCLE",
+  "table":"REV CYCLE TIMELINE GANTT",
+  "roles":{ "Task":"Event", "StartDate":"START DATE", "EndDate":"END DATE", "Duration":"DAYS", "Parent":"RUN" },
+  "note":"custom visual renderer not portable; data roles standard -> rebuilt native as a revenue-cycle timeline" }

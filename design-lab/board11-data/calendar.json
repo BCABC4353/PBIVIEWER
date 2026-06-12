@@ -1,0 +1,4 @@
+{ "source":"bciCalendar (custom)", "render":"calendar-heatmap", "page":"CTC CALLER CALENDAR",
+  "roles":{ "category":"Trips.TRIP DATE (day)", "measure":"COUNTA('TRIP TIMES'[RUN])" },
+  "concept":"daily volume/UHU heatmap — each day a cell, intensity by count",
+  "note":"custom renderer not portable; date+measure roles standard -> rebuilt native; same family as C7 UHU asTimeline (that report not in this bundle)" }

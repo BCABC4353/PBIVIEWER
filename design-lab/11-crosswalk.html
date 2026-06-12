@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 11 Crosswalk: your real reports</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  body { max-width: 430px; margin: 0 auto; }
+  .page { padding: 24px 22px 60px; }
+
+  .corpus { margin: 4px 0 6px; padding: 12px 16px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); }
+  .corpus b { color: var(--ink-hi); font-weight: 500; }
+  .corpus .hot { color: var(--live); }
+
+  .rm-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 16px; margin: 10px 0 6px; }
+  .rm-id .tn { font-size: 12px; font-weight: 500; }
+  .rm-id .td { font-size: 9.5px; color: var(--ink-low); margin-top: 3px; letter-spacing: 0.05em; }
+  .toggle { position: relative; width: 60px; height: 32px; border-radius: 16px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); cursor: pointer; flex: none; }
+  .toggle .thumb { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8); will-change: transform; }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,121,0,0.85); }
+  .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,121,0,0.6); }
+
+  .sec-head { margin: 30px 0 6px; }
+  .sec-k { font-size: 10px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--live); }
+  .sec-t { font-size: 15px; font-weight: 500; letter-spacing: 0.01em; margin-top: 6px; color: var(--ink-hi); }
+  .sec-d { font-size: 11px; color: var(--ink-mid); line-height: 1.55; margin-top: 6px; max-width: 48ch; }
+
+  .flowstep { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px;
+    font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); }
+  .flowstep .arr { color: var(--live); font-size: 12px; }
+  .flowstep .src { color: var(--ink-faint); }
+  .flowstep .dst { color: var(--ink-hi); }
+
+  /* before schematic */
+  .before { padding: 14px; }
+  .before .frame { position: relative; width: 100%; border-radius: 10px; background: var(--bg);
+    border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); aspect-ratio: 1269 / 719; }
+  .vrect { position: absolute; border: 1px dashed rgba(255,255,255,0.22); border-radius: 4px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; padding: 4px;
+    background: rgba(255,255,255,0.018); }
+  .vrect .vt { font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-mid); text-align: center; }
+  .vrect .vr { font-size: 7px; letter-spacing: 0.06em; color: var(--ink-faint); text-align: center; line-height: 1.3; }
+  .vrect.chart { border-color: rgba(79,157,222,0.4); }
+  .vrect.aux { border-style: dotted; border-color: rgba(255,255,255,0.1); }
+  .vrect.aux .vt { color: var(--ink-faint); }
+  .before-cap { margin-top: 10px; font-size: 9px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  /* grouped bar (after, column chart -> grouped bar) */
+  .panel { padding: 16px 18px; margin-top: 12px; }
+  .p-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid var(--hairline); }
+  .p-name { font-size: 13px; font-weight: 500; letter-spacing: 0.02em; }
+  .p-name .ix { font-size: 10px; color: var(--live); margin-right: 7px; }
+  .p-meta { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .illus { font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--behind); white-space: nowrap; }
+  .illus .g { font-size: 0.9em; margin-right: 3px; }
+
+  .gbzone { margin-top: 12px; }
+  .gbzone svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+  .lg { display: inline-flex; align-items: center; gap: 7px; font-size: 9.5px; letter-spacing: 0.04em; color: var(--ink-mid); }
+  .lg .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+  /* palette swatches */
+  .palwell { padding: 16px 18px; margin-top: 12px; }
+  .palgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .swatch { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; padding: 8px 10px;
+    border-radius: 9px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); }
+  .swatch .chip { width: 30px; height: 30px; border-radius: 6px; }
+  .swatch .nm { font-size: 11px; font-weight: 500; letter-spacing: 0.05em; color: var(--ink-hi); }
+  .swatch .hx { font-size: 9px; font-family: var(--font-tab); color: var(--ink-low); margin-top: 2px; }
+  .swatch .cn { font-size: 8px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-top: 1px; }
+
+  /* ledger stack (reused board-10 grammar) */
+  .ledblock { margin-top: 14px; }
+  .ledtop { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 9px; }
+  .ledtop .lt-n { font-size: 12px; font-weight: 500; }
+  .ledtop .lt-n .ix { font-size: 10px; color: var(--live); margin-right: 7px; }
+  .ledtop .lt-m { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .carousel { display: grid; grid-template-columns: 30px 1fr 30px; gap: 8px; align-items: center; padding: 6px 0 8px; }
+  .cbtn { height: 32px; border-radius: 8px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--ink-low); cursor: pointer; user-select: none; }
+  .cbtn:active { color: var(--ink-hi); }
+  .cbtn.off { opacity: 0.3; pointer-events: none; }
+  .cmid { text-align: center; }
+  .cmeasure { display: inline-block; will-change: transform, opacity; }
+  .cmeasure .ml { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; color: var(--ink-hi); }
+  .cmeasure .mu { font-size: 8px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; }
+  .cstrip { margin-top: 4px; }
+  .cstrip svg { display: inline-block; }
+
+  .ledger { position: relative; overflow: hidden; border-top: 1px solid var(--hairline); }
+  .rowsview { position: relative; touch-action: pan-y; will-change: opacity; }
+
+  .trow { position: relative; display: grid; grid-template-columns: 1fr 70px 70px; gap: 10px; align-items: center;
+    border-bottom: 1px solid var(--hairline); cursor: pointer; user-select: none; }
+  .trow .nm { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .trow .chev { font-size: 8px; color: var(--deco); flex: none; will-change: transform; }
+  .trow .swat { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+  .trow .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow.lv0 { height: 42px; }
+  .trow.lv0 .lbl { font-size: 12px; font-weight: 500; color: var(--ink-hi); letter-spacing: 0.03em; }
+  .trow.lv1 { height: 36px; }
+  .trow.lv1 .nm { padding-left: 16px; }
+  .trow.lv1 .lbl { font-size: 11px; color: var(--ink-mid); letter-spacing: 0.02em; }
+  .trow.lv2 { height: 32px; }
+  .trow.lv2 .nm { padding-left: 32px; }
+  .trow.lv2 .lbl { font-size: 10.5px; color: var(--ink-low); letter-spacing: 0.04em; }
+  .trow.grand { height: 38px; border-bottom: 1px solid var(--hairline-strong); cursor: default; }
+  .trow.grand .lbl { font-size: 9.5px; font-weight: 500; letter-spacing: 0.2em; color: var(--ink-low); }
+
+  .vbar { position: relative; height: 3px; border-radius: 1.5px; background: rgba(255,255,255,0.06); overflow: hidden; will-change: transform, opacity; }
+  .vbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1.5px; background: #A9ACB6; opacity: 0.78; }
+  .trow.lv0 .vbar i, .trow.grand .vbar i { opacity: 0.92; }
+  .val { text-align: right; font-size: 11px; color: var(--ink-mid); letter-spacing: 0.02em; will-change: transform, opacity; }
+  .trow.lv0 .val, .trow.grand .val { color: var(--ink-hi); font-size: 11.5px; }
+  .kids { height: 0; overflow: hidden; opacity: 0; will-change: height, opacity; }
+
+  .drill { position: absolute; left: 0; right: 0; z-index: 4; overflow: hidden; cursor: pointer;
+    background: var(--well-1); border: 1px solid var(--hairline); will-change: transform; }
+  .drill .bc { position: absolute; left: 14px; top: 13px; font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--ink-low); opacity: 0; will-change: opacity; }
+  .drill .bc .bk { color: var(--live); margin-right: 7px; }
+  .drill .dt { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 11px; color: var(--ink-low);
+    letter-spacing: 0.04em; white-space: nowrap; will-change: transform; }
+  .drill .dv { position: absolute; top: 0; right: 0; transform-origin: 100% 0; font-size: 11px; color: var(--ink-mid); will-change: transform; }
+  .drill .grid { position: absolute; left: 14px; right: 14px; top: 86px; }
+  .drill .gr { display: grid; grid-template-columns: 78px 1fr 64px; gap: 12px; align-items: center; padding: 10px 0;
+    border-bottom: 1px solid var(--hairline); opacity: 0; will-change: transform, opacity; }
+  .drill .gr .gk { font-size: 8px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+  .drill .gr .gv { text-align: right; font-size: 12.5px; color: var(--ink-hi); }
+  .drill .micro { position: absolute; left: 14px; right: 14px; bottom: 13px; padding-top: 8px; border-top: 1px solid var(--hairline);
+    font-size: 8px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); opacity: 0; will-change: opacity; }
+
+  /* receipts */
+  .receipts { padding: 0; margin-top: 12px; overflow: hidden; }
+  .rc-head { padding: 14px 18px 12px; border-bottom: 1px solid var(--hairline); }
+  .rc-k { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--live); }
+  .rc-t { font-size: 13px; font-weight: 500; margin-top: 5px; }
+  .rc-d { font-size: 10px; color: var(--ink-mid); line-height: 1.5; margin-top: 5px; }
+  .rc-tabs { display: flex; gap: 0; padding: 0 18px; border-bottom: 1px solid var(--hairline); }
+  .rc-tab { font-size: 9px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-low);
+    padding: 12px 14px; cursor: pointer; user-select: none; position: relative; }
+  .rc-tab.active { color: var(--live); }
+  .rc-tab.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px; background: var(--live); border-radius: 1px; }
+  .code { font-family: var(--font-tab); font-size: 10px; line-height: 1.65; color: var(--ink-mid); white-space: pre;
+    padding: 14px 18px 16px; overflow-x: auto; }
+  .code .cm { color: var(--ink-faint); }
+  .code .kw { color: var(--live); }
+  .code .tb { color: #4F9DDE; }
+  .code .me { color: #B7B24E; }
+  .code .st { color: var(--ink-low); }
+  .code .pn { color: var(--ink-hi); }
+  .rc-foot { padding: 11px 18px 14px; border-top: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+
+  /* timeline */
+  .tlzone { padding: 16px 16px 14px; margin-top: 12px; overflow: hidden; }
+  .tl-axis { position: relative; height: 26px; margin: 6px 0 2px; }
+  .tl-axis svg { display: block; width: 100%; }
+  .tllane { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--hairline); }
+  .tllane:last-child { border-bottom: none; }
+  .tllane .ln { font-size: 9.5px; font-weight: 500; letter-spacing: 0.06em; color: var(--ink-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tllane .track { position: relative; height: 22px; }
+  .tlbar { position: absolute; top: 4px; height: 14px; border-radius: 3px; will-change: transform; overflow: hidden;
+    display: flex; align-items: center; }
+  .tlbar .tlab { font-size: 8px; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; padding: 0 6px; color: var(--bg); }
+  .tlbar .tlab.ext { color: var(--ink-mid); padding-left: 6px; }
+  .tl-leg { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+
+  /* calendar */
+  .calzone { padding: 16px 18px 14px; margin-top: 12px; }
+  .cal-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 10px; }
+  .cal-mo { font-size: 13px; font-weight: 500; letter-spacing: 0.03em; }
+  .cal-mo .yr { color: var(--ink-low); font-weight: 400; margin-left: 6px; }
+  .cal-sub { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+  .cal-dow span { text-align: center; font-size: 8px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cell { position: relative; aspect-ratio: 1; border-radius: 6px; display: flex; align-items: flex-start; justify-content: flex-end;
+    padding: 4px 5px; border: 1px solid var(--hairline); will-change: background, opacity; }
+  .cell.empty { border-color: transparent; background: none; }
+  .cell .dn { font-size: 9px; color: var(--ink-mid); letter-spacing: 0.02em; }
+  .cell.today { border-color: rgba(255,121,0,0.9); box-shadow: 0 0 0 1px rgba(255,121,0,0.4), inset 0 0 12px rgba(255,121,0,0.18); }
+  .cell.today .dn { color: var(--live); font-weight: 500; }
+  .cal-legrow { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--hairline); }
+  .cal-legrow .ll { font-size: 8.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+  .cal-legrow svg { display: block; flex: 1; }
+
+  .verdict { margin-top: 12px; padding: 13px 16px; font-size: 10.5px; color: var(--ink-mid); line-height: 1.6; }
+  .verdict b { color: var(--ink-hi); font-weight: 500; }
+  .verdict .q { color: var(--live); margin-right: 6px; font-size: 11px; }
+
+  .cap { margin-top: 11px; }
+  .cap .ix { color: var(--live); font-size: 10px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT — HEADLINE</div>
+      <div class="lab-title">11 — Crosswalk: your real reports, translated</div>
+      <div class="lab-sub">Structure read straight out of the real LIFELINE EMS-billing report — visual types, layout, field bindings. Rebuilt in this app's grammar and reflowed for a phone. Values are illustrative until <span style="color:var(--ink-hi)">executeQueries</span> is wired; every panel that shows numbers says so.</div>
+    </div>
+    <div class="lab-meta">THE HEADLINE · REAL REPORT · REV A</div>
+  </header>
+
+  <div class="well corpus">
+    <span>Across</span><b>6 reports</b><span>/</span><b>211 visuals</b><span>·</span><span><b class="hot">~98%</b> crosswalk to this vocabulary</span><span>·</span><span>the <b>3 custom visuals</b> you rely on most become <b>native heroes</b></span>
+  </div>
+
+  <div class="well rm-bar">
+    <div class="rm-id">
+      <div class="tn">Reduced motion</div>
+      <div class="td">Bars, ledger expand/swipe, timeline and calendar all collapse to instant</div>
+    </div>
+    <div class="toggle" id="rmToggle"><div class="arm"></div><div class="thumb" id="rmThumb"></div></div>
+  </div>
+
+  <!-- ============ PALETTE ============ -->
+  <div class="sec-head">
+    <div class="sec-k">Color Amendment II · the engineered hues</div>
+    <div class="sec-t">8 categorical hues, anchored to the logo-blue family</div>
+    <div class="sec-d">Real distinguishable hues for the things your report categorizes — payors, denial categories, lanes. Similar luminance on true black, no collision with the status hues, orange held back as the highlighter. The mapping is sticky: a payor keeps its hue everywhere.</div>
+  </div>
+  <div class="well palwell">
+    <div class="palgrid" id="palGrid"></div>
+    <div class="rc-foot" style="border-top:1px solid var(--hairline); margin-top:12px;">ANCHOR AZURE = LOGO BLUE BACKLIT · ALL ≥ 7:1 ON BLACK · ORANGE #FF7900 RESERVED = SELECTION / LIVE</div>
+  </div>
+
+  <!-- ============ SECTION A — DENIALS ============ -->
+  <div class="sec-head">
+    <div class="sec-k">Section A · the DENIALS page</div>
+    <div class="sec-t">The proof, with receipts</div>
+    <div class="sec-d">One column chart and three pivot tables on the desktop. Read by the build-time compiler, reflowed vertical for the phone: the column chart becomes a grouped bar, each pivot becomes a Ledger.</div>
+  </div>
+
+  <div class="flowstep"><span class="src">POWER BI · DENIALS · 4 VISUALS</span><span class="arr">→</span><span class="dst">REFLOWED FOR MOBILE</span></div>
+
+  <div class="well before">
+    <div class="frame" id="beforeFrame"></div>
+    <div class="before-cap">POWER BI SOURCE · DENIALS · 4 DATA VISUALS · POSITIONS FROM denials.json</div>
+  </div>
+  <div class="caption cap"><span class="ix">A1</span><strong>Before</strong> — the desktop page as labeled rectangles at the real x/y/w/h: a full-width column chart on top, three pivot tables across the bottom. Schematic, not styled.</div>
+
+  <!-- after: grouped bar -->
+  <div class="well panel">
+    <div class="p-head">
+      <span class="p-name"><span class="ix">v0</span>DENIALS BY POST DATE WEEK</span>
+      <span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span>
+    </div>
+    <div class="gbzone"><svg id="vGroup" viewBox="0 0 380 230"></svg></div>
+    <div class="legend" id="gbLegend"></div>
+    <div class="v-note" style="margin-top:10px; padding-top:9px; border-top:1px solid var(--hairline); font-size:8.5px; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-faint);">PBI columnChart · category POST DATE WEEK · series INCLUDE ASSUMED · grouped bar in contract grammar</div>
+  </div>
+  <div class="caption cap"><span class="ix">A2</span><strong>After — the column chart</strong> — grouped by POST DATE WEEK with INCLUDE ASSUMED as the two-way series. The series carry the categorical palette (sticky AZURE / OLIVE), not ink weight, because they are real categories. Bars grow on arrival.</div>
+
+  <!-- after: three ledgers -->
+  <div class="well panel" id="ledgerStack">
+    <div class="p-head">
+      <span class="p-name"><span class="ix">v1·v2·v3</span>THREE PIVOTS → THREE LEDGERS</span>
+      <span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span>
+    </div>
+
+    <div class="ledblock" data-ledger="0">
+      <div class="ledtop"><span class="lt-n"><span class="ix">v1</span>DENIAL $ BY PAYOR</span><span class="lt-m">MIN(Merged)</span></div>
+      <div class="carousel">
+        <div class="cbtn" data-c="prev">‹</div>
+        <div class="cmid"><div class="cmeasure"><div class="ml" data-c="label"></div><div class="mu" data-c="unit"></div></div>
+          <div class="cstrip"><svg data-c="strip" width="60" height="14" viewBox="0 0 60 14"></svg></div></div>
+        <div class="cbtn" data-c="next">›</div>
+      </div>
+      <div class="ledger"><div class="rowsview" data-c="rows"></div></div>
+    </div>
+
+    <div class="ledblock" data-ledger="1" style="margin-top:18px; padding-top:14px; border-top:1px solid var(--hairline);">
+      <div class="ledtop"><span class="lt-n"><span class="ix">v2</span>DENIAL CODES BY CATEGORY</span><span class="lt-m">COUNTA(Merged)</span></div>
+      <div class="carousel">
+        <div class="cbtn" data-c="prev">‹</div>
+        <div class="cmid"><div class="cmeasure"><div class="ml" data-c="label"></div><div class="mu" data-c="unit"></div></div>
+          <div class="cstrip"><svg data-c="strip" width="60" height="14" viewBox="0 0 60 14"></svg></div></div>
+        <div class="cbtn" data-c="next">›</div>
+      </div>
+      <div class="ledger"><div class="rowsview" data-c="rows"></div></div>
+    </div>
+
+    <div class="ledblock" data-ledger="2" style="margin-top:18px; padding-top:14px; border-top:1px solid var(--hairline);">
+      <div class="ledtop"><span class="lt-n"><span class="ix">v3</span>DENIALS BY FACILITY</span><span class="lt-m">COUNTA(Merged)</span></div>
+      <div class="carousel">
+        <div class="cbtn" data-c="prev">‹</div>
+        <div class="cmid"><div class="cmeasure"><div class="ml" data-c="label"></div><div class="mu" data-c="unit"></div></div>
+          <div class="cstrip"><svg data-c="strip" width="60" height="14" viewBox="0 0 60 14"></svg></div></div>
+        <div class="cbtn" data-c="next">›</div>
+      </div>
+      <div class="ledger"><div class="rowsview" data-c="rows"></div></div>
+    </div>
+  </div>
+  <div class="caption cap"><span class="ix">A3</span><strong>After — the three pivots</strong> — each becomes a Ledger (board 10): the real hierarchy field names, a collapsible outline with live rollups, one measure on stage swiped on a tick strip, leaves drilling by morph. Tap any parent to expand.</div>
+
+  <!-- receipts -->
+  <div class="flowstep"><span class="src">.PBIR REPORT FILE</span><span class="arr">→</span><span class="dst">BUILD-TIME COMPILER</span><span class="arr">→</span><span class="dst">RUNNABLE QUERY</span></div>
+  <div class="well receipts">
+    <div class="rc-head">
+      <div class="rc-k">The receipts</div>
+      <div class="rc-t">Build-time compiler output — no hand-coding</div>
+      <div class="rc-d">The compiler read the real report and emitted an app-owned manifest tile and the exact DAX <span style="color:var(--ink-hi)">executeQueries</span> would run. This is the pipeline, proven on his page.</div>
+    </div>
+    <div class="rc-tabs">
+      <span class="rc-tab active" data-tab="dax">GENERATED DAX</span>
+      <span class="rc-tab" data-tab="man">MANIFEST TILE</span>
+    </div>
+    <div class="code" id="rcDax"></div>
+    <div class="code" id="rcMan" style="display:none;"></div>
+    <div class="rc-foot">SOURCE denials-dax.txt · denials-manifest.json · SUMMARIZECOLUMNS PER VISUAL · ONE QUERY PER CALL</div>
+  </div>
+  <div class="caption cap"><span class="ix">A4</span><strong>Receipts</strong> — this is the single most important thing on the board. It proves the pipeline ingested the real report and produced queries that run, not a mockup of one.</div>
+
+  <!-- ============ SECTION B — TIMELINE ============ -->
+  <div class="sec-head">
+    <div class="sec-k">Section B · Revenue Cycle timeline</div>
+    <div class="sec-t">Custom Gantt → native hero</div>
+    <div class="sec-d">Your signature Revenue-Cycle timeline. The third-party Gantt renderer doesn't port — but Task / Start / End / Parent are standard roles, so it rebuilds native on a real date axis.</div>
+  </div>
+
+  <div class="flowstep"><span class="src">CUSTOM GANTT · REVENUE CYCLE</span><span class="arr">→</span><span class="dst">NATIVE TIMELINE</span></div>
+
+  <div class="well tlzone">
+    <div class="p-head" style="padding-bottom:9px;">
+      <span class="p-name">REVENUE CYCLE — RUN LANES</span>
+      <span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span>
+    </div>
+    <div class="tl-axis"><svg id="tlAxis" viewBox="0 0 360 26" preserveAspectRatio="none"></svg></div>
+    <div id="tlLanes"></div>
+    <div class="tl-leg" id="tlLeg"></div>
+  </div>
+  <div class="verdict well">
+    <span class="q">↳</span><b>Crosswalk verdict:</b> custom visual — renderer not portable, but Task / Start / End / Parent roles are standard, so rebuilt native (and better). Lanes per RUN, each event a bar on a real date axis, length = DAYS, the critical span lit orange.
+  </div>
+  <div class="caption cap"><span class="ix">B1</span><strong>Timeline</strong> — Trip Complete → Batch → Submit → Payor Received → Paid, with realistic day gaps. Engraved date ticks are the tick-strip idiom turned horizontal; the one orange span is the cycle's critical path.</div>
+
+  <!-- ============ SECTION C — CALENDAR ============ -->
+  <div class="sec-head">
+    <div class="sec-k">Section C · Calendar heatmap</div>
+    <div class="sec-t">Custom calendar → native</div>
+    <div class="sec-d">A custom calendar visual: category = TRIP DATE day, measure = COUNTA of RUN. Rebuilt native as a month heatmap — each day a cell, intensity by daily volume.</div>
+  </div>
+
+  <div class="flowstep"><span class="src">CUSTOM CALENDAR · TRIP DATE</span><span class="arr">→</span><span class="dst">NATIVE HEATMAP</span></div>
+
+  <div class="well calzone">
+    <div class="cal-head">
+      <div class="cal-mo">JUNE <span class="yr">2026</span></div>
+      <div class="cal-sub">DAILY VOLUME · COUNTA(RUN)</div>
+    </div>
+    <div class="cal-dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-legrow">
+      <span class="ll">LOW</span>
+      <svg id="calLegend" width="160" height="14" viewBox="0 0 160 14"></svg>
+      <span class="ll">HIGH</span>
+    </div>
+    <div class="p-head" style="border:none; padding:10px 0 0;">
+      <span class="p-meta">ORANGE CELL = TODAY · JUN 12</span>
+      <span class="illus"><span class="g">▲</span>ILLUSTRATIVE</span>
+    </div>
+  </div>
+  <div class="verdict well">
+    <span class="q">↳</span><b>Crosswalk verdict:</b> custom calendar visual rebuilt native — daily volume / unit-hour-utilization. Engraved date numerals, a tick-strip legend, one orange cell for today.
+  </div>
+  <div class="caption cap"><span class="ix">C1</span><strong>Calendar</strong> — the heatmap intensity rides a silver ramp on the black; today is the single lit cell. Same family as the C7 UHU calendar in the wider corpus.</div>
+
+  <div class="foot" style="margin-top:30px; padding-top:14px; border-top:1px solid var(--hairline); font-size:9px; font-weight:500; letter-spacing:0.18em; text-transform:uppercase; color:var(--ink-faint); display:flex; justify-content:space-between;">
+    <span>STRUCTURE REAL · VALUES ILLUSTRATIVE</span><span>TRUE BLACK #000 · ORANGE #FF7900</span>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+  const c01 = (v) => lab.clamp(v, 0, 1);
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const NS = 'http://www.w3.org/2000/svg';
+  function eln(name, attrs, parent) {
+    const n = document.createElementNS(NS, name);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+
+  // ===== LOCKED categorical palette =====
+  const PALETTE = [
+    { name: 'AZURE',   hex: '#4F9DDE' },
+    { name: 'CYAN',    hex: '#3FC0C9' },
+    { name: 'MINT',    hex: '#74B79E' },
+    { name: 'OLIVE',   hex: '#B7B24E' },
+    { name: 'SLATE',   hex: '#8294CF' },
+    { name: 'VIOLET',  hex: '#9A8BEC' },
+    { name: 'PLUM',    hex: '#C77BD8' },
+    { name: 'MAGENTA', hex: '#E0789F' },
+  ];
+  const HUE = {};
+  PALETTE.forEach((p) => { HUE[p.name] = p.hex; });
+
+  // palette board
+  const palGrid = document.getElementById('palGrid');
+  PALETTE.forEach((p) => {
+    const cn = lab.contrast(p.hex, '#000000').toFixed(1);
+    const el = document.createElement('div');
+    el.className = 'swatch';
+    el.innerHTML = `<span class="chip" style="background:${p.hex}"></span><span><span class="nm">${p.name}</span><span class="hx">${p.hex}</span><span class="cn">${cn}:1 ON BLACK</span></span>`;
+    palGrid.appendChild(el);
+  });
+
+  // ===== SECTION A — before schematic =====
+  const SRC = [
+    { t: 'columnChart', x: 15, y: 14, w: 1254, h: 323, r: 'POST DATE WK × INCLUDE ASSUMED', cls: 'chart' },
+    { t: 'pivotTable', x: 15, y: 349, w: 350, h: 354, r: 'PAYOR CAT ▸ PAYOR', cls: '' },
+    { t: 'pivotTable', x: 379, y: 349, w: 576, h: 354, r: 'MINOR CAT ▸ DESC ▸ CODE', cls: '' },
+    { t: 'pivotTable', x: 967, y: 349, w: 301, h: 354, r: 'NAME ▸ PAYOR ▸ custno', cls: '' },
+    { t: 'image', x: 0, y: 415, w: 224, h: 304, r: '', cls: 'aux' },
+    { t: 'button', x: 4, y: 655, w: 52, h: 55, r: '', cls: 'aux' },
+  ];
+  const PW = 1269, PH = 719;
+  const beforeFrame = document.getElementById('beforeFrame');
+  SRC.forEach((v) => {
+    const el = document.createElement('div');
+    el.className = 'vrect ' + v.cls;
+    el.style.left = (v.x / PW * 100) + '%';
+    el.style.top = (v.y / PH * 100) + '%';
+    el.style.width = (v.w / PW * 100) + '%';
+    el.style.height = (v.h / PH * 100) + '%';
+    el.innerHTML = `<span class="vt">${v.t}</span>${v.r ? `<span class="vr">${v.r}</span>` : ''}`;
+    beforeFrame.appendChild(el);
+  });
+
+  // ===== SECTION A — grouped bar (column chart -> grouped bar) =====
+  const WEEKS = ['W22', 'W23', 'W24', 'W25', 'W26'];
+  const SERIES = [
+    { key: 'INCLUDED', hue: HUE.AZURE, base: [38, 44, 41, 49, 46] },
+    { key: 'ASSUMED', hue: HUE.OLIVE, base: [21, 19, 26, 23, 28] },
+  ];
+  const gb = document.getElementById('vGroup');
+  const GBW = 380, GBH = 230, gpadL = 8, gpadR = 8, gpadB = 30, gpadT = 14;
+  const gbInner = GBW - gpadL - gpadR;
+  const gbMax = 56;
+  const gbBars = [];
+  (function buildGroup() {
+    const groupW = gbInner / WEEKS.length;
+    const barW = 18;
+    const gap = 5;
+    const setW = barW * SERIES.length + gap;
+    eln('line', { x1: gpadL, y1: GBH - gpadB, x2: GBW - gpadR, y2: GBH - gpadB, stroke: 'rgba(255,255,255,0.16)', 'stroke-width': 1 }, gb);
+    WEEKS.forEach((wk, wi) => {
+      const gx = gpadL + groupW * wi + (groupW - setW) / 2;
+      SERIES.forEach((s, si) => {
+        const x = gx + si * (barW + gap);
+        const val = s.base[wi];
+        const fullH = (val / gbMax) * (GBH - gpadB - gpadT);
+        const yb = GBH - gpadB;
+        const rect = eln('rect', { x, y: yb, width: barW, height: 0, rx: 2, fill: s.hue, opacity: 0.92 }, gb);
+        const lab2 = eln('text', { x: x + barW / 2, y: yb - 5, 'text-anchor': 'middle', fill: '#A9ACB6', 'font-size': 8.5, 'font-family': "'D-DIN PRO', sans-serif", opacity: 0 }, gb);
+        lab2.textContent = val;
+        gbBars.push({ rect, lab2, fullH, yb });
+      });
+      const wl = eln('text', { x: gx + setW / 2, y: GBH - gpadB + 14, 'text-anchor': 'middle', fill: '#80848F', 'font-size': 9, 'font-family': "'D-DIN PRO', sans-serif" }, gb);
+      wl.textContent = wk;
+    });
+  })();
+  function paintGroup(frac) {
+    const f = c01(frac);
+    gbBars.forEach((b, i) => {
+      const stagger = c01((f - (i % SERIES.length) * 0.04 - Math.floor(i / SERIES.length) * 0.08) / 0.7);
+      const h = b.fullH * stagger;
+      b.rect.setAttribute('height', h.toFixed(1));
+      b.rect.setAttribute('y', (b.yb - h).toFixed(1));
+      b.lab2.setAttribute('y', (b.yb - h - 5).toFixed(1));
+      b.lab2.setAttribute('opacity', stagger > 0.9 ? ((stagger - 0.9) / 0.1).toFixed(2) : '0');
+    });
+  }
+  const gbLeg = document.getElementById('gbLegend');
+  SERIES.forEach((s) => {
+    const el = document.createElement('span');
+    el.className = 'lg';
+    el.innerHTML = `<span class="sw" style="background:${s.hue}"></span>${s.key} ASSUMED`;
+    gbLeg.appendChild(el);
+  });
+
+  // ===== SECTION A — three ledgers (board-10 grammar) =====
+  function mkHue(names) {
+    const order = ['AZURE', 'OLIVE', 'CYAN', 'VIOLET', 'MAGENTA', 'MINT', 'SLATE', 'PLUM'];
+    const map = {};
+    names.forEach((n, i) => { map[n] = HUE[order[i % order.length]]; });
+    return map;
+  }
+
+  const LEDGERS = [
+    {
+      el: '0',
+      axes: 'DENIAL PAYOR CATEGORY ▸ DENIAL PAYOR',
+      measures: [{ label: 'DENIAL $', unit: '$K · MIN(MERGED)', fmt: (v) => '$' + v.toFixed(1) + 'K' }, { label: 'CLAIMS', unit: 'COUNT', fmt: (v) => Math.round(v).toLocaleString() }],
+      tree: [
+        ['COMMERCIAL', [['BCBS', [62.4, 318]], ['UHC', [48.1, 241]], ['AETNA', [33.6, 176]]]],
+        ['GOVERNMENT', [['MEDICARE', [71.2, 402]], ['MEDICAID', [54.8, 351]]]],
+        ['OTHER', [['SELF-PAY', [22.9, 188]], ['WORKERS COMP', [14.3, 73]]]],
+      ],
+    },
+    {
+      el: '1',
+      axes: 'MINOR CATEGORY ▸ DESCRIPTION ▸ DENIAL CODE',
+      measures: [{ label: 'COUNT', unit: 'COUNTA(MERGED)', fmt: (v) => Math.round(v).toLocaleString() }, { label: 'SHARE', unit: '% OF DENIALS', fmt: (v) => v.toFixed(1) + '%' }],
+      tree: [
+        ['ELIGIBILITY', [['COVERAGE TERMINATED', [184, 14.2]], ['NOT ELIGIBLE ON DOS', [121, 9.3]]]],
+        ['AUTHORIZATION', [['NO AUTH ON FILE', [156, 12.0]], ['AUTH EXPIRED', [88, 6.8]]]],
+        ['CODING', [['INVALID MODIFIER', [97, 7.5]], ['DX NOT SUPPORTED', [64, 4.9]]]],
+      ],
+    },
+    {
+      el: '2',
+      axes: 'FACILITY (NAME) ▸ DENIAL PAYOR ▸ custno',
+      measures: [{ label: 'COUNT', unit: 'COUNTA(MERGED)', fmt: (v) => Math.round(v).toLocaleString() }, { label: 'RATE', unit: '% FIRST PASS', fmt: (v) => v.toFixed(1) + '%' }],
+      tree: [
+        ['NORTHWING EMS', [['MEDICARE', [142, 8.1]], ['BCBS', [96, 6.4]]]],
+        ['APEX MEDICAL TRANSPORT', [['MEDICAID', [118, 9.7]], ['UHC', [77, 7.2]]]],
+        ['ORTHO REGIONAL', [['MEDICARE', [64, 5.5]], ['AETNA', [41, 4.8]]]],
+      ],
+    },
+  ];
+
+  function buildLedger(cfg, root) {
+    const rowsView = root.querySelector('[data-c="rows"]');
+    const ledgerBox = root.querySelector('.ledger');
+    const cLabel = root.querySelector('[data-c="label"]');
+    const cUnit = root.querySelector('[data-c="unit"]');
+    const cMeasure = root.querySelector('.cmeasure');
+    const prevBtn = root.querySelector('[data-c="prev"]');
+    const nextBtn = root.querySelector('[data-c="next"]');
+    const stripSvg = root.querySelector('[data-c="strip"]');
+    const indicator = lab.strip(stripSvg, { size: 'small', w: 60, cycle: Math.max(1, cfg.measures.length - 1), value: 0 });
+
+    const parents = cfg.tree.map((t) => t[0]);
+    const hueMap = mkHue(parents);
+    const MEAS = cfg.measures;
+    const nM = MEAS.length;
+
+    const records = [];
+    const blocks = [];
+    let maxByLevel = [];
+    let mIdx = 0, mBusy = false, mAnim = null, drill = null;
+
+    function rowEl(level, label, isLeaf, swatch) {
+      const el = document.createElement('div');
+      el.className = 'trow lv' + level;
+      const sw = swatch ? `<span class="swat" style="background:${swatch}"></span>` : '';
+      el.innerHTML = `<span class="nm">${isLeaf ? '' : '<span class="chev">▶</span>'}${sw}<span class="lbl">${label}</span></span><span class="vbar"><i></i></span><span class="val"></span>`;
+      return el;
+    }
+
+    function sumChildren(kids) {
+      const out = MEAS.map(() => 0);
+      kids.forEach((k) => k[1].forEach((v, i) => { out[i] += v; }));
+      return out;
+    }
+
+    function build() {
+      rowsView.innerHTML = '';
+      records.length = 0;
+      blocks.length = 0;
+
+      const grandVals = MEAS.map((_, i) => cfg.tree.reduce((a, t) => a + sumChildren(t[1])[i], 0));
+      const grand = rowEl(0, 'BOOK TOTAL', true, null);
+      grand.classList.remove('lv0');
+      grand.classList.add('grand');
+      rowsView.appendChild(grand);
+      records.push({ level: 0, el: grand, vals: grandVals, path: null });
+
+      cfg.tree.forEach((t) => {
+        const k0 = t[0];
+        const kids = t[1];
+        const block0 = document.createElement('div');
+        const r0 = rowEl(0, k0, false, hueMap[k0]);
+        const kids0 = document.createElement('div');
+        kids0.className = 'kids';
+        block0.appendChild(r0);
+        block0.appendChild(kids0);
+        rowsView.appendChild(block0);
+        const v0 = sumChildren(kids);
+        records.push({ level: 0, el: r0, vals: v0, path: null });
+        const b0 = { el: r0, kidsEl: kids0, chev: r0.querySelector('.chev'), open: false, frac: 0, anim: null };
+        blocks.push(b0);
+        r0.addEventListener('click', () => toggleBlock(b0));
+
+        kids.forEach((kpair) => {
+          const k1 = kpair[0];
+          const vals = kpair[1];
+          const r1 = rowEl(1, k1, true, null);
+          kids0.appendChild(r1);
+          const rec = { level: 1, el: r1, vals, path: [k0, k1] };
+          records.push(rec);
+          r1.addEventListener('click', (e) => { e.stopPropagation(); openDrill(rec); });
+        });
+      });
+
+      records.forEach((r) => {
+        r.valEl = r.el.querySelector('.val');
+        r.barEl = r.el.querySelector('.vbar i');
+        r.cellEls = [r.valEl, r.el.querySelector('.vbar')];
+      });
+      maxByLevel = [0, 1].map((lvl) => MEAS.map((_, mi) => Math.max(...records.filter((r) => r.level === lvl).map((r) => r.vals[mi]))));
+    }
+
+    function setCells(tx, op) {
+      records.forEach((r) => r.cellEls.forEach((el) => { el.style.transform = `translateX(${tx}px)`; el.style.opacity = String(c01(op)); }));
+      cMeasure.style.transform = `translateX(${tx * 0.7}px)`;
+      cMeasure.style.opacity = String(c01(op));
+    }
+    function paintSolidContent(idx) {
+      const ms = MEAS[idx];
+      records.forEach((r) => {
+        r.valEl.textContent = ms.fmt(r.vals[idx]);
+        r.barEl.style.width = (r.vals[idx] / maxByLevel[r.level][idx] * 100).toFixed(1) + '%';
+      });
+      cLabel.textContent = ms.label;
+      cUnit.textContent = ms.unit;
+    }
+    function paintSolid(idx) { paintSolidContent(idx); setCells(0, 1); }
+    function paintTransition(from, to, g) {
+      const dir = to > from ? 1 : -1;
+      if (g >= 1) { paintSolid(to); indicator.set(nM > 1 ? to / (nM - 1) : 0); return; }
+      if (g < 0.5) { paintSolidContent(from); setCells(-dir * 16 * (g * 2), 1 - g * 2); }
+      else { paintSolidContent(to); setCells(dir * 16 * (1 - (g - 0.5) * 2), (g - 0.5) * 2); }
+      indicator.set((nM > 1 ? lerp(from, to, c01(g)) / (nM - 1) : 0));
+    }
+    function goMeasure(to) {
+      if (mBusy || to === mIdx || to < 0 || to > nM - 1) return;
+      const from = mIdx; mIdx = to; syncButtons();
+      if (mAnim) mAnim.cancel();
+      mBusy = true;
+      mAnim = lab.spring({ from: 0, to: 1, response: 0.45, damping: 0.9,
+        onUpdate: (v) => paintTransition(from, to, c01(v)),
+        onSettle: () => { mBusy = false; paintSolid(to); indicator.set(nM > 1 ? to / (nM - 1) : 0); } });
+    }
+    function syncButtons() { prevBtn.classList.toggle('off', mIdx === 0); nextBtn.classList.toggle('off', mIdx === nM - 1); }
+    prevBtn.addEventListener('click', () => goMeasure(mIdx - 1));
+    nextBtn.addEventListener('click', () => goMeasure(mIdx + 1));
+
+    function setBlock(b, frac, naturalH) {
+      b.frac = frac;
+      const h = naturalH ?? b.kidsEl.scrollHeight;
+      b.kidsEl.style.height = (h * c01(frac)) + 'px';
+      b.kidsEl.style.opacity = String(c01(frac));
+      b.chev.style.transform = `rotate(${90 * c01(frac)}deg)`;
+    }
+    function toggleBlock(b) {
+      if (drill) return;
+      const to = b.open ? 0 : 1;
+      b.open = !b.open;
+      if (b.anim) b.anim.cancel();
+      const h = b.kidsEl.scrollHeight;
+      b.anim = lab.spring({ from: b.frac, to, response: 0.5, damping: 0.85,
+        onUpdate: (v) => setBlock(b, v, h),
+        onSettle: () => { if (to === 1) b.kidsEl.style.height = 'auto'; } });
+    }
+
+    let dragX0 = null, dragDx = 0, dragMoved = false;
+    rowsView.addEventListener('pointerdown', (e) => { if (drill || mBusy) return; dragX0 = e.clientX; dragDx = 0; dragMoved = false; });
+    rowsView.addEventListener('pointermove', (e) => {
+      if (dragX0 === null) return;
+      dragDx = e.clientX - dragX0;
+      if (Math.abs(dragDx) > 10) dragMoved = true;
+      if (!dragMoved) return;
+      const tx = lab.clamp(dragDx * 0.3, -28, 28);
+      setCells(tx, 1 - Math.abs(dragDx) / 260);
+      indicator.set(lab.clamp((nM > 1 ? (mIdx - dragDx / 300) / (nM - 1) : 0), 0, 1));
+    });
+    function dragEnd() {
+      if (dragX0 === null) return;
+      const dx = dragDx; dragX0 = null;
+      if (!dragMoved) return;
+      if (dx < -60 && mIdx < nM - 1) goMeasure(mIdx + 1);
+      else if (dx > 60 && mIdx > 0) goMeasure(mIdx - 1);
+      else { paintSolid(mIdx); indicator.set(nM > 1 ? mIdx / (nM - 1) : 0); }
+      setTimeout(() => { dragMoved = false; }, 0);
+    }
+    rowsView.addEventListener('pointerup', dragEnd);
+    rowsView.addEventListener('pointercancel', dragEnd);
+    rowsView.addEventListener('click', (e) => { if (dragMoved) e.stopPropagation(); }, true);
+
+    function openDrill(rec) {
+      if (drill || dragMoved) return;
+      const vRect = ledgerBox.getBoundingClientRect();
+      const rRect = rec.el.getBoundingClientRect();
+      const top0 = rRect.top - vRect.top;
+      const card = document.createElement('div');
+      card.className = 'drill';
+      const crumbs = rec.path.join(' / ');
+      card.innerHTML = `
+        <div class="bc"><span class="bk">‹</span>${crumbs}</div>
+        <div class="dt">${rec.path[rec.path.length - 1]}</div>
+        <div class="dv"></div>
+        <div class="grid">${MEAS.map((ms, mi) => `
+          <div class="gr"><span class="gk">${ms.label}</span><span class="vbar"><i style="width:${(rec.vals[mi] / maxByLevel[1][mi] * 100).toFixed(1)}%"></i></span><span class="gv">${ms.fmt(rec.vals[mi])}</span></div>`).join('')}
+        <div class="micro">SLICE · ${crumbs} · ROLLS INTO BOOK TOTAL</div>`;
+      ledgerBox.appendChild(card);
+      const dt = card.querySelector('.dt');
+      const dv = card.querySelector('.dv');
+      const bc = card.querySelector('.bc');
+      const micro = card.querySelector('.micro');
+      const grs = Array.from(card.querySelectorAll('.gr'));
+      dv.textContent = MEAS[mIdx].fmt(rec.vals[mIdx]);
+
+      const D = {
+        card, rec, grs, anim: null, gAnims: [],
+        p: 0, v: 0, target: 1, top0, h0: rRect.height,
+        apply(p) {
+          const pc = c01(p);
+          card.style.top = lerp(this.top0, 0, p) + 'px';
+          card.style.height = lerp(this.h0, vRect.height, p) + 'px';
+          card.style.borderRadius = lerp(0, 14, pc) + 'px';
+          card.style.background = `rgba(11,11,13,${0.4 + 0.6 * pc})`;
+          card.style.boxShadow = `inset 0 2px 5px rgba(0,0,0,${0.85 * pc})`;
+          dt.style.transform = `translate(${lerp(32, 14, p)}px, ${lerp((this.h0 - 14) / 2, 32, p)}px) scale(${lerp(1, 1.3, p)})`;
+          dv.style.transform = `translate(${-lerp(0, 14, p)}px, ${lerp((this.h0 - 14) / 2, 32, p)}px) scale(${lerp(1, 1.45, p)})`;
+          bc.style.opacity = String(c01((pc - 0.6) / 0.4));
+          micro.style.opacity = String(c01((pc - 0.7) / 0.3));
+          rec.el.style.visibility = pc > 0.02 ? 'hidden' : '';
+          rowsView.style.opacity = String(1 - 0.55 * pc);
+        },
+      };
+      function applyGr(g, v) { g.style.opacity = String(c01(v)); g.style.transform = `translateY(${(1 - c01(v)) * 6}px)`; }
+      function surface() {
+        D.gAnims.forEach((a) => a && a.cancel()); D.gAnims = [];
+        if (lab.reduced) { grs.forEach((g) => applyGr(g, 1)); return; }
+        grs.forEach((g, i) => {
+          const tm = setTimeout(() => { D.gAnims[i] = lab.spring({ from: 0, to: 1, response: 0.4, damping: 0.9, onUpdate: (v) => applyGr(g, v) }); }, i * 25);
+          D.gAnims.push({ cancel: () => clearTimeout(tm) });
+        });
+      }
+      function hide() { D.gAnims.forEach((a) => a && a.cancel()); D.gAnims = []; grs.forEach((g) => applyGr(g, 0)); }
+      let lastT = performance.now();
+      function drive(to) {
+        D.target = to;
+        if (to === 0) hide();
+        if (D.anim) D.anim.cancel();
+        lastT = performance.now();
+        D.anim = lab.spring({ from: D.p, to, velocity: D.v, response: 0.5, damping: 0.9,
+          onUpdate: (v) => { const now = performance.now(); const dt2 = Math.max((now - lastT) / 1000, 1e-4); D.v = (v - D.p) / dt2; lastT = now; D.p = v; D.apply(v); },
+          onSettle: () => { D.p = to; D.v = 0; D.apply(to); if (to === 1) surface(); else { card.remove(); rec.el.style.visibility = ''; rowsView.style.opacity = '1'; drill = null; } } });
+      }
+      card.addEventListener('click', (e) => { e.stopPropagation(); drive(D.target === 1 ? 0 : 1); });
+      drill = D; D.apply(0); drive(1);
+    }
+
+    build();
+    paintSolid(0);
+    indicator.set(0);
+    syncButtons();
+
+    function sp(t, response, damping) {
+      if (t <= 0) return 0;
+      const w0 = (2 * Math.PI) / response;
+      if (damping >= 1) return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+      const wd = w0 * Math.sqrt(1 - damping * damping);
+      return 1 - Math.exp(-damping * w0 * t) * (Math.cos(wd * t) + ((damping * w0) / wd) * Math.sin(wd * t));
+    }
+
+    return {
+      pose() {
+        blocks.forEach((b) => { if (b.anim) b.anim.cancel(); b.open = true; b.kidsEl.style.height = 'auto'; b.kidsEl.style.opacity = '1'; b.frac = 1; b.chev.style.transform = 'rotate(90deg)'; });
+        mIdx = 0; syncButtons(); paintSolid(0); indicator.set(0);
+      },
+      seek(t) {
+        if (drill) { if (drill.anim) drill.anim.cancel(); drill.gAnims.forEach((a) => a && a.cancel()); drill.rec.el.style.visibility = ''; drill.card.remove(); drill = null; }
+        if (blocks[0]) setBlock(blocks[0], c01(sp(t - 0.4, 0.5, 0.85)));
+        if (blocks[1]) setBlock(blocks[1], c01(sp(t - 1.0, 0.5, 0.85)));
+        let from = 0, to = 0, g = 1;
+        if (t < 2.2) { from = to = 0; }
+        else { from = 0; to = 1; g = c01(sp(t - 2.2, 0.45, 0.9)); }
+        mIdx = to; syncButtons();
+        if (from === to || g >= 1) { paintSolid(to); indicator.set(nM > 1 ? to / (nM - 1) : 0); }
+        else paintTransition(from, to, g);
+      },
+      openFirst() {
+        if (blocks[0]) toggleBlock(blocks[0]);
+      },
+    };
+  }
+
+  const ledgerCtrls = LEDGERS.map((cfg) => {
+    const root = document.querySelector(`[data-ledger="${cfg.el}"]`);
+    return buildLedger(cfg, root);
+  });
+
+  // ===== SECTION A — receipts =====
+  const DAX_TEXT = `// bar (grouped)  (was columnChart)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'TRIP DENIALS'[POST DATE WEEK],
+  "Merged_0", MIN('TRIP DENIALS'[Merged])
+)
+
+// ledger  (was pivotTable)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'TRIP DENIALS'[DENIAL PAYOR CATEGORY],
+  'TRIP DENIALS'[DENIAL PAYOR],
+  "Merged_0", MIN('TRIP DENIALS'[Merged])
+)
+
+// ledger  (was pivotTable)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'TRIP DENIALS'[MINOR CATEGORY],
+  'TRIP DENIALS'[DESCRIPTION],
+  'TRIP DENIALS'[DENIAL CODE],
+  "Merged_0", COUNTA('TRIP DENIALS'[Merged])
+)
+
+// ledger  (was pivotTable)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'Trips'[NAME],
+  'TRIP DENIALS'[DENIAL PAYOR],
+  'Trips'[custno],
+  "Merged_0", COUNTA('TRIP DENIALS'[Merged])
+)`;
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function wrap(cls, s) { return `<span class="${cls}">${esc(s)}</span>`; }
+  const DAX_KW = new Set(['EVALUATE', 'SUMMARIZECOLUMNS', 'MIN', 'COUNTA']);
+  function highlightDax(txt) {
+    return txt.split('\n').map((ln) => {
+      if (ln.trim().startsWith('//')) return wrap('cm', ln);
+      let out = '';
+      const re = /'[^']+'|"[^"]+"|\[[^\]]+\]|[A-Za-z_]+|[^A-Za-z_'"\[]+/g;
+      let m;
+      while ((m = re.exec(ln)) !== null) {
+        const tok = m[0];
+        if (tok[0] === "'") out += wrap('tb', tok);
+        else if (tok[0] === '"') out += wrap('st', tok);
+        else if (tok[0] === '[') out += wrap('me', tok);
+        else if (DAX_KW.has(tok)) out += wrap('kw', tok);
+        else out += esc(tok);
+      }
+      return out;
+    }).join('\n');
+  }
+
+  const MAN_TILE = `{
+  "id": "v1",
+  "source": "pivotTable",
+  "render": "ledger",
+  "layout": { "x": 15, "y": 349, "w": 350, "h": 354 },
+  "group": [
+    "'TRIP DENIALS'[DENIAL PAYOR CATEGORY]",
+    "'TRIP DENIALS'[DENIAL PAYOR]"
+  ],
+  "measure": [
+    "MIN('TRIP DENIALS'[Merged])"
+  ]
+}`;
+  const JSON_KEYS = new Set(['id', 'source', 'render', 'layout', 'group', 'measure', 'x', 'y', 'w', 'h']);
+  const JSON_HOT = new Set(['pivotTable', 'ledger', 'v1']);
+  function highlightJson(txt) {
+    return txt.split('\n').map((ln) => {
+      let out = '';
+      const re = /"[^"]*"|\d+|[^"\d]+/g;
+      let m, prevColonPending = false;
+      while ((m = re.exec(ln)) !== null) {
+        const tok = m[0];
+        if (tok[0] === '"') {
+          const inner = tok.slice(1, -1);
+          const rest = ln.slice(re.lastIndex).replace(/^\s+/, '');
+          const isKey = rest.startsWith(':') && JSON_KEYS.has(inner);
+          if (isKey) out += wrap('me', tok);
+          else if (JSON_HOT.has(inner)) out += wrap('kw', tok);
+          else out += highlightJsonString(tok);
+        } else if (/^\d+$/.test(tok)) {
+          out += wrap('pn', tok);
+        } else {
+          out += esc(tok);
+        }
+      }
+      return out;
+    }).join('\n');
+  }
+  function highlightJsonString(tok) {
+    let out = '"';
+    const inner = tok.slice(1, -1);
+    const re = /'[^']+'|\[[^\]]+\]|MIN|COUNTA|[^'\[]+/g;
+    let m;
+    while ((m = re.exec(inner)) !== null) {
+      const t = m[0];
+      if (t[0] === "'") out += wrap('tb', t);
+      else if (t[0] === '[') out += wrap('me', t);
+      else if (t === 'MIN' || t === 'COUNTA') out += wrap('kw', t);
+      else out += esc(t);
+    }
+    return out + '"';
+  }
+  const rcDax = document.getElementById('rcDax');
+  const rcMan = document.getElementById('rcMan');
+  rcDax.innerHTML = highlightDax(DAX_TEXT);
+  rcMan.innerHTML = highlightJson(MAN_TILE);
+  document.querySelectorAll('.rc-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.rc-tab').forEach((t) => t.classList.toggle('active', t === tab));
+      const isDax = tab.dataset.tab === 'dax';
+      rcDax.style.display = isDax ? '' : 'none';
+      rcMan.style.display = isDax ? 'none' : '';
+    });
+  });
+
+  // ===== SECTION B — timeline =====
+  const TL_DAY0 = 0, TL_DAYS = 28;
+  const TL_DATES = ['JUN 1', 'JUN 8', 'JUN 15', 'JUN 22', 'JUN 29'];
+  const EVENTS = ['TRIP COMPLETE', 'BATCH', 'SUBMIT', 'PAYOR RECEIVED', 'PAID'];
+  const RUNS = [
+    { run: 'RUN 4471', segs: [[0, 1, 'TRIP COMPLETE'], [1, 2, 'BATCH'], [3, 2, 'SUBMIT'], [5, 4, 'PAYOR RECEIVED'], [9, 6, 'PAID']], critical: 4 },
+    { run: 'RUN 4472', segs: [[2, 1, 'TRIP COMPLETE'], [3, 3, 'BATCH'], [6, 2, 'SUBMIT'], [8, 5, 'PAYOR RECEIVED'], [13, 8, 'PAID']], critical: 3 },
+    { run: 'RUN 4473', segs: [[1, 1, 'TRIP COMPLETE'], [2, 2, 'BATCH'], [4, 3, 'SUBMIT'], [7, 6, 'PAYOR RECEIVED'], [13, 5, 'PAID']], critical: 4 },
+  ];
+  const EV_HUE = { 'TRIP COMPLETE': HUE.SLATE, 'BATCH': HUE.CYAN, 'SUBMIT': HUE.VIOLET, 'PAYOR RECEIVED': HUE.MAGENTA, 'PAID': '#A9ACB6' };
+  const tlAxis = document.getElementById('tlAxis');
+  (function buildAxis() {
+    const W = 360, base = 16;
+    eln('line', { x1: 0, y1: base, x2: W, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, tlAxis);
+    for (let d = 0; d <= TL_DAYS; d++) {
+      const x = (d / TL_DAYS) * W;
+      const major = d % 7 === 0;
+      eln('line', { x1: x, y1: base, x2: x, y2: base - (major ? 9 : 4), stroke: `rgba(255,255,255,${major ? 0.55 : 0.28})`, 'stroke-width': major ? 1.4 : 1 }, tlAxis);
+      if (major) {
+        const t = eln('text', { x: Math.min(Math.max(x, 12), W - 12), y: base + 9, 'text-anchor': 'middle', fill: '#80848F', 'font-size': 8, 'font-family': "'D-DIN PRO', sans-serif" }, tlAxis);
+        t.textContent = TL_DATES[d / 7];
+      }
+    }
+  })();
+  const tlLanes = document.getElementById('tlLanes');
+  const tlBarEls = [];
+  RUNS.forEach((r) => {
+    const lane = document.createElement('div');
+    lane.className = 'tllane';
+    lane.innerHTML = `<span class="ln">${r.run}</span><span class="track"></span>`;
+    tlLanes.appendChild(lane);
+    const track = lane.querySelector('.track');
+    r.segs.forEach((s, si) => {
+      const [start, dur, ev] = s;
+      const bar = document.createElement('div');
+      bar.className = 'tlbar';
+      const isCrit = si === r.critical;
+      bar.style.left = (start / TL_DAYS * 100) + '%';
+      bar.style.width = (dur / TL_DAYS * 100) + '%';
+      bar.style.background = isCrit ? '#FF7900' : EV_HUE[ev];
+      bar.style.opacity = isCrit ? '1' : '0.9';
+      const labCls = isCrit ? 'tlab' : 'tlab';
+      bar.innerHTML = `<span class="${labCls}" style="color:${isCrit ? '#1A0C00' : '#0B0B0D'}">${dur >= 4 ? ev : ''}</span>`;
+      track.appendChild(bar);
+      tlBarEls.push({ bar, isCrit });
+    });
+  });
+  function paintTimeline(frac) {
+    const f = c01(frac);
+    tlBarEls.forEach((b, i) => {
+      const stagger = c01((f - (i % 5) * 0.05) / 0.7);
+      b.bar.style.transform = `scaleX(${stagger})`;
+      b.bar.style.transformOrigin = '0 50%';
+    });
+  }
+  const tlLeg = document.getElementById('tlLeg');
+  EVENTS.forEach((ev) => {
+    const el = document.createElement('span');
+    el.className = 'lg';
+    el.innerHTML = `<span class="sw" style="background:${EV_HUE[ev]}"></span>${ev}`;
+    tlLeg.appendChild(el);
+  });
+  (function () {
+    const el = document.createElement('span');
+    el.className = 'lg';
+    el.innerHTML = `<span class="sw" style="background:#FF7900"></span>CRITICAL SPAN`;
+    tlLeg.appendChild(el);
+  })();
+
+  // ===== SECTION C — calendar heatmap =====
+  const calGrid = document.getElementById('calGrid');
+  const JUNE_FIRST_DOW = 1;
+  const DAYS = 30;
+  const VOL = [];
+  for (let d = 1; d <= DAYS; d++) {
+    const dow = (JUNE_FIRST_DOW + d - 1) % 7;
+    let v = 40 + Math.round(40 * Math.abs(Math.sin(d * 0.7)) + 18 * Math.cos(d * 0.31));
+    if (dow === 0 || dow === 6) v = Math.round(v * 0.45);
+    VOL.push(v);
+  }
+  const VMAX = Math.max(...VOL);
+  const VMIN = Math.min(...VOL);
+  function rampColor(t) {
+    const a = 0.06 + 0.62 * t;
+    const l = Math.round(120 + 105 * t);
+    return `rgba(${l},${l + 4},${l + 10},${a})`;
+  }
+  const calCells = [];
+  for (let i = 0; i < JUNE_FIRST_DOW; i++) {
+    const e = document.createElement('div');
+    e.className = 'cell empty';
+    calGrid.appendChild(e);
+  }
+  for (let d = 1; d <= DAYS; d++) {
+    const t = (VOL[d - 1] - VMIN) / (VMAX - VMIN);
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (d === 12 ? ' today' : '');
+    cell.innerHTML = `<span class="dn">${d}</span>`;
+    cell.dataset.t = t;
+    calGrid.appendChild(cell);
+    calCells.push({ cell, t, today: d === 12 });
+  }
+  function paintCalendar(frac) {
+    const f = c01(frac);
+    calCells.forEach((c, i) => {
+      const stagger = c01((f - (i / calCells.length) * 0.5) / 0.6);
+      if (c.today) {
+        c.cell.style.background = `rgba(255,121,0,${(0.1 + 0.12 * c.t) * stagger})`;
+      } else {
+        c.cell.style.background = rampColor(c.t * stagger);
+      }
+    });
+  }
+  // legend ramp
+  const calLegend = document.getElementById('calLegend');
+  for (let i = 0; i < 20; i++) {
+    const t = i / 19;
+    eln('rect', { x: i * 8, y: 2, width: 7.4, height: 10, rx: 1.5, fill: rampColor(t) }, calLegend);
+  }
+
+  // ===== arrival orchestration =====
+  let groupAnim = null, tlAnim = null, calAnim = null;
+  function arriveAll() {
+    if (lab.reduced) { paintGroup(1); paintTimeline(1); paintCalendar(1); return; }
+    if (groupAnim) groupAnim.cancel();
+    groupAnim = lab.spring({ from: 0, to: 1, response: 0.5, damping: 0.85, onUpdate: (v) => paintGroup(c01(v)) });
+    setTimeout(() => { tlAnim = lab.spring({ from: 0, to: 1, response: 0.55, damping: 0.85, onUpdate: (v) => paintTimeline(c01(v)) }); }, 180);
+    setTimeout(() => { calAnim = lab.spring({ from: 0, to: 1, response: 0.6, damping: 0.9, onUpdate: (v) => paintCalendar(c01(v)) }); }, 320);
+  }
+  paintGroup(0); paintTimeline(0); paintCalendar(0);
+  setTimeout(arriveAll, 280);
+
+  // ===== reduced motion toggle =====
+  const rm = document.getElementById('rmToggle');
+  const rmThumb = document.getElementById('rmThumb');
+  let rmAnim = null;
+  function setReduced(v) {
+    lab.reduced = v;
+    rm.classList.toggle('on', v);
+    if (rmAnim) rmAnim.cancel();
+    const fromM = rmThumb.style.transform.match(/([-\d.]+)px/);
+    rmAnim = lab.spring({ from: fromM ? Number(fromM[1]) : (v ? 0 : 28), to: v ? 28 : 0, response: 0.34, damping: 0.6, onUpdate: (x) => { rmThumb.style.transform = `translateX(${x}px)`; } });
+    if (v) { paintGroup(1); paintTimeline(1); paintCalendar(1); }
+  }
+  rm.addEventListener('click', () => setReduced(!lab.reduced));
+  if (lab.reduced) { setReduced(true); }
+  lab.api.setReduced = setReduced;
+
+  // ===== capture API =====
+  const LEDGER_DUR = 4.6;
+  lab.api.crosswalkLedgerDur = LEDGER_DUR * 1000;
+  lab.api.seekDenialsLedger = (ms) => { ledgerCtrls[0].seek(ms / 1000); };
+  lab.api.poseDenialsLedger = () => { ledgerCtrls[0].pose(); };
+  lab.api.poseAllLedgers = () => { ledgerCtrls.forEach((c) => c.pose()); };
+  lab.api.settleAll = () => { paintGroup(1); paintTimeline(1); paintCalendar(1); };
+})();
+</script>
+</body>
+</html>

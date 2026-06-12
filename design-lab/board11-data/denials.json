@@ -1,0 +1,92 @@
+[
+ {
+  "type": "columnChart",
+  "x": 15,
+  "y": 14,
+  "w": 1254,
+  "h": 323,
+  "z": 4000,
+  "roles": {
+   "Category": [
+    "Column:TRIP DENIALS.POST DATE WEEK"
+   ],
+   "Series": [
+    "GroupRef:TRIP DENIALS.INCLUDE ASSUMED"
+   ],
+   "Y": [
+    "[Min] TRIP DENIALS.Merged"
+   ]
+  }
+ },
+ {
+  "type": "pivotTable",
+  "x": 15,
+  "y": 349,
+  "w": 350,
+  "h": 354,
+  "z": 3000,
+  "roles": {
+   "Rows": [
+    "Column:TRIP DENIALS.DENIAL PAYOR CATEGORY",
+    "Column:TRIP DENIALS.DENIAL PAYOR"
+   ],
+   "Values": [
+    "[Min] TRIP DENIALS.Merged"
+   ]
+  }
+ },
+ {
+  "type": "pivotTable",
+  "x": 379,
+  "y": 349,
+  "w": 576,
+  "h": 354,
+  "z": 1000,
+  "roles": {
+   "Rows": [
+    "Column:TRIP DENIALS.MINOR CATEGORY",
+    "Column:TRIP DENIALS.DESCRIPTION",
+    "Column:TRIP DENIALS.DENIAL CODE"
+   ],
+   "Values": [
+    "[CountNonNull] TRIP DENIALS.Merged"
+   ]
+  }
+ },
+ {
+  "type": "pivotTable",
+  "x": 967,
+  "y": 349,
+  "w": 301,
+  "h": 354,
+  "z": 6000,
+  "roles": {
+   "Rows": [
+    "Column:Trips.NAME",
+    "Column:TRIP DENIALS.DENIAL PAYOR",
+    "Column:Trips.custno"
+   ],
+   "Values": [
+    "[CountNonNull] TRIP DENIALS.Merged"
+   ]
+  }
+ },
+ {
+  "type": "image",
+  "x": 0,
+  "y": 415,
+  "w": 224,
+  "h": 304,
+  "z": 0,
+  "roles": {}
+ },
+ {
+  "type": "actionButton",
+  "x": 4,
+  "y": 655,
+  "w": 52,
+  "h": 55,
+  "z": 6500,
+  "roles": {}
+ }
+]

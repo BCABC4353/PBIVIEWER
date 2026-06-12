@@ -1,0 +1,32 @@
+// bar (grouped) (was columnChart)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'TRIP DENIALS'[POST DATE WEEK],
+  "Merged_0", MIN('TRIP DENIALS'[Merged])
+)
+
+// ledger (was pivotTable)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'TRIP DENIALS'[DENIAL PAYOR CATEGORY],
+  'TRIP DENIALS'[DENIAL PAYOR],
+  "Merged_0", MIN('TRIP DENIALS'[Merged])
+)
+
+// ledger (was pivotTable)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'TRIP DENIALS'[MINOR CATEGORY],
+  'TRIP DENIALS'[DESCRIPTION],
+  'TRIP DENIALS'[DENIAL CODE],
+  "Merged_0", COUNTA('TRIP DENIALS'[Merged])
+)
+
+// ledger (was pivotTable)
+EVALUATE
+SUMMARIZECOLUMNS(
+  'Trips'[NAME],
+  'TRIP DENIALS'[DENIAL PAYOR],
+  'Trips'[custno],
+  "Merged_0", COUNTA('TRIP DENIALS'[Merged])
+)

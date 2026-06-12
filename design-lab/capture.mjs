@@ -110,6 +110,17 @@ if (want('10')) {
   );
 }
 
+if (want('11')) {
+  await captureBoard(
+    '11-crosswalk.html',
+    '[data-ledger="0"]',
+    () => window.__lab.api.crosswalkLedgerDur,
+    (ms) => window.__lab.api.seekDenialsLedger(ms),
+    '11-ledger-denials.gif',
+    'crosswalk-ledger'
+  );
+}
+
 await browser.close();
 
 for (const f of readdirSync(out).filter((f) => f.endsWith('.gif')).sort()) {

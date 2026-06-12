@@ -1,0 +1,75 @@
+[
+ {
+  "id": "v0",
+  "source": "columnChart",
+  "render": "bar (grouped)",
+  "layout": {
+   "x": 15,
+   "y": 14,
+   "w": 1254,
+   "h": 323
+  },
+  "group": [
+   "'TRIP DENIALS'[POST DATE WEEK]"
+  ],
+  "measure": [
+   "MIN('TRIP DENIALS'[Merged])"
+  ]
+ },
+ {
+  "id": "v1",
+  "source": "pivotTable",
+  "render": "ledger",
+  "layout": {
+   "x": 15,
+   "y": 349,
+   "w": 350,
+   "h": 354
+  },
+  "group": [
+   "'TRIP DENIALS'[DENIAL PAYOR CATEGORY]",
+   "'TRIP DENIALS'[DENIAL PAYOR]"
+  ],
+  "measure": [
+   "MIN('TRIP DENIALS'[Merged])"
+  ]
+ },
+ {
+  "id": "v2",
+  "source": "pivotTable",
+  "render": "ledger",
+  "layout": {
+   "x": 379,
+   "y": 349,
+   "w": 576,
+   "h": 354
+  },
+  "group": [
+   "'TRIP DENIALS'[MINOR CATEGORY]",
+   "'TRIP DENIALS'[DESCRIPTION]",
+   "'TRIP DENIALS'[DENIAL CODE]"
+  ],
+  "measure": [
+   "COUNTA('TRIP DENIALS'[Merged])"
+  ]
+ },
+ {
+  "id": "v3",
+  "source": "pivotTable",
+  "render": "ledger",
+  "layout": {
+   "x": 967,
+   "y": 349,
+   "w": 301,
+   "h": 354
+  },
+  "group": [
+   "'Trips'[NAME]",
+   "'TRIP DENIALS'[DENIAL PAYOR]",
+   "'Trips'[custno]"
+  ],
+  "measure": [
+   "COUNTA('TRIP DENIALS'[Merged])"
+  ]
+ }
+]

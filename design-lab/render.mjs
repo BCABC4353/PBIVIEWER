@@ -159,6 +159,15 @@ if (want('10')) {
   await p.close();
 }
 
+if (want('11')) {
+  const p = await open(browser, '11-crosswalk.html', PHONE);
+  await sleep(1600);
+  await p.evaluate(() => { window.__lab.api.settleAll(); window.__lab.api.poseAllLedgers(); });
+  await sleep(300);
+  await shoot(p, '11-crosswalk.png', { fullPage: true });
+  await p.close();
+}
+
 await browser.close();
 
 let failed = false;
