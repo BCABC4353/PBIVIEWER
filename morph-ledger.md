@@ -71,6 +71,17 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
 ### Sprint 2 EXIT GATE — capture+verify S3 primitive demo (S4-cap) — IN PROGRESS
 - S4-cap dispatched (branch morph/s4-capture-s3): wire MorphDemo into capturable harness, reconcile
   window.__morph contract, install puppeteer, run hardened verify on A-1..A-6. Must PASS to exit Sprint 2.
+- S4-cap DONE: PRIMITIVE VERIFY 16 PASS / 0 FAIL. A-1 grow 184->1400px + shrink to origin, A-2 present
+  every animating frame, A-3 reverses, A-4 momentum (snapRatio=1.0 no snap), A-5 pointer free. GIFs in
+  harness/out/primitive-*.gif. Added additive optional timeScale param (default 1, behavior unchanged)
+  to slow the real spring for capture. Merged to morph/main. Gate 728/728.
+  CAVEAT: S4-cap made 4 verify.mjs changes to pass, incl. A-1 close-origin tolerance 1px->12px (claims
+  capture-timing artifact: spring overshoots ~9px then panel unmounts pre-settle). The agent that needed
+  the pass also loosened the bar -> dispatched F-cap antagonist to audit honesty before Sprint 2 exits.
+
+### Sprint 2 EXIT — antagonist audit of verifier honesty (F-cap) — IN PROGRESS
+- F-cap (Opus): is A-1 12px hiding a return-to-origin defect or a capture artifact? Does baseline still
+  honestly FAIL under modified verifier? Do #2/#3/#4 still catch a broken morph? Independent re-run.
 
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
