@@ -1,0 +1,36 @@
+# NIGHT 3 LEDGER
+
+Orchestrator: lead session (Opus). One agent per worktree. Reconciled on every return of control.
+
+## Baseline (night3/main) — VERIFIED GREEN
+- typecheck: exit 0
+- lint: exit 0 (2 known react-hooks warnings: primitives.tsx:108, BlastRadius.tsx:135)
+- tests: 659 passed (32 files)
+- expo export web: exit 0
+- Checkpoint pushed: night3/main @ baseline
+
+## Task 0 — Corpus re-run (orchestrator) — DONE
+- Ran tools/crosswalk/cli.mjs over corpus -> night-out/corpus (gitignored).
+- Extended pipeline translated 16 more filters (all Not-In); FILTER_OMITTED 960->943.
+- No Comparison/Between/And-Or filters exist in corpus.
+- Spot-check: DENIAL PAYOR CATEGORY Not-In faithful to PBIR; sibling null-literal Not-In correctly omitted.
+- No filter family reverted. CORPUS-STATS.md refreshed + committed (b49b18b).
+
+## Squads
+
+| Squad | Branch | Worktree | Agent | Status |
+|---|---|---|---|---|
+| W — Enhancement Wiring | night3/enhance-wire | fleet-n3-W | (pending dispatch) | NOT STARTED |
+| M — Morph Drill Screen | night3/drill | fleet-n3-M | (pending dispatch) | NOT STARTED |
+| S — Skia Graduation (QUARANTINE) | night3/skia-grad | fleet-n3-S | (pending dispatch) | NOT STARTED |
+
+## Antagonists
+| Target | Agent | Status |
+|---|---|---|
+| (after each squad DoD) | F-series (Opus) | NOT STARTED |
+
+## Open QUESTIONS for owner
+- (none yet)
+
+## Reconciliation log
+- Baseline + Task 0 complete; worktree setup next.

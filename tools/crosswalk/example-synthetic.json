@@ -1,0 +1,47 @@
+[
+  {
+    "id": "v0",
+    "source": "columnChart",
+    "render": "bar",
+    "layout": { "x": 15, "y": 14, "w": 640, "h": 300 },
+    "group": ["'SALES'[REGION]"],
+    "measure": ["SUM('SALES'[Revenue])"],
+    "dax": "EVALUATE\nSUMMARIZECOLUMNS(\n  'SALES'[REGION],\n  \"Revenue_0\", SUM('SALES'[Revenue])\n)"
+  },
+  {
+    "id": "v1",
+    "source": "pivotTable",
+    "render": "ledger",
+    "layout": { "x": 15, "y": 330, "w": 300, "h": 250 },
+    "group": ["'SALES'[REGION]", "'SALES'[PRODUCT]"],
+    "measure": ["COUNTA('SALES'[OrderId])"],
+    "rows": ["'SALES'[REGION]", "'SALES'[PRODUCT]"],
+    "values": ["COUNTA('SALES'[OrderId])"],
+    "dax": "EVALUATE\nSUMMARIZECOLUMNS(\n  'SALES'[REGION],\n  'SALES'[PRODUCT],\n  \"OrderId_0\", COUNTA('SALES'[OrderId])\n)"
+  },
+  {
+    "id": "v2",
+    "source": "slicer",
+    "render": "filter",
+    "layout": { "x": 670, "y": 14, "w": 200, "h": 120 },
+    "group": ["'SALES'[REGION]"],
+    "measure": []
+  },
+  {
+    "id": "v3",
+    "source": "card",
+    "render": "kpi",
+    "layout": { "x": 670, "y": 150, "w": 200, "h": 80 },
+    "group": [],
+    "measure": ["[Revenue]"],
+    "dax": "EVALUATE\nSUMMARIZECOLUMNS(\n  \"Revenue_0\", [Revenue]\n)"
+  },
+  {
+    "id": "v4",
+    "source": "actionButton",
+    "render": "chrome",
+    "layout": { "x": 0, "y": 0, "w": 10, "h": 10 },
+    "group": [],
+    "measure": []
+  }
+]

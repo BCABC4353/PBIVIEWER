@@ -9,6 +9,7 @@ import { RefreshDetailScreen } from './RefreshDetailScreen';
 import { ReportsScreen } from './ReportsScreen';
 import { LiveReportScreen } from './LiveReportScreen';
 import { AlertsScreen } from './AlertsScreen';
+import { DenialsScreen } from './DenialsScreen';
 import { tap } from '../feel/haptics';
 
 type TabKey = 'fleet' | 'reports' | 'alerts' | 'settings';
@@ -30,6 +31,7 @@ export const Root: React.FC<{
   const [fleetDetail, setFleetDetail] = useState<Refreshable | null>(null);
   const [alertDetail, setAlertDetail] = useState<Refreshable | null>(null);
   const [openReport, setOpenReport] = useState<ReportRef | null>(null);
+  const [showDenials, setShowDenials] = useState(false);
 
   useEffect(() => {
     setOpenReport(null);
@@ -57,24 +59,30 @@ export const Root: React.FC<{
       );
       break;
     case 'reports':
-      body =
-        openReport && reports ? (
+      if (showDenials) {
+        body = <DenialsScreen onBack={() => setShowDenials(false)} />;
+      } else if (openReport && reports) {
+        body = (
           <LiveReportScreen
             report={openReport}
             model={reports}
             onBack={() => setOpenReport(null)}
             onSignIn={goToSettings}
           />
-        ) : (
+        );
+      } else {
+        body = (
           <View style={styles.edge}>
             <ReportsScreen
               model={reports}
               mode={mode}
               onOpen={setOpenReport}
               onSignIn={goToSettings}
+              onOpenDenials={() => setShowDenials(true)}
             />
           </View>
         );
+      }
       break;
     case 'alerts':
       body = alertDetail ? (
