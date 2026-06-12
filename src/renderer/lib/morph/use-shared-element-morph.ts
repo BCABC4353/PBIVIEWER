@@ -29,6 +29,7 @@ export interface UseSharedElementMorphOptions extends MorphCallbacks {
   sourceRef: React.RefObject<Element | null>;
   sourceContentRef?: React.RefObject<HTMLElement | null>;
   targetContentRef?: React.RefObject<HTMLElement | null>;
+  timeScale?: number;
 }
 
 function safeRect(el: Element | null): Rect {
@@ -79,13 +80,14 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
   const tileRectRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const sheetRectRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
 
-  const { morphRef, sourceRef, sourceContentRef, targetContentRef, onOpened, onClosed } = opts;
+  const { morphRef, sourceRef, sourceContentRef, targetContentRef, onOpened, onClosed, timeScale } = opts;
 
   const getOrCreateSpring = useCallback((): MomentumSpring => {
     if (springRef.current) return springRef.current;
 
     const spring = createMomentumSpring({
       initial: progressRef.current,
+      timeScale,
       onUpdate: (pos, _vel, done) => {
         progressRef.current = pos;
         const morphEl = morphRef.current;
@@ -126,7 +128,7 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
 
     springRef.current = spring;
     return spring;
-  }, [morphRef, sourceContentRef, targetContentRef, onOpened, onClosed]);
+  }, [morphRef, sourceContentRef, targetContentRef, onOpened, onClosed, timeScale]);
 
   const open = useCallback((): void => {
     const morphEl = morphRef.current;

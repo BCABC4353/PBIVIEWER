@@ -1,0 +1,467 @@
+[
+  {
+    "frame": 0,
+    "t": 0,
+    "rect": {
+      "x": 9.945610046386719,
+      "y": 9.251209259033203,
+      "width": 1372.2239990234375,
+      "height": 881.85595703125
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.9775999774762322
+  },
+  {
+    "frame": 1,
+    "t": 0.02564102564102564,
+    "rect": {
+      "x": 64.08177185058594,
+      "y": 59.60759353637695,
+      "width": 1221.0328369140625,
+      "height": 783.0940551757812
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.8556716839443469
+  },
+  {
+    "frame": 2,
+    "t": 0.05128205128205128,
+    "rect": {
+      "x": 136.46189880371094,
+      "y": 126.93415832519531,
+      "width": 1018.89013671875,
+      "height": 651.0491943359375
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.692653365347285
+  },
+  {
+    "frame": 3,
+    "t": 0.07692307692307693,
+    "rect": {
+      "x": 208.37400817871094,
+      "y": 193.82537841796875,
+      "width": 818.054443359375,
+      "height": 519.8582153320312
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.5306891600281168
+  },
+  {
+    "frame": 4,
+    "t": 0.10256410256410256,
+    "rect": {
+      "x": 271.1716003417969,
+      "y": 252.2384490966797,
+      "width": 642.673828125,
+      "height": 405.2950439453125
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.38925314015725765
+  },
+  {
+    "frame": 5,
+    "t": 0.1282051282051282,
+    "rect": {
+      "x": 321.7967529296875,
+      "y": 299.3289489746094,
+      "width": 501.28839111328125,
+      "height": 312.9383850097656
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.27523257219243036
+  },
+  {
+    "frame": 6,
+    "t": 0.15384615384615385,
+    "rect": {
+      "x": 362.56646728515625,
+      "y": 337.25213623046875,
+      "width": 387.427001953125,
+      "height": 238.56121826171875
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.1834088732540556
+  },
+  {
+    "frame": 7,
+    "t": 0.1794871794871795,
+    "rect": {
+      "x": 391.78741455078125,
+      "y": 364.4328918457031,
+      "width": 305.8189697265625,
+      "height": 185.25271606445312
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.1175959354751052
+  },
+  {
+    "frame": 8,
+    "t": 0.20512820512820512,
+    "rect": {
+      "x": 411.912109375,
+      "y": 383.1524963378906,
+      "width": 249.61480712890625,
+      "height": 148.53872680664062
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.07227000590334483
+  },
+  {
+    "frame": 9,
+    "t": 0.23076923076923078,
+    "rect": {
+      "x": 424.6560974121094,
+      "y": 395.0066833496094,
+      "width": 214.02352905273438,
+      "height": 125.28958129882812
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.043567347482839185
+  },
+  {
+    "frame": 10,
+    "t": 0.2564102564102564,
+    "rect": {
+      "x": 432.9966125488281,
+      "y": 402.7648620605469,
+      "width": 190.73019409179688,
+      "height": 110.07376098632812
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.024782387336128656
+  },
+  {
+    "frame": 11,
+    "t": 0.28205128205128205,
+    "rect": {
+      "x": 438.24267578125,
+      "y": 407.6446533203125,
+      "width": 176.0789794921875,
+      "height": 100.50320434570312
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.012966919835149427
+  },
+  {
+    "frame": 12,
+    "t": 0.3076923076923077,
+    "rect": {
+      "x": 441.403076171875,
+      "y": 410.58441162109375,
+      "width": 167.252685546875,
+      "height": 94.73760986328125
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.00584891187556761
+  },
+  {
+    "frame": 13,
+    "t": 0.3333333333333333,
+    "rect": {
+      "x": 443.19207763671875,
+      "y": 412.24847412109375,
+      "width": 162.25640869140625,
+      "height": 91.47393798828125
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": 0.0018196632506844103
+  },
+  {
+    "frame": 14,
+    "t": 0.358974358974359,
+    "rect": {
+      "x": 444.1255798339844,
+      "y": 413.1168212890625,
+      "width": 159.64926147460938,
+      "height": 89.77090454101562
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.00028284695228422317
+  },
+  {
+    "frame": 15,
+    "t": 0.38461538461538464,
+    "rect": {
+      "x": 444.5594177246094,
+      "y": 413.5203552246094,
+      "width": 158.43765258789062,
+      "height": 88.97943115234375
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.0012599701195123393
+  },
+  {
+    "frame": 16,
+    "t": 0.41025641025641024,
+    "rect": {
+      "x": 444.6742248535156,
+      "y": 413.62713623046875,
+      "width": 158.11703491210938,
+      "height": 88.77001953125
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.0015184936577250085
+  },
+  {
+    "frame": 17,
+    "t": 0.4358974358974359,
+    "rect": {
+      "x": 444.6439514160156,
+      "y": 413.5989990234375,
+      "width": 158.20156860351562,
+      "height": 88.82522583007812
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.0014503487007414661
+  },
+  {
+    "frame": 18,
+    "t": 0.46153846153846156,
+    "rect": {
+      "x": 444.5496826171875,
+      "y": 413.51129150390625,
+      "width": 158.46484375,
+      "height": 88.9971923828125
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.001238022328507186
+  },
+  {
+    "frame": 19,
+    "t": 0.48717948717948717,
+    "rect": {
+      "x": 444.43768310546875,
+      "y": 413.4071350097656,
+      "width": 158.77764892578125,
+      "height": 89.20150756835938
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.0009857930668709743
+  },
+  {
+    "frame": 20,
+    "t": 0.5128205128205128,
+    "rect": {
+      "x": 444.3310241699219,
+      "y": 413.30792236328125,
+      "width": 159.07553100585938,
+      "height": 89.3961181640625
+    },
+    "present": true,
+    "pointerBlockedAtCenter": false,
+    "phase": "closing",
+    "progress": -0.0007455521249153919
+  },
+  {
+    "frame": 21,
+    "t": 0.5384615384615384,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 22,
+    "t": 0.5641025641025641,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 23,
+    "t": 0.5897435897435898,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 24,
+    "t": 0.6153846153846154,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 25,
+    "t": 0.6410256410256411,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 26,
+    "t": 0.6666666666666666,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 27,
+    "t": 0.6923076923076923,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 28,
+    "t": 0.717948717948718,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 29,
+    "t": 0.7435897435897436,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 30,
+    "t": 0.7692307692307693,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 31,
+    "t": 0.7948717948717948,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 32,
+    "t": 0.8205128205128205,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 33,
+    "t": 0.8461538461538461,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 34,
+    "t": 0.8717948717948718,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 35,
+    "t": 0.8974358974358975,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 36,
+    "t": 0.9230769230769231,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 37,
+    "t": 0.9487179487179487,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 38,
+    "t": 0.9743589743589743,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  },
+  {
+    "frame": 39,
+    "t": 1,
+    "rect": null,
+    "present": false,
+    "pointerBlockedAtCenter": null,
+    "phase": "idle",
+    "progress": 0
+  }
+]

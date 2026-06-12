@@ -1,0 +1,3 @@
+REDUCED-MOTION scenario: prefers-reduced-motion: reduce emulated.
+useSharedElementMorph skips the spring and opens instantly.
+All frames show the settled (fully open) panel — static rect, all present.

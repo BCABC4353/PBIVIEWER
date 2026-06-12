@@ -2,3 +2,7 @@ baseline-open/*.png
 baseline-close/*.png
 baseline-open-then-reverse-at-40/*.png
 baseline-reduced-motion/*.png
+primitive-open/*.png
+primitive-close/*.png
+primitive-open-then-reverse-at-40/*.png
+primitive-reduced-motion/*.png

@@ -12,6 +12,7 @@ export interface MomentumSpringOptions {
   now?: () => number;
   schedule?: (cb: () => void) => number;
   cancel?: (id: number) => void;
+  timeScale?: number;
 }
 
 export interface MomentumSpring {
@@ -25,6 +26,7 @@ export interface MomentumSpring {
 export function createMomentumSpring(opts: MomentumSpringOptions): MomentumSpring {
   const k = opts.stiffness ?? MOMENTUM_STIFFNESS;
   const c = opts.damping ?? MOMENTUM_DAMPING;
+  const timeScale = opts.timeScale ?? 1;
   const now = opts.now ?? (() => performance.now());
   const schedule = opts.schedule ?? ((cb: () => void) => window.requestAnimationFrame(cb));
   const cancel = opts.cancel ?? ((id: number) => window.cancelAnimationFrame(id));
@@ -79,7 +81,7 @@ export function createMomentumSpring(opts: MomentumSpringOptions): MomentumSprin
   const tick = (): void => {
     frame = null;
     const t = now();
-    const dt = t - lastTime;
+    const dt = (t - lastTime) * timeScale;
     lastTime = t;
 
     stepAnalytical(dt);

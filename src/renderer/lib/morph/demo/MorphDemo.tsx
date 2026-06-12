@@ -21,16 +21,18 @@ interface PanelProps {
   onOpened: () => void;
   onClosed: () => void;
   handleRef: React.RefObject<SharedElementMorphHandle | null>;
+  timeScale: number;
 }
 
 function MorphPanel(props: PanelProps): React.ReactElement {
-  const { tile, morphRef, sourceRef, onOpened, onClosed, handleRef } = props;
+  const { tile, morphRef, sourceRef, onOpened, onClosed, handleRef, timeScale } = props;
 
   const handle = useSharedElementMorph({
     morphRef,
     sourceRef,
     onOpened,
     onClosed,
+    timeScale,
   });
 
   (handleRef as React.MutableRefObject<SharedElementMorphHandle | null>).current = handle;
@@ -58,16 +60,21 @@ function MorphPanel(props: PanelProps): React.ReactElement {
   );
 }
 
-interface DemoControl {
+interface FullMorphContract {
   open: (id: string) => void;
   close: () => void;
   interruptAt: (id: string) => void;
+  setSpeed: (mult: number) => void;
+  getTrackedRect: () => { x: number; y: number; width: number; height: number } | null;
+  state: () => { phase: string; progress: number };
+  openThenInterruptAt: (id: string, progress: number) => void;
 }
 
 export function MorphDemo(): React.ReactElement {
   const [activeTile, setActiveTile] = useState<TileSpec | null>(null);
   const [panelVisible, setPanelVisible] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [timeScale, setTimeScale] = useState(1);
 
   const morphNodeRef = useRef<HTMLElement | null>(null);
   const sourceRefs = useRef<Map<string, Element | null>>(new Map());
@@ -112,7 +119,7 @@ export function MorphDemo(): React.ReactElement {
     get current() { return activeSourceRef.current; },
   };
 
-  const control: DemoControl = {
+  const control: FullMorphContract = {
     open: (id: string) => {
       const tile = TILES.find((t) => t.id === id);
       if (tile) openTile(tile);
@@ -126,10 +133,40 @@ export function MorphDemo(): React.ReactElement {
         openTile(tile);
       }
     },
+    setSpeed: (mult: number) => {
+      setTimeScale(mult);
+    },
+    getTrackedRect: () => {
+      const el = document.querySelector<HTMLElement>('[data-morph-node="true"]');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    },
+    state: () => ({
+      phase: handleRef.current?.phase() ?? 'idle',
+      progress: handleRef.current?.progress() ?? 0,
+    }),
+    openThenInterruptAt: (id: string, progress: number) => {
+      const tile = TILES.find((t) => t.id === id);
+      if (!tile) return;
+      openTile(tile);
+      const poll = (): void => {
+        const p = handleRef.current?.progress() ?? 0;
+        const ph = handleRef.current?.phase() ?? 'idle';
+        if (ph === 'opening' && p >= progress) {
+          closeTile();
+          return;
+        }
+        if (ph === 'opening') {
+          requestAnimationFrame(poll);
+        }
+      };
+      requestAnimationFrame(() => requestAnimationFrame(poll));
+    },
   };
 
   if (typeof window !== 'undefined') {
-    (window as Window & { __morph?: DemoControl }).__morph = control;
+    (window as Window & { __morph?: FullMorphContract }).__morph = control;
   }
 
   return (
@@ -176,6 +213,7 @@ export function MorphDemo(): React.ReactElement {
           onOpened={onOpened}
           onClosed={onClosed}
           handleRef={handleRef}
+          timeScale={timeScale}
         />
       )}
 
