@@ -11,8 +11,9 @@ Aggregate statistics from local corpus run. No real table/measure/field/page nam
 | Visuals (non-hidden tiles) | 898 |
 | Supported visuals | 738 |
 | Coverage | 82% |
-| Tiles with compiled TREATAS filter | 166 |
-| Tiles flagged filtersIncomplete | 228 |
+| Tiles with compiled TREATAS (In-values) filter | 166 |
+| Tiles with compiled predicate filter (Not-In) | 12 |
+| Tiles flagged filtersIncomplete | 223 |
 
 ## Visual Type Tallies
 
@@ -47,15 +48,28 @@ Aggregate statistics from local corpus run. No real table/measure/field/page nam
 
 | Code | Count | Notes |
 |---|---|---|
-| FILTER_OMITTED | 960 | Categorical filter not a simple In-values (Not/Comparison/Between/And/Or/compound/empty); omitted, tile flagged filtersIncomplete |
+| FILTER_OMITTED | 943 | Categorical filter still not translatable (Comparison/Between/And/Or/compound/empty, or Not-In carrying a null literal); omitted, tile flagged filtersIncomplete |
 | FIELD_UNKNOWN_KIND | 47 | field expression with unrecognized structure |
 | FILTER_FIELD_NOT_COLUMN | 6 | In-values Categorical filter whose field is not a Column; omitted, tile flagged |
 | FIELD_NOT_OBJECT | 2 | field expression not an object |
 
-The corpus carries 1228 Categorical filters; only ~249 are simple In-value
-selections (compiled to KEEPFILTERS/TREATAS). The remainder are negations,
-comparisons, ranges, or compound predicates that this pass deliberately omits
-rather than mis-translate, each flagging its tile filtersIncomplete with a
-diagnostic. No filter is ever silently dropped or silently inverted.
+The extended filter pipeline (Not-In / Comparison / Between / same-column
+And-Or) translated 16 additional Categorical filters that the prior pass
+omitted; all 16 are Not-In negations, compiled to
+`KEEPFILTERS(FILTER(ALL(col), NOT(col IN {...})))`. FILTER_OMITTED accordingly
+fell 960 -> 943. The corpus contains no Comparison, Between, or And-Or
+Categorical filters, so those families are exercised only by unit tests, not
+the live corpus.
 
-Note: filter coverage extended (Not-In/Comparison/Between/And-Or) after these stats; corpus re-run pending.
+In-value selections remain compiled to KEEPFILTERS/TREATAS (166 tiles). The
+remaining omissions are compound multi-condition Where clauses, empty filters,
+and Not-In filters that include a `null` literal (which cannot be expressed in
+a DAX value list and so revert to omit-and-flag rather than mis-translate).
+No filter is ever silently dropped or silently inverted; every omission flags
+its tile filtersIncomplete with a diagnostic.
+
+Spot-check (this run): the translated Not-In on `DENIAL PAYOR CATEGORY IN
+{"", "<none>"}` matches its PBIR source exactly (column, values, negation).
+A sibling Not-In on the same page carrying a `null` literal was correctly
+omitted, not translated. Verdict: no translation looked wrong on real shapes;
+no filter family reverted.
