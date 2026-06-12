@@ -30,7 +30,7 @@ Worktrees: W/M junction node_modules -> fleet-n3. S own real install (675 pkgs, 
 | Target | Agent | Status |
 |---|---|---|
 | Squad M (night3/drill) | antagonist-FM (Opus) | R1 done: SOLID+1HIGH+2MED. M fixing; F-M to verify fixes. |
-| Squad W (night3/enhance-wire) | antagonist-FW (Opus) | RUNNING |
+| Squad W (night3/enhance-wire) | antagonist-FW (Opus) | DONE: CLEAN, no Crit/High, 686 tests verified. 1 LOW (4 dead-code helpers) -> W trimming. |
 
 ## Open QUESTIONS for owner (from Squad W board analysis)
 - Q2 (W): No board shows a pareto cut-line / cumulative-share annotation on the Denials ledgers; ledgers already sort descending by data. Add a faint 80% threshold separator? where + what token?
