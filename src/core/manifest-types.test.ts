@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseManifest, tilesOfRender } from './manifest-types';
+import { parseManifest, tilesOfRender, type RenderType } from './manifest-types';
 import { buildTree, grandTotalFromLeaves, isExpanded, toggleExpanded } from './ledger-logic';
 import { advance, canAdvance, canRewind, goTo, rewind } from './carousel-logic';
 import { PAYOR_CATEGORY_LEDGER, DENIAL_CODE_LEDGER, DRIVER_LEDGER, DENIALS_BAR_DATA } from '../ui/denials-mock-data';
+import DENIALS_MANIFEST_RAW from '../../design-lab/board11-data/denials-manifest.json';
 
 const VALID_MANIFEST = [
   {
@@ -268,7 +269,22 @@ describe('driver ledger mock data', () => {
 });
 
 describe('morph-choreo drill transition', () => {
-  it('TODO: morph drill transition not yet wired — DenialsScreen does not navigate to a drill detail view', () => {
-    expect(true).toBe(true);
+  const STATIC_RENDERS: RenderType[] = ['bar (grouped)', 'ledger'];
+
+  it('TODO: morph drill not yet wired — board-11 manifest has no navigation-triggering tile', () => {
+    const parsed = parseManifest(DENIALS_MANIFEST_RAW);
+    expect(parsed.tiles.length).toBeGreaterThan(0);
+    for (const tile of parsed.tiles) {
+      expect(STATIC_RENDERS).toContain(tile.render);
+    }
+  });
+
+  it('TODO: morph drill not yet wired — no tile resolves to a drill/detail render type', () => {
+    const parsed = parseManifest(DENIALS_MANIFEST_RAW);
+    expect(tilesOfRender(parsed, 'waterfall')).toHaveLength(0);
+    const drillTriggers = parsed.tiles.filter(
+      (t) => !STATIC_RENDERS.includes(t.render),
+    );
+    expect(drillTriggers).toHaveLength(0);
   });
 });
