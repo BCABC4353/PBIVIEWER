@@ -22,7 +22,7 @@ Orchestrator: lead session (Opus). One agent per worktree. Reconciled on every r
 |---|---|---|---|---|
 | W — Enhancement Wiring | night3/enhance-wire | fleet-n3-W | squad-W (sonnet) | COMPLETE+CLEARED. Final commit 7d99605 (chain 0b374ce->f6e69f2->7d99605), 675 tests. F-W: CLEAN no Crit/High; LOW dead-code trimmed. Ready to integrate. Q2-Q5 -> owner. |
 | M — Morph Drill Screen | night3/drill | fleet-n3-M | squad-M (sonnet) | COMPLETE+CLEARED. Commit 10398cb, 702 tests. F-M RE-VERIFIED all 3 fixes (mutation-tested the C1 proof: revVel=0 and +springVel each fail only the C1 test -> genuinely constrains stitching). CLEARED for integration. |
-| S — Skia Graduation (QUARANTINE) | night3/skia-grad | fleet-n3-S | squad-S (sonnet) | FIXED R2 (commit 6da5381, 730 tests). HIGH-1 fixed (waterfall.total #A0A4AF->board #A9ACB6); tree cleaned. F-S RE-VERIFYING. NEVER MERGES (owner's call). |
+| S — Skia Graduation (QUARANTINE) | night3/skia-grad | fleet-n3-S | squad-S (sonnet) | COMPLETE+CLEARED. Commit 6da5381. HIGH-1 fixed (waterfall.total -> board #A9ACB6), F-S VERIFIED-FIXED (surgical 1-file commit, tree clean, gates green). 6/6 components PASS, 71 instrument tests deterministic. NEVER MERGES (owner's call). |
 
 Worktrees: W/M junction node_modules -> fleet-n3. S own real install (675 pkgs, skia). S merged night3/main into skia-spike (lockfile conflict resolved to spike base + install; baseline 659 tests green post-merge).
 
@@ -31,7 +31,7 @@ Worktrees: W/M junction node_modules -> fleet-n3. S own real install (675 pkgs, 
 |---|---|---|
 | Squad M (night3/drill) | antagonist-FM (Opus) | CLEARED. Mutation-tested C1 proof; all 3 findings VERIFIED-FIXED @10398cb, 702 tests. |
 | Squad W (night3/enhance-wire) | antagonist-FW (Opus) | CLEARED: CLEAN, no Crit/High, 686 verified. LOW trimmed (7d99605, 675 tests). |
-| Squad S (night3/skia-grad) | antagonist-FS (Opus) | R1: honest, no CRIT, 1 HIGH (invented waterfall.total). S fixed @6da5381. F-S RE-VERIFYING. #5D9FEF confirmed board-grounded (not invented) -> owner ruling. |
+| Squad S (night3/skia-grad) | antagonist-FS (Opus) | CLEARED. R1: honest, no CRIT, 1 HIGH (invented waterfall.total) + MED token-semantics. S fixed @6da5381; F-S VERIFIED-FIXED. #5D9FEF confirmed board-grounded -> owner ruling. F-S flagged an ENVIRONMENTAL vitest collection flake (~2 files, Windows/esbuild, not S's code) -> see report caveat. |
 
 ## Integration (night3/main)
 - W merged: gate GREEN (tc0/lint0/675 tests/expo0). Pushed 96162da. enhance-wire pushed.
@@ -52,5 +52,13 @@ Worktrees: W/M junction node_modules -> fleet-n3. S own real install (675 pkgs, 
 - S-Q2: Donut highlight currently index 0 (largest). Owner-selectable highlightIndex or always first/largest?
 - S-Q3: Line band defaults 1.5sigma at window 5 — tighter (1) or looser (2)?
 
-## Reconciliation log
-- Baseline + Task 0 complete; worktree setup next.
+## Reconciliation log — FINAL (zero zombies)
+- Baseline + Task 0 complete; worktrees created (W/M junction, S own install).
+- Squad W: dispatched -> PARTIAL R1 (over-declined Q1) -> sent back -> PASS R2 -> F-W CLEAN -> LOW trimmed -> CLEARED -> merged to night3/main. TERMINAL.
+- Squad M: dispatched -> PASS R1 (701) -> F-M SOLID+1HIGH+2MED -> fixed (702) -> F-M mutation-verified CLEARED -> merged. TERMINAL.
+- Squad S: dispatched -> PASS R1 (730, 6/6) -> F-S honest+1HIGH -> fixed (6da5381) -> F-S VERIFIED-FIXED -> CLEARED. QUARANTINE, NOT merged. TERMINAL.
+- Antagonists F-M, F-W, F-S: all reported + verified their fixes. TERMINAL.
+- Integration: W merged (gate green 675), M merged (DenialsScreen.tsx conflict resolved keeping both; gate green 718). night3/main @ 20a2383. All 4 night3/* branches pushed.
+- night3/main test count 718 verified deterministic over 3 consecutive runs.
+- ALL AGENTS TERMINAL. NO ZOMBIES.
+- Morning report: NIGHT3-REPORT.md on night3/main.
