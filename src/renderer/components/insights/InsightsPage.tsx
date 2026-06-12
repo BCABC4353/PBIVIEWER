@@ -16,7 +16,7 @@ import { useSheetMorph, type SheetState } from './use-sheet-morph';
 import { useInsightsData } from './use-insights-data';
 import './insights-luce.css';
 
-export const InsightsPage: React.FC = () => {
+export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) => {
   const user = useAuthStore((s) => s.user);
   const isOwner = (user?.email ?? '').toLowerCase() === 'brendan@bc-abc.com';
   const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
@@ -38,7 +38,7 @@ export const InsightsPage: React.FC = () => {
     [],
   );
 
-  const { morphRef, openSheet, closeSheet } = useSheetMorph({ setSheet });
+  const { morphRef, openSheet, closeSheet } = useSheetMorph({ setSheet, timeScale });
   const handleClose = useCallback(() => closeSheet(sheet), [closeSheet, sheet]);
 
   const igniting = useIgnition(snapshot !== null);
