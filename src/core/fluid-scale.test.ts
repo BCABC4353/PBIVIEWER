@@ -29,6 +29,16 @@ describe('scaleFactor — boundary values', () => {
   it('degenerate: maxWidth <= minWidth returns minScale', () => {
     expect(scaleFactor(500, { minWidth: 500, maxWidth: 500, minScale: 0.8, maxScale: 1.2 })).toBeCloseTo(0.8);
   });
+
+  it('NaN containerWidth falls back to minScale (no NaN leak)', () => {
+    const f = scaleFactor(NaN, CONFIG);
+    expect(Number.isFinite(f)).toBe(true);
+    expect(f).toBeCloseTo(0.75);
+  });
+
+  it('NaN containerWidth produces finite scaled value', () => {
+    expect(Number.isFinite(scale(100, NaN, CONFIG))).toBe(true);
+  });
 });
 
 describe('scale — basic arithmetic', () => {

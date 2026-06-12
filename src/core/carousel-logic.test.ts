@@ -154,3 +154,90 @@ describe('projectedIndex', () => {
     expect(projectedIndex(4, 5, -9999, 100, 300)).toBe(4);
   });
 });
+
+describe('NaN / non-finite hardening — output must stay in-range integer', () => {
+  const inRangeInt = (idx: number, count: number) => {
+    expect(Number.isInteger(idx)).toBe(true);
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(idx).toBeLessThanOrEqual(count - 1);
+  };
+
+  it('snapIndex with NaN velocity returns in-range integer (falls back to current)', () => {
+    const idx = snapIndex({ currentIndex: 2, count: 5, dragOffset: 0, velocity: NaN, itemWidth: 100 });
+    inRangeInt(idx, 5);
+    expect(idx).toBe(2);
+  });
+
+  it('snapIndex with NaN itemWidth returns in-range integer (falls back to current)', () => {
+    const idx = snapIndex({ currentIndex: 3, count: 5, dragOffset: 50, velocity: -200, itemWidth: NaN });
+    inRangeInt(idx, 5);
+    expect(idx).toBe(3);
+  });
+
+  it('snapIndex with NaN dragOffset returns in-range integer', () => {
+    const idx = snapIndex({ currentIndex: 1, count: 5, dragOffset: NaN, velocity: 0, itemWidth: 100 });
+    inRangeInt(idx, 5);
+    expect(idx).toBe(1);
+  });
+
+  it('snapIndex with NaN currentIndex returns in-range integer', () => {
+    const idx = snapIndex({ currentIndex: NaN, count: 5, dragOffset: 0, velocity: 0, itemWidth: 100 });
+    inRangeInt(idx, 5);
+  });
+
+  it('snapIndex with NaN velocityBiasFactor returns in-range integer', () => {
+    const idx = snapIndex({
+      currentIndex: 2, count: 5, dragOffset: 0, velocity: -100, itemWidth: 100, velocityBiasFactor: NaN,
+    });
+    inRangeInt(idx, 5);
+  });
+
+  it('snapIndex with Infinity velocity stays clamped in-range', () => {
+    const fwd = snapIndex({ currentIndex: 2, count: 5, dragOffset: 0, velocity: -Infinity, itemWidth: 100 });
+    const back = snapIndex({ currentIndex: 2, count: 5, dragOffset: 0, velocity: Infinity, itemWidth: 100 });
+    inRangeInt(fwd, 5);
+    inRangeInt(back, 5);
+    expect(fwd).toBe(4);
+    expect(back).toBe(0);
+  });
+
+  it('springTarget with NaN dragOffset returns in-range index and finite offset', () => {
+    const result = springTarget({ currentIndex: 2, count: 5, dragOffset: NaN, velocity: 0, itemWidth: 100 });
+    inRangeInt(result.index, 5);
+    expect(Number.isFinite(result.offsetFromSnap)).toBe(true);
+  });
+
+  it('springTarget with NaN itemWidth returns in-range index and zero offset', () => {
+    const result = springTarget({ currentIndex: 2, count: 5, dragOffset: 10, velocity: 0, itemWidth: NaN });
+    inRangeInt(result.index, 5);
+    expect(result.offsetFromSnap).toBe(0);
+  });
+
+  it('goTo with NaN index returns in-range integer', () => {
+    const state = goTo({ index: 2, count: 5 }, NaN);
+    inRangeInt(state.index, 5);
+    expect(state.index).toBe(0);
+  });
+
+  it('advance with NaN state index returns in-range integer', () => {
+    const state = advance({ index: NaN, count: 5 });
+    inRangeInt(state.index, 5);
+  });
+
+  it('rewind with NaN state index returns in-range integer', () => {
+    const state = rewind({ index: NaN, count: 5 });
+    inRangeInt(state.index, 5);
+  });
+
+  it('projectedIndex with NaN velocity returns in-range integer (falls back to current)', () => {
+    const idx = projectedIndex(3, 5, NaN, 100, 300);
+    inRangeInt(idx, 5);
+    expect(idx).toBe(3);
+  });
+
+  it('projectedIndex with NaN itemWidth returns in-range integer', () => {
+    const idx = projectedIndex(3, 5, -500, NaN, 300);
+    inRangeInt(idx, 5);
+    expect(idx).toBe(3);
+  });
+});

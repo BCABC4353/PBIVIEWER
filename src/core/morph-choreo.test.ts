@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   interpolateMorph,
   springPosition,
-  springVelocity,
+  analyticVelocity,
   buildReversalState,
   positionAfterReversal,
   velocityAfterReversal,
@@ -54,6 +54,17 @@ describe('interpolateMorph', () => {
     const g = interpolateMorph(KEYFRAME, 1.5);
     expect(g.rect.x).toBeCloseTo(200);
   });
+
+  it('NaN progress falls back to origin without poisoning the rect', () => {
+    const g = interpolateMorph(KEYFRAME, NaN);
+    expect(Number.isFinite(g.rect.x)).toBe(true);
+    expect(Number.isFinite(g.rect.y)).toBe(true);
+    expect(Number.isFinite(g.rect.w)).toBe(true);
+    expect(Number.isFinite(g.rect.h)).toBe(true);
+    expect(Number.isFinite(g.cornerRadius)).toBe(true);
+    expect(g.rect.x).toBeCloseTo(0);
+    expect(g.cornerRadius).toBeCloseTo(8);
+  });
 });
 
 describe('springPosition — closed-form damped oscillator', () => {
@@ -96,65 +107,118 @@ describe('springPosition — closed-form damped oscillator', () => {
   });
 });
 
-describe('springVelocity — numerical derivative', () => {
-  const spring: DampedSpringParams = springFromResponse(0.4, 0.8);
+describe('analyticVelocity — closed-form derivative validated against finite difference', () => {
+  const fd = (params: DampedSpringParams, x0: number, v0: number, t: number): number => {
+    const h = 1e-7;
+    return (springPosition(params, x0, v0, t + h) - springPosition(params, x0, v0, t - h)) / (2 * h);
+  };
 
-  it('at t=0 with zero initial velocity, velocity is close to initial v0', () => {
-    const v = springVelocity(spring, 1, 0, 0);
-    expect(v).toBeCloseTo(0, 1);
+  const underDamped: DampedSpringParams = springFromResponse(0.4, 0.7);
+  const overDamped: DampedSpringParams = springFromResponse(0.4, 1.6);
+  const critDamped: DampedSpringParams = (() => {
+    const p = springFromResponse(0.4, 1.0);
+    return { ...p, damping: 2 * Math.sqrt(p.stiffness * p.mass) };
+  })();
+
+  it('at t=0 returns v0 exactly (underdamped)', () => {
+    expect(analyticVelocity(underDamped, 1, 0.5, 0)).toBeCloseTo(0.5, 9);
+  });
+
+  it('at t=0 returns v0 exactly (overdamped)', () => {
+    expect(analyticVelocity(overDamped, 1, 0.5, 0)).toBeCloseTo(0.5, 9);
+  });
+
+  it('at t=0 returns v0 exactly (critically damped)', () => {
+    expect(analyticVelocity(critDamped, 1, 0.5, 0)).toBeCloseTo(0.5, 9);
+  });
+
+  it('underdamped: analytic matches finite difference across a time sweep', () => {
+    for (let i = 0; i <= 40; i++) {
+      const t = i * 0.02;
+      expect(analyticVelocity(underDamped, 1, 0, t)).toBeCloseTo(fd(underDamped, 1, 0, t), 4);
+    }
+  });
+
+  it('overdamped: analytic matches finite difference across a time sweep', () => {
+    for (let i = 0; i <= 40; i++) {
+      const t = i * 0.02;
+      expect(analyticVelocity(overDamped, 1, 0, t)).toBeCloseTo(fd(overDamped, 1, 0, t), 4);
+    }
+  });
+
+  it('critically damped: analytic matches finite difference across a time sweep', () => {
+    for (let i = 0; i <= 40; i++) {
+      const t = i * 0.02;
+      expect(analyticVelocity(critDamped, 1, 0, t)).toBeCloseTo(fd(critDamped, 1, 0, t), 4);
+    }
   });
 
   it('at large t velocity is near zero', () => {
-    const v = springVelocity(spring, 1, 0, 10);
-    expect(Math.abs(v)).toBeLessThan(0.001);
+    expect(Math.abs(analyticVelocity(underDamped, 1, 0, 10))).toBeLessThan(0.001);
+  });
+
+  it('negative t returns v0', () => {
+    expect(analyticVelocity(underDamped, 1, 0.3, -1)).toBeCloseTo(0.3, 9);
   });
 });
 
-describe('reversal continuity — CONSTITUTIONAL PROOF', () => {
+describe('reversal continuity — one-sided-limit convergence proof', () => {
   const spring: DampedSpringParams = springFromResponse(0.42, 0.82);
-
   const forwardX0 = 1.0;
   const forwardV0 = 0.0;
   const tRev = 0.1;
-  const eps = 1e-4;
 
-  it('position is continuous at reversal moment (no jump)', () => {
+  it('position one-sided limits converge as epsilon shrinks (true continuity)', () => {
     const state = buildReversalState(spring, forwardX0, forwardV0, tRev);
-    const posJustBefore = springPosition(spring, forwardX0, forwardV0, tRev - eps);
-    const posJustAfter = positionAfterReversal(state, tRev + eps);
-    expect(Math.abs(posJustBefore - posJustAfter)).toBeLessThan(0.02);
+    let prevGap = Infinity;
+    for (const eps of [1e-2, 1e-3, 1e-4, 1e-5]) {
+      const before = springPosition(spring, forwardX0, forwardV0, tRev - eps);
+      const after = positionAfterReversal(state, tRev + eps);
+      const gap = Math.abs(before - after);
+      expect(gap).toBeLessThan(prevGap + 1e-12);
+      prevGap = gap;
+    }
+    expect(prevGap).toBeLessThan(1e-3);
   });
 
-  it('position at exact reversal matches forward position', () => {
+  it('velocity one-sided limits converge as epsilon shrinks (true continuity)', () => {
     const state = buildReversalState(spring, forwardX0, forwardV0, tRev);
-    const forwardPos = springPosition(spring, forwardX0, forwardV0, tRev);
-    const reversalPos = positionAfterReversal(state, tRev);
-    expect(Math.abs(forwardPos - reversalPos)).toBeLessThan(1e-10);
+    let prevGap = Infinity;
+    for (const eps of [1e-2, 1e-3, 1e-4, 1e-5]) {
+      const before = analyticVelocity(spring, forwardX0, forwardV0, tRev - eps);
+      const after = velocityAfterReversal(state, tRev + eps);
+      const gap = Math.abs(before - after);
+      expect(gap).toBeLessThan(prevGap + 1e-12);
+      prevGap = gap;
+    }
+    expect(prevGap).toBeLessThan(1e-3);
   });
 
-  it('velocity is continuous at reversal moment (no jump)', () => {
+  it('forward and reversal trajectories agree exactly at the reversal instant (C0)', () => {
     const state = buildReversalState(spring, forwardX0, forwardV0, tRev);
-    const velBefore = springVelocity(spring, forwardX0, forwardV0, tRev);
-    const velAfter = velocityAfterReversal(state, tRev);
-    expect(Math.abs(velBefore - velAfter)).toBeLessThan(0.05);
+    expect(positionAfterReversal(state, tRev)).toBe(state.posAtReversal);
   });
 
-  it('velocity at exact reversal stored correctly', () => {
+  it('forward and reversal velocities agree exactly at the reversal instant (C1)', () => {
     const state = buildReversalState(spring, forwardX0, forwardV0, tRev);
-    const forwardVel = springVelocity(spring, forwardX0, forwardV0, tRev);
-    expect(Math.abs(state.velAtReversal - forwardVel)).toBeLessThan(0.01);
+    const forwardVel = analyticVelocity(spring, forwardX0, forwardV0, tRev);
+    expect(velocityAfterReversal(state, tRev)).toBeCloseTo(forwardVel, 12);
+  });
+
+  it('reversal state captures true analytic velocity at tRev', () => {
+    const state = buildReversalState(spring, forwardX0, forwardV0, tRev);
+    expect(state.velAtReversal).toBeCloseTo(analyticVelocity(spring, forwardX0, forwardV0, tRev), 12);
   });
 
   it('after reversal spring decays toward 0', () => {
     const state = buildReversalState(spring, forwardX0, forwardV0, tRev);
-    const posLater = positionAfterReversal(state, tRev + 5);
-    expect(Math.abs(posLater)).toBeLessThan(0.01);
+    expect(Math.abs(positionAfterReversal(state, tRev + 5))).toBeLessThan(0.01);
   });
 
   it('reversal at t=0 gives x0 and v0 matching initial conditions', () => {
     const state = buildReversalState(spring, 1.0, 0.5, 0);
-    expect(state.posAtReversal).toBeCloseTo(1.0);
-    expect(state.velAtReversal).toBeCloseTo(0.5, 1);
+    expect(state.posAtReversal).toBeCloseTo(1.0, 9);
+    expect(state.velAtReversal).toBeCloseTo(0.5, 9);
   });
 
   it('mid-flight reversal position is between origin and target', () => {

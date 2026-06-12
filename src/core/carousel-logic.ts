@@ -19,27 +19,46 @@ export interface SpringTarget {
 
 function clampIndex(index: number, count: number): number {
   if (count <= 0) return 0;
-  return Math.max(0, Math.min(count - 1, index));
+  if (Number.isNaN(index)) return 0;
+  if (index === Infinity) return count - 1;
+  if (index === -Infinity) return 0;
+  return Math.max(0, Math.min(count - 1, Math.round(index)));
+}
+
+function safeIndex(index: number, count: number): number {
+  if (count <= 0) return 0;
+  if (!Number.isFinite(index)) return 0;
+  return clampIndex(index, count);
+}
+
+function dropNaN(value: number, fallback: number): number {
+  return Number.isNaN(value) ? fallback : value;
 }
 
 export function snapIndex(input: SnapInput): number {
   const { currentIndex, count, dragOffset, velocity, itemWidth, velocityBiasFactor = 0.25 } = input;
   if (count <= 0) return 0;
-  if (itemWidth <= 0) return clampIndex(currentIndex, count);
+  const base = safeIndex(currentIndex, count);
+  if (!Number.isFinite(itemWidth) || itemWidth <= 0) return base;
+
+  const offset = dropNaN(dragOffset, 0);
+  const vel = dropNaN(velocity, 0);
+  const bias = dropNaN(velocityBiasFactor, 0.25);
 
   const projectionTime = 0.3;
-  const projected = dragOffset + velocity * projectionTime * velocityBiasFactor;
+  const projected = offset + vel * projectionTime * bias;
 
-  const rawIndex = currentIndex - projected / itemWidth;
-  const snapped = Math.round(rawIndex);
-  return clampIndex(snapped, count);
+  const rawIndex = base - projected / itemWidth;
+  return clampIndex(rawIndex, count);
 }
 
 export function springTarget(input: SnapInput): SpringTarget {
   const index = snapIndex(input);
-  const { currentIndex, dragOffset, itemWidth } = input;
-  if (itemWidth <= 0) return { index, offsetFromSnap: 0 };
-  const currentPosition = currentIndex * itemWidth - dragOffset;
+  const { currentIndex, count, dragOffset, itemWidth } = input;
+  if (!Number.isFinite(itemWidth) || itemWidth <= 0) return { index, offsetFromSnap: 0 };
+  const base = safeIndex(currentIndex, count);
+  const offset = Number.isFinite(dragOffset) ? dragOffset : 0;
+  const currentPosition = base * itemWidth - offset;
   const snapPosition = index * itemWidth;
   return { index, offsetFromSnap: currentPosition - snapPosition };
 }
@@ -71,8 +90,10 @@ export function projectedIndex(
   itemWidth: number,
   decelerationMs = 300,
 ): number {
-  if (count <= 0 || itemWidth <= 0) return clampIndex(currentIndex, count);
+  const base = safeIndex(currentIndex, count);
+  if (count <= 0 || !Number.isFinite(itemWidth) || itemWidth <= 0) return base;
+  if (!Number.isFinite(velocity)) return base;
   const projected = velocity * (decelerationMs / 1000);
-  const raw = currentIndex - projected / itemWidth;
-  return clampIndex(Math.round(raw), count);
+  const raw = base - projected / itemWidth;
+  return clampIndex(raw, count);
 }

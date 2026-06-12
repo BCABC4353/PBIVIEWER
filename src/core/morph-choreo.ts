@@ -40,7 +40,8 @@ function lerpRect(a: Rect, b: Rect, t: number): Rect {
 }
 
 export function interpolateMorph(keyframe: MorphKeyframe, progress: number): MorphGeometry {
-  const t = Math.max(0, Math.min(1, progress));
+  const p = Number.isFinite(progress) ? progress : 0;
+  const t = Math.max(0, Math.min(1, p));
   return {
     rect: lerpRect(keyframe.origin.rect, keyframe.target.rect, t),
     cornerRadius:
@@ -80,19 +81,48 @@ export function springPosition(
   return C1 * Math.exp(omegaPlus * tSec) + C2 * Math.exp(omegaMinus * tSec);
 }
 
+export function analyticVelocity(
+  params: DampedSpringParams,
+  x0: number,
+  v0: number,
+  tSec: number,
+): number {
+  const { stiffness, damping, mass } = params;
+  const omega0 = Math.sqrt(stiffness / mass);
+  const zeta = damping / (2 * Math.sqrt(stiffness * mass));
+
+  if (tSec < 0) return v0;
+
+  if (zeta < 1) {
+    const omegaD = omega0 * Math.sqrt(1 - zeta * zeta);
+    const A = x0;
+    const B = (v0 + zeta * omega0 * x0) / omegaD;
+    const decay = Math.exp(-zeta * omega0 * tSec);
+    const cos = Math.cos(omegaD * tSec);
+    const sin = Math.sin(omegaD * tSec);
+    return decay * (-zeta * omega0 * (A * cos + B * sin) + (-A * omegaD * sin + B * omegaD * cos));
+  }
+
+  if (zeta === 1) {
+    const decay = Math.exp(-omega0 * tSec);
+    const slope = v0 + omega0 * x0;
+    return decay * (slope - omega0 * (x0 + slope * tSec));
+  }
+
+  const rPlus = -omega0 * (zeta + Math.sqrt(zeta * zeta - 1));
+  const rMinus = -omega0 * (zeta - Math.sqrt(zeta * zeta - 1));
+  const C2 = (v0 - rPlus * x0) / (rMinus - rPlus);
+  const C1 = x0 - C2;
+  return C1 * rPlus * Math.exp(rPlus * tSec) + C2 * rMinus * Math.exp(rMinus * tSec);
+}
+
 export function springVelocity(
   params: DampedSpringParams,
   x0: number,
   v0: number,
   tSec: number,
 ): number {
-  const dt = 1e-6;
-  const t1 = tSec + dt;
-  const t0 = Math.max(0, tSec - dt);
-  const actualDt = t1 - t0;
-  const p1 = springPosition(params, x0, v0, t1);
-  const p0 = springPosition(params, x0, v0, t0);
-  return (p1 - p0) / actualDt;
+  return analyticVelocity(params, x0, v0, tSec);
 }
 
 export interface ReversalState {

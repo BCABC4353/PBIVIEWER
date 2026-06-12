@@ -20,6 +20,7 @@ const DEFAULT_CONFIG: ScaleConfig = {
 export function scaleFactor(containerWidth: number, config: ScaleConfig = DEFAULT_CONFIG): number {
   const { minWidth, maxWidth, minScale, maxScale } = config;
   if (maxWidth <= minWidth) return minScale;
+  if (!Number.isFinite(containerWidth)) return minScale;
   if (containerWidth <= minWidth) return minScale;
   if (containerWidth >= maxWidth) return maxScale;
   const t = (containerWidth - minWidth) / (maxWidth - minWidth);
