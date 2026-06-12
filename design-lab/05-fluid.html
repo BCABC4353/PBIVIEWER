@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 05 Fluidity</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .stage-bar { display: flex; align-items: center; gap: 18px; margin-bottom: 18px; }
+  .stage-w { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; color: var(--ink-mid); min-width: 130px; text-transform: uppercase; }
+  .preset { font-size: 10px; font-weight: 500; letter-spacing: 0.16em; color: var(--ink-low); cursor: pointer; user-select: none; transition: color 0.15s; }
+  .preset:hover { color: var(--live); }
+
+  .stage-area { display: flex; align-items: stretch; }
+  .stage { position: relative; width: 430px; min-width: 330px; max-width: 1060px; }
+  .grip {
+    width: 22px; cursor: ew-resize; display: flex; align-items: center; justify-content: center;
+    touch-action: none;
+  }
+  .grip::before { content: ''; width: 4px; height: 56px; border-radius: 2px; background: var(--well-2);
+    box-shadow: var(--edge-top); }
+  .grip:hover::before { background: #232329; }
+
+  .screen {
+    container-type: inline-size;
+    background: var(--well-1); border: 1px solid var(--hairline); border-radius: 26px;
+    box-shadow: var(--shadow-recess); padding: 5.2cqi; padding: clamp(16px, 5cqi, 30px);
+    overflow: hidden;
+  }
+  .inner { container-type: inline-size; }
+
+  .topline { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+  .topline .brand { font-size: clamp(9px, 2.6cqi, 12px); font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-low); }
+  .topline .clock { font-size: clamp(10px, 3cqi, 14px); color: var(--ink-mid); letter-spacing: 0.08em; }
+
+  .heroband { display: flex; flex-wrap: wrap; align-items: center; gap: clamp(10px, 4cqi, 36px); padding: clamp(14px, 4.5cqi, 30px) 0 clamp(6px, 2cqi, 14px); }
+  .heroL { flex: 1 1 180px; }
+  .big { font-weight: 400; font-size: clamp(58px, 24cqi, 158px); line-height: 0.95; color: var(--ink-hi); }
+  .hlabel { margin-top: clamp(6px, 1.6cqi, 12px); font-size: clamp(9px, 2.4cqi, 12px); font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-mid); }
+  .hstamp { margin-top: 4px; font-size: clamp(9px, 2.4cqi, 12px); color: var(--ink-low); }
+  .stripbox { flex: 0 1 auto; }
+  .stripbox svg { width: clamp(130px, 32cqi, 260px); height: auto; display: block; }
+
+  .micro { padding: 8px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+    font-size: clamp(7.5px, 1.9cqi, 10px); font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(clamp(96px, 24cqi, 132px), 1fr)); gap: clamp(8px, 2cqi, 14px); margin: clamp(10px, 3cqi, 20px) 0; }
+  .tile { background: var(--bg); border: 1px solid var(--hairline); border-radius: 14px; box-shadow: var(--shadow-recess-deep);
+    padding: clamp(10px, 3cqi, 18px); }
+  .tile .tv { font-weight: 400; font-size: clamp(20px, 6.4cqi, 40px); color: var(--ink-hi); }
+  .tile .tk { margin-top: 4px; font-size: clamp(7.5px, 1.9cqi, 9.5px); font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-low); }
+
+  .row { display: grid; grid-template-columns: 1fr auto auto; gap: clamp(8px, 2.4cqi, 18px); align-items: center;
+    padding: clamp(8px, 2.4cqi, 14px) 0; border-bottom: 1px solid var(--hairline); }
+  .row:last-child { border-bottom: none; }
+  .row .name { font-size: clamp(11px, 3cqi, 15px); font-weight: 400; }
+  .row .ws { display: block; font-size: clamp(7.5px, 1.9cqi, 10px); font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 2px; }
+  .row .age { font-size: clamp(9.5px, 2.6cqi, 13px); color: var(--ink-mid); letter-spacing: 0.06em; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">05 — Fluidity</div>
+      <div class="lab-sub">One layout, no breakpoints — the v1 mechanism, kept. Re-skinned to the contract: D-DIN PRO end to end, the tick strip where the dial used to sit, engraved status instead of chips.</div>
+    </div>
+    <div class="lab-meta">CONTAINER QUERIES · CQI UNITS · NO SNAP</div>
+  </header>
+
+  <div class="stage-bar">
+    <span class="stage-w" id="wReadout">STAGE 430 PX</span>
+    <span class="preset" data-w="360">360</span>
+    <span class="preset" data-w="430">430</span>
+    <span class="preset" data-w="700">700</span>
+    <span class="preset" data-w="1024">1024</span>
+  </div>
+
+  <div class="stage-area">
+    <div class="stage" id="stage">
+      <div class="screen">
+        <div class="inner">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+          <div class="heroband">
+            <div class="heroL">
+              <div class="big">23</div>
+              <div class="hlabel">Datasets healthy</div>
+              <div class="hstamp">updated 4 min ago</div>
+            </div>
+            <div class="stripbox">
+              <svg viewBox="0 0 220 88" id="heroStrip"></svg>
+            </div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 14:45</span></div>
+          <div class="tiles">
+            <div class="tile"><div class="tv">3/3</div><div class="tk">Gateways</div></div>
+            <div class="tile"><div class="tv">9</div><div class="tk">Workspaces</div></div>
+            <div class="tile"><div class="tv">23</div><div class="tk">Datasets</div></div>
+            <div class="tile"><div class="tv">5</div><div class="tk">Kiosks</div></div>
+          </div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">6m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">12m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">9m</span><span class="stat">OK</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="grip" id="grip"></div>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+
+  const strip = lab.strip(document.getElementById('heroStrip'), {
+    size: 'large', w: 220, value: 6.2, valueText: '06:12',
+    sizeOverride: { pad: 10, base: 60, minor: 4, minute: 9, major: 14, caretW: 9, caretH: 7.5, valueSize: 13 },
+  });
+  setTimeout(() => strip.arrive(), 250);
+
+  const stage = document.getElementById('stage');
+  const grip = document.getElementById('grip');
+  const readout = document.getElementById('wReadout');
+
+  new ResizeObserver(() => {
+    readout.textContent = `STAGE ${Math.round(stage.getBoundingClientRect().width)} PX`;
+  }).observe(stage);
+
+  let startX = 0, startW = 0, dragging = false;
+  grip.addEventListener('pointerdown', (e) => {
+    dragging = true; startX = e.clientX; startW = stage.getBoundingClientRect().width;
+    grip.setPointerCapture(e.pointerId);
+  });
+  grip.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    stage.style.width = lab.clamp(startW + (e.clientX - startX), 330, 1060) + 'px';
+  });
+  grip.addEventListener('pointerup', () => { dragging = false; });
+
+  document.querySelectorAll('.preset').forEach((p) => {
+    p.addEventListener('click', () => { stage.style.width = p.dataset.w + 'px'; });
+  });
+
+  lab.api.setWidth = (w) => { stage.style.width = w + 'px'; };
+  lab.api.setStrips = (frac) => strip.set(frac);
+})();
+</script>
+</body>
+</html>

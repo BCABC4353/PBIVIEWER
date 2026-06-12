@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 02 Color</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .states { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; align-items: start; }
+  .state-head { min-height: 76px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .state-name { font-size: 14px; font-weight: 500; letter-spacing: 0.04em; }
+  .state-name .ix { font-size: 11px; color: var(--live); margin-right: 8px; }
+
+  .screen { display: flex; flex-direction: column; }
+  .topline { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 13px; border-bottom: 1px solid var(--hairline); }
+  .topline .brand { font-size: 10px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-low); }
+  .topline .clock { font-size: 12px; color: var(--ink-mid); letter-spacing: 0.08em; }
+
+  .hero { padding: 22px 0 4px; }
+  .hero .big { font-weight: 400; font-size: 96px; line-height: 0.95; color: var(--ink-hi); }
+  .hero .label { margin-top: 10px; font-size: 10.5px; font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-mid); }
+  .hero .stamp { margin-top: 5px; font-size: 11px; color: var(--ink-low); }
+  .hero .deltas { margin-top: 9px; display: flex; flex-direction: column; gap: 4px; }
+
+  .micro { margin-top: 14px; padding: 8px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: flex; gap: 8px; }
+
+  .row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
+  .row .name { font-size: 13px; font-weight: 400; }
+  .row .ws { display: block; font-size: 9px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+  .row .age { font-size: 11px; color: var(--ink-mid); letter-spacing: 0.06em; }
+  .row .age.behind { color: var(--behind); }
+  .row .age.broken { color: var(--broken); }
+
+  .seg { margin-top: 16px; }
+
+  .event-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; padding: 6px 22px; }
+  .ev { padding: 14px 18px 16px; border-right: 1px solid var(--hairline); }
+  .ev:last-child { border-right: none; }
+  .ev .t { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+  .ev .erow { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+  .ev .name { font-size: 13px; font-weight: 400; }
+  .ev .ws { display: block; font-size: 9px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-low); margin-top: 3px; }
+
+  .roles { margin-top: 12px; display: grid; grid-template-columns: 3fr 2fr; gap: 28px; align-items: start; }
+  .role-table { padding: 8px 22px; }
+  .role-row { display: grid; grid-template-columns: 64px 190px 1fr; gap: 18px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--hairline); }
+  .role-row:last-child { border-bottom: none; }
+  .swatch { height: 44px; border-radius: 9px; border: 1px solid var(--hairline-strong); box-shadow: var(--edge-top); }
+  .role-id .nm { font-size: 13px; font-weight: 500; }
+  .role-id .hx { font-size: 10.5px; color: var(--ink-low); letter-spacing: 0.1em; margin-top: 3px; }
+  .role-id .cr { font-size: 10px; color: var(--ink-faint); letter-spacing: 0.08em; margin-top: 2px; }
+  .role-rule { font-size: 11px; color: var(--ink-mid); line-height: 1.55; }
+  .role-rule b { color: var(--ink-hi); font-weight: 500; }
+  .role-demo { display: inline-flex; align-items: center; gap: 14px; margin-top: 7px; }
+  .ack { display: inline-flex; align-items: center; height: 30px; padding: 0 16px; border-radius: 8px;
+    background: var(--live); color: var(--live-ink); font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
+
+  .ink-table { padding: 8px 22px; }
+  .ink-head { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); padding: 14px 0 4px; }
+  .ink-row { display: grid; grid-template-columns: 36px 1fr auto auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+  .ink-row:last-child { border-bottom: none; }
+  .ink-dot { height: 26px; border-radius: 6px; border: 1px solid var(--hairline-strong); }
+  .ink-nm { font-size: 11.5px; color: var(--ink-mid); }
+  .ink-hx { font-size: 10px; color: var(--ink-low); letter-spacing: 0.1em; }
+  .ink-cr { font-size: 10px; color: var(--ink-mid); letter-spacing: 0.08em; min-width: 86px; text-align: right; }
+  .ink-cr.fail { color: var(--broken); }
+  .ink-cr.na { color: var(--ink-faint); }
+
+  .redteam { margin-top: 14px; padding: 14px 18px; }
+  .redteam .t { font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--behind); margin-bottom: 8px; }
+  .redteam .b { font-size: 11px; color: var(--ink-mid); line-height: 1.6; }
+  .redteam .b strong { color: var(--ink-hi); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">02 — Color arriving is the information</div>
+      <div class="lab-sub">No chips. Status is engraved — a glyph and a tinted label set directly on the black, separated by spacing and hairlines, never a container. A healthy screen is monochrome plus exactly one orange element. Green exists only as a decaying verified-moment tint.</div>
+    </div>
+    <div class="lab-meta">RULINGS 3 · 4 · 6 · ENGRAVED · REV B</div>
+  </header>
+
+  <div class="states">
+    <section>
+      <div class="state-head">
+        <div class="state-name"><span class="ix">S1</span>ALL HEALTHY</div>
+        <div class="caption">Monochrome. The single orange element is the active segment of the mode control. Healthy rows are quiet gray text — no green at rest.</div>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+          <div class="hero">
+            <div class="big">23</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated 4 min ago</div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 14:45</span></div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">6m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">12m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">9m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age">3m</span><span class="stat">OK</span></div>
+          <div class="seg static"><span class="opt">Wall</span><span class="opt active">Ops</span><span class="opt">Audit</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="state-head">
+        <div class="state-name"><span class="ix">S2</span>ONE OVERDUE</div>
+        <div class="caption">Census missed its window. Amber arrives as engraved text — glyph, label, elapsed time — nothing around it. Everything else stays dark.</div>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">15:13</span></div>
+          <div class="hero">
+            <div class="big">22</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated 1 min ago</div>
+            <div class="deltas"><span class="stat behind"><span class="g">▲</span>1 OVERDUE 47m</span></div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 15:15</span></div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">2m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">8m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age behind">47m</span><span class="stat behind"><span class="g">▲</span>OVERDUE</span></div>
+          <div class="row"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age">5m</span><span class="stat">OK</span></div>
+          <div class="seg static"><span class="opt">Wall</span><span class="opt active">Ops</span><span class="opt">Audit</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="state-head">
+        <div class="state-name"><span class="ix">S3</span>ONE FAILED</div>
+        <div class="caption">A refresh failed. Red exists only on the broken thing — engraved, no box to dilute it — so the eye lands there before reading a word.</div>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">15:42</span></div>
+          <div class="hero">
+            <div class="big">21</div>
+            <div class="label">Datasets healthy</div>
+            <div class="stamp">updated just now</div>
+            <div class="deltas">
+              <span class="stat broken"><span class="g">⬣</span>1 FAILED 15:07</span>
+              <span class="stat behind"><span class="g">▲</span>1 OVERDUE 76m</span>
+            </div>
+          </div>
+          <div class="micro"><span>GATEWAY OK</span><span>·</span><span>SSO ACTIVE</span><span>·</span><span>NEXT SWEEP 15:45</span></div>
+          <div class="row"><div><span class="name">Billing — MEDIC</span><span class="ws">WS / FINANCE-PROD</span></div><span class="age">1m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age">4m</span><span class="stat">OK</span></div>
+          <div class="row"><div><span class="name">Census — NORTHWING</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="age behind">76m</span><span class="stat behind"><span class="g">▲</span>OVERDUE</span></div>
+          <div class="row"><div><span class="name">Theatre Util — ORTHO</span><span class="ws">WS / OPS-PROD</span></div><span class="age broken">15:07</span><span class="stat broken"><span class="g">⬣</span>FAILED</span></div>
+          <div class="seg static"><span class="opt">Wall</span><span class="opt active">Ops</span><span class="opt">Audit</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="section-label">Green is an event, not a state</div>
+  <div class="well event-strip">
+    <div class="ev">
+      <div class="t">T + 0.0 s — confirmation lands</div>
+      <div class="erow"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="stat verified"><span class="g">✓</span>VERIFIED 15:45:09</span></div>
+    </div>
+    <div class="ev">
+      <div class="t">T + 1.5 s — tint decaying</div>
+      <div class="erow"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="stat" style="color:color-mix(in srgb, #3DD68C 38%, #80848F)"><span class="g">✓</span>VERIFIED 15:45:09</span></div>
+    </div>
+    <div class="ev">
+      <div class="t">T + 4.0 s — monochrome again</div>
+      <div class="erow"><div><span class="name">Claims — APEX</span><span class="ws">WS / CLINICAL-PROD</span></div><span class="stat">OK</span></div>
+    </div>
+  </div>
+
+  <div class="section-label">Role table — computed contrast on #000</div>
+  <div class="roles">
+    <div class="well role-table">
+      <div class="role-row">
+        <div class="swatch" style="background:#FF5F15"></div>
+        <div class="role-id"><div class="nm">Safety Orange</div><div class="hx">#FF5F15</div><div class="cr" data-hex="#FF5F15"></div></div>
+        <div class="role-rule"><b>LIVE / SELECTION — the one lit element.</b> Active segment, live caret, an armed control. Never decoration, never a status. On fills pair with dark ink #190800 — white on this orange computes <span id="woRatio"></span> and fails AA.
+          <div class="role-demo"><span class="ack">Acknowledge</span><span class="stat live"><span class="g">●</span>LIVE</span></div>
+        </div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #3DD68C"></div>
+        <div class="role-id"><div class="nm">Signal Green</div><div class="hx">#3DD68C</div><div class="cr" data-hex="#3DD68C"></div></div>
+        <div class="role-rule"><b>VERIFIED MOMENT only.</b> A brief engraved tint the instant a confirmation event lands, then it decays back to monochrome. Never a resting state, never a fill.
+          <div class="role-demo"><span class="stat verified"><span class="g">✓</span>VERIFIED 15:45:09</span></div>
+        </div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #FFB02E"></div>
+        <div class="role-id"><div class="nm">Amber</div><div class="hx">#FFB02E</div><div class="cr" data-hex="#FFB02E"></div></div>
+        <div class="role-rule"><b>OVERDUE — engraved text, only when true.</b> A refresh missed its window but nothing is broken yet. Glyph, label, elapsed time; the affected numeral may tint.
+          <div class="role-demo"><span class="stat behind"><span class="g">▲</span>OVERDUE 47m</span></div>
+        </div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #FF453A"></div>
+        <div class="role-id"><div class="nm">Signal Red</div><div class="hx">#FF453A</div><div class="cr" data-hex="#FF453A"></div></div>
+        <div class="role-rule"><b>FAILED — engraved text, only when true.</b> Failed refresh, dead gateway, expired credential. If red is on screen, someone has a job to do.
+          <div class="role-demo"><span class="stat broken"><span class="g">⬣</span>FAILED 09:12</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="well ink-table" id="inkTable">
+        <div class="ink-head">Text inks — every information tier ≥ 4.5 : 1</div>
+        <div class="ink-row"><div class="ink-dot" style="background:#F2F3F5"></div><div class="ink-nm">Backlit white — primary figures</div><div class="ink-hx">#F2F3F5</div><div class="ink-cr" data-hex="#F2F3F5"></div></div>
+        <div class="ink-row"><div class="ink-dot" style="background:#A9ACB6"></div><div class="ink-nm">Silver — secondary values</div><div class="ink-hx">#A9ACB6</div><div class="ink-cr" data-hex="#A9ACB6"></div></div>
+        <div class="ink-row"><div class="ink-dot" style="background:#80848F"></div><div class="ink-nm">Low ink — labels, engraving</div><div class="ink-hx">#80848F</div><div class="ink-cr" data-hex="#80848F"></div></div>
+        <div class="ink-row"><div class="ink-dot" style="background:#747882"></div><div class="ink-nm">Faint — micro-metadata</div><div class="ink-hx">#747882</div><div class="ink-cr" data-hex="#747882"></div></div>
+        <div class="ink-row"><div class="ink-dot" style="background:#3A3C44"></div><div class="ink-nm">Deco — zero-information marks only</div><div class="ink-hx">#3A3C44</div><div class="ink-cr na" data-hex="#3A3C44" data-deco="1"></div></div>
+        <div class="ink-head">Surfaces — not text</div>
+        <div class="ink-row"><div class="ink-dot" style="background:#15151A"></div><div class="ink-nm">Recessed well, upper</div><div class="ink-hx">#15151A</div><div class="ink-cr na">SURFACE</div></div>
+        <div class="ink-row"><div class="ink-dot" style="background:#0B0B0D"></div><div class="ink-nm">Recessed well, lower</div><div class="ink-hx">#0B0B0D</div><div class="ink-cr na">SURFACE</div></div>
+        <div class="ink-row"><div class="ink-dot" style="background:#000000"></div><div class="ink-nm">Canvas — true black</div><div class="ink-hx">#000000</div><div class="ink-cr na">SURFACE</div></div>
+      </div>
+      <div class="well-deep redteam">
+        <div class="t">Red-team fix — ruling 6</div>
+        <div class="b" id="redteamBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+
+  document.querySelectorAll('.ink-cr[data-hex], .role-id .cr[data-hex]').forEach((el) => {
+    const r = lab.contrast(el.dataset.hex, '#000000');
+    el.textContent = `${r.toFixed(2)} : 1 ${el.dataset.deco ? '· NO TEXT' : r >= 4.5 ? 'AA ✓' : 'AA ✕'}`;
+    if (!el.dataset.deco && r < 4.5) el.classList.add('fail');
+  });
+
+  document.getElementById('woRatio').textContent = lab.contrast('#FFFFFF', '#FF5F15').toFixed(2) + ' : 1';
+
+  const oldLow = lab.contrast('#62656E', '#000000').toFixed(2);
+  const oldFaint = lab.contrast('#3A3C44', '#000000').toFixed(2);
+  const newLow = lab.contrast('#80848F', '#000000').toFixed(2);
+  const newFaint = lab.contrast('#747882', '#000000').toFixed(2);
+  document.getElementById('redteamBody').innerHTML =
+    `v1 grays failed WCAG on #000: ink-low #62656E computed <strong>${oldLow} : 1</strong>, ink-faint #3A3C44 computed <strong>${oldFaint} : 1</strong>. ` +
+    `Raised: ink-low → #80848F (<strong>${newLow} : 1</strong>), ink-faint → #747882 (<strong>${newFaint} : 1</strong>). ` +
+    `Old #3A3C44 survives only as a deco token for marks carrying zero information. All ratios on this board are computed at render, not transcribed.`;
+})();
+</script>
+</body>
+</html>
