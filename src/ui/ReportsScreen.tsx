@@ -33,10 +33,11 @@ export const ReportsScreen: React.FC<{
   mode: DataMode;
   onOpen: (report: ReportRef) => void;
   onSignIn: () => void;
-}> = ({ model, mode, onOpen, onSignIn }) => {
+  onOpenDenials?: () => void;
+}> = ({ model, mode, onOpen, onSignIn, onOpenDenials }) => {
   const gate = gateTabBody('reports', mode, model !== null);
   if (gate === 'data' && model) {
-    return <LiveReportList model={model} onOpen={onOpen} onSignIn={onSignIn} />;
+    return <LiveReportList model={model} onOpen={onOpen} onSignIn={onSignIn} onOpenDenials={onOpenDenials} />;
   }
   if (gate === 'sample-reports-card') {
     return (
@@ -44,20 +45,23 @@ export const ReportsScreen: React.FC<{
         onSignIn={onSignIn}
         title="Sample data has no live reports"
         body="The built-in sample fleet only covers the Fleet and Alerts tabs. Your Power BI apps and workspaces appear here once you're connected."
+        onOpenDenials={onOpenDenials}
       />
     );
   }
-  return <SignedOutCard onSignIn={onSignIn} />;
+  return <SignedOutCard onSignIn={onSignIn} onOpenDenials={onOpenDenials} />;
 };
 
 export const SignedOutCard: React.FC<{
   onSignIn: () => void;
+  onOpenDenials?: () => void;
   title?: string;
   body?: string;
   screenTitle?: string;
   screenSubtitle?: string;
 }> = ({
   onSignIn,
+  onOpenDenials,
   title = 'Sign in to see your reports',
   body = "Your Power BI apps and workspaces appear here once you're connected.",
   screenTitle = 'Reports',
@@ -78,6 +82,16 @@ export const SignedOutCard: React.FC<{
         >
           <Text style={styles.signInButtonText}>Connect to Power BI</Text>
         </Pressable>
+        {onOpenDenials ? (
+          <Pressable
+            onPress={onOpenDenials}
+            accessibilityRole="button"
+            accessibilityLabel="Demo: Denials screen"
+            style={({ pressed }) => [styles.signInButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.signInButtonText}>Demo: Denials</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   </SafeAreaView>
@@ -121,7 +135,8 @@ const LiveReportList: React.FC<{
   model: ReportsModel;
   onOpen: (report: ReportRef) => void;
   onSignIn: () => void;
-}> = ({ model, onOpen, onSignIn }) => {
+  onOpenDenials?: () => void;
+}> = ({ model, onOpen, onSignIn, onOpenDenials }) => {
   const [result, setResult] = useState<ReportCatalogResult | null>(null);
   const [error, setError] = useState<PresentableError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -197,6 +212,21 @@ const LiveReportList: React.FC<{
         ListHeaderComponent={
           <>
             <ScreenHeader title="Reports" subtitle={REPORTS_SUBTITLE} />
+            {onOpenDenials ? (
+              <Pressable
+                onPress={onOpenDenials}
+                accessibilityRole="button"
+                accessibilityLabel="Demo: Denials screen"
+                style={({ pressed }) => [styles.demoRow, pressed && styles.rowPressed]}
+              >
+                <Text style={styles.rowGlyph}>▦</Text>
+                <View style={styles.rowBody}>
+                  <Text style={styles.rowName}>Denials</Text>
+                  <Text style={styles.rowMeta}>Demo · Board 11 crosswalk</Text>
+                </View>
+                <Text style={styles.rowChevron}>›</Text>
+              </Pressable>
+            ) : null}
             {result ? (
               <View style={styles.searchWrap}>
                 <TextInput
@@ -380,6 +410,18 @@ const styles = StyleSheet.create({
   groupKind: { ...type.micro, color: color.textTertiary },
   groupCount: { ...type.micro, color: color.textTertiary, minWidth: 18, textAlign: 'right' },
 
+  demoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.m,
+    minHeight: 44,
+    paddingHorizontal: space.l,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: color.hairline,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: color.hairline,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
