@@ -1,4 +1,4 @@
-import { rollingStats, anomalyFlags, isOk, isInsufficient } from '../enhance';
+import { rollingStats, anomalyFlags, isInsufficient } from '../enhance';
 import type { RollingPoint, AnomalyFlag } from '../enhance';
 import type { SeriesPoint } from '../core/dax';
 
@@ -55,23 +55,3 @@ export function bandSegments(
     };
   });
 }
-
-export function formatDeltaGlyph(delta: number): '▲' | '▼' | '—' {
-  if (delta > 0) return '▲';
-  if (delta < 0) return '▼';
-  return '—';
-}
-
-export function isAboveFlag(flag: AnomalyFlag): boolean {
-  return flag.side === 'above';
-}
-
-export function isBelowFlag(flag: AnomalyFlag): boolean {
-  return flag.side === 'below';
-}
-
-export function flagsAtIndex(flags: AnomalyFlag[], index: number): AnomalyFlag[] {
-  return flags.filter((f) => f.index === index);
-}
-
-export { isOk, isInsufficient };

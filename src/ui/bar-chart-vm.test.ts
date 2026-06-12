@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  computeControlBands,
-  bandSegments,
-  formatDeltaGlyph,
-  isAboveFlag,
-  isBelowFlag,
-  flagsAtIndex,
-} from './bar-chart-vm';
+import { computeControlBands, bandSegments } from './bar-chart-vm';
 import { DENIALS_BAR_DATA } from './denials-mock-data';
 import type { RollingPoint } from '../enhance';
 
@@ -135,65 +128,5 @@ describe('bandSegments', () => {
   it('no flags means no segment is flagged', () => {
     const segs = bandSegments(band, [], 10);
     expect(segs.every((s) => !s.flagged)).toBe(true);
-  });
-});
-
-describe('formatDeltaGlyph', () => {
-  it('returns up glyph for positive delta', () => {
-    expect(formatDeltaGlyph(5)).toBe('▲');
-  });
-
-  it('returns down glyph for negative delta', () => {
-    expect(formatDeltaGlyph(-3)).toBe('▼');
-  });
-
-  it('returns flat glyph for zero delta', () => {
-    expect(formatDeltaGlyph(0)).toBe('—');
-  });
-
-  it('returns up glyph for very small positive delta', () => {
-    expect(formatDeltaGlyph(0.001)).toBe('▲');
-  });
-
-  it('returns down glyph for very small negative delta', () => {
-    expect(formatDeltaGlyph(-0.001)).toBe('▼');
-  });
-});
-
-describe('isAboveFlag / isBelowFlag', () => {
-  it('isAboveFlag returns true only for above side', () => {
-    expect(isAboveFlag({ index: 0, value: 10, side: 'above', magnitude: 2 })).toBe(true);
-    expect(isAboveFlag({ index: 0, value: 10, side: 'below', magnitude: 2 })).toBe(false);
-  });
-
-  it('isBelowFlag returns true only for below side', () => {
-    expect(isBelowFlag({ index: 0, value: 10, side: 'below', magnitude: 2 })).toBe(true);
-    expect(isBelowFlag({ index: 0, value: 10, side: 'above', magnitude: 2 })).toBe(false);
-  });
-});
-
-describe('flagsAtIndex', () => {
-  const flags = [
-    { index: 0, value: 5, side: 'above' as const, magnitude: 1 },
-    { index: 2, value: 3, side: 'below' as const, magnitude: 0.5 },
-    { index: 2, value: 8, side: 'above' as const, magnitude: 1.5 },
-  ];
-
-  it('returns flags matching the given index', () => {
-    expect(flagsAtIndex(flags, 2)).toHaveLength(2);
-  });
-
-  it('returns empty array when no flags at index', () => {
-    expect(flagsAtIndex(flags, 1)).toHaveLength(0);
-  });
-
-  it('returns single flag when exactly one matches', () => {
-    const result = flagsAtIndex(flags, 0);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.index).toBe(0);
-  });
-
-  it('returns empty array for out-of-range index', () => {
-    expect(flagsAtIndex(flags, 99)).toHaveLength(0);
   });
 });
