@@ -19,8 +19,10 @@ export function friendlyApiErrorFromMessage(message: string): string {
     return "Can't reach Power BI. Your network may require a proxy or a security certificate — please contact IT.";
   }
   const match = message.match(/:\s*(\d{3})\s*-\s*/);
-  if (!match) return message;
-  const status = Number(match[1]);
-  if (!Number.isFinite(status)) return message;
+  const status = match ? Number(match[1]) : NaN;
+  if (!Number.isFinite(status)) {
+    console.error('Unmapped error detail:', message);
+    return 'Something went wrong. Please try again.';
+  }
   return friendlyApiError(status);
 }

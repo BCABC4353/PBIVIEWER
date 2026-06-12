@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Avatar,
   Menu,
@@ -20,7 +21,7 @@ import {
 import { useAuthStore } from '../../stores/auth-store';
 import { useSearchStore } from '../../stores/search-store';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useSignOutConfirm } from '../../hooks/useSignOutConfirm';
+import { useSignOutConfirm, SignOutConfirmDialog } from '../../hooks/useSignOutConfirm';
 import { TITLE_BAR_COLORS } from '../../../shared/constants';
 import logoIcon from '../../assets/logo.png';
 
@@ -36,10 +37,12 @@ function emailToDomain(email: string): string {
 
 
 export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' }) => {
-  const { user, switchAccount, isLoading } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
   const { openSearch } = useSearchStore();
   const { settings } = useSettingsStore();
-  const { triggerSignOut, SignOutDialog } = useSignOutConfirm();
+  const { triggerSignOut, triggerSwitchAccount, dialogProps } = useSignOutConfirm();
+  const location = useLocation();
+  const isPresentationRoute = location.pathname.startsWith('/presentation/');
 
   const [systemDark, setSystemDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -63,10 +66,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
   };
 
   useEffect(() => {
-    if (variant !== 'authenticated') return;
+    if (variant !== 'authenticated' || isPresentationRoute) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         openSearch();
       }
@@ -74,14 +77,14 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openSearch, variant]);
+  }, [openSearch, variant, isPresentationRoute]);
 
   const tenantDomain = user ? emailToDomain(user.email) : '';
 
   return (
     <>
       {}
-      {variant === 'authenticated' && <SignOutDialog />}
+      {variant === 'authenticated' && <SignOutConfirmDialog {...dialogProps} />}
 
       <div
         className="h-10 flex items-center px-4 select-none"
@@ -110,10 +113,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                 onClick={openSearch}
                 aria-label="Open search (Ctrl+K)"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                className="w-full max-w-md flex items-center gap-2 px-3 py-1.5 bg-neutral-background-1 border border-neutral-stroke-2 rounded-md text-neutral-foreground-3 text-sm hover:bg-neutral-background-2 transition-colors"
+                className="focus-ring w-full max-w-md flex items-center gap-2 px-3 py-1.5 bg-neutral-background-1 border border-neutral-stroke-2 rounded-md text-neutral-foreground-3 text-sm hover:bg-neutral-background-2 transition-colors"
               >
                 <SearchRegular />
-                <span className="flex-1 text-left">Search reports and dashboards...</span>
+                <span className="flex-1 text-left">Search reports, dashboards, apps, and workspaces...</span>
                 <kbd className="kbd-hint">Ctrl+K</kbd>
               </button>
             </div>
@@ -167,7 +170,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ variant = 'authenticated' })
                       {}
                       <MenuItem
                         icon={<PersonSwapRegular />}
-                        onClick={switchAccount}
+                        onClick={triggerSwitchAccount}
                         disabled={isLoading}
                         aria-label="Switch account"
                       >

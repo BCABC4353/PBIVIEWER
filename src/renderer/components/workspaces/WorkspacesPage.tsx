@@ -263,8 +263,12 @@ export const WorkspacesPage: React.FC = () => {
               <div key={workspace.id} className="border border-neutral-stroke-2 rounded-lg overflow-hidden">
                 {}
                 <button
-                  className="w-full flex items-center gap-3 p-4 hover:bg-neutral-background-3 transition-colors text-left"
+                  className="focus-ring w-full flex items-center gap-3 p-4 hover:bg-neutral-background-3 transition-colors text-left"
                   onClick={() => toggleWorkspace(workspace.id)}
+                  aria-expanded={workspace.isExpanded}
+                  aria-controls={
+                    workspace.isExpanded ? `workspace-content-${workspace.id}` : undefined
+                  }
                 >
                   <ChevronRightRegular
                     className={`text-neutral-foreground-2 transition-transform ${
@@ -286,7 +290,10 @@ export const WorkspacesPage: React.FC = () => {
 
                 {}
                 {workspace.isExpanded && (
-                  <div className="border-t border-neutral-stroke-2 bg-neutral-background-2">
+                  <div
+                    id={`workspace-content-${workspace.id}`}
+                    className="border-t border-neutral-stroke-2 bg-neutral-background-2"
+                  >
                     {workspace.isLoading ? (
                       <div className="p-4 flex items-center justify-center">
                         <Spinner size="small" />
@@ -329,7 +336,7 @@ export const WorkspacesPage: React.FC = () => {
                         {workspace.reports.map((report) => (
                           <button
                             key={report.id}
-                            className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
+                            className="focus-ring w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
                             onClick={() => openReport(workspace, report)}
                           >
                             <DocumentRegular className="text-neutral-foreground-2" />
@@ -351,7 +358,7 @@ export const WorkspacesPage: React.FC = () => {
                         {workspace.dashboards.map((dashboard) => (
                           <button
                             key={dashboard.id}
-                            className="w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
+                            className="focus-ring w-full flex items-center gap-3 p-3 pl-12 hover:bg-neutral-background-3 transition-colors text-left"
                             onClick={() => openDashboard(workspace, dashboard)}
                           >
                             <BoardRegular className="text-neutral-foreground-2" />

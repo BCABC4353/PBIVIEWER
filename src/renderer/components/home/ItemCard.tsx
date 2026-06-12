@@ -127,7 +127,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       icon={<FullScreenMaximizeRegular />}
                       onClick={() => onPresentationMode(item)}
                     >
-                      Presentation mode
+                      Slideshow
                     </MenuItem>
                   )}
                   {}
@@ -136,7 +136,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       icon={<RocketRegular />}
                       onClick={() => void handleSetAutoStart()}
                     >
-                      Set as launch-on-startup
+                      Open at launch
                     </MenuItem>
                   )}
                 </MenuList>

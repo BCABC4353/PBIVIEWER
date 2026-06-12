@@ -57,7 +57,7 @@ export const ItemList: React.FC<ItemListProps> = ({
         {items.map((item) => (
           <TableRow
             key={item.id}
-            className="hover:bg-neutral-background-3 cursor-pointer"
+            className="focus-ring hover:bg-neutral-background-3 cursor-pointer"
             tabIndex={0}
             onClick={() => onOpen(item)}
             onKeyDown={(e: React.KeyboardEvent<HTMLTableRowElement>) => {
@@ -114,7 +114,7 @@ export const ItemList: React.FC<ItemListProps> = ({
                           icon={<FullScreenMaximizeRegular />}
                           onClick={() => onPresentationMode(item)}
                         >
-                          Presentation mode
+                          Slideshow
                         </MenuItem>
                       )}
                     </MenuList>

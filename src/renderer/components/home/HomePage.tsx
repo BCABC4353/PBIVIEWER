@@ -9,6 +9,7 @@ import {
 } from '@fluentui/react-icons';
 import { useAuthStore } from '../../stores/auth-store';
 import { useContentStore } from '../../stores/content-store';
+import { useSignOutConfirm, SignOutConfirmDialog } from '../../hooks/useSignOutConfirm';
 import { FrequentStrip } from './FrequentStrip';
 import { ItemList } from './ItemList';
 import type { ContentItem, Workspace } from '../../../shared/types';
@@ -51,7 +52,7 @@ const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
             <button
               key={ws.id}
               type="button"
-              className="flex-1 flex items-center gap-2 bg-neutral-background-3 hover:bg-neutral-background-4 rounded-lg px-4 py-3 text-left transition-colors cursor-pointer"
+              className="focus-ring flex-1 flex items-center gap-2 bg-neutral-background-3 hover:bg-neutral-background-4 rounded-lg px-4 py-3 text-left transition-colors cursor-pointer"
               onClick={() => onOpenWorkspace(ws.id)}
               aria-label={`Open workspace ${ws.name}`}
             >
@@ -75,7 +76,8 @@ const FeaturedWorkspacesStrip: React.FC<FeaturedWorkspacesStripProps> = ({
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
+  const { triggerSignOut, dialogProps } = useSignOutConfirm();
   const [isLoading, setIsLoading] = useState(true);
   const {
     recentItems,
@@ -129,6 +131,7 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="h-full overflow-auto">
+      <SignOutConfirmDialog {...dialogProps} />
       <div className="p-6 max-w-7xl mx-auto">
         {}
         <div className="flex items-center justify-between mb-6">
@@ -197,7 +200,7 @@ export const HomePage: React.FC = () => {
             <Button
               appearance="subtle"
               icon={<SignOutRegular />}
-              onClick={() => void logout()}
+              onClick={triggerSignOut}
               className="mt-2"
             >
               Sign out

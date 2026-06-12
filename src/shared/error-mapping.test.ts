@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { friendlyApiError, friendlyApiErrorFromMessage } from './error-mapping';
 
 describe('friendlyApiError', () => {
@@ -42,6 +42,10 @@ describe('friendlyApiError', () => {
 });
 
 describe('friendlyApiErrorFromMessage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('extracts 403 from "Failed to fetch workspaces: 403 - You do not have access"', () => {
     expect(
       friendlyApiErrorFromMessage('Failed to fetch workspaces: 403 - You do not have access'),
@@ -54,8 +58,13 @@ describe('friendlyApiErrorFromMessage', () => {
     );
   });
 
-  it('returns the input unchanged when no status code is embedded', () => {
+  it('falls back to friendly generic copy when no status code is embedded, logging the raw detail', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(friendlyApiErrorFromMessage('Failed to refresh access token')).toBe(
+      'Something went wrong. Please try again.',
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      'Unmapped error detail:',
       'Failed to refresh access token',
     );
   });
@@ -72,9 +81,11 @@ describe('friendlyApiErrorFromMessage', () => {
     ).toBe('Your session expired. Please sign in again.');
   });
 
-  it('returns the input unchanged when the colon/dash shape matches but the status is non-numeric', () => {
+  it('falls back to friendly generic copy when the colon/dash shape matches but the status is non-numeric', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(friendlyApiErrorFromMessage('Bad message: abc - body')).toBe(
-      'Bad message: abc - body',
+      'Something went wrong. Please try again.',
     );
+    expect(consoleError).toHaveBeenCalledWith('Unmapped error detail:', 'Bad message: abc - body');
   });
 });

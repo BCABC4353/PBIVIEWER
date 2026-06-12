@@ -8,6 +8,9 @@ import type {
 } from '../../shared/types';
 import { useAuthStore } from './auth-store';
 
+const WORKSPACES_LOAD_FALLBACK =
+  'Could not load your workspaces. Check your network connection, then select Refresh to try again.';
+
 interface ContentState {
   workspaces: Workspace[];
   reports: Map<string, Report[]>;
@@ -48,13 +51,15 @@ export const useContentStore = create<ContentState>((set, get) => ({
       if (response.success) {
         set({ workspaces: response.data, isLoading: false });
       } else {
+        console.error('Failed to load workspaces:', response.error.message);
         set({
           isLoading: false,
-          error: response.error.message || 'Failed to load workspaces',
+          error: response.error.userMessage || WORKSPACES_LOAD_FALLBACK,
         });
       }
     } catch (error) {
-      set({ isLoading: false, error: String(error) });
+      console.error('Failed to load workspaces:', error);
+      set({ isLoading: false, error: WORKSPACES_LOAD_FALLBACK });
     }
   },
 

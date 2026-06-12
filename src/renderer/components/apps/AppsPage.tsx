@@ -8,6 +8,7 @@ import {
   CalendarRegular,
   OpenRegular,
 } from '@fluentui/react-icons';
+import { formatAbsoluteDate } from '../../lib/date-format';
 import type { App } from '../../../shared/types';
 
 export const AppsPage: React.FC = () => {
@@ -43,19 +44,8 @@ export const AppsPage: React.FC = () => {
     navigate(`/app/${app.id}`);
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch (error) {
-      console.warn('[AppsPage] Date format failed:', error);
-      return dateString;
-    }
-  };
+  const formatDate = (dateString: string) =>
+    formatAbsoluteDate(dateString) || dateString;
 
   if (isLoading) {
     return (
@@ -135,7 +125,7 @@ export const AppsPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <CalendarRegular className="text-sm" />
-                        <Text size={200}>{formatDate(app.lastUpdate)}</Text>
+                        <Text size={200}>{`Updated ${formatDate(app.lastUpdate)}`}</Text>
                       </div>
                     </div>
 
