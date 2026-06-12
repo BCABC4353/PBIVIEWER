@@ -102,7 +102,7 @@
     <div class="well viz">
       <div class="v-head"><span class="v-name"><span class="ix">V2</span>DENIALS BY PAYOR</span><span class="v-meta">MAY · JUN — COUNT</span></div>
       <div class="v-zone"><svg id="vClustered" viewBox="0 0 620 236"></svg></div>
-      <div class="v-cap">PBI: <b>clustered column / bar chart</b>. Two series carried by ink weight, not hue. Values engraved above each bar, so the y-axis is deleted — the baseline is the only axis line that earns its place.</div>
+      <div class="v-cap">PBI: <b>clustered column / bar chart</b>. Two period series carried by the categorical palette (sticky AZURE = MAY / OLIVE = JUN), not ink weight — they are real distinct categories. Values engraved above each bar, so the y-axis is deleted — the baseline is the only axis line that earns its place.</div>
     </div>
 
     <div class="well viz">
@@ -198,6 +198,20 @@
   const FU = "'D-DIN PRO', sans-serif";
   const FM = "'JetBrains Mono Variable', monospace";
 
+  // ===== LOCKED categorical palette (Color Amendment II) =====
+  const PALETTE = [
+    { name: 'AZURE',   hex: '#4F9DDE' },
+    { name: 'CYAN',    hex: '#3FC0C9' },
+    { name: 'MINT',    hex: '#74B79E' },
+    { name: 'OLIVE',   hex: '#B7B24E' },
+    { name: 'SLATE',   hex: '#8294CF' },
+    { name: 'VIOLET',  hex: '#9A8BEC' },
+    { name: 'PLUM',    hex: '#C77BD8' },
+    { name: 'MAGENTA', hex: '#E0789F' },
+  ];
+  const HUE = {};
+  PALETTE.forEach((p) => { HUE[p.name] = p.hex; });
+
   function txt(svg, x, y, s, fill, size, attrs) {
     const t = eln('text', Object.assign({ x, y, fill, 'font-size': size, 'font-family': FU }, attrs || {}), svg);
     t.textContent = s;
@@ -215,16 +229,16 @@
       const gx = x0 + i * slot + (slot - (bw * 2 + gap)) / 2;
       const hM = (may[i] / vMax) * hMax;
       const hJ = (jun[i] / vMax) * hMax;
-      eln('rect', { x: gx, y: base - hM, width: bw, height: hM, rx: 2.5, fill: '#6E727C', opacity: 0.9 }, svg);
-      eln('rect', { x: gx + bw + gap, y: base - hJ, width: bw, height: hJ, rx: 2.5, fill: '#C9CBD1', opacity: 0.94 }, svg);
-      txt(svg, gx + bw / 2, base - hM - 7, String(may[i]), '#80848F', 10.5, { 'text-anchor': 'middle' });
-      txt(svg, gx + bw + gap + bw / 2, base - hJ - 7, String(jun[i]), '#C9CBD1', 10.5, { 'text-anchor': 'middle' });
+      eln('rect', { x: gx, y: base - hM, width: bw, height: hM, rx: 2.5, fill: HUE.AZURE, opacity: 0.9 }, svg);
+      eln('rect', { x: gx + bw + gap, y: base - hJ, width: bw, height: hJ, rx: 2.5, fill: HUE.OLIVE, opacity: 0.94 }, svg);
+      txt(svg, gx + bw / 2, base - hM - 7, String(may[i]), HUE.AZURE, 10.5, { 'text-anchor': 'middle' });
+      txt(svg, gx + bw + gap + bw / 2, base - hJ - 7, String(jun[i]), HUE.OLIVE, 10.5, { 'text-anchor': 'middle' });
       txt(svg, gx + bw + gap / 2, base + 18, p, '#747882', 9, { 'text-anchor': 'middle', 'letter-spacing': '1.3' });
     });
-    eln('line', { x1: 478, y1: 15, x2: 492, y2: 15, stroke: '#6E727C', 'stroke-width': 3 }, svg);
-    txt(svg, 498, 18.5, 'MAY', '#80848F', 9, { 'letter-spacing': '1.6' });
-    eln('line', { x1: 540, y1: 15, x2: 554, y2: 15, stroke: '#C9CBD1', 'stroke-width': 3 }, svg);
-    txt(svg, 560, 18.5, 'JUN', '#A9ACB6', 9, { 'letter-spacing': '1.6' });
+    eln('line', { x1: 478, y1: 15, x2: 492, y2: 15, stroke: HUE.AZURE, 'stroke-width': 3 }, svg);
+    txt(svg, 498, 18.5, 'MAY', HUE.AZURE, 9, { 'letter-spacing': '1.6' });
+    eln('line', { x1: 540, y1: 15, x2: 554, y2: 15, stroke: HUE.OLIVE, 'stroke-width': 3 }, svg);
+    txt(svg, 560, 18.5, 'JUN', HUE.OLIVE, 9, { 'letter-spacing': '1.6' });
   })();
 
   (function stacked() {

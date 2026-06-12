@@ -90,6 +90,22 @@
   .dir-rules .t { font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--live); margin-bottom: 8px; }
   .dir-rules .b { font-size: 11px; color: var(--ink-mid); line-height: 1.6; }
   .dir-rules .b strong { color: var(--ink-hi); font-weight: 500; }
+
+  /* categorical palette section (Color Amendment II) */
+  .cat-head { margin-top: 32px; }
+  .cat-k { font-size: 10px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--live); }
+  .cat-t { font-size: 15px; font-weight: 500; letter-spacing: 0.01em; margin-top: 6px; color: var(--ink-hi); }
+  .cat-d { font-size: 11px; color: var(--ink-mid); line-height: 1.55; margin-top: 6px; max-width: 72ch; }
+  .palwell { padding: 18px 22px; margin-top: 12px; }
+  .palgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+  .pal-swatch { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; padding: 8px 10px;
+    border-radius: 9px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); }
+  .pal-swatch .chip { width: 30px; height: 30px; border-radius: 6px; }
+  .pal-swatch .nm { font-size: 11px; font-weight: 500; letter-spacing: 0.05em; color: var(--ink-hi); }
+  .pal-swatch .hx { font-size: 9px; font-family: var(--font-tab); color: var(--ink-low); margin-top: 2px; }
+  .pal-swatch .cn { font-size: 8px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-top: 1px; }
+  .pal-foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
 </style>
 </head>
 <body>
@@ -301,6 +317,17 @@
       </div>
     </div>
   </div>
+
+  <div class="section-label">Color Amendment II — categorical palette: 8 hues for real data categories</div>
+  <div class="cat-head">
+    <div class="cat-k">Color Amendment II · the engineered hues</div>
+    <div class="cat-t">8 categorical hues, anchored to the logo-blue family</div>
+    <div class="cat-d">Real distinguishable hues for the things your report categorizes — payors, denial categories, lanes. Similar luminance on true black, no collision with the status hues (amber / red / green), orange held back as the highlighter. The mapping is sticky: a payor keeps its hue everywhere it appears.</div>
+  </div>
+  <div class="well palwell">
+    <div class="palgrid" id="palGrid02"></div>
+    <div class="pal-foot">ANCHOR AZURE = LOGO BLUE BACKLIT · ALL ≥ 7:1 ON BLACK · ORANGE #FF7900 RESERVED = SELECTION / LIVE · STATUS HUES EXCLUDED FROM ROTATION</div>
+  </div>
 </div>
 
 <script src="assets/lab.js"></script>
@@ -325,6 +352,26 @@
 
   document.getElementById('woRatio').textContent = lab.contrast('#FFFFFF', '#FF7900').toFixed(2) + ' : 1';
   document.getElementById('ioRatio').textContent = lab.contrast('#1A0C00', '#FF7900').toFixed(2) + ' : 1';
+
+  // ===== Color Amendment II — categorical palette =====
+  const CAT_PALETTE = [
+    { name: 'AZURE',   hex: '#4F9DDE' },
+    { name: 'CYAN',    hex: '#3FC0C9' },
+    { name: 'MINT',    hex: '#74B79E' },
+    { name: 'OLIVE',   hex: '#B7B24E' },
+    { name: 'SLATE',   hex: '#8294CF' },
+    { name: 'VIOLET',  hex: '#9A8BEC' },
+    { name: 'PLUM',    hex: '#C77BD8' },
+    { name: 'MAGENTA', hex: '#E0789F' },
+  ];
+  const palGrid02 = document.getElementById('palGrid02');
+  CAT_PALETTE.forEach((p) => {
+    const cn = lab.contrast(p.hex, '#000000').toFixed(1);
+    const el = document.createElement('div');
+    el.className = 'pal-swatch';
+    el.innerHTML = `<span class="chip" style="background:${p.hex}"></span><span><span class="nm">${p.name}</span><span class="hx">${p.hex}</span><span class="cn">${cn}:1 ON BLACK</span></span>`;
+    palGrid02.appendChild(el);
+  });
 
   const oldLow = lab.contrast('#62656E', '#000000').toFixed(2);
   const oldFaint = lab.contrast('#3A3C44', '#000000').toFixed(2);

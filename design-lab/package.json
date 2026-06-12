@@ -15,6 +15,7 @@
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/ibm-plex-sans": "^5.2.8",
-    "@sarap422/font-d-din": "^1.0.6"
+    "@sarap422/font-d-din": "^1.0.6",
+    "puppeteer": "^25.1.0"
   }
 }
