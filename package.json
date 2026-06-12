@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~56.0.15",
+    "@shopify/react-native-skia": "2.6.2",
     "expo": "~56.0.11",
     "expo-auth-session": "~56.0.14",
     "expo-blur": "~56.0.3",
@@ -16,6 +17,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-gesture-handler": "~2.31.1",
     "react-native-reanimated": "4.3.1",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
@@ -26,6 +28,7 @@
     "@types/react": "~19.2.2",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^5.2.0",
+    "puppeteer": "^25.1.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.61.0",
     "vitest": "^4.1.8"
