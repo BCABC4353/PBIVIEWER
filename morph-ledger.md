@@ -62,7 +62,15 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
   (1px creep now FAILs, 680px morph PASSes, identical FAILs). A-1 fail-not-skip. A-4 numeric snap
   backstop. Baseline record honestly corrected to 6 PASS / 10 FAIL (the true before-story).
   harness/CONTRACT.md documents same-node rule for S3/S5. App gate 660 green. verify.mjs 235L.
-- S3-primitive running in background (off morph/main w/ S1+S2). Briefed with the F4 same-node contract.
+- S3-primitive DONE (728 tests). useSharedElementMorph hook + MorphSurface + MorphDemo. Same-node
+  contract honored (transform on [data-morph-node]). Interrupt reuses SAME spring (object-identity test).
+  Zero insights imports (portable). Integrator follow-up: split the 323L hook test under 300L via
+  morph-test-harness.ts. Merged to morph/main. Gate 728/728.
+- S4 harness merged to morph/main (commit da32fb1). Both S3 + harness now on morph/main.
+
+### Sprint 2 EXIT GATE — capture+verify S3 primitive demo (S4-cap) — IN PROGRESS
+- S4-cap dispatched (branch morph/s4-capture-s3): wire MorphDemo into capturable harness, reconcile
+  window.__morph contract, install puppeteer, run hardened verify on A-1..A-6. Must PASS to exit Sprint 2.
 
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
