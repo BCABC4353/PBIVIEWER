@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 07 Visuals</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .kpi { padding: 18px 20px 16px; }
+  .kpi .k { font-size: 9.5px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-low); }
+  .kpi .n { margin-top: 12px; font-size: 46px; font-weight: 400; line-height: 1; color: var(--ink-hi); }
+  .kpi .n.tabval { font-size: 38px; padding-top: 5px; }
+  .kpi .d { margin-top: 12px; }
+  .kpi .s { margin-top: 7px; font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em; }
+
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .viz { padding: 18px 20px 16px; }
+  .v-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .v-name { font-size: 13px; font-weight: 500; letter-spacing: 0.03em; }
+  .v-name .ix { font-size: 10px; color: var(--live); margin-right: 7px; }
+  .v-meta { font-size: 10px; font-weight: 500; color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .v-zone { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); }
+  .v-zone svg { display: block; width: 100%; height: auto; }
+  .v-note { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-faint); }
+  .v-cap { margin-top: 10px; font-size: 10.5px; color: var(--ink-low); line-height: 1.55; }
+  .v-cap b { color: var(--ink-mid); font-weight: 500; }
+
+  .seg.mini { flex: none; width: 168px; padding: 2px; border-radius: 9px; align-self: center; }
+  .seg.mini .opt { padding: 7px 0 9px; font-size: 9px; letter-spacing: 0.16em; }
+
+  .donut-flex { display: flex; gap: 26px; align-items: center; }
+  .donut-flex svg { flex: none; width: 252px; }
+  .dleg { flex: 1; }
+  .dleg .lrow { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: baseline; padding: 8.5px 0; border-bottom: 1px solid var(--hairline); }
+  .dleg .lrow:last-child { border-bottom: none; }
+  .dleg .code { font-size: 12px; color: var(--ink-hi); }
+  .dleg .desc { font-size: 9px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+  .dleg .pct { font-size: 12px; color: var(--ink-mid); }
+  .dleg .lrow.sel .pct { color: var(--live); }
+  .dleg .lrow.sel .code { color: var(--live); }
+
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th { font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);
+    text-align: left; padding: 4px 0 10px; border-bottom: 1px solid var(--hairline-strong); }
+  .tbl th.r, .tbl td.r { text-align: right; }
+  .tbl td { font-size: 12.5px; color: var(--ink-hi); padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl td.id { letter-spacing: 0.05em; }
+  .tbl td.dim { color: var(--ink-mid); }
+  .tbl td.amt { color: var(--ink-mid); }
+  .tbl td.age { color: var(--ink-mid); letter-spacing: 0.04em; }
+  .tbl td.age.behind { color: var(--behind); }
+  .tbl td.age.broken { color: var(--broken); }
+  .tbl td .ws { display: block; font-size: 9px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-low); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">07 — Crosswalk: the Power BI vocabulary</div>
+      <div class="lab-sub">Every visual the practice actually ships in Power BI, translated into contract grammar: monochrome at rest, one lit element per frame, engraved status, recessed wells, axes that earn their ink. Data is the June book for Contoso Health — payors, denial codes, deposits, claim aging.</div>
+    </div>
+    <div class="lab-meta">CROSSWALK · 9 FAMILIES · REV B</div>
+  </header>
+
+  <div class="section-label">V1 — Cards &amp; KPI tiles</div>
+  <div class="kpis">
+    <div class="well kpi">
+      <div class="k">Net collections — Jun</div>
+      <div class="n">$1.84M</div>
+      <div class="d"><span class="stat"><span class="g">▲</span>4.2% VS MAY</span></div>
+      <div class="s">target $1.80M · WS / FINANCE-PROD</div>
+    </div>
+    <div class="well kpi">
+      <div class="k">Days in A/R</div>
+      <div class="n">41.3</div>
+      <div class="d"><span class="stat behind"><span class="g">▲</span>1.3 OVER TARGET</span></div>
+      <div class="s">target ≤ 40.0 · fleet median 38.9</div>
+    </div>
+    <div class="well kpi">
+      <div class="k">First-pass denial rate</div>
+      <div class="n">7.8%</div>
+      <div class="d"><span class="stat"><span class="g">▼</span>0.4 PT VS MAY</span></div>
+      <div class="s">all payors · 14,402 claims</div>
+    </div>
+    <div class="well kpi">
+      <div class="k">Deposits posted — today</div>
+      <div class="n tabval">$96,412</div>
+      <div class="d"><span class="stat live"><span class="g">●</span>LIVE · POSTING</span></div>
+      <div class="s">last remit 14:31:42 · BAI2 feed</div>
+    </div>
+  </div>
+  <div class="v-cap" style="margin-top:12px; max-width:110ch;">PBI: <b>card · multi-row card · KPI</b>. Hero figures engraved on the black. Deltas are glyph + tint only when a status is true — the A/R tile is amber because it is genuinely behind target; the improving denial rate is not green because green is an event, not a state. One tile is lit, and its numeral is the screen's one persistently-live mono readout.</div>
+
+  <div class="section-label">V2–V7 — Series &amp; parts</div>
+  <div class="board">
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V2</span>DENIALS BY PAYOR</span><span class="v-meta">MAY · JUN — COUNT</span></div>
+      <div class="v-zone"><svg id="vClustered" viewBox="0 0 620 236"></svg></div>
+      <div class="v-cap">PBI: <b>clustered column / bar chart</b>. Two series carried by ink weight, not hue. Values engraved above each bar, so the y-axis is deleted — the baseline is the only axis line that earns its place.</div>
+    </div>
+
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V3</span>A/R AGING BY PAYOR</span>
+        <div class="seg static mini" id="stackSeg"><span class="opt active" data-mode="abs">$K</span><span class="opt" data-mode="pct">100%</span></div>
+      </div>
+      <div class="v-zone"><svg id="vStacked" viewBox="0 0 620 252"></svg></div>
+      <div class="v-cap">PBI: <b>stacked column + 100% stacked column</b> behind one toggle. Buckets ride the silver ramp, brightest = most current. The 90+ bucket alone is amber — those dollars are semantically overdue, so the status color is true, not decorative.</div>
+    </div>
+
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V4</span>WEEKLY DEPOSITS</span><span class="v-meta">12 WEEKS — $K</span></div>
+      <div class="v-zone"><svg id="vLine" viewBox="0 0 620 226"></svg></div>
+      <div class="v-cap">PBI: <b>line chart</b>. One silver line, week ticks with no figures, dated only at the ends. The current week is the one lit element; its riding value is mono because it is live.</div>
+    </div>
+
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V5</span>DAILY CLAIM VOLUME</span><span class="v-meta">30 DAYS — ACCEPTED</span></div>
+      <div class="v-zone"><svg id="vArea" viewBox="0 0 620 226"></svg></div>
+      <div class="v-cap">PBI: <b>area / stacked area chart</b>. The fill is a whisper — 8% white falling to nothing — never a paint bucket. If the fill reads before the line does, the fill is too loud.</div>
+    </div>
+
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V6</span>DENIALS BY CODE</span><span class="v-meta">JUN — 1,118 TOTAL</span></div>
+      <div class="v-zone">
+        <div class="donut-flex">
+          <svg id="vDonut" viewBox="0 0 252 252"></svg>
+          <div class="dleg" id="vDonutLeg"></div>
+        </div>
+      </div>
+      <div class="v-cap">PBI: <b>pie / donut chart</b> — pies render as donuts in this grammar; the hole carries the figure and keeps paint off the canvas. <b>Owner may veto.</b> One arc is lit because one code is selected; the rest hold the silver ramp.</div>
+    </div>
+
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V7</span>A/R WALK — JUN</span><span class="v-meta">$K · OPENING → CLOSING</span></div>
+      <div class="v-zone">
+        <svg id="vWaterfall" viewBox="0 0 620 252"></svg>
+        <div class="v-note">▲▼ + LUMINANCE CARRY DIRECTION · AMBER STAYS RESERVED FOR OVERDUE · ORANGE = THE CLOSING LIVE FIGURE ONLY</div>
+      </div>
+      <div class="v-cap">PBI: <b>waterfall chart</b>. Decrements never borrow status colors — amber means behind, and a payment is not a problem. Direction is engraved: ▲▼ glyphs and a two-step silver ramp. Orange appears once, on the closing bar, because the closing A/R position is the live figure this visual exists to report.</div>
+    </div>
+  </div>
+
+  <div class="section-label">V8 — Flow: three payor groups, two gates, three outcomes</div>
+  <div class="well viz">
+    <div class="v-head"><span class="v-name"><span class="ix">V8</span>CLAIM DOLLARS THROUGH THE CLEARINGHOUSE</span><span class="v-meta">JUN — $1,186K SUBMITTED</span></div>
+    <div class="v-zone">
+      <svg id="vSankey" viewBox="0 0 1180 340"></svg>
+      <div class="v-note">SELECTED — MEDICARE → CLEAN · $488K · 79.7% OF MEDICARE SUBMITTED</div>
+    </div>
+    <div class="v-cap">PBI: <b>sankey (custom visual / Deneb)</b>. Links are translucent silver ribbons laid straight on the black; nodes are engraved labels against a thin silver bar, not boxes. Exactly one ribbon is lit because exactly one is selected.</div>
+  </div>
+
+  <div class="section-label">V9 — Detail: the table</div>
+  <div class="well viz">
+    <div class="v-head"><span class="v-name"><span class="ix">V9</span>CLAIMS — WORKLIST</span><span class="v-meta">WS / FINANCE-PROD · 7 OF 14,402</span></div>
+    <div class="v-zone">
+      <table class="tbl">
+        <thead><tr><th>Claim</th><th>Payor</th><th>DOS</th><th class="r">Billed</th><th class="r">Age</th><th class="r">Status</th></tr></thead>
+        <tbody>
+          <tr><td class="id">CLM-208114<span class="ws">NORTHWING / IP</span></td><td class="dim">Medicare</td><td class="dim">05-28</td><td class="r amt">2,418.00</td><td class="r age">15d</td><td class="r"><span class="stat">CLEAN</span></td></tr>
+          <tr><td class="id">CLM-208201<span class="ws">ORTHO / OP</span></td><td class="dim">Medicare</td><td class="dim">05-30</td><td class="r amt">842.60</td><td class="r age">13d</td><td class="r"><span class="stat" style="color:color-mix(in srgb, #3DD68C 38%, #80848F)"><span class="g">✓</span>PAID 14:31:09</span></td></tr>
+          <tr><td class="id">CLM-207892<span class="ws">NORTHWING / IP</span></td><td class="dim">BCBS</td><td class="dim">05-21</td><td class="r amt">11,240.50</td><td class="r age">22d</td><td class="r"><span class="stat">CLEAN</span></td></tr>
+          <tr><td class="id">CLM-207533<span class="ws">APEX / OP</span></td><td class="dim">UHC</td><td class="dim">05-15</td><td class="r amt">4,403.10</td><td class="r age">28d</td><td class="r"><span class="stat">IN PROCESS</span></td></tr>
+          <tr><td class="id">CLM-206447<span class="ws">APEX / OP</span></td><td class="dim">UHC</td><td class="dim">04-30</td><td class="r amt">3,876.25</td><td class="r age">43d</td><td class="r"><span class="stat">IN PROCESS</span></td></tr>
+          <tr><td class="id">CLM-204481<span class="ws">NORTHWING / IP</span></td><td class="dim">Medicaid</td><td class="dim">03-12</td><td class="r amt">1,194.00</td><td class="r age behind">92d</td><td class="r"><span class="stat behind"><span class="g">▲</span>OVERDUE 92D</span></td></tr>
+          <tr><td class="id">CLM-203970<span class="ws">ORTHO / OP</span></td><td class="dim">Aetna</td><td class="dim">03-04</td><td class="r amt">6,512.75</td><td class="r age broken">100d</td><td class="r"><span class="stat broken"><span class="g">⬣</span>DENIED CO-29</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="v-cap">PBI: <b>table / matrix</b>. No zebra — hairline rules carry the rows. Status is an engraved column: glyph and tinted text, never a pill. The PAID row is mid-decay; its green tint finishes fading to monochrome within seconds of the confirmation landing.</div>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+  const eln = lab.eln;
+  const FU = "'D-DIN PRO', sans-serif";
+  const FM = "'JetBrains Mono Variable', monospace";
+
+  function txt(svg, x, y, s, fill, size, attrs) {
+    const t = eln('text', Object.assign({ x, y, fill, 'font-size': size, 'font-family': FU }, attrs || {}), svg);
+    t.textContent = s;
+    return t;
+  }
+
+  (function clustered() {
+    const svg = document.getElementById('vClustered');
+    const payors = ['MEDICARE', 'MEDICAID', 'BCBS', 'UHC', 'AETNA'];
+    const may = [142, 96, 88, 71, 54];
+    const jun = [118, 104, 73, 69, 48];
+    const base = 192, hMax = 142, vMax = 150, slot = 111.2, x0 = 32, bw = 30, gap = 7;
+    eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    payors.forEach((p, i) => {
+      const gx = x0 + i * slot + (slot - (bw * 2 + gap)) / 2;
+      const hM = (may[i] / vMax) * hMax;
+      const hJ = (jun[i] / vMax) * hMax;
+      eln('rect', { x: gx, y: base - hM, width: bw, height: hM, rx: 2.5, fill: '#6E727C', opacity: 0.9 }, svg);
+      eln('rect', { x: gx + bw + gap, y: base - hJ, width: bw, height: hJ, rx: 2.5, fill: '#C9CBD1', opacity: 0.94 }, svg);
+      txt(svg, gx + bw / 2, base - hM - 7, String(may[i]), '#80848F', 10.5, { 'text-anchor': 'middle' });
+      txt(svg, gx + bw + gap + bw / 2, base - hJ - 7, String(jun[i]), '#C9CBD1', 10.5, { 'text-anchor': 'middle' });
+      txt(svg, gx + bw + gap / 2, base + 18, p, '#747882', 9, { 'text-anchor': 'middle', 'letter-spacing': '1.3' });
+    });
+    eln('line', { x1: 478, y1: 15, x2: 492, y2: 15, stroke: '#6E727C', 'stroke-width': 3 }, svg);
+    txt(svg, 498, 18.5, 'MAY', '#80848F', 9, { 'letter-spacing': '1.6' });
+    eln('line', { x1: 540, y1: 15, x2: 554, y2: 15, stroke: '#C9CBD1', 'stroke-width': 3 }, svg);
+    txt(svg, 560, 18.5, 'JUN', '#A9ACB6', 9, { 'letter-spacing': '1.6' });
+  })();
+
+  (function stacked() {
+    const svg = document.getElementById('vStacked');
+    const payors = ['MEDICARE', 'MEDICAID', 'BCBS', 'UHC', 'AETNA'];
+    const data = [[180, 72, 38, 22], [118, 64, 42, 24], [120, 44, 20, 12], [92, 48, 26, 12], [68, 32, 14, 7]];
+    const colors = ['#E2E4E9', '#A9ACB6', '#71757F', '#FFB02E'];
+    const totals = data.map((d) => d.reduce((a, b) => a + b, 0));
+    const maxT = Math.max(...totals);
+    const base = 208, hMax = 150, slot = 111.2, x0 = 32, bw = 56, segGap = 1.5;
+    eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const cols = data.map((d, i) => {
+      const gx = x0 + i * slot + (slot - bw) / 2;
+      const rects = d.map((v, j) => eln('rect', { x: gx, width: bw, rx: 1.5, fill: colors[j], opacity: j === 3 ? 0.88 : 0.92 }, svg));
+      const tot = txt(svg, gx + bw / 2, 0, '$' + totals[i] + 'K', '#A9ACB6', 10.5, { 'text-anchor': 'middle' });
+      txt(svg, gx + bw / 2, base + 18, payors[i], '#747882', 9, { 'text-anchor': 'middle', 'letter-spacing': '1.3' });
+      return { d, rects, tot, gx };
+    });
+    const legend = [['0–30', '#E2E4E9'], ['31–60', '#A9ACB6'], ['61–90', '#71757F'], ['90+ OVERDUE', '#FFB02E']];
+    let lx = 30;
+    legend.forEach(([name, c]) => {
+      eln('rect', { x: lx, y: 12, width: 12, height: 4, rx: 1, fill: c, opacity: 0.9 }, svg);
+      const t = txt(svg, lx + 18, 18.5, name, '#80848F', 9, { 'letter-spacing': '1.4' });
+      lx += 18 + t.getComputedTextLength() + 22;
+    });
+    let cur = data.map((d) => d.map(() => 0));
+    let anim = null;
+    function heightsFor(mode) {
+      return data.map((d, i) => {
+        const colH = mode === 'abs' ? (totals[i] / maxT) * hMax : hMax;
+        return d.map((v) => (v / totals[i]) * colH);
+      });
+    }
+    function apply(hs) {
+      cols.forEach((c, i) => {
+        let y = base;
+        hs[i].forEach((h, j) => {
+          y -= h;
+          c.rects[j].setAttribute('y', String(y));
+          c.rects[j].setAttribute('height', String(Math.max(h - segGap, 0)));
+        });
+        c.tot.setAttribute('y', String(y - 8));
+      });
+      cur = hs;
+    }
+    function go(mode) {
+      const from = cur.map((c) => c.slice());
+      const to = heightsFor(mode);
+      if (anim) anim.cancel();
+      anim = lab.spring({ from: 0, to: 1, response: 0.45, damping: 0.9, onUpdate: (f) => {
+        apply(from.map((c, i) => c.map((v, j) => v + (to[i][j] - v) * lab.clamp(f, 0, 1.05))));
+      } });
+    }
+    apply(heightsFor('abs'));
+    const seg = document.getElementById('stackSeg');
+    seg.querySelectorAll('.opt').forEach((opt) => {
+      opt.addEventListener('click', () => {
+        seg.querySelectorAll('.opt').forEach((o) => o.classList.toggle('active', o === opt));
+        go(opt.dataset.mode);
+      });
+    });
+    lab.api.setStackMode = (m) => {
+      seg.querySelectorAll('.opt').forEach((o) => o.classList.toggle('active', o.dataset.mode === m));
+      if (anim) anim.cancel();
+      apply(heightsFor(m));
+    };
+  })();
+
+  (function line() {
+    const svg = document.getElementById('vLine');
+    const vals = [78.2, 84.1, 81.0, 92.3, 88.4, 95.0, 91.2, 87.6, 99.1, 94.5, 102.2, 96.4];
+    const x0 = 30, x1 = 590, base = 184, top = 40, vMin = 70, vMax = 110;
+    eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const pts = vals.map((v, i) => [x0 + ((x1 - x0) * i) / (vals.length - 1), base - ((v - vMin) / (vMax - vMin)) * (base - top)]);
+    pts.forEach((p) => eln('line', { x1: p[0], y1: base, x2: p[0], y2: base - 5, stroke: 'rgba(255,255,255,0.22)', 'stroke-width': 1 }, svg));
+    eln('path', { d: 'M ' + pts.map((p) => p.join(' ')).join(' L '), fill: 'none', stroke: '#C9CBD1', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    txt(svg, pts[0][0], base + 18, 'MAR 23', '#747882', 9, { 'text-anchor': 'start', 'letter-spacing': '1.3' });
+    txt(svg, pts[11][0], base + 18, 'JUN 8', '#747882', 9, { 'text-anchor': 'end', 'letter-spacing': '1.3' });
+    txt(svg, pts[0][0] + 6, pts[0][1] - 9, '78.2', '#80848F', 10);
+    const last = pts[11];
+    eln('circle', { cx: last[0], cy: last[1], r: 4.5, fill: '#FF5F15' }, svg);
+    const vt = eln('text', { x: last[0] - 2, y: last[1] - 13, 'text-anchor': 'end', fill: '#F2F3F5', 'font-size': 12.5, 'font-family': FM }, svg);
+    vt.textContent = '96.4';
+  })();
+
+  (function area() {
+    const svg = document.getElementById('vArea');
+    const vals = [412, 398, 431, 405, 388, 442, 455, 418, 396, 371, 408, 436, 452, 471, 444, 426, 409, 431, 458, 476, 462, 439, 418, 447, 469, 488, 472, 451, 433, 461];
+    const x0 = 28, x1 = 592, base = 184, top = 42, vMin = 340, vMax = 510;
+    const defs = eln('defs', {}, svg);
+    const grad = eln('linearGradient', { id: 'whisper', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+    eln('stop', { offset: '0%', 'stop-color': '#FFFFFF', 'stop-opacity': 0.08 }, grad);
+    eln('stop', { offset: '100%', 'stop-color': '#FFFFFF', 'stop-opacity': 0 }, grad);
+    eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const pts = vals.map((v, i) => [x0 + ((x1 - x0) * i) / (vals.length - 1), base - ((v - vMin) / (vMax - vMin)) * (base - top)]);
+    const lineD = 'M ' + pts.map((p) => p.join(' ')).join(' L ');
+    eln('path', { d: lineD + ` L ${x1} ${base} L ${x0} ${base} Z`, fill: 'url(#whisper)' }, svg);
+    eln('path', { d: lineD, fill: 'none', stroke: '#A9ACB6', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    for (let i = 0; i < vals.length; i += 7) {
+      eln('line', { x1: pts[i][0], y1: base, x2: pts[i][0], y2: base - 5, stroke: 'rgba(255,255,255,0.22)', 'stroke-width': 1 }, svg);
+    }
+    txt(svg, pts[0][0], base + 18, 'MAY 14', '#747882', 9, { 'text-anchor': 'start', 'letter-spacing': '1.3' });
+    txt(svg, pts[29][0], base + 18, 'JUN 12', '#747882', 9, { 'text-anchor': 'end', 'letter-spacing': '1.3' });
+    txt(svg, pts[29][0] - 2, pts[29][1] - 11, '461', '#A9ACB6', 10.5, { 'text-anchor': 'end' });
+  })();
+
+  (function donut() {
+    const svg = document.getElementById('vDonut');
+    const codes = [
+      ['CO-45', 'FEE SCHEDULE', 34, '#FF5F15', true],
+      ['CO-97', 'BUNDLED', 22, '#DCDEE3', false],
+      ['PR-1', 'DEDUCTIBLE', 16, '#A9ACB6', false],
+      ['CO-16', 'MISSING INFO', 12, '#7E828C', false],
+      ['CO-29', 'TIMELY FILING', 9, '#5A5D66', false],
+      ['OTHER', '14 CODES', 7, '#3A3C44', false],
+    ];
+    const cx = 126, cy = 126, r = 88, sw = 24, pad = 0.035;
+    let a = -Math.PI / 2;
+    codes.forEach(([code, desc, share, color, sel]) => {
+      const sweep = share / 100 * Math.PI * 2;
+      const a0 = a + pad / 2, a1 = a + sweep - pad / 2;
+      const p0 = [cx + r * Math.cos(a0), cy + r * Math.sin(a0)];
+      const p1 = [cx + r * Math.cos(a1), cy + r * Math.sin(a1)];
+      eln('path', {
+        d: `M ${p0[0]} ${p0[1]} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p1[0]} ${p1[1]}`,
+        fill: 'none', stroke: color, 'stroke-width': sel ? sw + 5 : sw, opacity: sel ? 0.95 : 0.92,
+      }, svg);
+      a += sweep;
+    });
+    txt(svg, cx, cy + 1, '1,118', '#F2F3F5', 31, { 'text-anchor': 'middle' });
+    txt(svg, cx, cy + 22, 'DENIALS · JUN', '#80848F', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '2' });
+    const leg = document.getElementById('vDonutLeg');
+    codes.forEach(([code, desc, share, color, sel]) => {
+      const row = document.createElement('div');
+      row.className = 'lrow' + (sel ? ' sel' : '');
+      row.innerHTML = `<span class="code">${sel ? '● ' : ''}${code}</span><span class="desc">${desc}</span><span class="pct">${share}%</span>`;
+      leg.appendChild(row);
+    });
+  })();
+
+  (function waterfall() {
+    const svg = document.getElementById('vWaterfall');
+    const steps = [
+      { label: 'START A/R', lo: 0, hi: 1284, kind: 'total', val: '1,284' },
+      { label: 'CHARGES', lo: 1284, hi: 2380, kind: 'inc', val: '+1,096' },
+      { label: 'PAYMENTS', lo: 1462, hi: 2380, kind: 'dec', val: '−918' },
+      { label: 'ADJUSTMENTS', lo: 1288, hi: 1462, kind: 'dec', val: '−174' },
+      { label: 'WRITE-OFFS', lo: 1226, hi: 1288, kind: 'dec', val: '−62' },
+      { label: 'END A/R', lo: 0, hi: 1226, kind: 'live', val: '1,226' },
+    ];
+    const ends = [1284, 2380, 1462, 1288, 1226, 1226];
+    const base = 212, k = 182 / 2380, x0 = 30, slot = 93.3, bw = 58;
+    const yOf = (v) => base - v * k;
+    eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const fills = { total: '#DCDEE3', inc: '#C9CBD1', dec: '#6E727C', live: '#FF5F15' };
+    const inks = { total: '#A9ACB6', inc: '#A9ACB6', dec: '#80848F', live: '#FF5F15' };
+    steps.forEach((s, i) => {
+      const x = x0 + i * slot + (slot - bw) / 2;
+      eln('rect', { x, y: yOf(s.hi), width: bw, height: yOf(s.lo) - yOf(s.hi), rx: 2.5, fill: fills[s.kind], opacity: 0.93 }, svg);
+      const glyph = s.kind === 'inc' ? '▲ ' : s.kind === 'dec' ? '▼ ' : '';
+      txt(svg, x + bw / 2, yOf(s.hi) - 8, glyph + s.val, inks[s.kind], 10.5, { 'text-anchor': 'middle' });
+      txt(svg, x + bw / 2, base + 17, s.label, '#747882', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '1.1' });
+      if (i < steps.length - 1) {
+        const xr = x + bw, xn = x0 + (i + 1) * slot + (slot - bw) / 2;
+        eln('line', { x1: xr, y1: yOf(ends[i]), x2: xn, y2: yOf(ends[i]), stroke: 'rgba(255,255,255,0.25)', 'stroke-width': 1 }, svg);
+      }
+    });
+  })();
+
+  (function sankey() {
+    const svg = document.getElementById('vSankey');
+    const s = 0.22, srcX = 150, midX = 575, sinkX = 1000, bar = 4, gap = 18;
+    function col(x, nodes, totalH) {
+      let y = (340 - totalH) / 2;
+      return nodes.map(([name, v]) => {
+        const h = v * s;
+        const n = { name, v, x, y, h, off: 0 };
+        y += h + gap;
+        return n;
+      });
+    }
+    const srcs = col(srcX, [['MEDICARE', 612], ['COMMERCIAL', 488], ['SELF-PAY', 86]], (612 + 488 + 86) * s + 2 * gap);
+    const mids = col(midX, [['CLEAN', 884], ['EXCEPTIONS', 302]], (884 + 302) * s + gap);
+    const sinks = col(sinkX, [['PAID', 818], ['DENIED', 196], ['PENDING', 172]], (818 + 196 + 172) * s + 2 * gap);
+    const L1 = [[0, 0, 488, true], [0, 1, 124, false], [1, 0, 352, false], [1, 1, 136, false], [2, 0, 44, false], [2, 1, 42, false]];
+    const L2 = [[0, 0, 716, false], [0, 1, 64, false], [0, 2, 104, false], [1, 0, 102, false], [1, 1, 132, false], [1, 2, 68, false]];
+    function ribbon(a, b, v, sel) {
+      const h = v * s;
+      const y0 = a.y + a.off, y1 = b.y + b.off;
+      a.off += h; b.off += h;
+      const xa = a.x + bar, xb = b.x, xm = (xa + xb) / 2;
+      eln('path', {
+        d: `M ${xa} ${y0} C ${xm} ${y0}, ${xm} ${y1}, ${xb} ${y1} L ${xb} ${y1 + h} C ${xm} ${y1 + h}, ${xm} ${y0 + h}, ${xa} ${y0 + h} Z`,
+        fill: sel ? 'rgba(255,95,21,0.26)' : 'rgba(255,255,255,0.08)',
+        stroke: sel ? 'rgba(255,95,21,0.85)' : 'none',
+        'stroke-width': sel ? 1.2 : 0,
+      }, svg);
+    }
+    L1.forEach(([i, j, v, sel]) => ribbon(srcs[i], mids[j], v, sel));
+    L2.forEach(([i, j, v, sel]) => ribbon(mids[i], sinks[j], v, sel));
+    [...srcs, ...mids, ...sinks].forEach((n) => {
+      eln('rect', { x: n.x, y: n.y, width: bar, height: n.h, rx: 1.5, fill: '#9A9DA6', opacity: 0.9 }, svg);
+    });
+    srcs.forEach((n) => {
+      txt(svg, n.x - 12, n.y + n.h / 2 - 1, n.name, '#F2F3F5', 12, { 'text-anchor': 'end', 'letter-spacing': '1' });
+      txt(svg, n.x - 12, n.y + n.h / 2 + 14, '$' + n.v + 'K', '#80848F', 9.5, { 'text-anchor': 'end', 'letter-spacing': '0.8' });
+    });
+    mids.forEach((n) => {
+      txt(svg, n.x + bar / 2, n.y - 10, n.name + ' · $' + n.v + 'K', '#A9ACB6', 10, { 'text-anchor': 'middle', 'letter-spacing': '1.4' });
+    });
+    sinks.forEach((n) => {
+      txt(svg, n.x + bar + 12, n.y + n.h / 2 - 1, n.name, '#F2F3F5', 12, { 'letter-spacing': '1' });
+      txt(svg, n.x + bar + 12, n.y + n.h / 2 + 14, '$' + n.v + 'K', '#80848F', 9.5, { 'letter-spacing': '0.8' });
+    });
+  })();
+})();
+</script>
+</body>
+</html>

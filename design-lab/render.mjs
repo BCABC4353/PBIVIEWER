@@ -9,6 +9,9 @@ const out = join(root, 'renders');
 const PHONE = { width: 430, height: 932, deviceScaleFactor: 3 };
 const WIDE = { width: 1460, height: 1000, deviceScaleFactor: 2 };
 
+const only = process.argv.slice(2);
+const want = (n) => only.length === 0 || only.includes(n);
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function open(browser, file, viewport) {
@@ -27,27 +30,27 @@ async function shoot(page, name, opts = {}) {
 
 const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox', '--force-color-profile=srgb'] });
 
-{
+if (want('index')) {
   const p = await open(browser, 'index.html', PHONE);
   await shoot(p, 'index.png', { fullPage: true });
   await p.close();
 }
 
-{
+if (want('01')) {
   const p = await open(browser, '01-type.html', WIDE);
   await sleep(500);
   await shoot(p, '01-type.png', { fullPage: true });
   await p.close();
 }
 
-{
+if (want('02')) {
   const p = await open(browser, '02-color.html', WIDE);
   await sleep(300);
   await shoot(p, '02-color.png', { fullPage: true });
   await p.close();
 }
 
-{
+if (want('03')) {
   const p = await open(browser, '03-instruments.html', PHONE);
   await sleep(2200);
   await p.evaluate(() => window.__lab.api.setStrips(1));
@@ -56,7 +59,7 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
   await p.close();
 }
 
-{
+if (want('04')) {
   const p = await open(browser, '04-controls.html', PHONE);
   await sleep(600);
   await shoot(p, '04-controls.png', { fullPage: true });
@@ -75,7 +78,7 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
   await p.close();
 }
 
-{
+if (want('05')) {
   const p = await open(browser, '05-fluid.html', WIDE);
   await sleep(2200);
   await p.evaluate(() => {
@@ -93,7 +96,7 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
   await p.close();
 }
 
-{
+if (want('06')) {
   const p = await open(browser, '06-motion.html', WIDE);
   await sleep(3200);
   await p.evaluate(() => window.__lab.api.setDraw(1));
@@ -108,6 +111,22 @@ const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setui
   await p.evaluate(() => window.__lab.api.setDraw(1));
   await sleep(120);
   await shoot(p, '06-motion-draw-3-settled.png');
+  await p.close();
+}
+
+if (want('07')) {
+  const p = await open(browser, '07-visuals.html', WIDE);
+  await sleep(600);
+  await shoot(p, '07-visuals.png', { fullPage: true });
+  await p.close();
+}
+
+if (want('08')) {
+  const p = await open(browser, '08-animation.html', WIDE);
+  await sleep(600);
+  await p.evaluate(() => window.__lab.api.settleAll());
+  await sleep(150);
+  await shoot(p, '08-animation.png', { fullPage: true });
   await p.close();
 }
 

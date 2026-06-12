@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 08 Animation</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  .rm-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px; margin-bottom: 24px; }
+  .rm-id .tn { font-size: 13px; font-weight: 500; }
+  .rm-id .td { font-size: 10px; color: var(--ink-low); margin-top: 3px; letter-spacing: 0.06em; }
+  .toggle { position: relative; width: 64px; height: 34px; border-radius: 17px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); cursor: pointer; flex: none; }
+  .toggle .thumb {
+    position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
+    will-change: transform;
+  }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,95,21,0.85); }
+  .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,95,21,0.6); }
+
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .demo { padding: 18px 20px 16px; cursor: pointer; user-select: none; }
+  .d-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .d-name { font-size: 13px; font-weight: 500; letter-spacing: 0.03em; }
+  .d-name .ix { font-size: 10px; color: var(--live); margin-right: 7px; }
+  .d-params { font-size: 10px; font-weight: 500; color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; text-align: right; }
+  .d-zone { margin-top: 12px; padding: 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep); }
+  .d-zone svg { display: block; width: 100%; height: auto; }
+  .d-hint { margin-top: 10px; font-size: 9px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+  .kpirow { display: flex; gap: 26px; padding: 8px 4px 4px; }
+  .kp { flex: 1; }
+  .kp .k { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); }
+  .kp .n { margin-top: 9px; font-size: 42px; font-weight: 400; line-height: 1; color: var(--ink-hi); min-width: 4.6ch; }
+  .kp .s { margin-top: 7px; font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.04em; }
+
+  .ttbl { width: 100%; border-collapse: collapse; }
+  .ttbl th { font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);
+    text-align: left; padding: 2px 0 9px; border-bottom: 1px solid var(--hairline-strong); }
+  .ttbl th.r, .ttbl td.r { text-align: right; }
+  .ttbl td { font-size: 12px; color: var(--ink-hi); padding: 10px 0; border-bottom: 1px solid var(--hairline); will-change: transform, opacity; }
+  .ttbl tr:last-child td { border-bottom: none; }
+  .ttbl td.dim { color: var(--ink-mid); }
+  .ttbl td.age.behind { color: var(--behind); }
+  .ttbl td.age.broken { color: var(--broken); }
+
+  body.solo { max-width: 500px; margin: 0 auto; }
+  body.solo .page { padding: 8px; min-height: 0; }
+  body.solo .board { grid-template-columns: 1fr; gap: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">08 — Arrivals: one per visual family</div>
+      <div class="lab-sub">Board 07's vocabulary, each family performing the only performance it is allowed — its own arrival. Springs throughout, interruptible mid-flight, parameters printed. Tap any board to replay; replay is re-arrival. The master toggle collapses everything to its settled state, instantly, mid-flight included.</div>
+    </div>
+    <div class="lab-meta">RULING 5 · DAMPED SPRINGS · REV B</div>
+  </header>
+
+  <div class="well rm-bar" id="rmBar">
+    <div class="rm-id">
+      <div class="tn">Reduced motion</div>
+      <div class="td">Every arrival below lands pre-settled — no draw-ins, no counts, no pours</div>
+    </div>
+    <div class="toggle" id="rmToggle"><div class="arm"></div><div class="thumb" id="rmThumb"></div></div>
+  </div>
+
+  <div class="board">
+    <div class="well demo" data-anim="bars">
+      <div class="d-head"><span class="d-name"><span class="ix">A1</span>BARS GROW FROM BASELINE</span><span class="d-params">RESP 0.50 · DAMP 0.85 · +30 MS / BAR</span></div>
+      <div class="d-zone"><svg id="aBars" viewBox="0 0 520 206"></svg></div>
+      <div class="d-hint">Denials by payor, MAY · JUN — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="stack">
+      <div class="d-head"><span class="d-name"><span class="ix">A2</span>STACK RISES SEGMENT BY SEGMENT</span><span class="d-params">RESP 0.40 · DAMP 0.90 · +90 MS / SEGMENT</span></div>
+      <div class="d-zone"><svg id="aStack" viewBox="0 0 520 216"></svg></div>
+      <div class="d-hint">A/R aging by payor, bottom-up — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="line">
+      <div class="d-head"><span class="d-name"><span class="ix">A3</span>LINE DRAWS, LIVE POINT LAST</span><span class="d-params">PATH 0.80 / 1.00 · POINT 0.35 / 0.70 AFTER</span></div>
+      <div class="d-zone"><svg id="aLine" viewBox="0 0 520 196"></svg></div>
+      <div class="d-hint">Weekly deposits — the orange point lands only once the path has — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="donut">
+      <div class="d-head"><span class="d-name"><span class="ix">A4</span>DONUT SWEEPS FROM 12</span><span class="d-params">RESP 0.45 · DAMP 1.00 · +140 MS / ARC</span></div>
+      <div class="d-zone"><svg id="aDonut" viewBox="0 0 520 226"></svg></div>
+      <div class="d-hint">Denials by code, arcs in share order — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="waterfall">
+      <div class="d-head"><span class="d-name"><span class="ix">A5</span>WATERFALL POURS LEFT TO RIGHT</span><span class="d-params">BAR 0.50 / 0.78 · +160 MS · CONNECTOR 0.30 / 1.00 AFTER LANDING</span></div>
+      <div class="d-zone"><svg id="aWaterfall" viewBox="0 0 520 232"></svg></div>
+      <div class="d-hint">A/R walk — each bar lands with settle, the connector draws after — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="sankey">
+      <div class="d-head"><span class="d-name"><span class="ix">A6</span>SANKEY FLOWS IN FROM SOURCES</span><span class="d-params">RESP 0.60 · DAMP 0.90 · +60 MS / RIBBON · OPACITY + WIDTH</span></div>
+      <div class="d-zone"><svg id="aSankey" viewBox="0 0 520 262"></svg></div>
+      <div class="d-hint">Claim dollars through the clearinghouse — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="table">
+      <div class="d-head"><span class="d-name"><span class="ix">A7</span>ROWS SURFACE</span><span class="d-params">RESP 0.40 · DAMP 0.90 · +25 MS / ROW · 2 PX RISE</span></div>
+      <div class="d-zone">
+        <table class="ttbl">
+          <thead><tr><th>Claim</th><th>Payor</th><th class="r">Billed</th><th class="r">Age</th><th class="r">Status</th></tr></thead>
+          <tbody id="aTableBody"></tbody>
+        </table>
+      </div>
+      <div class="d-hint">Claims worklist — opacity + 2 px rise per row — tap to replay</div>
+    </div>
+
+    <div class="well demo" data-anim="kpi">
+      <div class="d-head"><span class="d-name"><span class="ix">A8</span>KPI COUNTS UP</span><span class="d-params">RESP 0.60 · DAMP 1.00 · +80 MS / TILE · RESERVED WIDTH</span></div>
+      <div class="d-zone">
+        <div class="kpirow">
+          <div class="kp"><div class="k">Net collections</div><div class="n" id="kpA">$0.00M</div><div class="s">JUN · FINANCE-PROD</div></div>
+          <div class="kp"><div class="k">Clean claim rate</div><div class="n" id="kpB">0.0%</div><div class="s">first pass · all payors</div></div>
+          <div class="kp"><div class="k">Days in A/R</div><div class="n" id="kpC">0.0</div><div class="s">target ≤ 40.0</div></div>
+        </div>
+      </div>
+      <div class="d-hint">Reserved-width boxes — no layout shift while counting — tap to replay</div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+  const eln = lab.eln;
+  const FU = "'D-DIN PRO', sans-serif";
+  const FM = "'JetBrains Mono Variable', monospace";
+
+  function sp(t, response, damping) {
+    if (t <= 0) return 0;
+    const w0 = (2 * Math.PI) / response;
+    if (damping < 1) {
+      const wd = w0 * Math.sqrt(1 - damping * damping);
+      return 1 - Math.exp(-damping * w0 * t) * (Math.cos(wd * t) + ((damping * w0) / wd) * Math.sin(wd * t));
+    }
+    return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+  }
+  const c01 = (v) => lab.clamp(v, 0, 1);
+
+  function txt(svg, x, y, s, fill, size, attrs) {
+    const t = eln('text', Object.assign({ x, y, fill, 'font-size': size, 'font-family': FU }, attrs || {}), svg);
+    t.textContent = s;
+    return t;
+  }
+
+  const demos = [];
+  function register(name, dur, seek) {
+    const el = document.querySelector(`[data-anim="${name}"]`);
+    demos.push({ name, el, dur, seek, raf: null });
+  }
+
+  (function bars() {
+    const svg = document.getElementById('aBars');
+    const payors = ['MEDICARE', 'MEDICAID', 'BCBS', 'UHC', 'AETNA'];
+    const may = [142, 96, 88, 71, 54];
+    const jun = [118, 104, 73, 69, 48];
+    const base = 168, hMax = 124, vMax = 150, slot = 94, x0 = 26, bw = 26, gap = 6;
+    eln('line', { x1: 14, y1: base, x2: 506, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const items = [];
+    payors.forEach((p, i) => {
+      const gx = x0 + i * slot + (slot - (bw * 2 + gap)) / 2;
+      txt(svg, gx + bw + gap / 2, base + 17, p, '#747882', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '1.1' });
+      [[may[i], '#6E727C', '#80848F', gx], [jun[i], '#C9CBD1', '#C9CBD1', gx + bw + gap]].forEach(([v, fill, ink, x]) => {
+        const rect = eln('rect', { x, y: base, width: bw, height: 0, rx: 2, fill, opacity: 0.93 }, svg);
+        const num = txt(svg, x + bw / 2, base - 7, '', ink, 10, { 'text-anchor': 'middle' });
+        items.push({ v, rect, num, off: items.length * 0.03 });
+      });
+    });
+    register('bars', 1.6, (t) => {
+      items.forEach((b) => {
+        const p = Math.max(sp(t - b.off, 0.5, 0.85), 0);
+        const h = (b.v / vMax) * hMax * p;
+        b.rect.setAttribute('y', String(base - h));
+        b.rect.setAttribute('height', String(Math.max(h, 0)));
+        b.num.setAttribute('y', String(base - h - 7));
+        b.num.textContent = t - b.off > 0 ? String(Math.round(b.v * c01(p))) : '';
+      });
+    });
+  })();
+
+  (function stack() {
+    const svg = document.getElementById('aStack');
+    const payors = ['MEDICARE', 'MEDICAID', 'BCBS', 'UHC', 'AETNA'];
+    const data = [[180, 72, 38, 22], [118, 64, 42, 24], [120, 44, 20, 12], [92, 48, 26, 12], [68, 32, 14, 7]];
+    const colors = ['#E2E4E9', '#A9ACB6', '#71757F', '#FFB02E'];
+    const totals = data.map((d) => d.reduce((a, b) => a + b, 0));
+    const maxT = Math.max(...totals);
+    const base = 178, hMax = 132, slot = 94, x0 = 26, bw = 48, segGap = 1.5;
+    eln('line', { x1: 14, y1: base, x2: 506, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const cols = data.map((d, i) => {
+      const gx = x0 + i * slot + (slot - bw) / 2;
+      const rects = d.map((v, j) => eln('rect', { x: gx, y: base, width: bw, height: 0, rx: 1.5, fill: colors[j], opacity: j === 3 ? 0.88 : 0.92 }, svg));
+      const tot = txt(svg, gx + bw / 2, base, '$' + totals[i] + 'K', '#A9ACB6', 10, { 'text-anchor': 'middle', opacity: 0 });
+      txt(svg, gx + bw / 2, base + 17, payors[i], '#747882', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '1.1' });
+      return { d, rects, tot, hs: d.map((v) => (v / totals[i]) * (totals[i] / maxT) * hMax) };
+    });
+    register('stack', 1.7, (t) => {
+      cols.forEach((c) => {
+        let y = base;
+        let lastP = 0;
+        c.hs.forEach((hFull, j) => {
+          const p = Math.max(sp(t - j * 0.09, 0.4, 0.9), 0);
+          const h = hFull * p;
+          y -= h;
+          c.rects[j].setAttribute('y', String(y));
+          c.rects[j].setAttribute('height', String(Math.max(h - segGap, 0)));
+          lastP = p;
+        });
+        c.tot.setAttribute('y', String(y - 8));
+        c.tot.setAttribute('opacity', String(c01(lastP)));
+      });
+    });
+  })();
+
+  (function line() {
+    const svg = document.getElementById('aLine');
+    const vals = [78.2, 84.1, 81.0, 92.3, 88.4, 95.0, 91.2, 87.6, 99.1, 94.5, 102.2, 96.4];
+    const x0 = 26, x1 = 494, base = 158, top = 30, vMin = 70, vMax = 110;
+    eln('line', { x1: 14, y1: base, x2: 506, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const pts = vals.map((v, i) => [x0 + ((x1 - x0) * i) / (vals.length - 1), base - ((v - vMin) / (vMax - vMin)) * (base - top)]);
+    pts.forEach((p) => eln('line', { x1: p[0], y1: base, x2: p[0], y2: base - 5, stroke: 'rgba(255,255,255,0.22)', 'stroke-width': 1 }, svg));
+    txt(svg, pts[0][0], base + 17, 'MAR 23', '#747882', 8.5, { 'letter-spacing': '1.1' });
+    txt(svg, pts[11][0], base + 17, 'JUN 8', '#747882', 8.5, { 'text-anchor': 'end', 'letter-spacing': '1.1' });
+    const path = eln('path', { d: 'M ' + pts.map((p) => p.join(' ')).join(' L '), fill: 'none', stroke: '#C9CBD1', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }, svg);
+    const last = pts[11];
+    const dot = eln('circle', { cx: last[0], cy: last[1], r: 0, fill: '#FF5F15' }, svg);
+    const vt = eln('text', { x: last[0] - 2, y: last[1] - 12, 'text-anchor': 'end', fill: '#F2F3F5', 'font-size': 12, 'font-family': FM, opacity: 0 }, svg);
+    vt.textContent = '96.4';
+    register('line', 1.8, (t) => {
+      const f = c01(sp(t, 0.8, 1.0));
+      path.setAttribute('stroke-dashoffset', String(1 - f));
+      const pd = Math.max(sp(t - 0.9, 0.35, 0.7), 0);
+      dot.setAttribute('r', String(4.5 * pd));
+      vt.setAttribute('opacity', String(c01(pd)));
+    });
+  })();
+
+  (function donut() {
+    const svg = document.getElementById('aDonut');
+    const codes = [
+      ['CO-45', 'FEE SCHEDULE', 34, '#FF5F15', true],
+      ['CO-97', 'BUNDLED', 22, '#DCDEE3', false],
+      ['PR-1', 'DEDUCTIBLE', 16, '#A9ACB6', false],
+      ['CO-16', 'MISSING INFO', 12, '#7E828C', false],
+      ['CO-29', 'TIMELY FILING', 9, '#5A5D66', false],
+      ['OTHER', '14 CODES', 7, '#3A3C44', false],
+    ];
+    const cx = 118, cy = 113, r = 78, sw = 22, pad = 0.035;
+    const arcs = [];
+    let a = -Math.PI / 2;
+    codes.forEach(([code, desc, share, color, sel], i) => {
+      const sweep = (share / 100) * Math.PI * 2;
+      const path = eln('path', { d: '', fill: 'none', stroke: color, 'stroke-width': sel ? sw + 4 : sw, opacity: sel ? 0.95 : 0.92 }, svg);
+      arcs.push({ a0: a + pad / 2, sweep: sweep - pad, path, off: i * 0.14, share });
+      a += sweep;
+      const ly = 38 + i * 28;
+      txt(svg, 268, ly, code, sel ? '#FF5F15' : '#F2F3F5', 11.5);
+      txt(svg, 330, ly, desc, '#747882', 8.5, { 'letter-spacing': '1.3' });
+      const pct = txt(svg, 500, ly, share + '%', sel ? '#FF5F15' : '#A9ACB6', 11.5, { 'text-anchor': 'end', opacity: 0 });
+      arcs[i].pct = pct;
+    });
+    const center = txt(svg, cx, cy + 1, '0', '#F2F3F5', 28, { 'text-anchor': 'middle' });
+    txt(svg, cx, cy + 21, 'DENIALS · JUN', '#80848F', 8, { 'text-anchor': 'middle', 'letter-spacing': '1.8' });
+    register('donut', 1.9, (t) => {
+      let acc = 0;
+      arcs.forEach((arc) => {
+        const p = c01(sp(t - arc.off, 0.45, 1.0));
+        acc += arc.share * p;
+        const a1 = arc.a0 + arc.sweep * p;
+        if (a1 - arc.a0 < 0.012) {
+          arc.path.setAttribute('d', '');
+        } else {
+          const p0 = [cx + r * Math.cos(arc.a0), cy + r * Math.sin(arc.a0)];
+          const p1 = [cx + r * Math.cos(a1), cy + r * Math.sin(a1)];
+          arc.path.setAttribute('d', `M ${p0[0]} ${p0[1]} A ${r} ${r} 0 ${a1 - arc.a0 > Math.PI ? 1 : 0} 1 ${p1[0]} ${p1[1]}`);
+        }
+        arc.pct.setAttribute('opacity', String(p));
+      });
+      center.textContent = Math.round((acc / 100) * 1118).toLocaleString('en-US');
+    });
+  })();
+
+  (function waterfall() {
+    const svg = document.getElementById('aWaterfall');
+    const steps = [
+      { label: 'START A/R', lo: 0, hi: 1284, kind: 'total', val: '1,284' },
+      { label: 'CHARGES', lo: 1284, hi: 2380, kind: 'inc', val: '+1,096' },
+      { label: 'PAYMENTS', lo: 1462, hi: 2380, kind: 'dec', val: '−918' },
+      { label: 'ADJUSTMENTS', lo: 1288, hi: 1462, kind: 'dec', val: '−174' },
+      { label: 'WRITE-OFFS', lo: 1226, hi: 1288, kind: 'dec', val: '−62' },
+      { label: 'END A/R', lo: 0, hi: 1226, kind: 'live', val: '1,226' },
+    ];
+    const ends = [1284, 2380, 1462, 1288, 1226];
+    const base = 192, k = 164 / 2380, x0 = 22, slot = 79.5, bw = 46;
+    const yOf = (v) => base - v * k;
+    eln('line', { x1: 14, y1: base, x2: 506, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+    const fills = { total: '#DCDEE3', inc: '#C9CBD1', dec: '#6E727C', live: '#FF5F15' };
+    const inks = { total: '#A9ACB6', inc: '#A9ACB6', dec: '#80848F', live: '#FF5F15' };
+    const items = steps.map((s, i) => {
+      const x = x0 + i * slot + (slot - bw) / 2;
+      const rect = eln('rect', { x, y: yOf(s.lo), width: bw, height: 0, rx: 2, fill: fills[s.kind], opacity: 0.93 }, svg);
+      const glyph = s.kind === 'inc' ? '▲ ' : s.kind === 'dec' ? '▼ ' : '';
+      const num = txt(svg, x + bw / 2, yOf(s.hi) - 7, glyph + s.val, inks[s.kind], 9.5, { 'text-anchor': 'middle', opacity: 0 });
+      txt(svg, x + bw / 2, base + 16, s.label, '#747882', 7.5, { 'text-anchor': 'middle', 'letter-spacing': '0.9' });
+      let conn = null;
+      if (i < steps.length - 1) {
+        const xr = x + bw, xn = x0 + (i + 1) * slot + (slot - bw) / 2;
+        conn = eln('line', { x1: xr, y1: yOf(ends[i]), x2: xr, y2: yOf(ends[i]), stroke: 'rgba(255,255,255,0.25)', 'stroke-width': 1 }, svg);
+        conn.__x = [xr, xn];
+      }
+      return { s, x, rect, num, conn, off: i * 0.16 };
+    });
+    register('waterfall', 2.3, (t) => {
+      items.forEach((it) => {
+        const p = Math.max(sp(t - it.off, 0.5, 0.78), 0);
+        const hFull = yOf(it.s.lo) - yOf(it.s.hi);
+        const h = hFull * p;
+        if (it.s.kind === 'dec') {
+          it.rect.setAttribute('y', String(yOf(it.s.hi)));
+        } else {
+          it.rect.setAttribute('y', String(yOf(it.s.lo) - h));
+        }
+        it.rect.setAttribute('height', String(Math.max(h, 0)));
+        it.num.setAttribute('opacity', String(c01(p * 1.4)));
+        if (it.conn) {
+          const cp = c01(sp(t - it.off - 0.38, 0.3, 1.0));
+          it.conn.setAttribute('x2', String(it.conn.__x[0] + (it.conn.__x[1] - it.conn.__x[0]) * cp));
+        }
+      });
+    });
+  })();
+
+  (function sankey() {
+    const svg = document.getElementById('aSankey');
+    const s = 0.165, srcX = 86, midX = 256, sinkX = 426, bar = 3, gap = 12;
+    function col(x, nodes, totalH) {
+      let y = (262 - totalH) / 2 + 6;
+      return nodes.map(([name, v]) => {
+        const h = v * s;
+        const n = { name, v, x, y, h, off: 0 };
+        y += h + gap;
+        return n;
+      });
+    }
+    const srcs = col(srcX, [['MEDICARE', 612], ['COMMERCIAL', 488], ['SELF-PAY', 86]], (612 + 488 + 86) * s + 2 * gap);
+    const mids = col(midX, [['CLEAN', 884], ['EXCEPTIONS', 302]], (884 + 302) * s + gap);
+    const sinks = col(sinkX, [['PAID', 818], ['DENIED', 196], ['PENDING', 172]], (818 + 196 + 172) * s + 2 * gap);
+    const L1 = [[0, 0, 488, true], [0, 1, 124, false], [1, 0, 352, false], [1, 1, 136, false], [2, 0, 44, false], [2, 1, 42, false]];
+    const L2 = [[0, 0, 716, false], [0, 1, 64, false], [0, 2, 104, false], [1, 0, 102, false], [1, 1, 132, false], [1, 2, 68, false]];
+    const ribbons = [];
+    function mk(a, b, v, sel, off) {
+      const h = v * s;
+      const y0 = a.y + a.off, y1 = b.y + b.off;
+      a.off += h; b.off += h;
+      const path = eln('path', { d: '', fill: sel ? 'rgba(255,95,21,0.26)' : 'rgba(255,255,255,0.08)' }, svg);
+      if (sel) {
+        path.setAttribute('stroke', 'rgba(255,95,21,0.85)');
+        path.setAttribute('stroke-width', '1.2');
+      }
+      ribbons.push({ path, xa: a.x + bar, xb: b.x, y0, y1, h, sel, off });
+    }
+    L1.forEach(([i, j, v, sel], k) => mk(srcs[i], mids[j], v, sel, k * 0.06));
+    L2.forEach(([i, j, v, sel], k) => mk(mids[i], sinks[j], v, sel, 0.36 + k * 0.06));
+    [...srcs, ...mids, ...sinks].forEach((n) => {
+      eln('rect', { x: n.x, y: n.y, width: bar, height: n.h, rx: 1.5, fill: '#9A9DA6', opacity: 0.9 }, svg);
+    });
+    srcs.forEach((n) => {
+      txt(svg, n.x - 9, n.y + n.h / 2 - 1, n.name, '#F2F3F5', 9.5, { 'text-anchor': 'end', 'letter-spacing': '0.7' });
+      txt(svg, n.x - 9, n.y + n.h / 2 + 12, '$' + n.v + 'K', '#80848F', 8.5, { 'text-anchor': 'end' });
+    });
+    mids.forEach((n) => {
+      txt(svg, n.x + bar / 2, n.y - 8, n.name + ' · $' + n.v + 'K', '#A9ACB6', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '1' });
+    });
+    sinks.forEach((n) => {
+      txt(svg, n.x + bar + 9, n.y + n.h / 2 - 1, n.name, '#F2F3F5', 9.5, { 'letter-spacing': '0.7' });
+      txt(svg, n.x + bar + 9, n.y + n.h / 2 + 12, '$' + n.v + 'K', '#80848F', 8.5);
+    });
+    register('sankey', 2.2, (t) => {
+      ribbons.forEach((r) => {
+        const p = Math.max(sp(t - r.off, 0.6, 0.9), 0);
+        const f = c01(p);
+        if (f < 0.005) {
+          r.path.setAttribute('d', '');
+          return;
+        }
+        const hh = r.h * f;
+        const ya = r.y0 + (r.h - hh) / 2, yb = r.y1 + (r.h - hh) / 2;
+        const xm = (r.xa + r.xb) / 2;
+        r.path.setAttribute('d', `M ${r.xa} ${ya} C ${xm} ${ya}, ${xm} ${yb}, ${r.xb} ${yb} L ${r.xb} ${yb + hh} C ${xm} ${yb + hh}, ${xm} ${ya + hh}, ${r.xa} ${ya + hh} Z`);
+        r.path.setAttribute('fill', r.sel ? `rgba(255,95,21,${0.26 * Math.min(f * 1.5, 1)})` : `rgba(255,255,255,${0.08 * Math.min(f * 1.5, 1)})`);
+        if (r.sel) r.path.setAttribute('stroke', `rgba(255,95,21,${0.85 * Math.min(f * 1.5, 1)})`);
+      });
+    });
+  })();
+
+  (function table() {
+    const body = document.getElementById('aTableBody');
+    const rows = [
+      ['CLM-208114', 'Medicare', '2,418.00', '15d', '', '<span class="stat">CLEAN</span>'],
+      ['CLM-208201', 'Medicare', '842.60', '13d', '', '<span class="stat verified"><span class="g">✓</span>PAID 14:31:09</span>'],
+      ['CLM-207892', 'BCBS', '11,240.50', '22d', '', '<span class="stat">CLEAN</span>'],
+      ['CLM-207533', 'UHC', '4,403.10', '28d', '', '<span class="stat">IN PROCESS</span>'],
+      ['CLM-206447', 'UHC', '3,876.25', '43d', '', '<span class="stat">IN PROCESS</span>'],
+      ['CLM-204481', 'Medicaid', '1,194.00', '92d', 'behind', '<span class="stat behind"><span class="g">▲</span>OVERDUE 92D</span>'],
+      ['CLM-203970', 'Aetna', '6,512.75', '100d', 'broken', '<span class="stat broken"><span class="g">⬣</span>DENIED CO-29</span>'],
+    ];
+    const cells = rows.map(([id, payor, amt, age, ageCls, status], i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${id}</td><td class="dim">${payor}</td><td class="r dim">${amt}</td><td class="r age ${ageCls}">${age}</td><td class="r">${status}</td>`;
+      body.appendChild(tr);
+      return { tds: Array.from(tr.children), off: i * 0.025 };
+    });
+    register('table', 1.3, (t) => {
+      cells.forEach((row) => {
+        const p = Math.max(sp(t - row.off, 0.4, 0.9), 0);
+        row.tds.forEach((td) => {
+          td.style.opacity = String(c01(p));
+          td.style.transform = `translateY(${(1 - p) * 2}px)`;
+        });
+      });
+    });
+  })();
+
+  (function kpi() {
+    const items = [
+      { el: document.getElementById('kpA'), off: 0, fmt: (p) => '$' + (1.84 * p).toFixed(2) + 'M' },
+      { el: document.getElementById('kpB'), off: 0.08, fmt: (p) => (94.2 * p).toFixed(1) + '%' },
+      { el: document.getElementById('kpC'), off: 0.16, fmt: (p) => (41.3 * p).toFixed(1) },
+    ];
+    register('kpi', 1.6, (t) => {
+      items.forEach((it) => {
+        it.el.textContent = it.fmt(c01(sp(t - it.off, 0.6, 1.0)));
+      });
+    });
+  })();
+
+  function stop(d) {
+    if (d.raf) cancelAnimationFrame(d.raf);
+    d.raf = null;
+  }
+  function play(d) {
+    stop(d);
+    if (lab.reduced) {
+      d.seek(d.dur + 10);
+      return;
+    }
+    const t0 = performance.now();
+    const loop = (now) => {
+      const t = (now - t0) / 1000;
+      d.seek(Math.min(t, d.dur + 10));
+      d.raf = t < d.dur ? requestAnimationFrame(loop) : null;
+    };
+    d.raf = requestAnimationFrame(loop);
+  }
+
+  demos.forEach((d) => {
+    d.seek(0);
+    d.el.addEventListener('click', () => play(d));
+  });
+
+  const rm = document.getElementById('rmToggle');
+  const rmThumb = document.getElementById('rmThumb');
+  let rmAnim = null;
+  function setReduced(v) {
+    lab.reduced = v;
+    rm.classList.toggle('on', v);
+    if (rmAnim) rmAnim.cancel();
+    const fromM = rmThumb.style.transform.match(/([-\d.]+)px/);
+    rmAnim = lab.spring({ from: fromM ? Number(fromM[1]) : (v ? 0 : 30), to: v ? 30 : 0, response: 0.34, damping: 0.6, onUpdate: (x) => { rmThumb.style.transform = `translateX(${x}px)`; } });
+    if (v) demos.forEach((d) => { stop(d); d.seek(d.dur + 10); });
+  }
+  rm.addEventListener('click', () => setReduced(!lab.reduced));
+  if (lab.reduced) setReduced(true);
+
+  const solo = new URLSearchParams(location.search).get('solo');
+  if (solo) {
+    document.body.classList.add('solo');
+    document.querySelector('.lab-head').style.display = 'none';
+    document.getElementById('rmBar').style.display = 'none';
+    demos.forEach((d) => { if (d.name !== solo) d.el.style.display = 'none'; });
+  } else {
+    setTimeout(() => demos.forEach((d) => play(d)), 300);
+  }
+
+  lab.api.demoNames = demos.map((d) => d.name);
+  lab.api.demoDur = (name) => demos.find((d) => d.name === name).dur * 1000;
+  lab.api.seekDemo = (name, ms) => {
+    const d = demos.find((x) => x.name === name);
+    stop(d);
+    d.seek(ms / 1000);
+  };
+  lab.api.playDemo = (name) => play(demos.find((x) => x.name === name));
+  lab.api.settleAll = () => demos.forEach((d) => { stop(d); d.seek(d.dur + 10); });
+  lab.api.setReduced = setReduced;
+})();
+</script>
+</body>
+</html>
