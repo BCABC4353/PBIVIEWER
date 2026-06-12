@@ -16,6 +16,7 @@ import { presentError, type PresentableError } from '../core/error-presenter';
 import { thunk } from '../feel/haptics';
 import { gateTabBody } from './tab-gate';
 import { ErrorState, ListSkeleton, ScreenHeader } from './states';
+import { DenialsEntryButton, DenialsEntryRow } from './DenialsEntry';
 import {
   defaultExpandedKeys,
   filterCatalogGroups,
@@ -82,16 +83,7 @@ export const SignedOutCard: React.FC<{
         >
           <Text style={styles.signInButtonText}>Connect to Power BI</Text>
         </Pressable>
-        {onOpenDenials ? (
-          <Pressable
-            onPress={onOpenDenials}
-            accessibilityRole="button"
-            accessibilityLabel="Demo: Denials screen"
-            style={({ pressed }) => [styles.signInButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.signInButtonText}>Demo: Denials</Text>
-          </Pressable>
-        ) : null}
+        <DenialsEntryButton onPress={onOpenDenials} />
       </View>
     </View>
   </SafeAreaView>
@@ -212,21 +204,7 @@ const LiveReportList: React.FC<{
         ListHeaderComponent={
           <>
             <ScreenHeader title="Reports" subtitle={REPORTS_SUBTITLE} />
-            {onOpenDenials ? (
-              <Pressable
-                onPress={onOpenDenials}
-                accessibilityRole="button"
-                accessibilityLabel="Demo: Denials screen"
-                style={({ pressed }) => [styles.demoRow, pressed && styles.rowPressed]}
-              >
-                <Text style={styles.rowGlyph}>▦</Text>
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowName}>Denials</Text>
-                  <Text style={styles.rowMeta}>Demo · Board 11 crosswalk</Text>
-                </View>
-                <Text style={styles.rowChevron}>›</Text>
-              </Pressable>
-            ) : null}
+            <DenialsEntryRow onPress={onOpenDenials} />
             {result ? (
               <View style={styles.searchWrap}>
                 <TextInput
@@ -410,18 +388,6 @@ const styles = StyleSheet.create({
   groupKind: { ...type.micro, color: color.textTertiary },
   groupCount: { ...type.micro, color: color.textTertiary, minWidth: 18, textAlign: 'right' },
 
-  demoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.m,
-    minHeight: 44,
-    paddingHorizontal: space.l,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: color.hairline,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: color.hairline,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -10,16 +10,16 @@ const VALID_MANIFEST = [
     source: 'columnChart',
     render: 'bar (grouped)',
     layout: { x: 15, y: 14, w: 1254, h: 323 },
-    group: ["'TRIP DENIALS'[POST DATE WEEK]"],
-    measure: ["MIN('TRIP DENIALS'[Merged])"],
+    group: ["'SALES'[ORDER WEEK]"],
+    measure: ["SUM('SALES'[Revenue])"],
   },
   {
     id: 'v1',
     source: 'pivotTable',
     render: 'ledger',
     layout: { x: 15, y: 349, w: 350, h: 354 },
-    group: ["'TRIP DENIALS'[DENIAL PAYOR CATEGORY]", "'TRIP DENIALS'[DENIAL PAYOR]"],
-    measure: ["MIN('TRIP DENIALS'[Merged])"],
+    group: ["'SALES'[REGION]", "'SALES'[CHANNEL]"],
+    measure: ["SUM('SALES'[Revenue])"],
   },
 ];
 
@@ -189,7 +189,7 @@ describe('ledger-logic wiring — denial code mock data (3 levels)', () => {
 });
 
 describe('carousel-logic wiring — measure selection', () => {
-  const measures = ["MIN('TRIP DENIALS'[Merged])", "COUNTA('TRIP DENIALS'[Trips])", "SUM('TRIP DENIALS'[Amount])"];
+  const measures = ["SUM('SALES'[Revenue])", "COUNTA('SALES'[Orders])", "AVERAGE('SALES'[Margin])"];
   const initialState = { index: 0, count: measures.length };
 
   it('starts at index 0', () => {
