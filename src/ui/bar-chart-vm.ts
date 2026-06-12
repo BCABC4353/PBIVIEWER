@@ -32,6 +32,30 @@ export function computeControlBands(
   return { kind: 'ok', data: { band, flags: flags.value.flags } };
 }
 
+export interface BandSegment {
+  upperFrac: number;
+  lowerFrac: number;
+  flagged: boolean;
+}
+
+export function bandSegments(
+  band: RollingPoint[],
+  flags: AnomalyFlag[],
+  scale: number,
+): BandSegment[] {
+  const denom = scale > 0 ? scale : 1;
+  const flaggedIndices = new Set(flags.map((f) => f.index));
+  return band.map((p, i) => {
+    const upper = Math.min(1, Math.max(0, p.upper / denom));
+    const lower = Math.min(1, Math.max(0, p.lower / denom));
+    return {
+      upperFrac: Math.max(upper, lower),
+      lowerFrac: Math.min(upper, lower),
+      flagged: flaggedIndices.has(i),
+    };
+  });
+}
+
 export function formatDeltaGlyph(delta: number): '▲' | '▼' | '—' {
   if (delta > 0) return '▲';
   if (delta < 0) return '▼';
