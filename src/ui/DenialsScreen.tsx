@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { color, space, type } from '../design/tokens';
 import { BarChart } from '../visuals/BarChart';
@@ -10,6 +10,9 @@ import {
   type MockLedgerDataset,
 } from './denials-mock-data';
 import { computeControlBands } from './bar-chart-vm';
+import { DenialsDrillScreen } from './DenialsDrillScreen';
+import { buildTree } from '../core/ledger-logic';
+import type { LedgerNode } from '../core/ledger-logic';
 import MANIFEST_RAW from '../../design-lab/board11-data/denials-manifest.json';
 
 const MANIFEST: ParsedManifest = parseManifest(MANIFEST_RAW);
@@ -17,6 +20,12 @@ const MANIFEST: ParsedManifest = parseManifest(MANIFEST_RAW);
 const TREND_WINDOW = 4;
 const TREND_SIGMA = 2;
 const TREND_BANDS = computeControlBands(DENIALS_BAR_DATA.points, TREND_WINDOW, TREND_SIGMA);
+
+interface DrillTarget {
+  node: LedgerNode;
+  tileIndex: number;
+  categoryIndex: number;
+}
 
 function findLedger(tileId: string): MockLedgerDataset | undefined {
   return ALL_LEDGERS.find((d) => d.tileId === tileId);
@@ -29,10 +38,27 @@ const SectionLabel: React.FC<{ text: string }> = ({ text }) => (
 );
 
 export const DenialsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
+  const [drillTarget, setDrillTarget] = useState<DrillTarget | null>(null);
+
   const barTiles = MANIFEST.tiles.filter(
     (t) => t.render === 'bar' || t.render === 'bar (grouped)',
   );
   const ledgerTiles = MANIFEST.tiles.filter((t) => t.render === 'ledger');
+
+  if (drillTarget !== null) {
+    const mock = ALL_LEDGERS[drillTarget.tileIndex];
+    if (mock) {
+      const tree = buildTree(mock.rows, mock.groupLevels);
+      return (
+        <DenialsDrillScreen
+          node={drillTarget.node}
+          tree={tree}
+          categoryIndex={drillTarget.categoryIndex}
+          onBack={() => setDrillTarget(null)}
+        />
+      );
+    }
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -64,7 +90,7 @@ export const DenialsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
         {ledgerTiles.length > 0 ? (
           <SectionLabel text="PIVOTS" />
         ) : null}
-        {ledgerTiles.map((tile) => {
+        {ledgerTiles.map((tile, tileIndex) => {
           const mock = findLedger(tile.id);
           if (!mock) return null;
           return (
@@ -74,6 +100,9 @@ export const DenialsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => 
                 rows={mock.rows}
                 measures={tile.measure.length > 0 ? tile.measure : [mock.measureLabel]}
                 title={mock.groupLevels[0] ?? tile.id}
+                onDrillNode={(node, colorIndex) =>
+                  setDrillTarget({ node, tileIndex, categoryIndex: colorIndex })
+                }
               />
             </View>
           );
