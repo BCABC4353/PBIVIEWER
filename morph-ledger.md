@@ -52,6 +52,14 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
 4. Build S3 primitive on reviewed S1+S2. MUST honor F4-tripwire: FLIP transform on .luce-sheet node.
 5. S4 captures S3 demo with hardened verifier; A-1..A-6 must pass on the primitive's own demo.
 
+## INTEGRATION LOG (morph/main)
+- 8c33aa6 merged S1 spring-velocity. 0aaf3d2 integrator follow-up: split spring tests under 300L
+  (spring-physics.test.ts + spring-physics-lifecycle.test.ts + shared spring-test-clock.ts), tightened
+  the dt-cap test per F1. Gate: tsc x2 + lint clean, 670/670.
+- merged S2 flip-geometry (--no-ff). flip-geometry.ts 85L, test 264L (both <300). Gate: tsc x2 + lint
+  clean, 704/704. S1+S2 now on morph/main.
+- S4-fix running in background (verifier hardening). S3 next, on reviewed S1+S2.
+
 ## Known pre-existing flake (NOT a morph regression)
 `src/main/updater.test.ts > "survives an unfetchable policy without forcing or throwing"` (line 201).
 Uses fake timers, no real network. Times out (5000ms) only under full-suite parallel CPU saturation;
