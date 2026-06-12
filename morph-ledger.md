@@ -114,10 +114,27 @@ main/master, RELEASE_REQUEST, update-policy.json, .github/workflows/**, package.
   breakup + CSS split) — defensible under anti-god-code (morph wiring forced touching the 689L file),
   flagged for the integration antagonist to confirm behavior-preserving.
 
-### Sprint 3 — verification (parallel): real-tile capture + integration antagonist — IN PROGRESS
-- S4-real: capture the REAL Insights tile morph in the harness; verify A-1..A-6 on the real integration.
-- F-int: antagonize the integration — focus/a11y, reduced-motion, NO global pointer interceptor, the 46
-  tests truly green for the right reasons, S5's extraction is behavior-preserving, reusability holds.
+### Sprint 3 — verification (parallel): real-tile capture + integration antagonist — DONE
+- S4-real (branch morph/s4-real): REAL Insights tile morph verify --real 16 PASS / 0 FAIL. A-1 grow
+  366->880px / shrink, close-returns-origin d=(0,0,0,0)px PIXEL-PERFECT. A-2 present every animating
+  frame. A-3 reverses. A-4 momentum snapRatio=0.7 (overshoots 40% then reverses). A-5 pointer free.
+  real-*.gif + frames.json committed. Added additive optional timeScale (undefined=prod identical) +
+  window.__HARNESS-gated __morphHandle shim (inert in prod/tests). verify.mjs A-4 narrowed near-transition
+  ratio backstop to fire only above 150px abs cap (fixes false-positive at spring velocity-zero point).
+  INTEGRATOR independently re-verified: real 16/16, primitive 16/16, baseline 7/9 FAIL (contrast holds),
+  + injected a 600px teleport -> A-4 correctly FAILed (verifier still honest). 46 InsightsPage tests green
+  with prod changes present. Merged to morph/main; re-gated 728/728.
+
+## SPRINT 3 COMPLETE. morph/main = full FLIP morph wired into live Insights board, View-Transition
+## deleted, REAL tile proven 16/16 at 1px spec bar, integration antagonist PASS, 728 tests green.
+
+### Sprint 4 — MORNING REPORT — NEXT
+- Write MORPH-REPORT.md: honest 5-line summary; per-squad status/branch/tests/antagonist findings+fixes;
+  measured A-1..A-8 PASS/FAIL table w/ numbers; before(VT 7/9)/after(real 16/16) GIFs + interrupt money
+  shot; REUSABILITY note + the F-int known-limitation (primitive imports from components/insights, not
+  yet relocated to lib/morph) as an owner QUESTION; spring-param QUESTIONS (k=400,c=36,zeta~0.9 — feel
+  needs owner eyes on a live build); exact verify commands. Push morph/main + all morph/* branches.
+  Reconcile ledger. Stop.
 - F-int VERDICT: OVERALL PASS. Test files byte-identical (git diff empty) -> 46 green are trustworthy.
   CSS-rule survival: no rule lost (only deliberate VT deletions + 1 dead-duplicate .luce-tile--active).
   Focus/a11y, A-5, A-7, same-node, reusability all PROVEN. Own gate: tsc x2+lint clean, 728/728.
