@@ -130,6 +130,35 @@ if (want('08')) {
   await p.close();
 }
 
+if (want('09')) {
+  const p = await open(browser, '09-transitions.html', PHONE);
+  await sleep(500);
+  await shoot(p, '09-transitions.png', { fullPage: true });
+  const phone = await p.$('#demoPhone');
+  await p.evaluate(() => window.__lab.api.setMorph(0, false));
+  await sleep(150);
+  await phone.screenshot({ path: join(out, '09-transitions-1-rest.png') });
+  console.log('shot', '09-transitions-1-rest.png');
+  await p.evaluate(() => window.__lab.api.setMorph(0.5, false));
+  await sleep(150);
+  await phone.screenshot({ path: join(out, '09-transitions-2-midmorph.png') });
+  console.log('shot', '09-transitions-2-midmorph.png');
+  await p.evaluate(() => window.__lab.api.setMorph(1, true));
+  await sleep(150);
+  await phone.screenshot({ path: join(out, '09-transitions-3-open.png') });
+  console.log('shot', '09-transitions-3-open.png');
+  await p.close();
+}
+
+if (want('10')) {
+  const p = await open(browser, '10-ledger.html', PHONE);
+  await sleep(500);
+  await p.evaluate(() => window.__lab.api.ledgerPose());
+  await sleep(200);
+  await shoot(p, '10-ledger.png', { fullPage: true });
+  await p.close();
+}
+
 await browser.close();
 
 let failed = false;

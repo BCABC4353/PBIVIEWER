@@ -18,9 +18,9 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
     will-change: transform;
   }
-  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,95,21,0.85); }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,121,0,0.85); }
   .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
-  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,95,21,0.6); }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,121,0,0.6); }
 
   .board { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .demo { padding: 18px 20px 16px; cursor: pointer; user-select: none; }
@@ -36,6 +36,7 @@
   .kp { flex: 1; }
   .kp .k { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); }
   .kp .n { margin-top: 9px; font-size: 42px; font-weight: 400; line-height: 1; color: var(--ink-hi); min-width: 4.6ch; }
+  .kp .d { margin-top: 9px; will-change: transform, opacity; }
   .kp .s { margin-top: 7px; font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.04em; }
 
   .ttbl { width: 100%; border-collapse: collapse; }
@@ -61,7 +62,7 @@
       <div class="lab-title">08 — Arrivals: one per visual family</div>
       <div class="lab-sub">Board 07's vocabulary, each family performing the only performance it is allowed — its own arrival. Springs throughout, interruptible mid-flight, parameters printed. Tap any board to replay; replay is re-arrival. The master toggle collapses everything to its settled state, instantly, mid-flight included.</div>
     </div>
-    <div class="lab-meta">RULING 5 · DAMPED SPRINGS · REV B</div>
+    <div class="lab-meta">RULINGS 5 · 7 · DAMPED SPRINGS · REV C</div>
   </header>
 
   <div class="well rm-bar" id="rmBar">
@@ -100,7 +101,7 @@
     <div class="well demo" data-anim="waterfall">
       <div class="d-head"><span class="d-name"><span class="ix">A5</span>WATERFALL POURS LEFT TO RIGHT</span><span class="d-params">BAR 0.50 / 0.78 · +160 MS · CONNECTOR 0.30 / 1.00 AFTER LANDING</span></div>
       <div class="d-zone"><svg id="aWaterfall" viewBox="0 0 520 232"></svg></div>
-      <div class="d-hint">A/R walk — each bar lands with settle, the connector draws after — tap to replay</div>
+      <div class="d-hint">A/R walk — increments orange, decrements backlit blue, totals silver — tap to replay</div>
     </div>
 
     <div class="well demo" data-anim="sankey">
@@ -121,15 +122,15 @@
     </div>
 
     <div class="well demo" data-anim="kpi">
-      <div class="d-head"><span class="d-name"><span class="ix">A8</span>KPI COUNTS UP</span><span class="d-params">RESP 0.60 · DAMP 1.00 · +80 MS / TILE · RESERVED WIDTH</span></div>
+      <div class="d-head"><span class="d-name"><span class="ix">A8</span>KPI COUNTS UP</span><span class="d-params">RESP 0.60 · DAMP 1.00 · +80 MS / TILE · DELTA LANDS AFTER</span></div>
       <div class="d-zone">
         <div class="kpirow">
-          <div class="kp"><div class="k">Net collections</div><div class="n" id="kpA">$0.00M</div><div class="s">JUN · FINANCE-PROD</div></div>
-          <div class="kp"><div class="k">Clean claim rate</div><div class="n" id="kpB">0.0%</div><div class="s">first pass · all payors</div></div>
-          <div class="kp"><div class="k">Days in A/R</div><div class="n" id="kpC">0.0</div><div class="s">target ≤ 40.0</div></div>
+          <div class="kp"><div class="k">Net collections</div><div class="n" id="kpA">$0.00M</div><div class="d" id="kpAd"><span class="stat up"><span class="g">▲</span>4.2% VS MAY</span></div><div class="s">JUN · FINANCE-PROD</div></div>
+          <div class="kp"><div class="k">Clean claim rate</div><div class="n" id="kpB">0.0%</div><div class="d" id="kpBd"><span class="stat down"><span class="g">▼</span>0.3 PT VS MAY</span></div><div class="s">first pass · all payors</div></div>
+          <div class="kp"><div class="k">Days in A/R</div><div class="n" id="kpC">0.0</div><div class="d" id="kpCd"><span class="stat up"><span class="g">▲</span>0.8 VS MAY</span></div><div class="s">target ≤ 40.0</div></div>
         </div>
       </div>
-      <div class="d-hint">Reserved-width boxes — no layout shift while counting — tap to replay</div>
+      <div class="d-hint">Reserved-width boxes — deltas wear the directional pair, movement not judgment — tap to replay</div>
     </div>
   </div>
 </div>
@@ -239,7 +240,7 @@
     txt(svg, pts[11][0], base + 17, 'JUN 8', '#747882', 8.5, { 'text-anchor': 'end', 'letter-spacing': '1.1' });
     const path = eln('path', { d: 'M ' + pts.map((p) => p.join(' ')).join(' L '), fill: 'none', stroke: '#C9CBD1', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }, svg);
     const last = pts[11];
-    const dot = eln('circle', { cx: last[0], cy: last[1], r: 0, fill: '#FF5F15' }, svg);
+    const dot = eln('circle', { cx: last[0], cy: last[1], r: 0, fill: '#FF7900' }, svg);
     const vt = eln('text', { x: last[0] - 2, y: last[1] - 12, 'text-anchor': 'end', fill: '#F2F3F5', 'font-size': 12, 'font-family': FM, opacity: 0 }, svg);
     vt.textContent = '96.4';
     register('line', 1.8, (t) => {
@@ -254,7 +255,7 @@
   (function donut() {
     const svg = document.getElementById('aDonut');
     const codes = [
-      ['CO-45', 'FEE SCHEDULE', 34, '#FF5F15', true],
+      ['CO-45', 'FEE SCHEDULE', 34, '#FF7900', true],
       ['CO-97', 'BUNDLED', 22, '#DCDEE3', false],
       ['PR-1', 'DEDUCTIBLE', 16, '#A9ACB6', false],
       ['CO-16', 'MISSING INFO', 12, '#7E828C', false],
@@ -270,9 +271,9 @@
       arcs.push({ a0: a + pad / 2, sweep: sweep - pad, path, off: i * 0.14, share });
       a += sweep;
       const ly = 38 + i * 28;
-      txt(svg, 268, ly, code, sel ? '#FF5F15' : '#F2F3F5', 11.5);
+      txt(svg, 268, ly, code, sel ? '#FF7900' : '#F2F3F5', 11.5);
       txt(svg, 330, ly, desc, '#747882', 8.5, { 'letter-spacing': '1.3' });
-      const pct = txt(svg, 500, ly, share + '%', sel ? '#FF5F15' : '#A9ACB6', 11.5, { 'text-anchor': 'end', opacity: 0 });
+      const pct = txt(svg, 500, ly, share + '%', sel ? '#FF7900' : '#A9ACB6', 11.5, { 'text-anchor': 'end', opacity: 0 });
       arcs[i].pct = pct;
     });
     const center = txt(svg, cx, cy + 1, '0', '#F2F3F5', 28, { 'text-anchor': 'middle' });
@@ -304,14 +305,14 @@
       { label: 'PAYMENTS', lo: 1462, hi: 2380, kind: 'dec', val: '−918' },
       { label: 'ADJUSTMENTS', lo: 1288, hi: 1462, kind: 'dec', val: '−174' },
       { label: 'WRITE-OFFS', lo: 1226, hi: 1288, kind: 'dec', val: '−62' },
-      { label: 'END A/R', lo: 0, hi: 1226, kind: 'live', val: '1,226' },
+      { label: 'END A/R', lo: 0, hi: 1226, kind: 'total', val: '1,226' },
     ];
     const ends = [1284, 2380, 1462, 1288, 1226];
     const base = 192, k = 164 / 2380, x0 = 22, slot = 79.5, bw = 46;
     const yOf = (v) => base - v * k;
     eln('line', { x1: 14, y1: base, x2: 506, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
-    const fills = { total: '#DCDEE3', inc: '#C9CBD1', dec: '#6E727C', live: '#FF5F15' };
-    const inks = { total: '#A9ACB6', inc: '#A9ACB6', dec: '#80848F', live: '#FF5F15' };
+    const fills = { total: '#DCDEE3', inc: '#FF7900', dec: '#5D9FEF' };
+    const inks = { total: '#A9ACB6', inc: '#FF7900', dec: '#5D9FEF' };
     const items = steps.map((s, i) => {
       const x = x0 + i * slot + (slot - bw) / 2;
       const rect = eln('rect', { x, y: yOf(s.lo), width: bw, height: 0, rx: 2, fill: fills[s.kind], opacity: 0.93 }, svg);
@@ -368,9 +369,9 @@
       const h = v * s;
       const y0 = a.y + a.off, y1 = b.y + b.off;
       a.off += h; b.off += h;
-      const path = eln('path', { d: '', fill: sel ? 'rgba(255,95,21,0.26)' : 'rgba(255,255,255,0.08)' }, svg);
+      const path = eln('path', { d: '', fill: sel ? 'rgba(255,121,0,0.26)' : 'rgba(255,255,255,0.08)' }, svg);
       if (sel) {
-        path.setAttribute('stroke', 'rgba(255,95,21,0.85)');
+        path.setAttribute('stroke', 'rgba(255,121,0,0.85)');
         path.setAttribute('stroke-width', '1.2');
       }
       ribbons.push({ path, xa: a.x + bar, xb: b.x, y0, y1, h, sel, off });
@@ -403,8 +404,8 @@
         const ya = r.y0 + (r.h - hh) / 2, yb = r.y1 + (r.h - hh) / 2;
         const xm = (r.xa + r.xb) / 2;
         r.path.setAttribute('d', `M ${r.xa} ${ya} C ${xm} ${ya}, ${xm} ${yb}, ${r.xb} ${yb} L ${r.xb} ${yb + hh} C ${xm} ${yb + hh}, ${xm} ${ya + hh}, ${r.xa} ${ya + hh} Z`);
-        r.path.setAttribute('fill', r.sel ? `rgba(255,95,21,${0.26 * Math.min(f * 1.5, 1)})` : `rgba(255,255,255,${0.08 * Math.min(f * 1.5, 1)})`);
-        if (r.sel) r.path.setAttribute('stroke', `rgba(255,95,21,${0.85 * Math.min(f * 1.5, 1)})`);
+        r.path.setAttribute('fill', r.sel ? `rgba(255,121,0,${0.26 * Math.min(f * 1.5, 1)})` : `rgba(255,255,255,${0.08 * Math.min(f * 1.5, 1)})`);
+        if (r.sel) r.path.setAttribute('stroke', `rgba(255,121,0,${0.85 * Math.min(f * 1.5, 1)})`);
       });
     });
   })();
@@ -439,13 +440,16 @@
 
   (function kpi() {
     const items = [
-      { el: document.getElementById('kpA'), off: 0, fmt: (p) => '$' + (1.84 * p).toFixed(2) + 'M' },
-      { el: document.getElementById('kpB'), off: 0.08, fmt: (p) => (94.2 * p).toFixed(1) + '%' },
-      { el: document.getElementById('kpC'), off: 0.16, fmt: (p) => (41.3 * p).toFixed(1) },
+      { el: document.getElementById('kpA'), d: document.getElementById('kpAd'), off: 0, fmt: (p) => '$' + (1.84 * p).toFixed(2) + 'M' },
+      { el: document.getElementById('kpB'), d: document.getElementById('kpBd'), off: 0.08, fmt: (p) => (94.2 * p).toFixed(1) + '%' },
+      { el: document.getElementById('kpC'), d: document.getElementById('kpCd'), off: 0.16, fmt: (p) => (41.3 * p).toFixed(1) },
     ];
-    register('kpi', 1.6, (t) => {
+    register('kpi', 2.0, (t) => {
       items.forEach((it) => {
         it.el.textContent = it.fmt(c01(sp(t - it.off, 0.6, 1.0)));
+        const dp = c01(sp(t - it.off - 0.55, 0.4, 0.9));
+        it.d.style.opacity = String(dp);
+        it.d.style.transform = `translateY(${(1 - dp) * 3}px)`;
       });
     });
   })();

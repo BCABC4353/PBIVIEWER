@@ -73,6 +73,23 @@
   .redteam .t { font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--behind); margin-bottom: 8px; }
   .redteam .b { font-size: 11px; color: var(--ink-mid); line-height: 1.6; }
   .redteam .b strong { color: var(--ink-hi); font-weight: 500; }
+
+  .dirpair { display: grid; grid-template-columns: 3fr 2fr; gap: 28px; align-items: start; }
+  .dir-derive { padding: 18px 22px 20px; }
+  .dd-title { font-size: 13px; font-weight: 500; letter-spacing: 0.03em; margin-bottom: 16px; }
+  .dd-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 14px; align-items: start; }
+  .dd-step .swatch { height: 52px; margin-bottom: 10px; }
+  .dd-arrow { color: var(--ink-faint); font-size: 14px; align-self: center; }
+  .dd-nm { font-size: 12px; font-weight: 500; }
+  .dd-hx { font-size: 10px; color: var(--ink-low); letter-spacing: 0.1em; margin-top: 3px; }
+  .dd-cr { font-size: 10px; color: var(--ink-mid); letter-spacing: 0.08em; margin-top: 2px; }
+  .dd-cr.fail { color: var(--broken); }
+  .dd-note { font-size: 10px; color: var(--ink-low); line-height: 1.5; margin-top: 7px; }
+  .dd-demo { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+  .dir-rules { padding: 14px 18px; }
+  .dir-rules .t { font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--live); margin-bottom: 8px; }
+  .dir-rules .b { font-size: 11px; color: var(--ink-mid); line-height: 1.6; }
+  .dir-rules .b strong { color: var(--ink-hi); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -81,9 +98,9 @@
     <div class="left">
       <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
       <div class="lab-title">02 — Color arriving is the information</div>
-      <div class="lab-sub">No chips. Status is engraved — a glyph and a tinted label set directly on the black, separated by spacing and hairlines, never a container. A healthy screen is monochrome plus exactly one orange element. Green exists only as a decaying verified-moment tint.</div>
+      <div class="lab-sub">No chips. Status is engraved — a glyph and a tinted label set directly on the black, separated by spacing and hairlines, never a container. A healthy screen is monochrome plus exactly one orange element. Green exists only as a decaying verified-moment tint. Direction of change in data is a separate, two-color affair — orange up, blue down — and direction is not status.</div>
     </div>
-    <div class="lab-meta">RULINGS 3 · 4 · 6 · ENGRAVED · REV B</div>
+    <div class="lab-meta">RULINGS 3 · 4 · 6 · 7 · ENGRAVED · REV C</div>
   </header>
 
   <div class="states">
@@ -182,10 +199,17 @@
   <div class="roles">
     <div class="well role-table">
       <div class="role-row">
-        <div class="swatch" style="background:#FF5F15"></div>
-        <div class="role-id"><div class="nm">Safety Orange</div><div class="hx">#FF5F15</div><div class="cr" data-hex="#FF5F15"></div></div>
-        <div class="role-rule"><b>LIVE / SELECTION — the one lit element.</b> Active segment, live caret, an armed control. Never decoration, never a status. On fills pair with dark ink #190800 — white on this orange computes <span id="woRatio"></span> and fails AA.
+        <div class="swatch" style="background:#FF7900"></div>
+        <div class="role-id"><div class="nm">Safety Orange</div><div class="hx">#FF7900 · LOGO CANON</div><div class="cr" data-hex="#FF7900"></div></div>
+        <div class="role-rule"><b>LIVE / SELECTION — the one lit element.</b> Active segment, live caret, an armed control. Re-anchored to the logo orange by owner ruling. Never decoration, never a status. On fills pair with dark ink #1A0C00 — it computes <span id="ioRatio"></span>; white on this orange computes <span id="woRatio"></span> and fails AA. Inside a visual it is also UP — see the directional pair.
           <div class="role-demo"><span class="ack">Acknowledge</span><span class="stat live"><span class="g">●</span>LIVE</span></div>
+        </div>
+      </div>
+      <div class="role-row">
+        <div class="swatch" style="background:transparent; box-shadow: inset 0 0 0 1.5px #5D9FEF"></div>
+        <div class="role-id"><div class="nm">Backlit Blue</div><div class="hx">#5D9FEF</div><div class="cr" data-hex="#5D9FEF"></div></div>
+        <div class="role-rule"><b>DOWN — data ink only.</b> The logo blue lifted to legibility. Marks arithmetic decrease inside a visual — decrements, falling deltas — never chrome, never selection, never a status.
+          <div class="role-demo"><span class="stat down"><span class="g">▼</span>0.4 PT VS MAY</span></div>
         </div>
       </div>
       <div class="role-row">
@@ -230,6 +254,53 @@
       </div>
     </div>
   </div>
+
+  <div class="section-label">Directional pair — ruling 7: “Safety Orange up. Blue down. Logo colors.”</div>
+  <div class="dirpair">
+    <div class="well dir-derive">
+      <div class="dd-title">Deriving the blue — logo anchor → backlit → dim</div>
+      <div class="dd-flow">
+        <div class="dd-step">
+          <div class="swatch" style="background:#0F4D97"></div>
+          <div class="dd-nm">Logo Blue — anchor</div>
+          <div class="dd-hx">#0F4D97</div>
+          <div class="dd-cr fail" data-hex="#0F4D97"></div>
+          <div class="dd-note">The mark’s own blue. Fails on black — anchor only, never UI ink.</div>
+        </div>
+        <div class="dd-arrow">→</div>
+        <div class="dd-step">
+          <div class="swatch" style="background:#5D9FEF"></div>
+          <div class="dd-nm">Backlit Blue — data ink</div>
+          <div class="dd-hx">#5D9FEF</div>
+          <div class="dd-cr" data-hex="#5D9FEF"></div>
+          <div class="dd-note">Same hue, 213° held, luminance lifted until it clears AA and sits beside the orange.</div>
+        </div>
+        <div class="dd-arrow">→</div>
+        <div class="dd-step">
+          <div class="swatch" style="background:#156AD1"></div>
+          <div class="dd-nm">Dim Blue — fills only</div>
+          <div class="dd-hx">#156AD1</div>
+          <div class="dd-cr" data-hex="#156AD1" data-fill="1"></div>
+          <div class="dd-note">Lower-emphasis marks and fills. Clears 3 : 1 for graphics; never text.</div>
+        </div>
+      </div>
+      <div class="dd-demo">
+        <span class="stat up"><span class="g">▲</span>1,096 CHARGES</span>
+        <span class="stat down"><span class="g">▼</span>918 PAYMENTS</span>
+        <span class="stat up"><span class="g">▲</span>4.2% VS MAY</span>
+        <span class="stat down"><span class="g">▼</span>0.4 PT VS MAY</span>
+      </div>
+    </div>
+    <div class="well-deep dir-rules">
+      <div class="t">The rule — direction ≠ status</div>
+      <div class="b">
+        <strong>Orange = up, blue = down — arithmetic movement only.</strong> Waterfall increments and decrements, KPI deltas, period-over-period change. The pair judges nothing: a falling denial rate is blue because it fell, not because falling is bad.<br><br>
+        <strong>Amber and red stay reserved.</strong> Behind and broken are statuses; they never mark direction, and the pair never marks status.<br><br>
+        <strong>The ▲▼ glyph always rides along</strong> — direction survives without color.<br><br>
+        <strong>One-thing-lit still governs chrome and status.</strong> At rest a screen keeps its single lit element; data ink inside a visual may use the pair freely.
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="assets/lab.js"></script>
@@ -243,7 +314,17 @@
     if (!el.dataset.deco && r < 4.5) el.classList.add('fail');
   });
 
-  document.getElementById('woRatio').textContent = lab.contrast('#FFFFFF', '#FF5F15').toFixed(2) + ' : 1';
+  document.querySelectorAll('.dd-cr[data-hex]').forEach((el) => {
+    const r = lab.contrast(el.dataset.hex, '#000000');
+    if (el.dataset.fill) {
+      el.textContent = `${r.toFixed(2)} : 1 ON #000 · ${r >= 3 ? 'GRAPHICS ✓' : 'GRAPHICS ✕'}`;
+    } else {
+      el.textContent = `${r.toFixed(2)} : 1 ON #000 · ${r >= 4.5 ? 'AA ✓' : 'AA ✕'}`;
+    }
+  });
+
+  document.getElementById('woRatio').textContent = lab.contrast('#FFFFFF', '#FF7900').toFixed(2) + ' : 1';
+  document.getElementById('ioRatio').textContent = lab.contrast('#1A0C00', '#FF7900').toFixed(2) + ' : 1';
 
   const oldLow = lab.contrast('#62656E', '#000000').toFixed(2);
   const oldFaint = lab.contrast('#3A3C44', '#000000').toFixed(2);

@@ -9,11 +9,15 @@
   --ink-low: #80848F;
   --ink-faint: #747882;
   --deco: #3A3C44;
-  --live: #FF5F15;
-  --live-ink: #190800;
+  --live: #FF7900;
+  --live-ink: #1A0C00;
   --verified: #3DD68C;
   --behind: #FFB02E;
   --broken: #FF453A;
+  --logo-blue: #0F4D97;
+  --dir-up: #FF7900;
+  --dir-down: #5D9FEF;
+  --dir-down-dim: #156AD1;
   --shadow-recess: inset 0 2px 5px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.035);
   --shadow-recess-deep: inset 0 3px 8px rgba(0, 0, 0, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.045);
   --edge-top: inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -135,6 +139,8 @@ html, body {
 .stat.verified { color: var(--verified); }
 .stat.behind   { color: var(--behind); }
 .stat.broken   { color: var(--broken); }
+.stat.up       { color: var(--dir-up); }
+.stat.down     { color: var(--dir-down); }
 
 .seg {
   position: relative;

@@ -12,7 +12,7 @@
   .kpi .k { font-size: 9.5px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-low); }
   .kpi .n { margin-top: 12px; font-size: 46px; font-weight: 400; line-height: 1; color: var(--ink-hi); }
   .kpi .n.tabval { font-size: 38px; padding-top: 5px; }
-  .kpi .d { margin-top: 12px; }
+  .kpi .d { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
   .kpi .s { margin-top: 7px; font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em; }
 
   .board { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -65,7 +65,7 @@
       <div class="lab-title">07 — Crosswalk: the Power BI vocabulary</div>
       <div class="lab-sub">Every visual the practice actually ships in Power BI, translated into contract grammar: monochrome at rest, one lit element per frame, engraved status, recessed wells, axes that earn their ink. Data is the June book for Contoso Health — payors, denial codes, deposits, claim aging.</div>
     </div>
-    <div class="lab-meta">CROSSWALK · 9 FAMILIES · REV B</div>
+    <div class="lab-meta">CROSSWALK · 9 FAMILIES · REV C</div>
   </header>
 
   <div class="section-label">V1 — Cards &amp; KPI tiles</div>
@@ -73,19 +73,19 @@
     <div class="well kpi">
       <div class="k">Net collections — Jun</div>
       <div class="n">$1.84M</div>
-      <div class="d"><span class="stat"><span class="g">▲</span>4.2% VS MAY</span></div>
+      <div class="d"><span class="stat up"><span class="g">▲</span>4.2% VS MAY</span></div>
       <div class="s">target $1.80M · WS / FINANCE-PROD</div>
     </div>
     <div class="well kpi">
       <div class="k">Days in A/R</div>
       <div class="n">41.3</div>
-      <div class="d"><span class="stat behind"><span class="g">▲</span>1.3 OVER TARGET</span></div>
+      <div class="d"><span class="stat up"><span class="g">▲</span>0.8 VS MAY</span><span class="stat behind"><span class="g">▲</span>1.3 OVER TARGET</span></div>
       <div class="s">target ≤ 40.0 · fleet median 38.9</div>
     </div>
     <div class="well kpi">
       <div class="k">First-pass denial rate</div>
       <div class="n">7.8%</div>
-      <div class="d"><span class="stat"><span class="g">▼</span>0.4 PT VS MAY</span></div>
+      <div class="d"><span class="stat down"><span class="g">▼</span>0.4 PT VS MAY</span></div>
       <div class="s">all payors · 14,402 claims</div>
     </div>
     <div class="well kpi">
@@ -95,7 +95,7 @@
       <div class="s">last remit 14:31:42 · BAI2 feed</div>
     </div>
   </div>
-  <div class="v-cap" style="margin-top:12px; max-width:110ch;">PBI: <b>card · multi-row card · KPI</b>. Hero figures engraved on the black. Deltas are glyph + tint only when a status is true — the A/R tile is amber because it is genuinely behind target; the improving denial rate is not green because green is an event, not a state. One tile is lit, and its numeral is the screen's one persistently-live mono readout.</div>
+  <div class="v-cap" style="margin-top:12px; max-width:110ch;">PBI: <b>card · multi-row card · KPI</b>. Hero figures engraved on the black. Deltas wear the directional pair — orange up, backlit blue down — and the colors mark MOVEMENT, never judgment: the improving denial rate is blue because it fell, and the ▲▼ glyph carries direction redundantly for color-blind safety. Status stays separate and true — the A/R tile shows its orange movement AND its amber behind-target status side by side. One tile is lit, and its numeral is the screen's one persistently-live mono readout.</div>
 
   <div class="section-label">V2–V7 — Series &amp; parts</div>
   <div class="board">
@@ -136,13 +136,26 @@
       <div class="v-cap">PBI: <b>pie / donut chart</b> — pies render as donuts in this grammar; the hole carries the figure and keeps paint off the canvas. <b>Owner may veto.</b> One arc is lit because one code is selected; the rest hold the silver ramp.</div>
     </div>
 
+  </div>
+
+  <div class="section-label">V7 — Waterfall: the directional ruling, with the pre-ruling alternate for comparison</div>
+  <div class="board">
     <div class="well viz">
-      <div class="v-head"><span class="v-name"><span class="ix">V7</span>A/R WALK — JUN</span><span class="v-meta">$K · OPENING → CLOSING</span></div>
+      <div class="v-head"><span class="v-name"><span class="ix">V7</span>A/R WALK — JUN</span><span class="v-meta">$K · RULING — ORANGE UP · BLUE DOWN</span></div>
       <div class="v-zone">
         <svg id="vWaterfall" viewBox="0 0 620 252"></svg>
-        <div class="v-note">▲▼ + LUMINANCE CARRY DIRECTION · AMBER STAYS RESERVED FOR OVERDUE · ORANGE = THE CLOSING LIVE FIGURE ONLY</div>
+        <div class="v-note">▲ ORANGE = INCREMENT · ▼ BACKLIT BLUE = DECREMENT · TOTALS SILVER · CONNECTORS HAIRLINE · DIRECTION ≠ STATUS</div>
       </div>
-      <div class="v-cap">PBI: <b>waterfall chart</b>. Decrements never borrow status colors — amber means behind, and a payment is not a problem. Direction is engraved: ▲▼ glyphs and a two-step silver ramp. Orange appears once, on the closing bar, because the closing A/R position is the live figure this visual exists to report.</div>
+      <div class="v-cap">PBI: <b>waterfall chart</b>, in the owner's ruling: <b>“Safety Orange up. Blue down. Logo colors.”</b> Increments pour in orange, decrements in backlit blue, totals hold silver, connectors stay hairline. The pair is arithmetic, not judgment — payments shrinking A/R is good news wearing blue — and amber stays reserved for genuinely overdue dollars.</div>
+    </div>
+
+    <div class="well viz">
+      <div class="v-head"><span class="v-name"><span class="ix">V7</span>A/R WALK — JUN</span><span class="v-meta">ALTERNATE — SILVER RAMP (PRE-RULING)</span></div>
+      <div class="v-zone">
+        <svg id="vWaterfallAlt" viewBox="0 0 620 252"></svg>
+        <div class="v-note">▲▼ + LUMINANCE CARRY DIRECTION · ORANGE = THE CLOSING LIVE FIGURE ONLY</div>
+      </div>
+      <div class="v-cap"><b>ALTERNATE — silver ramp (pre-ruling).</b> Kept beside the ruling so the owner can compare and confirm: direction carried by ▲▼ glyphs and a two-step silver ramp, orange appearing once on the closing live figure. Superseded unless the owner says otherwise.</div>
     </div>
   </div>
 
@@ -292,7 +305,7 @@
     txt(svg, pts[11][0], base + 18, 'JUN 8', '#747882', 9, { 'text-anchor': 'end', 'letter-spacing': '1.3' });
     txt(svg, pts[0][0] + 6, pts[0][1] - 9, '78.2', '#80848F', 10);
     const last = pts[11];
-    eln('circle', { cx: last[0], cy: last[1], r: 4.5, fill: '#FF5F15' }, svg);
+    eln('circle', { cx: last[0], cy: last[1], r: 4.5, fill: '#FF7900' }, svg);
     const vt = eln('text', { x: last[0] - 2, y: last[1] - 13, 'text-anchor': 'end', fill: '#F2F3F5', 'font-size': 12.5, 'font-family': FM }, svg);
     vt.textContent = '96.4';
   })();
@@ -321,7 +334,7 @@
   (function donut() {
     const svg = document.getElementById('vDonut');
     const codes = [
-      ['CO-45', 'FEE SCHEDULE', 34, '#FF5F15', true],
+      ['CO-45', 'FEE SCHEDULE', 34, '#FF7900', true],
       ['CO-97', 'BUNDLED', 22, '#DCDEE3', false],
       ['PR-1', 'DEDUCTIBLE', 16, '#A9ACB6', false],
       ['CO-16', 'MISSING INFO', 12, '#7E828C', false],
@@ -352,33 +365,46 @@
     });
   })();
 
-  (function waterfall() {
-    const svg = document.getElementById('vWaterfall');
-    const steps = [
-      { label: 'START A/R', lo: 0, hi: 1284, kind: 'total', val: '1,284' },
-      { label: 'CHARGES', lo: 1284, hi: 2380, kind: 'inc', val: '+1,096' },
-      { label: 'PAYMENTS', lo: 1462, hi: 2380, kind: 'dec', val: '−918' },
-      { label: 'ADJUSTMENTS', lo: 1288, hi: 1462, kind: 'dec', val: '−174' },
-      { label: 'WRITE-OFFS', lo: 1226, hi: 1288, kind: 'dec', val: '−62' },
-      { label: 'END A/R', lo: 0, hi: 1226, kind: 'live', val: '1,226' },
-    ];
-    const ends = [1284, 2380, 1462, 1288, 1226, 1226];
-    const base = 212, k = 182 / 2380, x0 = 30, slot = 93.3, bw = 58;
-    const yOf = (v) => base - v * k;
-    eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
-    const fills = { total: '#DCDEE3', inc: '#C9CBD1', dec: '#6E727C', live: '#FF5F15' };
-    const inks = { total: '#A9ACB6', inc: '#A9ACB6', dec: '#80848F', live: '#FF5F15' };
-    steps.forEach((s, i) => {
-      const x = x0 + i * slot + (slot - bw) / 2;
-      eln('rect', { x, y: yOf(s.hi), width: bw, height: yOf(s.lo) - yOf(s.hi), rx: 2.5, fill: fills[s.kind], opacity: 0.93 }, svg);
-      const glyph = s.kind === 'inc' ? '▲ ' : s.kind === 'dec' ? '▼ ' : '';
-      txt(svg, x + bw / 2, yOf(s.hi) - 8, glyph + s.val, inks[s.kind], 10.5, { 'text-anchor': 'middle' });
-      txt(svg, x + bw / 2, base + 17, s.label, '#747882', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '1.1' });
-      if (i < steps.length - 1) {
-        const xr = x + bw, xn = x0 + (i + 1) * slot + (slot - bw) / 2;
-        eln('line', { x1: xr, y1: yOf(ends[i]), x2: xn, y2: yOf(ends[i]), stroke: 'rgba(255,255,255,0.25)', 'stroke-width': 1 }, svg);
-      }
-    });
+  (function waterfalls() {
+    const PALETTES = {
+      ruling: {
+        fills: { total: '#DCDEE3', inc: '#FF7900', dec: '#5D9FEF' },
+        inks: { total: '#A9ACB6', inc: '#FF7900', dec: '#5D9FEF' },
+        endKind: 'total',
+      },
+      alt: {
+        fills: { total: '#DCDEE3', inc: '#C9CBD1', dec: '#6E727C', live: '#FF7900' },
+        inks: { total: '#A9ACB6', inc: '#A9ACB6', dec: '#80848F', live: '#FF7900' },
+        endKind: 'live',
+      },
+    };
+    function render(svg, pal) {
+      const steps = [
+        { label: 'START A/R', lo: 0, hi: 1284, kind: 'total', val: '1,284' },
+        { label: 'CHARGES', lo: 1284, hi: 2380, kind: 'inc', val: '+1,096' },
+        { label: 'PAYMENTS', lo: 1462, hi: 2380, kind: 'dec', val: '−918' },
+        { label: 'ADJUSTMENTS', lo: 1288, hi: 1462, kind: 'dec', val: '−174' },
+        { label: 'WRITE-OFFS', lo: 1226, hi: 1288, kind: 'dec', val: '−62' },
+        { label: 'END A/R', lo: 0, hi: 1226, kind: pal.endKind, val: '1,226' },
+      ];
+      const ends = [1284, 2380, 1462, 1288, 1226, 1226];
+      const base = 212, k = 182 / 2380, x0 = 30, slot = 93.3, bw = 58;
+      const yOf = (v) => base - v * k;
+      eln('line', { x1: 18, y1: base, x2: 602, y2: base, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1 }, svg);
+      steps.forEach((s, i) => {
+        const x = x0 + i * slot + (slot - bw) / 2;
+        eln('rect', { x, y: yOf(s.hi), width: bw, height: yOf(s.lo) - yOf(s.hi), rx: 2.5, fill: pal.fills[s.kind], opacity: 0.93 }, svg);
+        const glyph = s.kind === 'inc' ? '▲ ' : s.kind === 'dec' ? '▼ ' : '';
+        txt(svg, x + bw / 2, yOf(s.hi) - 8, glyph + s.val, pal.inks[s.kind], 10.5, { 'text-anchor': 'middle' });
+        txt(svg, x + bw / 2, base + 17, s.label, '#747882', 8.5, { 'text-anchor': 'middle', 'letter-spacing': '1.1' });
+        if (i < steps.length - 1) {
+          const xr = x + bw, xn = x0 + (i + 1) * slot + (slot - bw) / 2;
+          eln('line', { x1: xr, y1: yOf(ends[i]), x2: xn, y2: yOf(ends[i]), stroke: 'rgba(255,255,255,0.25)', 'stroke-width': 1 }, svg);
+        }
+      });
+    }
+    render(document.getElementById('vWaterfall'), PALETTES.ruling);
+    render(document.getElementById('vWaterfallAlt'), PALETTES.alt);
   })();
 
   (function sankey() {
@@ -405,8 +431,8 @@
       const xa = a.x + bar, xb = b.x, xm = (xa + xb) / 2;
       eln('path', {
         d: `M ${xa} ${y0} C ${xm} ${y0}, ${xm} ${y1}, ${xb} ${y1} L ${xb} ${y1 + h} C ${xm} ${y1 + h}, ${xm} ${y0 + h}, ${xa} ${y0 + h} Z`,
-        fill: sel ? 'rgba(255,95,21,0.26)' : 'rgba(255,255,255,0.08)',
-        stroke: sel ? 'rgba(255,95,21,0.85)' : 'none',
+        fill: sel ? 'rgba(255,121,0,0.26)' : 'rgba(255,255,255,0.08)',
+        stroke: sel ? 'rgba(255,121,0,0.85)' : 'none',
         'stroke-width': sel ? 1.2 : 0,
       }, svg);
     }

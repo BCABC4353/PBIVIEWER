@@ -18,9 +18,9 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
     will-change: transform;
   }
-  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,95,21,0.85); }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,121,0,0.85); }
   .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
-  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,95,21,0.6); }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,121,0,0.6); }
 
   .board { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .demo { padding: 18px 20px 16px; cursor: pointer; user-select: none; }
@@ -106,8 +106,8 @@
   const bars = barVals.map((v, i) => {
     const x = 36 + i * (bW + bGap);
     const live = i === barVals.length - 1;
-    const rect = eln('rect', { x, y: bBase, width: bW, height: 0, rx: 3, fill: live ? '#FF5F15' : '#C9CBD1', opacity: live ? 0.95 : 0.78 }, barsSvg);
-    const num = eln('text', { x: x + bW / 2, y: bBase - 8, 'text-anchor': 'middle', fill: live ? '#FF5F15' : '#A9ACB6', 'font-size': 14, 'font-family': "'D-DIN PRO', sans-serif" }, barsSvg);
+    const rect = eln('rect', { x, y: bBase, width: bW, height: 0, rx: 3, fill: live ? '#FF7900' : '#C9CBD1', opacity: live ? 0.95 : 0.78 }, barsSvg);
+    const num = eln('text', { x: x + bW / 2, y: bBase - 8, 'text-anchor': 'middle', fill: live ? '#FF7900' : '#A9ACB6', 'font-size': 14, 'font-family': "'D-DIN PRO', sans-serif" }, barsSvg);
     const lbl = eln('text', { x: x + bW / 2, y: bBase + 18, 'text-anchor': 'middle', fill: '#747882', 'font-size': 9.5, 'letter-spacing': '1.4', 'font-family': "'D-DIN PRO', sans-serif" }, barsSvg);
     lbl.textContent = 'S' + (i + 1);
     return { v: v, rect, num };
@@ -150,7 +150,7 @@
     fill: 'none', stroke: '#C9CBD1', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
     pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1,
   }, lineSvg);
-  const dot = eln('circle', { cx: pts[0][0], cy: pts[0][1], r: 4, fill: '#FF5F15' }, lineSvg);
+  const dot = eln('circle', { cx: pts[0][0], cy: pts[0][1], r: 4, fill: '#FF7900' }, lineSvg);
   const pathLen = path.getTotalLength();
   function setLine(frac) {
     const f = lab.clamp(frac, 0, 1);

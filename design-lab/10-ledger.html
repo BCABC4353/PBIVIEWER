@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 10 The Ledger</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  body { max-width: 430px; margin: 0 auto; }
+  .page { padding: 24px 22px 56px; }
+
+  .rm-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px; margin-bottom: 18px; }
+  .rm-id .tn { font-size: 13px; font-weight: 500; }
+  .rm-id .td { font-size: 10px; color: var(--ink-low); margin-top: 3px; letter-spacing: 0.06em; }
+  .toggle { position: relative; width: 64px; height: 34px; border-radius: 17px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); cursor: pointer; flex: none; }
+  .toggle .thumb {
+    position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
+    will-change: transform;
+  }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,121,0,0.85); }
+  .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,121,0,0.6); }
+
+  .phone { margin: 0 auto; }
+  .topline { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 13px; border-bottom: 1px solid var(--hairline); }
+  .topline .brand { font-size: 10px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-low); }
+  .topline .clock { font-size: 12px; color: var(--ink-mid); letter-spacing: 0.08em; }
+
+  .carousel { display: grid; grid-template-columns: 36px 1fr 36px; gap: 8px; align-items: center; padding: 12px 0 10px; }
+  .cbtn { height: 36px; border-radius: 9px; background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep);
+    display: flex; align-items: center; justify-content: center; font-size: 15px; color: var(--ink-low); cursor: pointer; user-select: none; }
+  .cbtn:active { color: var(--ink-hi); }
+  .cbtn.off { opacity: 0.3; pointer-events: none; }
+  .cmid { text-align: center; }
+  .cmeasure { display: inline-block; will-change: transform, opacity; }
+  .cmeasure .ml { font-size: 14px; font-weight: 500; letter-spacing: 0.08em; color: var(--ink-hi); }
+  .cmeasure .mu { font-size: 8.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; }
+  .cstrip { margin-top: 5px; }
+  .cstrip svg { display: inline-block; }
+
+  .flipbar { display: flex; justify-content: space-between; align-items: center; padding: 0 0 10px; border-bottom: 1px solid var(--hairline); }
+  .axes { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); }
+  .flip { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--hairline); box-shadow: var(--shadow-recess-deep);
+    font-size: 9px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-mid); cursor: pointer; user-select: none; }
+  .flip .fx { color: var(--live); font-size: 12px; }
+  .flip:active { color: var(--ink-hi); }
+
+  .ledger { position: relative; height: 442px; overflow: hidden; }
+  .rowsview { position: absolute; inset: 0; touch-action: pan-y; will-change: opacity; }
+
+  .trow { position: relative; display: grid; grid-template-columns: 1fr 78px 84px; gap: 10px; align-items: center;
+    border-bottom: 1px solid var(--hairline); cursor: pointer; user-select: none; }
+  .trow .nm { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .trow .chev { font-size: 8px; color: var(--deco); flex: none; transition: none; will-change: transform; }
+  .trow .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trow.lv0 { height: 44px; }
+  .trow.lv0 .lbl { font-size: 12.5px; font-weight: 500; color: var(--ink-hi); letter-spacing: 0.04em; }
+  .trow.lv1 { height: 38px; }
+  .trow.lv1 .nm { padding-left: 15px; }
+  .trow.lv1 .lbl { font-size: 11.5px; color: var(--ink-mid); letter-spacing: 0.03em; }
+  .trow.lv2 { height: 34px; }
+  .trow.lv2 .nm { padding-left: 30px; }
+  .trow.lv2 .lbl { font-size: 11px; color: var(--ink-low); letter-spacing: 0.05em; }
+  .trow.grand { height: 40px; border-bottom: 1px solid var(--hairline-strong); cursor: default; }
+  .trow.grand .lbl { font-size: 10px; font-weight: 500; letter-spacing: 0.2em; color: var(--ink-low); }
+
+  .vcell { display: contents; }
+  .vbar { position: relative; height: 3px; border-radius: 1.5px; background: rgba(255,255,255,0.06); overflow: hidden; will-change: transform, opacity; }
+  .vbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1.5px; background: #A9ACB6; opacity: 0.75; }
+  .trow.lv0 .vbar i, .trow.grand .vbar i { background: #C9CBD1; opacity: 0.9; }
+  .val { text-align: right; font-size: 11.5px; color: var(--ink-mid); letter-spacing: 0.02em; will-change: transform, opacity; }
+  .trow.lv0 .val, .trow.grand .val { color: var(--ink-hi); font-size: 12px; }
+  .kids { height: 0; overflow: hidden; opacity: 0; will-change: height, opacity; }
+
+  .drill { position: absolute; left: 0; right: 0; z-index: 4; overflow: hidden; cursor: pointer;
+    background: var(--well-1); border: 1px solid var(--hairline); will-change: transform; }
+  .drill .bc { position: absolute; left: 16px; top: 14px; font-size: 9px; font-weight: 500; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--ink-low); opacity: 0; will-change: opacity; }
+  .drill .bc .bk { color: var(--live); margin-right: 7px; }
+  .drill .dt { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-size: 11px; color: var(--ink-low);
+    letter-spacing: 0.05em; white-space: nowrap; will-change: transform; }
+  .drill .dv { position: absolute; top: 0; right: 0; transform-origin: 100% 0; font-size: 11.5px; color: var(--ink-mid); will-change: transform; }
+  .drill .grid { position: absolute; left: 16px; right: 16px; top: 96px; }
+  .drill .gr { display: grid; grid-template-columns: 86px 1fr 70px; gap: 12px; align-items: center; padding: 11px 0;
+    border-bottom: 1px solid var(--hairline); opacity: 0; will-change: transform, opacity; }
+  .drill .gr .gk { font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+  .drill .gr .gv { text-align: right; font-size: 13px; color: var(--ink-hi); }
+  .drill .micro { position: absolute; left: 16px; right: 16px; bottom: 14px; padding-top: 9px; border-top: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); opacity: 0; will-change: opacity; }
+
+  .inset { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+  .cap { margin-top: 12px; }
+  .cap .ix { color: var(--live); font-size: 10px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">10 — The Ledger: the mobile pivot</div>
+      <div class="lab-sub">A Power BI matrix translated to a phone. Rows are the book — an engraved, collapsible outline with live rollups. Columns become a carousel: one measure on stage at a time, swiped like a page. Leaves drill by morphing; one control flips the axes. Owner-approved concept.</div>
+    </div>
+    <div class="lab-meta">RULING 9 · THE PIVOT · REV C</div>
+  </header>
+
+  <div class="well rm-bar">
+    <div class="rm-id">
+      <div class="tn">Reduced motion</div>
+      <div class="td">Expansion, swipe, drill, and flip all collapse to instant state changes</div>
+    </div>
+    <div class="toggle" id="rmToggle"><div class="arm"></div><div class="thumb" id="rmThumb"></div></div>
+  </div>
+
+  <div class="phone" id="demoPhone">
+    <div class="topline"><span class="brand">FLEET / THE LEDGER — JUN BOOK</span><span class="clock">14:32</span></div>
+    <div class="carousel">
+      <div class="cbtn" id="cPrev">‹</div>
+      <div class="cmid">
+        <div class="cmeasure" id="cMeasure"><div class="ml" id="cLabel"></div><div class="mu" id="cUnit"></div></div>
+        <div class="cstrip"><svg id="cStrip" width="64" height="14" viewBox="0 0 64 14"></svg></div>
+      </div>
+      <div class="cbtn" id="cNext">›</div>
+    </div>
+    <div class="flipbar">
+      <span class="axes" id="axesLabel"></span>
+      <div class="flip" id="flipBtn"><span class="fx">⇄</span><span>FLIP AXES</span></div>
+    </div>
+    <div class="ledger" id="ledger">
+      <div class="rowsview" id="rowsView"></div>
+    </div>
+    <div class="inset">THE LEDGER — ROWS ARE THE BOOK · ONE MEASURE ON STAGE</div>
+  </div>
+
+  <div class="caption cap"><span class="ix">L1</span><strong>Outline</strong> — Payor → Facility → Month engraved in three weights; every parent figure is a live rollup of its leaves, dollars summed, rates weighted by billed.</div>
+  <div class="caption cap"><span class="ix">L2</span><strong>Carousel</strong> — one measure on stage; swipe the rows or step with ‹ ›; the tick strip is the position indicator.</div>
+  <div class="caption cap"><span class="ix">L3</span><strong>Drill</strong> — tap a leaf and it morphs into its slice, board-09 pattern; the breadcrumb reverses it, mid-flight included.</div>
+  <div class="caption cap"><span class="ix">L4</span><strong>Flip</strong> — ⇄ transposes the axes in a brief crossfade; the book total is identical on both sides because both sides are the same leaves, regrouped.</div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+  const c01 = (v) => lab.clamp(v, 0, 1);
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  const PAYORS = ['MEDICARE', 'MEDICAID', 'BCBS', 'UHC'];
+  const FACS = ['NORTHWING', 'APEX', 'ORTHO'];
+  const MONTHS = ['APR', 'MAY', 'JUN'];
+  const BASE = { MEDICARE: 188, MEDICAID: 122, BCBS: 104, UHC: 86 };
+  const COLLR = { MEDICARE: 0.81, MEDICAID: 0.68, BCBS: 0.77, UHC: 0.74 };
+  const DEN = { MEDICARE: 6.2, MEDICAID: 11.4, BCBS: 7.8, UHC: 9.1 };
+  const ARD = { MEDICARE: 34.2, MEDICAID: 48.1, BCBS: 39.4, UHC: 42.6 };
+  const FACF = { NORTHWING: 1.0, APEX: 0.72, ORTHO: 0.45 };
+  const MOF = { APR: 0.94, MAY: 1.0, JUN: 1.08 };
+
+  function leaf(p, f, m) {
+    const wob = ((PAYORS.indexOf(p) * 7 + FACS.indexOf(f) * 13 + MONTHS.indexOf(m) * 17) % 7) - 3;
+    const billed = BASE[p] * FACF[f] * MOF[m] * (1 + wob * 0.012);
+    return {
+      billed,
+      collected: billed * (COLLR[p] + wob * 0.004),
+      denial: DEN[p] + FACS.indexOf(f) * 0.7 + (MONTHS.indexOf(m) - 1) * 0.4 + wob * 0.15,
+      ar: ARD[p] + FACS.indexOf(f) * 1.6 - (MONTHS.indexOf(m) - 1) * 0.9 + wob * 0.4,
+    };
+  }
+
+  function agg(leaves) {
+    const billed = leaves.reduce((a, l) => a + l.billed, 0);
+    const collected = leaves.reduce((a, l) => a + l.collected, 0);
+    const denial = leaves.reduce((a, l) => a + l.denial * l.billed, 0) / billed;
+    const ar = leaves.reduce((a, l) => a + l.ar * l.billed, 0) / billed;
+    return { billed, collected, denial, ar };
+  }
+
+  const fmtK = (v) => '$' + Math.round(v).toLocaleString('en-US') + 'K';
+  const MEASURES = [
+    { key: 'billed', label: 'BILLED', unit: '$K · GROSS CHARGES', fmt: fmtK },
+    { key: 'collected', label: 'COLLECTED', unit: '$K · POSTED', fmt: fmtK },
+    { key: 'denial', label: 'DENIAL %', unit: 'FIRST PASS · WEIGHTED', fmt: (v) => v.toFixed(1) + '%' },
+    { key: 'ar', label: 'A/R DAYS', unit: 'WEIGHTED BY BILLED', fmt: (v) => v.toFixed(1) },
+  ];
+
+  const ALL_LEAVES = [];
+  PAYORS.forEach((p) => FACS.forEach((f) => MONTHS.forEach((m) => ALL_LEAVES.push(leaf(p, f, m)))));
+  const GRAND = agg(ALL_LEAVES);
+
+  const rowsView = document.getElementById('rowsView');
+  const ledger = document.getElementById('ledger');
+  const cLabel = document.getElementById('cLabel');
+  const cUnit = document.getElementById('cUnit');
+  const cMeasure = document.getElementById('cMeasure');
+  const axesLabel = document.getElementById('axesLabel');
+
+  const indicator = lab.strip(document.getElementById('cStrip'), { size: 'small', w: 64, cycle: 3, value: 3 });
+
+  let mode = 0;
+  let mIdx = 0;
+  let records = [];
+  let blocks = [];
+  let maxByLevel = [];
+
+  function leavesFor(parts) {
+    const sel = { payor: null, fac: null, month: null };
+    parts.forEach(([dim, key]) => { sel[dim] = key; });
+    const out = [];
+    PAYORS.forEach((p) => FACS.forEach((f) => MONTHS.forEach((m) => {
+      if ((sel.payor === null || sel.payor === p) && (sel.fac === null || sel.fac === f) && (sel.month === null || sel.month === m)) out.push(leaf(p, f, m));
+    })));
+    return out;
+  }
+
+  function dims() {
+    return mode === 0
+      ? [['payor', PAYORS], ['fac', FACS], ['month', MONTHS]]
+      : [['month', MONTHS], ['fac', FACS], ['payor', PAYORS]];
+  }
+
+  function rowEl(level, label, isLeaf) {
+    const el = document.createElement('div');
+    el.className = 'trow lv' + level;
+    el.innerHTML = `<span class="nm">${isLeaf ? '' : '<span class="chev">▶</span>'}<span class="lbl">${label}</span></span><span class="vbar"><i></i></span><span class="val"></span>`;
+    return el;
+  }
+
+  function build() {
+    rowsView.innerHTML = '';
+    records = [];
+    blocks = [];
+    const [d0, d1, d2] = dims();
+    axesLabel.textContent = mode === 0 ? 'PAYOR ▸ FACILITY ▸ MONTH' : 'MONTH ▸ FACILITY ▸ PAYOR';
+
+    const grand = rowEl(0, 'BOOK TOTAL', true);
+    grand.classList.remove('lv0');
+    grand.classList.add('grand');
+    rowsView.appendChild(grand);
+    records.push({ level: 0, el: grand, vals: GRAND, path: null });
+
+    d0[1].forEach((k0) => {
+      const block0 = document.createElement('div');
+      const r0 = rowEl(0, k0, false);
+      const kids0 = document.createElement('div');
+      kids0.className = 'kids';
+      block0.appendChild(r0);
+      block0.appendChild(kids0);
+      rowsView.appendChild(block0);
+      records.push({ level: 0, el: r0, vals: agg(leavesFor([[d0[0], k0]])), path: null });
+      const b0 = { el: r0, kidsEl: kids0, chev: r0.querySelector('.chev'), open: false, frac: 0, anim: null };
+      blocks.push(b0);
+      r0.addEventListener('click', () => toggleBlock(b0));
+
+      d1[1].forEach((k1) => {
+        const block1 = document.createElement('div');
+        const r1 = rowEl(1, k1, false);
+        const kids1 = document.createElement('div');
+        kids1.className = 'kids';
+        block1.appendChild(r1);
+        block1.appendChild(kids1);
+        kids0.appendChild(block1);
+        records.push({ level: 1, el: r1, vals: agg(leavesFor([[d0[0], k0], [d1[0], k1]])), path: null });
+        const b1 = { el: r1, kidsEl: kids1, chev: r1.querySelector('.chev'), open: false, frac: 0, anim: null };
+        blocks.push(b1);
+        r1.addEventListener('click', (e) => { e.stopPropagation(); toggleBlock(b1); });
+
+        d2[1].forEach((k2) => {
+          const r2 = rowEl(2, k2, true);
+          kids1.appendChild(r2);
+          const rec = {
+            level: 2, el: r2,
+            vals: agg(leavesFor([[d0[0], k0], [d1[0], k1], [d2[0], k2]])),
+            path: [k0, k1, k2],
+          };
+          records.push(rec);
+          r2.addEventListener('click', (e) => { e.stopPropagation(); openDrill(rec); });
+        });
+      });
+    });
+
+    records.forEach((r) => {
+      r.valEl = r.el.querySelector('.val');
+      r.barEl = r.el.querySelector('.vbar i');
+      r.cellEls = [r.valEl, r.el.querySelector('.vbar')];
+    });
+    maxByLevel = [0, 1, 2].map((lvl) => {
+      const out = {};
+      MEASURES.forEach((ms) => {
+        out[ms.key] = Math.max(...records.filter((r) => r.level === lvl).map((r) => r.vals[ms.key]));
+      });
+      return out;
+    });
+  }
+
+  function paintSolid(idx) {
+    paintSolidContent(idx);
+    setCells(0, 1);
+  }
+
+  function setCells(tx, op) {
+    records.forEach((r) => {
+      r.cellEls.forEach((el) => {
+        el.style.transform = `translateX(${tx}px)`;
+        el.style.opacity = String(c01(op));
+      });
+    });
+    cMeasure.style.transform = `translateX(${tx * 0.7}px)`;
+    cMeasure.style.opacity = String(c01(op));
+  }
+
+  function paintTransition(from, to, g) {
+    const dir = to > from ? 1 : -1;
+    if (g >= 1) { paintSolid(to); indicator.set(to / 3); return; }
+    if (g < 0.5) {
+      paintSolidContent(from);
+      setCells(-dir * 18 * (g * 2), 1 - g * 2);
+    } else {
+      paintSolidContent(to);
+      setCells(dir * 18 * (1 - (g - 0.5) * 2), (g - 0.5) * 2);
+    }
+    indicator.set(lerp(from, to, c01(g)) / 3);
+  }
+
+  function paintSolidContent(idx) {
+    const ms = MEASURES[idx];
+    records.forEach((r) => {
+      r.valEl.textContent = ms.fmt(r.vals[ms.key]);
+      r.barEl.style.width = (r.vals[ms.key] / maxByLevel[r.level][ms.key] * 100).toFixed(1) + '%';
+    });
+    cLabel.textContent = ms.label;
+    cUnit.textContent = ms.unit;
+  }
+
+  let mAnim = null, mBusy = false;
+  function goMeasure(to) {
+    if (mBusy || to === mIdx || to < 0 || to > 3) return;
+    const from = mIdx;
+    mIdx = to;
+    syncButtons();
+    if (mAnim) mAnim.cancel();
+    mBusy = true;
+    mAnim = lab.spring({ from: 0, to: 1, response: 0.45, damping: 0.9,
+      onUpdate: (v) => paintTransition(from, to, c01(v)),
+      onSettle: () => { mBusy = false; paintSolid(to); indicator.set(to / 3); } });
+  }
+
+  const prevBtn = document.getElementById('cPrev');
+  const nextBtn = document.getElementById('cNext');
+  function syncButtons() {
+    prevBtn.classList.toggle('off', mIdx === 0);
+    nextBtn.classList.toggle('off', mIdx === 3);
+  }
+  prevBtn.addEventListener('click', () => goMeasure(mIdx - 1));
+  nextBtn.addEventListener('click', () => goMeasure(mIdx + 1));
+
+  function setBlock(b, frac, naturalH) {
+    b.frac = frac;
+    const h = naturalH ?? b.kidsEl.scrollHeight;
+    b.kidsEl.style.height = (h * c01(frac)) + 'px';
+    b.kidsEl.style.opacity = String(c01(frac));
+    b.chev.style.transform = `rotate(${90 * c01(frac)}deg)`;
+  }
+
+  function toggleBlock(b) {
+    if (drill) return;
+    const to = b.open ? 0 : 1;
+    b.open = !b.open;
+    if (b.anim) b.anim.cancel();
+    const h = b.kidsEl.scrollHeight;
+    b.anim = lab.spring({ from: b.frac, to, response: 0.5, damping: 0.85,
+      onUpdate: (v) => setBlock(b, v, h),
+      onSettle: () => { if (to === 1) b.kidsEl.style.height = 'auto'; } });
+  }
+
+  let dragX0 = null, dragDx = 0, dragMoved = false;
+  rowsView.addEventListener('pointerdown', (e) => {
+    if (drill || mBusy) return;
+    dragX0 = e.clientX;
+    dragDx = 0;
+    dragMoved = false;
+  });
+  rowsView.addEventListener('pointermove', (e) => {
+    if (dragX0 === null) return;
+    dragDx = e.clientX - dragX0;
+    if (Math.abs(dragDx) > 10) dragMoved = true;
+    if (!dragMoved) return;
+    const tx = lab.clamp(dragDx * 0.3, -30, 30);
+    setCells(tx, 1 - Math.abs(dragDx) / 280);
+    indicator.set(lab.clamp((mIdx - dragDx / 320) / 3, 0, 1));
+  });
+  function dragEnd() {
+    if (dragX0 === null) return;
+    const dx = dragDx;
+    dragX0 = null;
+    if (!dragMoved) return;
+    if (dx < -70 && mIdx < 3) goMeasure(mIdx + 1);
+    else if (dx > 70 && mIdx > 0) goMeasure(mIdx - 1);
+    else { paintSolid(mIdx); indicator.set(mIdx / 3); }
+    setTimeout(() => { dragMoved = false; }, 0);
+  }
+  rowsView.addEventListener('pointerup', dragEnd);
+  rowsView.addEventListener('pointercancel', dragEnd);
+  rowsView.addEventListener('click', (e) => { if (dragMoved) { e.stopPropagation(); } }, true);
+
+  let flipAnim = null, flipping = false;
+  function doFlip() {
+    if (flipping || drill) return;
+    flipping = true;
+    let switched = false;
+    if (flipAnim) flipAnim.cancel();
+    flipAnim = lab.spring({ from: 0, to: 1, response: 0.5, damping: 1.0,
+      onUpdate: (v) => {
+        const f = c01(v);
+        if (f >= 0.5 && !switched) {
+          switched = true;
+          mode = 1 - mode;
+          build();
+          paintSolid(mIdx);
+        }
+        rowsView.style.opacity = String(f < 0.5 ? 1 - f * 2 : (f - 0.5) * 2);
+      },
+      onSettle: () => {
+        if (!switched) { mode = 1 - mode; build(); paintSolid(mIdx); }
+        rowsView.style.opacity = '1';
+        flipping = false;
+      } });
+  }
+  document.getElementById('flipBtn').addEventListener('click', doFlip);
+
+  let drill = null;
+  function openDrill(rec) {
+    if (drill || dragMoved) return;
+    const vRect = ledger.getBoundingClientRect();
+    const rRect = rec.el.getBoundingClientRect();
+    const top0 = rRect.top - vRect.top;
+    const card = document.createElement('div');
+    card.className = 'drill';
+    const crumbs = rec.path.join(' / ');
+    card.innerHTML = `
+      <div class="bc"><span class="bk">‹</span>${crumbs}</div>
+      <div class="dt">${rec.path[2]}</div>
+      <div class="dv"></div>
+      <div class="grid">${MEASURES.map((ms) => `
+        <div class="gr"><span class="gk">${ms.label}</span><span class="vbar"><i style="width:${(rec.vals[ms.key] / maxByLevel[2][ms.key] * 100).toFixed(1)}%"></i></span><span class="gv">${ms.fmt(rec.vals[ms.key])}</span></div>`).join('')}
+      <div class="micro">SLICE · ${crumbs} · ROLLS INTO BOOK TOTAL</div>`;
+    ledger.appendChild(card);
+    const dt = card.querySelector('.dt');
+    const dv = card.querySelector('.dv');
+    const bc = card.querySelector('.bc');
+    const micro = card.querySelector('.micro');
+    const grs = Array.from(card.querySelectorAll('.gr'));
+    dv.textContent = MEASURES[mIdx].fmt(rec.vals[MEASURES[mIdx].key]);
+
+    const D = {
+      card, rec, grs, bc, micro,
+      p: 0, v: 0, target: 1, anim: null, gAnims: [],
+      top0, h0: rRect.height,
+      apply(p) {
+        const pc = c01(p);
+        card.style.top = lerp(this.top0, 0, p) + 'px';
+        card.style.height = lerp(this.h0, vRect.height, p) + 'px';
+        card.style.borderRadius = lerp(0, 16, pc) + 'px';
+        card.style.background = `rgba(11,11,13,${0.4 + 0.6 * pc})`;
+        card.style.boxShadow = `inset 0 2px 5px rgba(0,0,0,${0.85 * pc})`;
+        dt.style.transform = `translate(${lerp(30, 16, p)}px, ${lerp((this.h0 - 16) / 2, 34, p)}px) scale(${lerp(1, 1.35, p)})`;
+        dv.style.transform = `translate(${-lerp(0, 16, p)}px, ${lerp((this.h0 - 16) / 2, 34, p)}px) scale(${lerp(1, 1.5, p)})`;
+        bc.style.opacity = String(c01((pc - 0.6) / 0.4));
+        micro.style.opacity = String(c01((pc - 0.7) / 0.3));
+        rec.el.style.visibility = pc > 0.02 ? 'hidden' : '';
+        rowsViewDim(pc);
+      },
+    };
+
+    function rowsViewDim(pc) {
+      rowsView.style.opacity = String(1 - 0.55 * pc);
+    }
+
+    function applyGr(g, v) {
+      g.style.opacity = String(c01(v));
+      g.style.transform = `translateY(${(1 - c01(v)) * 6}px)`;
+    }
+
+    function surface() {
+      D.gAnims.forEach((a) => a && a.cancel());
+      D.gAnims = [];
+      if (lab.reduced) { grs.forEach((g) => applyGr(g, 1)); return; }
+      grs.forEach((g, i) => {
+        const tm = setTimeout(() => {
+          D.gAnims[i] = lab.spring({ from: 0, to: 1, response: 0.4, damping: 0.9, onUpdate: (v) => applyGr(g, v) });
+        }, i * 25);
+        D.gAnims.push({ cancel: () => clearTimeout(tm) });
+      });
+    }
+    function hide() {
+      D.gAnims.forEach((a) => a && a.cancel());
+      D.gAnims = [];
+      grs.forEach((g) => applyGr(g, 0));
+    }
+
+    let lastT = performance.now();
+    function drive(to) {
+      D.target = to;
+      if (to === 0) hide();
+      if (D.anim) D.anim.cancel();
+      lastT = performance.now();
+      D.anim = lab.spring({ from: D.p, to, velocity: D.v, response: 0.5, damping: 0.9,
+        onUpdate: (v) => {
+          const now = performance.now();
+          const dt2 = Math.max((now - lastT) / 1000, 1e-4);
+          D.v = (v - D.p) / dt2;
+          lastT = now;
+          D.p = v;
+          D.apply(v);
+        },
+        onSettle: () => {
+          D.p = to; D.v = 0; D.apply(to);
+          if (to === 1) surface();
+          else {
+            card.remove();
+            rec.el.style.visibility = '';
+            rowsView.style.opacity = '1';
+            drill = null;
+          }
+        } });
+    }
+
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+      drive(D.target === 1 ? 0 : 1);
+    });
+
+    drill = D;
+    D.apply(0);
+    drive(1);
+  }
+
+  function sp(t, response, damping) {
+    if (t <= 0) return 0;
+    const w0 = (2 * Math.PI) / response;
+    if (damping >= 1) return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+    const wd = w0 * Math.sqrt(1 - damping * damping);
+    return 1 - Math.exp(-damping * w0 * t) * (Math.cos(wd * t) + ((damping * w0) / wd) * Math.sin(wd * t));
+  }
+
+  const DUR = 4.2;
+  lab.api.ledgerDur = DUR * 1000;
+  lab.api.seekLedger = (ms) => {
+    const t = ms / 1000;
+    if (drill) {
+      if (drill.anim) drill.anim.cancel();
+      drill.gAnims.forEach((a) => a && a.cancel());
+      drill.rec.el.style.visibility = '';
+      drill.card.remove();
+      drill = null;
+    }
+    const wantMode = t >= 3.15 ? 1 : 0;
+    if (mode !== wantMode) { mode = wantMode; build(); }
+    if (mode === 0) setBlock(blocks[0], c01(sp(t - 0.4, 0.5, 0.85)));
+    let from = 0, to = 0, g = 1;
+    if (t < 1.3) { from = to = 0; }
+    else if (t < 2.1) { from = 0; to = 1; g = c01(sp(t - 1.3, 0.45, 0.9)); }
+    else { from = 1; to = 2; g = c01(sp(t - 2.1, 0.45, 0.9)); }
+    mIdx = to;
+    syncButtons();
+    if (from === to || g >= 1) { paintSolid(to); indicator.set(to / 3); }
+    else paintTransition(from, to, g);
+    const f = c01((t - 2.9) / 0.5);
+    rowsView.style.opacity = String(f === 0 || f === 1 ? 1 : (f < 0.5 ? 1 - f * 2 : (f - 0.5) * 2));
+  };
+
+  lab.api.ledgerPose = () => {
+    if (mode !== 0) { mode = 0; build(); }
+    mIdx = 0;
+    syncButtons();
+    blocks.forEach((b) => { if (b.anim) b.anim.cancel(); });
+    const b0 = blocks[0];
+    const inner = blocks.find((b) => b0.kidsEl.contains(b.el));
+    setBlock(inner, 1);
+    inner.open = true;
+    inner.kidsEl.style.height = 'auto';
+    setBlock(b0, 1);
+    b0.open = true;
+    b0.kidsEl.style.height = 'auto';
+    paintSolid(0);
+    indicator.set(0);
+  };
+
+  const rm = document.getElementById('rmToggle');
+  const rmThumb = document.getElementById('rmThumb');
+  let rmAnim = null;
+  function setReduced(v) {
+    lab.reduced = v;
+    rm.classList.toggle('on', v);
+    if (rmAnim) rmAnim.cancel();
+    const fromM = rmThumb.style.transform.match(/([-\d.]+)px/);
+    rmAnim = lab.spring({ from: fromM ? Number(fromM[1]) : (v ? 0 : 30), to: v ? 30 : 0, response: 0.34, damping: 0.6, onUpdate: (x) => { rmThumb.style.transform = `translateX(${x}px)`; } });
+  }
+  rm.addEventListener('click', () => setReduced(!lab.reduced));
+  if (lab.reduced) setReduced(true);
+  lab.api.setReduced = setReduced;
+
+  build();
+  paintSolid(0);
+  indicator.set(0);
+  syncButtons();
+})();
+</script>
+</body>
+</html>

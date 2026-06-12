@@ -122,7 +122,7 @@
     const cycle = opts.cycle ?? 15;
     const value = opts.value ?? 0;
     const overdue = opts.overdue ?? 0;
-    const live = overdue > 0 ? '#FFB02E' : '#FF5F15';
+    const live = overdue > 0 ? '#FFB02E' : '#FF7900';
     const x0 = size.pad;
     const x1 = w - size.pad;
     const span = x1 - x0;

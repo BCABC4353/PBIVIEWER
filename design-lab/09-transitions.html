@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLEET Design Contract v2 — 09 Transitions</title>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/lab.css">
+<style>
+  body { max-width: 430px; margin: 0 auto; }
+  .page { padding: 24px 22px 56px; }
+
+  .rm-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px; margin-bottom: 18px; }
+  .rm-id .tn { font-size: 13px; font-weight: 500; }
+  .rm-id .td { font-size: 10px; color: var(--ink-low); margin-top: 3px; letter-spacing: 0.06em; }
+  .toggle { position: relative; width: 64px; height: 34px; border-radius: 17px; background: var(--bg);
+    box-shadow: var(--shadow-recess-deep); border: 1px solid var(--hairline); cursor: pointer; flex: none; }
+  .toggle .thumb {
+    position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, #2A2B31 0%, #17181C 75%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8);
+    will-change: transform;
+  }
+  .toggle.on .thumb { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.8), inset 0 0 0 1.5px rgba(255,121,0,0.85); }
+  .toggle .arm { position: absolute; right: 9px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 50%; background: var(--deco); transition: background 0.15s; }
+  .toggle.on .arm { background: var(--live); box-shadow: 0 0 5px rgba(255,121,0,0.6); }
+
+  .phone { margin: 0 auto; }
+  .screen { position: relative; height: 604px; overflow: hidden; }
+  .topline { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 13px; border-bottom: 1px solid var(--hairline); }
+  .topline .brand { font-size: 10px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-low); }
+  .topline .clock { font-size: 12px; color: var(--ink-mid); letter-spacing: 0.08em; }
+
+  .mlist { position: absolute; left: 0; right: 0; top: 44px; bottom: 0; }
+  .mrow { position: absolute; left: 0; right: 0; cursor: pointer; user-select: none; touch-action: none;
+    border-bottom: 1px solid var(--hairline); will-change: transform; }
+  .mrow .rt { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .mrow .name { display: block; font-size: 12.5px; font-weight: 400; color: var(--ink-hi); }
+  .mrow .ws { display: block; font-size: 8.5px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-low); margin-top: 2px; }
+  .mrow .rstrip { position: absolute; left: 0; top: 0; width: 110px; height: 30px; transform-origin: 0 0; will-change: transform; }
+  .mrow .rstrip svg { position: absolute; left: 0; top: 0; display: block; }
+  .mrow .rstrip .ls { transform-origin: 0 0; opacity: 0; }
+  .mrow .rage { position: absolute; top: 0; right: 0; font-size: 11px; color: var(--ink-mid); letter-spacing: 0.06em; will-change: transform; }
+
+  .dx { position: absolute; left: 18px; right: 18px; pointer-events: none; }
+  .dxg { opacity: 0; will-change: transform, opacity; }
+  .dx .micro { padding: 9px 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: flex; gap: 8px; flex-wrap: wrap; }
+  .dx .glabel { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); margin: 14px 0 8px; }
+  .dx .figs { display: flex; gap: 0; }
+  .dx .fig { flex: 1; padding: 2px 0 0; }
+  .dx .fig .v { font-size: 22px; font-weight: 400; color: var(--ink-hi); }
+  .dx .fig .k { font-size: 8px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); margin-top: 4px; }
+  .dx .runs { width: 100%; border-collapse: collapse; }
+  .dx .runs td { font-size: 11px; color: var(--ink-mid); padding: 7px 0; border-top: 1px solid var(--hairline); }
+  .dx .runs td.r { text-align: right; }
+  .dx .runs td.ok { color: var(--ink-low); font-size: 9px; letter-spacing: 0.16em; }
+
+  .inset { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline);
+    font-size: 8.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+  .cap { margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="lab-head">
+    <div class="left">
+      <div class="eyebrow">FLEET <span class="dot">●</span> DESIGN CONTRACT</div>
+      <div class="lab-title">09 — Transitions: the shared-element morph</div>
+      <div class="lab-sub">Owner brief: transitions must feel like an iPhone and fade together. A row expands into its detail sheet — the title, tape, and figure ARE the same elements, continuously repositioning and rescaling; nothing fades over the top. Detail content surfaces only after the geometry settles. Reversible at any instant, mid-flight included.</div>
+    </div>
+    <div class="lab-meta">RULING 8 · ONE SPRING · REV C</div>
+  </header>
+
+  <div class="well rm-bar">
+    <div class="rm-id">
+      <div class="tn">Reduced motion</div>
+      <div class="td">The morph collapses to an instant swap — open and closed, no flight</div>
+    </div>
+    <div class="toggle" id="rmToggle"><div class="arm"></div><div class="thumb" id="rmThumb"></div></div>
+  </div>
+
+  <div class="phone" id="demoPhone">
+    <div class="screen" id="screen">
+      <div class="topline"><span class="brand">FLEET / CONTOSO HEALTH</span><span class="clock">14:32</span></div>
+      <div class="mlist" id="mlist"></div>
+    </div>
+    <div class="inset">SHARED-ELEMENT MORPH — GEOMETRY CONTINUOUS, CONTENT CROSS-FADES</div>
+  </div>
+
+  <div class="caption cap"><strong>Tap a row</strong> — it grows into the detail sheet; the same title, the same tape, the same age figure travel there. <strong>Tap the header or drag down</strong> to shrink it back. <strong>Tap mid-flight</strong> and it reverses from exactly where it is, velocity carried — the spring never restarts.</div>
+  <div class="caption cap">The medium tape cross-fades into the calibrated large tape inside one continuously-scaling frame. Detail rows surface on 25&nbsp;ms staggers only once the geometry has settled — data may animate its arrival; the sheet itself is chrome and performs nothing beyond the morph the finger asked for.</div>
+</div>
+
+<script src="assets/lab.js"></script>
+<script>
+(function () {
+  const lab = window.__lab;
+
+  const W = 342, ROWH = 64, LISTH = 560;
+  const RESP = 0.55, DAMP = 0.9;
+
+  const ROWS = [
+    { name: 'Billing — MEDIC', ws: 'FINANCE-PROD', v: 6.2, vt: '06:12', age: '6m',
+      micro: ['CYCLE 15 MIN', 'NEXT SWEEP 14:45', 'LAST RUN 42 S'],
+      sweeps: [42, 38, 51, 44, 40, 46], figs: [['1.2M', 'ROWS'], ['42 S', 'LAST RUN'], ['0', 'FAILS 30D']],
+      runs: [['14:24', '42 S'], ['14:09', '44 S'], ['13:54', '39 S']] },
+    { name: 'Claims — APEX', ws: 'CLINICAL-PROD', v: 12.1, vt: '12:06', age: '12m',
+      micro: ['CYCLE 15 MIN', 'NEXT SWEEP 14:35', 'LAST RUN 57 S'],
+      sweeps: [55, 49, 61, 58, 52, 57], figs: [['860K', 'ROWS'], ['57 S', 'LAST RUN'], ['1', 'FAILS 30D']],
+      runs: [['14:20', '57 S'], ['14:05', '52 S'], ['13:50', '58 S']] },
+    { name: 'Census — NORTHWING', ws: 'CLINICAL-PROD', v: 9.0, vt: '09:00', age: '9m',
+      micro: ['CYCLE 15 MIN', 'NEXT SWEEP 14:38', 'LAST RUN 31 S'],
+      sweeps: [31, 35, 29, 33, 30, 31], figs: [['2.4M', 'ROWS'], ['31 S', 'LAST RUN'], ['0', 'FAILS 30D']],
+      runs: [['14:23', '31 S'], ['14:08', '30 S'], ['13:53', '33 S']] },
+    { name: 'Theatre Util — ORTHO', ws: 'OPS-PROD', v: 3.4, vt: '03:24', age: '3m',
+      micro: ['CYCLE 15 MIN', 'NEXT SWEEP 14:44', 'LAST RUN 24 S'],
+      sweeps: [24, 27, 22, 26, 23, 24], figs: [['410K', 'ROWS'], ['24 S', 'LAST RUN'], ['0', 'FAILS 30D']],
+      runs: [['14:29', '24 S'], ['14:14', '23 S'], ['13:59', '26 S']] },
+  ];
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const list = document.getElementById('mlist');
+  const c01 = (v) => lab.clamp(v, 0, 1);
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  const REST = {
+    title: { x: 0, y: 13, s: 1 },
+    strip: { x: 180, y: 17, sx: 1, sy: 1 },
+    age: { r: 0, y: 22 },
+  };
+  const OPEN = {
+    title: { x: 18, y: 16, s: 1.3 },
+    strip: { x: 18, y: 64, sx: 306 / 110, sy: 96 / 30 },
+    age: { r: 18, y: 22 },
+  };
+  const DX_TOP = 64 + 96 + 14;
+
+  function miniBars(svg, vals) {
+    const w = 306, h = 64, base = 54, max = 70, bw = 38, gap = (w - 6 * bw) / 5;
+    const ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', 0); ln.setAttribute('y1', base); ln.setAttribute('x2', w); ln.setAttribute('y2', base);
+    ln.setAttribute('stroke', 'rgba(255,255,255,0.14)'); ln.setAttribute('stroke-width', 1);
+    svg.appendChild(ln);
+    vals.forEach((v, i) => {
+      const x = i * (bw + gap);
+      const hh = (v / max) * 44;
+      const r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', base - hh); r.setAttribute('width', bw); r.setAttribute('height', hh);
+      r.setAttribute('rx', 2); r.setAttribute('fill', i === vals.length - 1 ? '#E2E4E9' : '#C9CBD1');
+      r.setAttribute('opacity', i === vals.length - 1 ? 0.95 : 0.72);
+      svg.appendChild(r);
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', x + bw / 2); t.setAttribute('y', base - hh - 6); t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', i === vals.length - 1 ? '#C9CBD1' : '#80848F'); t.setAttribute('font-size', 10);
+      t.setAttribute('font-family', "'D-DIN PRO', sans-serif");
+      t.textContent = v + 's';
+      svg.appendChild(t);
+    });
+  }
+
+  const rows = ROWS.map((d, i) => {
+    const el = document.createElement('div');
+    el.className = 'mrow';
+    el.style.top = i * ROWH + 'px';
+    el.style.height = ROWH + 'px';
+    el.innerHTML = `
+      <div class="rt"><span class="name">${d.name}</span><span class="ws">WS / ${d.ws}</span></div>
+      <div class="rstrip">
+        <svg class="ms" width="110" height="30" viewBox="0 0 110 30"></svg>
+        <svg class="ls" width="306" height="96" viewBox="0 0 306 96" style="transform: scale(${110 / 306}, ${30 / 96})"></svg>
+      </div>
+      <span class="rage">${d.age}</span>
+      <div class="dx" style="top:${DX_TOP}px">
+        <div class="dxg micro">${d.micro.map((m) => `<span>${m}</span>`).join('<span>·</span>')}</div>
+        <div class="dxg"><div class="glabel">Recent sweeps — duration</div><svg width="306" height="64" viewBox="0 0 306 64" class="sw"></svg></div>
+        <div class="dxg figs">${d.figs.map(([v, k]) => `<div class="fig"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('')}</div>
+        <div class="dxg"><div class="glabel">Last runs</div><table class="runs">${d.runs.map(([t, s]) => `<tr><td>${t}</td><td class="r">${s}</td><td class="r ok">OK</td></tr>`).join('')}</table></div>
+      </div>`;
+    list.appendChild(el);
+    const ms = lab.strip(el.querySelector('.ms'), { size: 'medium', w: 110, value: d.v });
+    const ls = lab.strip(el.querySelector('.ls'), { size: 'large', w: 306, value: d.v, valueText: d.vt });
+    ms.set(1);
+    ls.set(1);
+    miniBars(el.querySelector('.sw'), d.sweeps);
+    return {
+      el, d, i,
+      rt: el.querySelector('.rt'),
+      strip: el.querySelector('.rstrip'),
+      msSvg: el.querySelector('.ms'),
+      lsSvg: el.querySelector('.ls'),
+      age: el.querySelector('.rage'),
+      groups: Array.from(el.querySelectorAll('.dxg')),
+      gAnims: [],
+    };
+  });
+
+  let active = null;
+  let curP = 0, curV = 0, target = 0, lastT = 0;
+  let anim = null;
+
+  function applyGroup(g, v) {
+    g.style.opacity = String(c01(v));
+    g.style.transform = `translateY(${(1 - c01(v)) * 6}px)`;
+  }
+
+  function restRow(row) {
+    row.rt.style.transform = `translate(${REST.title.x}px, ${REST.title.y}px) scale(1)`;
+    row.strip.style.transform = `translate(${REST.strip.x}px, ${REST.strip.y}px) scale(1, 1)`;
+    row.age.style.top = REST.age.y + 'px';
+    row.age.style.transform = 'translate(0px, 0px)';
+    row.msSvg.style.opacity = '1';
+    row.lsSvg.style.opacity = '0';
+    row.el.style.opacity = '1';
+    row.el.style.pointerEvents = '';
+    row.el.style.zIndex = '';
+    row.el.style.background = 'rgba(11,11,13,0)';
+    row.el.style.borderRadius = '0px';
+    row.el.style.borderBottomColor = 'rgba(255,255,255,0.08)';
+    row.el.style.boxShadow = 'none';
+    row.el.style.top = row.i * ROWH + 'px';
+    row.el.style.height = ROWH + 'px';
+    row.el.style.transform = 'translateY(0px)';
+    row.groups.forEach((g) => applyGroup(g, 0));
+  }
+
+  rows.forEach(restRow);
+
+  function apply(p) {
+    if (!active) return;
+    const pc = c01(p);
+    const row = active;
+    row.el.style.top = lerp(row.i * ROWH, 0, p) + 'px';
+    row.el.style.height = lerp(ROWH, LISTH, p) + 'px';
+    row.el.style.zIndex = p > 0.001 ? 3 : '';
+    row.el.style.background = `rgba(11,11,13,${pc})`;
+    row.el.style.borderRadius = lerp(0, 18, pc) + 'px';
+    row.el.style.borderBottomColor = `rgba(255,255,255,${0.08 * (1 - pc)})`;
+    row.el.style.boxShadow = `inset 0 2px 5px rgba(0,0,0,${0.85 * pc}), inset 0 0 0 1px rgba(255,255,255,${0.07 * pc})`;
+    row.rt.style.transform = `translate(${lerp(REST.title.x, OPEN.title.x, p)}px, ${lerp(REST.title.y, OPEN.title.y, p)}px) scale(${lerp(REST.title.s, OPEN.title.s, p)})`;
+    row.strip.style.transform = `translate(${lerp(REST.strip.x, OPEN.strip.x, p)}px, ${lerp(REST.strip.y, OPEN.strip.y, p)}px) scale(${lerp(REST.strip.sx, OPEN.strip.sx, p)}, ${lerp(REST.strip.sy, OPEN.strip.sy, p)})`;
+    row.msSvg.style.opacity = String(c01(1 - (pc - 0.2) / 0.35));
+    row.lsSvg.style.opacity = String(c01((pc - 0.35) / 0.4));
+    row.age.style.transform = `translate(${-lerp(REST.age.r, OPEN.age.r, p)}px, ${lerp(0, OPEN.age.y - REST.age.y, p)}px)`;
+    row.age.style.top = REST.age.y + 'px';
+    rows.forEach((r) => {
+      if (r === row) return;
+      r.el.style.opacity = String(c01(1 - pc * 1.6));
+      r.el.style.pointerEvents = pc > 0.05 ? 'none' : '';
+      r.el.style.transform = `translateY(${(r.i < row.i ? -10 : 10) * pc}px)`;
+    });
+  }
+
+  function cancelGroups() {
+    if (!active) return;
+    active.gAnims.forEach((a) => a && a.cancel());
+    active.gAnims = [];
+  }
+
+  function surfaceDetails() {
+    if (!active) return;
+    cancelGroups();
+    const row = active;
+    if (lab.reduced) {
+      row.groups.forEach((g) => applyGroup(g, 1));
+      return;
+    }
+    row.groups.forEach((g, i) => {
+      const tm = setTimeout(() => {
+        row.gAnims[i] = lab.spring({ from: 0, to: 1, response: 0.4, damping: 0.9, onUpdate: (v) => applyGroup(g, v) });
+      }, i * 25);
+      row.gAnims.push({ cancel: () => clearTimeout(tm) });
+    });
+  }
+
+  function hideDetails() {
+    if (!active) return;
+    cancelGroups();
+    active.groups.forEach((g) => applyGroup(g, 0));
+  }
+
+  function drive(to) {
+    if (!active) return;
+    target = to;
+    if (to === 0) hideDetails();
+    if (anim) anim.cancel();
+    lastT = performance.now();
+    anim = lab.spring({
+      from: curP, to, velocity: curV, response: RESP, damping: DAMP,
+      onUpdate: (v) => {
+        const now = performance.now();
+        const dt = Math.max((now - lastT) / 1000, 1e-4);
+        curV = (v - curP) / dt;
+        lastT = now;
+        curP = v;
+        apply(curP);
+      },
+      onSettle: () => {
+        curV = 0;
+        curP = to;
+        apply(to);
+        if (to === 1) surfaceDetails();
+        else active = null;
+      },
+    });
+  }
+
+  let dragging = false, dragY0 = 0, dragMoved = false, dragLastY = 0, dragLastT = 0, dragV = 0;
+
+  rows.forEach((row) => {
+    row.el.addEventListener('click', () => {
+      if (dragMoved) { dragMoved = false; return; }
+      if (active && active !== row) return;
+      if (!active) {
+        active = row;
+        curP = 0; curV = 0;
+        drive(1);
+        return;
+      }
+      drive(target === 1 ? 0 : 1);
+    });
+
+    row.el.addEventListener('pointerdown', (e) => {
+      if (active !== row || target !== 1 || curP < 0.95) return;
+      dragging = true;
+      dragMoved = false;
+      dragY0 = dragLastY = e.clientY;
+      dragLastT = performance.now();
+      dragV = 0;
+      row.el.setPointerCapture(e.pointerId);
+    });
+    row.el.addEventListener('pointermove', (e) => {
+      if (!dragging || !active) return;
+      const dy = e.clientY - dragY0;
+      if (Math.abs(dy) > 6) dragMoved = true;
+      if (!dragMoved) return;
+      if (anim) anim.cancel();
+      const now = performance.now();
+      const dt = Math.max((now - dragLastT) / 1000, 1e-4);
+      dragV = (-(e.clientY - dragLastY) / 420) / dt;
+      dragLastY = e.clientY;
+      dragLastT = now;
+      curP = lab.clamp(1 - dy / 420, 0, 1.02);
+      apply(curP);
+    });
+    row.el.addEventListener('pointerup', () => {
+      if (!dragging) return;
+      dragging = false;
+      if (!dragMoved) return;
+      curV = dragV;
+      hideDetails();
+      drive(curP < 0.72 || dragV < -1.4 ? 0 : 1);
+    });
+  });
+
+  const T0 = 0.3, T1 = 0.48, T2 = 1.55, T3 = 2.17, DUR = 3.2;
+
+  function springXV(t, x0, v0) {
+    const w0 = (2 * Math.PI) / RESP, z = DAMP;
+    const wd = w0 * Math.sqrt(1 - z * z);
+    const A = x0, B = (v0 + z * w0 * x0) / wd;
+    const e = Math.exp(-z * w0 * t);
+    const x = e * (A * Math.cos(wd * t) + B * Math.sin(wd * t));
+    const v = e * ((B * wd - z * w0 * A) * Math.cos(wd * t) - (A * wd + z * w0 * B) * Math.sin(wd * t));
+    return [x, v];
+  }
+
+  const s1 = springXV(T1 - T0, -1, 0);
+  const b1 = [1 + s1[0], s1[1]];
+  const s2 = springXV(T2 - T1, b1[0], b1[1]);
+  const b2 = [s2[0], s2[1]];
+
+  function timelineP(t) {
+    if (t < T0) return 0;
+    if (t < T1) return 1 + springXV(t - T0, -1, 0)[0];
+    if (t < T2) return 0 + springXV(t - T1, b1[0], b1[1])[0];
+    return 1 + springXV(t - T2, b2[0] - 1, b2[1])[0];
+  }
+
+  function sp(t, response, damping) {
+    if (t <= 0) return 0;
+    const w0 = (2 * Math.PI) / response;
+    const wd = w0 * Math.sqrt(1 - damping * damping);
+    return 1 - Math.exp(-damping * w0 * t) * (Math.cos(wd * t) + ((damping * w0) / wd) * Math.sin(wd * t));
+  }
+
+  function selectRow(i) {
+    if (anim) anim.cancel();
+    cancelGroups();
+    if (active && active !== rows[i]) restRow(active);
+    active = rows[i];
+  }
+
+  lab.api.morphDur = DUR * 1000;
+  lab.api.seekMorph = (ms) => {
+    const t = ms / 1000;
+    selectRow(0);
+    curP = timelineP(t);
+    curV = 0;
+    target = t >= T2 || (t >= T0 && t < T1) ? 1 : 0;
+    apply(curP);
+    active.groups.forEach((g, i) => applyGroup(g, t > T3 ? c01(sp(t - T3 - i * 0.025, 0.4, 0.9)) : 0));
+  };
+  lab.api.setMorph = (p, details) => {
+    selectRow(0);
+    curP = p;
+    curV = 0;
+    target = p >= 0.5 ? 1 : 0;
+    apply(p);
+    active.groups.forEach((g) => applyGroup(g, details ? 1 : 0));
+  };
+
+  const rm = document.getElementById('rmToggle');
+  const rmThumb = document.getElementById('rmThumb');
+  let rmAnim = null;
+  function setReduced(v) {
+    lab.reduced = v;
+    rm.classList.toggle('on', v);
+    if (rmAnim) rmAnim.cancel();
+    const fromM = rmThumb.style.transform.match(/([-\d.]+)px/);
+    rmAnim = lab.spring({ from: fromM ? Number(fromM[1]) : (v ? 0 : 30), to: v ? 30 : 0, response: 0.34, damping: 0.6, onUpdate: (x) => { rmThumb.style.transform = `translateX(${x}px)`; } });
+    if (v && active) {
+      if (anim) anim.cancel();
+      curP = target;
+      curV = 0;
+      apply(target);
+      if (target === 1) surfaceDetails();
+      else { hideDetails(); active = null; }
+    }
+  }
+  rm.addEventListener('click', () => setReduced(!lab.reduced));
+  if (lab.reduced) setReduced(true);
+  lab.api.setReduced = setReduced;
+})();
+</script>
+</body>
+</html>
