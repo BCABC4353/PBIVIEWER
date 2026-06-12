@@ -115,6 +115,12 @@ owner's Power BI consulting clients. Two pillars:
 - The tick strip is THE instrument. No dials/gauges/rings anywhere.
   PBI gauge visuals crosswalk INTO tick strips.
 - Pies render as donuts (owner approved).
+- Haptics ruling (owner DEMAND): designed haptics done well, esp.
+  PUSH-THROUGH on drill — two-stage engage-then-give pattern conveying
+  depth when entering a layer (Ledger drill, morph-to-detail), inverse
+  resurfacing tick on the way back. New verb pushThrough in the ladder
+  (AHAP tier 1 / Android composition tier 2 / detent fallback tier 3).
+  Logitech MX haptics on desktop = parked someday-delight.
 - Motion: data may animate its own ARRIVAL (bars grow, lines draw,
   numbers count, spring-settled, interruptible); chrome NEVER performs.
   NO launch rituals (owner killed twice). Reduce Motion collapses all
@@ -144,11 +150,18 @@ owner's Power BI consulting clients. Two pillars:
 05 fluid · 06 data-draws-itself · 07 crosswalk vocabulary (9 PBI
 families; waterfall currently silver-ramp ALTERNATE + orange/blue
 ruling version pending/in-flight) · 08 arrival animations (8 GIFs,
-gifenc pipeline in capture.mjs) · 09 transitions + 10 ledger
-(in-flight at handoff) · PENDING: categorical palette board + 07
-recolor · Board 11 = crosswalk one REAL report from pbip-samples
-(LIFELINE - REPORTS is the priority target; numbers OK to show,
-PowerQuery/dataflows off-limits).
+gifenc pipeline in capture.mjs) · 09 transitions (interruptible shared-element morph) · 10 ledger
+(outline+carousel+flip) · 11 crosswalk of the REAL LIFELINE report
+(DENIALS translated, receipts panel with generated DAX, native
+revenue-cycle timeline, calendar heatmap, the engineered 8-hue
+categorical palette) · 12 full app screens (8 frames + weather
+states + fluid trio). LIVE single-file HTML bundles + sliced PNGs +
+GIFs are the delivery format. A hand-built TRUE-FLUID DENIALS proof
+(continuous reflow, 9-width zero-overflow gauntlet) exists in /tmp
+history and the pattern is law for product screens. NOTE: the owner
+uploaded the full LIFELINE .Report definition in-chat (bundle) and
+the RCSQL database schema reference (1,988 tables; money=int/100,
+dates=varchar) — schema doc is SENSITIVE, keep out of public repos.
 
 ## Owner working notes (respect these)
 
