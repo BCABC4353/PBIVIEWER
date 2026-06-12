@@ -39,7 +39,6 @@ export default defineConfig({
         'dist/**',
         'src/**/*.test.{ts,tsx}',
         'src/test/**',
-        'mobile/**',
       ],
       thresholds: {
         statements: 27,

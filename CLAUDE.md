@@ -1,14 +1,11 @@
 # CLAUDE.md — read this before touching anything
 
-## The repo is TWO packages, not one
+## What this repo is
 
-- **Desktop** (repo root): Electron + React 18 + TS. Source in `src/`.
-- **Mobile** (`mobile/`): Expo / React Native + React 19 + TS. Its OWN
-  `package.json`, lockfile, and node_modules. `cd mobile && npm ci` before any
-  mobile work. Root `npm test` does NOT run mobile tests; run `npm test` and
-  `npm run typecheck` inside `mobile/`.
-- `src/shared/` is consumed by BOTH packages (mobile reaches it via
-  `mobile/metro.config.js` watchFolders). Keep it free of platform imports.
+The **desktop** Power BI Viewer: Electron + React 18 + TS. Source in `src/`.
+The mobile app lives in its own repository (fleet-mobile) — it was fully
+extracted from this repo by owner decision; do not reintroduce mobile code,
+configs, or CI here.
 
 ## Build prerequisites (fresh clone)
 
@@ -28,8 +25,7 @@
 npx tsc --noEmit -p tsconfig.main.json      # main process (CommonJS/node)
 npx tsc --noEmit -p tsconfig.renderer.json  # renderer (ESNext/bundler, JSX)
 npm run lint
-npm test                                    # desktop only
-cd mobile && npm run typecheck && npm test  # mobile
+npm test
 ```
 
 Both tsconfigs include `src/shared/**` with DIFFERENT module semantics — an
