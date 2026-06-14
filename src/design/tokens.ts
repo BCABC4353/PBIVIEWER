@@ -23,8 +23,7 @@ export const color = {
 
 export const brand = {
   orange: '#FF7900',
-  blue: '#0F4D97',
-  blueBacklit: '#156AD1',
+  blue: '#5D9FEF',
 } as const;
 
 export const direction = {
