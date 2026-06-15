@@ -1,2 +1,2 @@
 patch
-# 2026-06-12T06:40:00Z — v2.2.16: UX consistency sprint (sign-out, kiosk Esc-hold, locale dates) + insights tile morph (fast, interruptible, non-blocking)
+# 2026-06-15T02:02:44Z — v2.2.17: go-live hardening — per-report freshness in-flight fix, kiosk slideshow auto-start + recovery backoff, ErrorBoundary auto-recovery (no prod message leak), PDF export-path guard, updater forced-install ceiling, auth account-race + 401 silent-refresh; includes the Insights tile FLIP+spring morph
