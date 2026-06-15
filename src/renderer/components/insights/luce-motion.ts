@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 
+export {
+  MOMENTUM_STIFFNESS,
+  MOMENTUM_DAMPING,
+  MOMENTUM_DT_CAP_MS,
+  MOMENTUM_EPSILON_POS,
+  MOMENTUM_EPSILON_VEL,
+  createMomentumSpring,
+} from '../../lib/morph/spring-physics';
+export type { MomentumSpringOptions, MomentumSpring } from '../../lib/morph/spring-physics';
+export { prefersReducedMotion } from '../../lib/morph/reduced-motion';
+import { prefersReducedMotion } from '../../lib/morph/reduced-motion';
+
 
 export const SPRING_NEEDLE =
   'linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, ' +
@@ -147,12 +159,6 @@ export function createSpringTicker(opts: SpringTickerOptions): SpringTicker {
     },
     value: () => current,
   };
-}
-
-
-export function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 

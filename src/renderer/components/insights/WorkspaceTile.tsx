@@ -9,9 +9,8 @@ export const WorkspaceTile: React.FC<{
   group: WorkspaceGroup;
   access?: InsightsWorkspaceAccess;
   affectedCount: number;
-  morphSource: boolean;
   onOpen: (el: HTMLElement) => void;
-}> = ({ group, affectedCount, morphSource, onOpen }) => {
+}> = ({ group, affectedCount, onOpen }) => {
   const broken = group.counts.broken > 0;
   const degraded = group.counts.overdue > 0 || affectedCount > 0;
   const edge = broken
@@ -24,7 +23,6 @@ export const WorkspaceTile: React.FC<{
       {broken && <span aria-hidden="true" className="luce-tile-underglow" />}
       <button
         className={`luce-tile${broken ? ' luce-tile--broken' : ''}`}
-        style={morphSource ? { viewTransitionName: 'sheet-morph' } : undefined}
         data-workspace-tile={group.workspaceId}
         onClick={(e) => onOpen(e.currentTarget)}
         aria-haspopup="dialog"

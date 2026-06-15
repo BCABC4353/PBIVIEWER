@@ -1,0 +1,19 @@
+BASELINE REEL — Current View-Transition morph (Sprint 1)
+
+View-Transition API available: true
+
+HONEST BASELINE FAILURES (after S4 harness hardening):
+
+Close scenario: sheet opens first (setted at final rect), then close is triggered.
+On close, .luce-sheet is removed from the DOM before the VT fires, so the node is
+absent for all closing frames and getTrackedRect() returns null for most.
+
+Genuine failures on this baseline:
+  - SELF-CHECK baseline-close: FAIL — 9/40 rects all identical (static at tile origin)
+  - A-1 close-width: FAIL — totalDelta=0px, motion expected but absent
+  - A-1 close-height: FAIL — totalDelta=0px, motion expected but absent
+  - A-1 close-returns-origin: FAIL — close lands at y=109 vs open origin y=251
+  - A-2 baseline-close: FAIL — 31/40 frames have present:false (sheet removed before VT)
+
+Sprint 2 FLIP will keep .luce-sheet in the DOM and apply the animating transform directly
+to it, turning these failures into passes.

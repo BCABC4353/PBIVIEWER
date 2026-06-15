@@ -1,0 +1,17 @@
+BASELINE REEL — Current View-Transition morph (Sprint 1)
+
+View-Transition API available: true
+
+REDUCED-MOTION scenario: prefers-reduced-motion: reduce emulated.
+InsightsPage skips View-Transition when prefersReducedMotion() returns true,
+so the sheet mounts instantly at final size. All frames show the settled sheet.
+
+HONEST BASELINE STATUS (after S4 harness hardening):
+
+  - SELF-CHECK reduced-motion: PASS — all-identical rects is CORRECT for reduced-motion;
+    the rig exempts this scenario from the min-span requirement.
+  - A-2 baseline-reduced-motion: PASS — all frames present:true, no jumps.
+  - A-5 baseline-reduced-motion: PASS — no pointer blocking.
+
+This scenario passes all applicable checks. Static/instant is the correct behavior
+when the user requests reduced motion.

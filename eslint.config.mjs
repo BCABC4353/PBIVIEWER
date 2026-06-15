@@ -15,6 +15,7 @@ export default tseslint.config(
       'vitest.config.ts',
       '**/*.test.ts',
       '**/*.test.tsx',
+      'harness/**',
     ],
   },
   js.configs.recommended,
