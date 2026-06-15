@@ -1,0 +1,76 @@
+name: Branch Cleanup (one-shot)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete stale desktop/experiment branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          BRANCHES="
+          app-report-freshness
+          bcabc-site
+          blur-sync
+          usage-in-sheet
+          claude/admin-hardening-and-beacon
+          claude/antagonist-hardening
+          claude/coverage-antagonist-review-nufh3r
+          claude/debug-app-creation-01VRYEEXzSkwQciDsf9bPZmj
+          claude/feel-and-live
+          claude/fix-app-freshness
+          claude/fix-mac-build
+          claude/gracious-pasteur-cc3v5i
+          claude/insights-admin-tier
+          claude/insights-luce
+          claude/insights-one-pager
+          claude/matts-punch-list
+          claude/pbi-desktop-golive-dz7wk9
+          claude/release-bridge
+          claude/research-superbowl-stats-oPe2l
+          claude/research-wealth-forecasting-HpyHQ
+          claude/setup-report-framework-iuFqj
+          claude/superbowl-prediction-engine-MGt93
+          claude/user-guide-v2
+          fix/app-dataset-hop
+          fix/app-freshness-toolbar
+          fix/humane-age
+          luce-insights-board
+          luce-v2
+          luce-v3
+          luce-v4
+          luce-v5
+          luce-v6
+          luce-v7
+          luce-v8
+          luce-v9
+          luce-v10
+          luce-v11
+          luce-v12
+          morph/main
+          morph/s1-spring
+          morph/s2-flip
+          morph/s3-primitive
+          morph/s4-capture-s3
+          morph/s4-harness
+          morph/s4-real
+          morph/s5-wire
+          "
+          ok=0; fail=0
+          for b in $BRANCHES; do
+            [ -z "$b" ] && continue
+            if gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/$b" >/dev/null 2>&1; then
+              echo "deleted: $b"; ok=$((ok+1))
+            else
+              echo "skip (missing or protected): $b"; fail=$((fail+1))
+            fi
+          done
+          echo "---"
+          echo "deleted=$ok skipped=$fail"
