@@ -1,6 +1,9 @@
 name: Branch Cleanup (one-shot)
 
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/branch-cleanup.yml']
   workflow_dispatch:
 
 permissions:
