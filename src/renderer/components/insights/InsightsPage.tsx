@@ -115,6 +115,12 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
             <span>Some workspaces could not be fully read: {snapshot.failedWorkspaces.map((w) => w.name).join(', ')}. Their items may be missing below.</span>
           </div>
         )}
+        {error && (
+          <div role="alert" className="luce-panel px-4 py-2 text-xs flex items-center gap-2" style={{ color: luce.broken }}>
+            <span aria-hidden="true">▲</span>
+            <span>Refresh failed — showing the last loaded data. {error}</span>
+          </div>
+        )}
         {}
         <div className="grid gap-[2px] lg:grid-cols-[minmax(280px,2fr)_3fr]">
           <HeroGauge pct={healthPct} igniting={igniting} />

@@ -114,6 +114,7 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           autoStartReportId,
           autoStartWorkspaceId,
           autoStartAppId,
+          autoStartSlideshow,
         } = settingsResp.data;
 
         if (autoStartMode === 'report' && autoStartReportId && autoStartWorkspaceId) {
@@ -122,7 +123,10 @@ const AutoStartRouter: React.FC<{ onDone: () => void }> = ({ onDone }) => {
             reportsResp.success &&
             reportsResp.data.some((r) => r.id === autoStartReportId)
           ) {
-            navigate(`/report/${autoStartWorkspaceId}/${autoStartReportId}`, { replace: true });
+            const target = autoStartSlideshow
+              ? `/presentation/${autoStartWorkspaceId}/${autoStartReportId}`
+              : `/report/${autoStartWorkspaceId}/${autoStartReportId}`;
+            navigate(target, { replace: true });
           }
           onDone();
           return;

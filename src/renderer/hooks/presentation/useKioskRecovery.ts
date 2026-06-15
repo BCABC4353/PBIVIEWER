@@ -4,11 +4,12 @@ import { kioskRecoveryDelayMs } from '../../../shared/constants';
 
 export interface UseKioskRecoveryParams {
   error: string | null;
+  loaded: boolean;
   active: boolean;
   recover: () => void;
 }
 
-export function useKioskRecovery({ error, active, recover }: UseKioskRecoveryParams): void {
+export function useKioskRecovery({ error, loaded, active, recover }: UseKioskRecoveryParams): void {
   const attemptRef = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const recoverRef = useRef(recover);
@@ -22,11 +23,19 @@ export function useKioskRecovery({ error, active, recover }: UseKioskRecoveryPar
       }
     };
 
-    if (!error || !active) {
+    if (!active) {
       attemptRef.current = 0;
       clearTimer();
       return;
     }
+
+    if (loaded) {
+      attemptRef.current = 0;
+      clearTimer();
+      return;
+    }
+
+    if (!error) return clearTimer;
 
     if (timerRef.current) return clearTimer;
 
@@ -41,7 +50,7 @@ export function useKioskRecovery({ error, active, recover }: UseKioskRecoveryPar
 
     arm();
     return clearTimer;
-  }, [error, active]);
+  }, [error, loaded, active]);
 
   useEffect(() => {
     return () => {

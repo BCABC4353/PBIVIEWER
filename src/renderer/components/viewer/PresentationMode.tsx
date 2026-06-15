@@ -181,7 +181,7 @@ export const PresentationMode: React.FC = () => {
     };
   }, []);
 
-  useKioskRecovery({ error, active: isPlaying, recover: reload });
+  useKioskRecovery({ error, loaded: !error && !isLoading, active: isPlaying, recover: reload });
 
   const { isHolding: isExitHoldActive, holdMs: exitHoldMs } = useKioskExitGesture({
     onExit: doExit,
@@ -235,7 +235,7 @@ export const PresentationMode: React.FC = () => {
   }, [slides.length, doExit, autoStartSlideshow, showSettings]);
 
   useEffect(() => {
-    if (isPlaying && slides.length > 0) {
+    if (isPlaying && slides.length > 0 && !error) {
       slideshowIntervalRef.current = setInterval(() => {
         setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
       }, intervalSeconds * 1000);
@@ -251,7 +251,7 @@ export const PresentationMode: React.FC = () => {
         clearInterval(slideshowIntervalRef.current);
       }
     };
-  }, [isPlaying, intervalSeconds, slides.length]);
+  }, [isPlaying, intervalSeconds, slides.length, error]);
 
   const clampedSlideIndex =
     slides.length === 0 ? 0 : Math.min(currentSlideIndex, slides.length - 1);

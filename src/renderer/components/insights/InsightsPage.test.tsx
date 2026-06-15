@@ -422,6 +422,27 @@ describe('InsightsPage — Luce board', () => {
     expect(screen.getByText(/Finance/)).toBeInTheDocument();
   });
 
+  it('surfaces a non-blocking banner when a refresh fails but stale data remains (E-H3)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    expect(screen.getByRole('button', { name: 'Open Sales details' })).toBeInTheDocument();
+
+    mockGetInsights({
+      success: false,
+      error: { code: 'INSIGHTS_FETCH_FAILED', message: 'raw', userMessage: 'Could not reach Power BI.' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    });
+
+    expect(screen.getByRole('button', { name: 'Open Sales details' })).toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Refresh failed — showing the last loaded data.');
+    expect(alert).toHaveTextContent('Could not reach Power BI.');
+  });
+
   it('dead-ends into an error state with a working Try again', async () => {
     mockGetInsights({
       success: false,

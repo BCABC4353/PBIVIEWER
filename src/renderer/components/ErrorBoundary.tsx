@@ -4,6 +4,8 @@ import { ArrowSyncRegular, HomeRegular } from '@fluentui/react-icons';
 import { reportIssue } from '../lib/report-issue';
 
 
+const AUTO_RETRY_MS = 20000;
+
 interface ClassProps {
   children: ReactNode;
   onTryAgain: () => void;
@@ -16,6 +18,8 @@ interface ClassState {
 }
 
 class ErrorBoundaryClass extends Component<ClassProps, ClassState> {
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(props: ClassProps) {
     super(props);
     this.state = {
@@ -33,6 +37,16 @@ class ErrorBoundaryClass extends Component<ClassProps, ClassState> {
     console.error('[ErrorBoundary]', error.message, error, errorInfo.componentStack);
     reportIssue({ code: 'RENDERER_CRASH', context: error.message });
     this.setState({ error, errorInfo });
+    if (this.retryTimer === null) {
+      this.retryTimer = setTimeout(() => this.props.onTryAgain(), AUTO_RETRY_MS);
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
   }
 
   handleGoHome = () => {
@@ -76,12 +90,12 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onGoHome, onTryAga
           </Text>
         </div>
 
-        {error && (
+        {process.env.NODE_ENV === 'development' && error && (
           <div className="mb-6 p-4 bg-neutral-background-3 rounded-lg">
             <Text size={200} className="text-status-error font-mono break-all">
               {error.message}
             </Text>
-            {process.env.NODE_ENV === 'development' && error.stack && (
+            {error.stack && (
               <details className="mt-2">
                 <summary className="cursor-pointer text-neutral-foreground-2 text-sm">
                   Stack Trace
