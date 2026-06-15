@@ -8,10 +8,12 @@ const FORCE_POLICY_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/
 const ROUTINE_CHECK_MS = 2 * 60 * 60 * 1000;
 const FORCE_POLL_MS = 10 * 60 * 1000;
 const FORCE_GRACE_MS = 30 * 1000;
+const MAX_FORCE_ATTEMPTS = 3;
 
 let forceImmediate = false;
 let updateDownloaded = false;
 let installing = false;
+let forceAttempts = 0;
 
 export function isNewerVersion(a: string, b: string): boolean {
   const parse = (v: string): number[] => {
@@ -75,6 +77,13 @@ export async function isForcedBehind(): Promise<boolean> {
 
 function forceInstallNow(): void {
   if (installing) return;
+  if (forceAttempts >= MAX_FORCE_ATTEMPTS) {
+    log.warn(
+      `[updater] forced install abandoned after ${forceAttempts} failed attempts — staying on current version to avoid a restart loop.`,
+    );
+    return;
+  }
+  forceAttempts += 1;
   installing = true;
   log.info('[updater] forced update ready — restarting to apply.');
   let restarted = false;

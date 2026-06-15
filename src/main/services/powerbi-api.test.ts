@@ -84,6 +84,35 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     if (!result.success) expect(result.error.code).toBe('WORKSPACES_FETCH_FAILED');
   });
 
+  it('a 401 from the API triggers one forced token refresh and retries before surfacing', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ value: [] }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await svc.getWorkspaces();
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getAccessToken).toHaveBeenNthCalledWith(1, false);
+    expect(getAccessToken).toHaveBeenNthCalledWith(2, true);
+  });
+
+  it('surfaces the failure when the forced-refresh retry still returns 401', async () => {
+    const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
+
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('Unauthorized', { status: 401 })) as unknown as typeof fetch;
+
+    const result = await svc.getWorkspaces();
+    expect(result.success).toBe(false);
+  });
+
   it('getDatasetRefreshInfo returns empty data when there is no refresh history', async () => {
     const getAccessToken = vi.fn().mockResolvedValue(tokenOk());
     const svc = createPowerBIApiService(makeDeps({ getAccessToken }));
@@ -327,6 +356,47 @@ describe('powerbi-api module (ARCH-B4: DI factory)', () => {
     if (result.success) {
       expect(result.data.lastRefreshTime).toBe('2026-06-08T00:05:00.000Z');
       expect(result.data.lastRefreshStatus).toBe('Unknown');
+    }
+  });
+
+  it('getDatasetRefreshInfo does NOT report an in-flight refresh (Unknown, no endTime) as the last refresh time', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          value: [{ requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: '2026-06-09T00:00:00.000Z', status: 'Unknown' }],
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBeUndefined();
+      expect(result.data.lastRefreshStatus).toBeUndefined();
+    }
+  });
+
+  it('getDatasetRefreshInfo skips an in-flight refresh and reports the prior completed run', async () => {
+    const svc = createPowerBIApiService(makeDeps({ getAccessToken: vi.fn().mockResolvedValue(tokenOk()) }));
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          value: [
+            { requestId: 'r', id: '2', refreshType: 'Scheduled', startTime: '2026-06-09T00:00:00.000Z', status: 'Unknown' },
+            { requestId: 'r', id: '1', refreshType: 'Scheduled', startTime: '2026-06-08T00:00:00.000Z', endTime: '2026-06-08T00:05:00.000Z', status: 'Completed' },
+          ],
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    const result = await svc.getDatasetRefreshInfo('ds-1', 'ws-1');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.lastRefreshTime).toBe('2026-06-08T00:05:00.000Z');
+      expect(result.data.lastRefreshStatus).toBe('Completed');
     }
   });
 

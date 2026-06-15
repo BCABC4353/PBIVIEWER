@@ -36,6 +36,7 @@ let rmSpy: ReturnType<typeof vi.spyOn>;
 let renameSpy: ReturnType<typeof vi.spyOn>;
 
 import { registerContentIpc } from './content';
+import { approveExportPath } from './export-paths';
 
 const VALID_UUID = '00000000-0000-0000-0000-000000000001';
 const CHANNEL = 'content:export-report-pdf';
@@ -48,6 +49,7 @@ interface IpcErr {
 async function invokeExport(pageName?: string, bookmarkState?: string) {
   const fn = handlers.get(CHANNEL);
   if (!fn) throw new Error('export handler not registered');
+  approveExportPath(OUT_PATH);
   return (await fn(
     {},
     VALID_UUID,
@@ -56,6 +58,14 @@ async function invokeExport(pageName?: string, bookmarkState?: string) {
     bookmarkState,
     OUT_PATH,
   )) as { success: boolean } & Partial<IpcErr>;
+}
+
+async function invokeExportRaw(filePath: string) {
+  const fn = handlers.get(CHANNEL);
+  if (!fn) throw new Error('export handler not registered');
+  return (await fn({}, VALID_UUID, VALID_UUID, undefined, undefined, filePath)) as {
+    success: boolean;
+  } & Partial<IpcErr>;
 }
 
 beforeEach(() => {
@@ -104,6 +114,22 @@ describe('content:export-report-pdf input caps (FIX-5 / G2)', () => {
     expect(exportReportToPdf).toHaveBeenCalled();
     expect(writeFileSpy).toHaveBeenCalledWith(TMP_PATH, Buffer.from('pdf'));
     expect(renameSpy).toHaveBeenCalledWith(TMP_PATH, OUT_PATH);
+  });
+
+  it('rejects a path that was not approved by the save dialog and never writes', async () => {
+    const res = await invokeExportRaw(join(tmpdir(), 'pbiviewer-not-chosen.pdf'));
+    expect(res.success).toBe(false);
+    expect(res.error?.code).toBe('INVALID_PATH');
+    expect(exportReportToPdf).not.toHaveBeenCalled();
+    expect(writeFileSpy).not.toHaveBeenCalled();
+  });
+
+  it('consumes an approved path one-shot — a second export to the same path is rejected', async () => {
+    const first = await invokeExport();
+    expect(first.success).toBe(true);
+    const second = await invokeExportRaw(OUT_PATH);
+    expect(second.success).toBe(false);
+    expect(second.error?.code).toBe('INVALID_PATH');
   });
 });
 

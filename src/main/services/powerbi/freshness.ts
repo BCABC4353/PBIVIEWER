@@ -169,7 +169,7 @@ export class PowerBIFreshnessApi {
         id: string;
         refreshType: string;
         startTime: string;
-        endTime: string;
+        endTime?: string;
         status: string;
       }>;
 
@@ -189,8 +189,11 @@ export class PowerBIFreshnessApi {
       }
 
       const refreshes = response.value ?? [];
-      const isSuccessLike = (s: string | undefined): boolean => s === 'Completed' || s === 'Unknown';
-      const chosen = refreshes.find((r) => isSuccessLike(r.status)) ?? refreshes[0];
+      const isInFlight = (r: { status: string; endTime?: string }): boolean =>
+        r.status === 'Unknown' && !r.endTime;
+      const hasResult = (r: { status: string; endTime?: string }): boolean =>
+        r.status === 'Completed' || (r.status === 'Unknown' && Boolean(r.endTime));
+      const chosen = refreshes.find(hasResult) ?? refreshes.find((r) => !isInFlight(r));
       if (chosen) {
         return {
           success: true,

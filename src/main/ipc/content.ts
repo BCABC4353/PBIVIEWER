@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import { powerbiApiService } from '../services/powerbi-api';
 import { validateUUID } from '../../shared/validation';
 import { isValidExportPath } from '../security';
+import { consumeExportPath } from './export-paths';
 
 const MAX_PAGE_NAME_LEN = 256;
 const MAX_BOOKMARK_STATE_LEN = 64 * 1024;
@@ -94,6 +95,10 @@ export function registerContentIpc(): void {
 
       if (!isValidExportPath(filePath)) {
         return { success: false, error: { code: 'INVALID_PATH', message: 'Export path must be a .pdf under user directory' } };
+      }
+
+      if (!consumeExportPath(filePath)) {
+        return { success: false, error: { code: 'INVALID_PATH', message: 'Export path was not chosen via the save dialog' } };
       }
 
       const exportResponse = await powerbiApiService.exportReportToPdf(rId, wId, pageName, bookmarkState);

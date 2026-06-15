@@ -22,7 +22,7 @@ import type {
 
 
 export interface ApiAuthPort {
-  getAccessToken(): Promise<IPCResponse<TokenResult>>;
+  getAccessToken(forceRefresh?: boolean): Promise<IPCResponse<TokenResult>>;
   getAdminAccessToken?(): Promise<IPCResponse<TokenResult>>;
 }
 
@@ -82,18 +82,23 @@ class PowerBIApiService {
 
   private async makeRequestWithUrl<T>(fullUrl: string): Promise<T> {
     return withRetry(async () => {
-      const tokenResponse = await this.deps.auth.getAccessToken();
+      const doFetch = async (forceRefresh: boolean): Promise<Response> => {
+        const tokenResponse = await this.deps.auth.getAccessToken(forceRefresh);
+        if (!tokenResponse.success) {
+          throw new Error(tokenResponse.error.message || 'Failed to get access token');
+        }
+        return fetchWithTimeout(fullUrl, {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.data.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      };
 
-      if (!tokenResponse.success) {
-        throw new Error(tokenResponse.error.message || 'Failed to get access token');
+      let response = await doFetch(false);
+      if (response.status === 401) {
+        response = await doFetch(true);
       }
-
-      const response = await fetchWithTimeout(fullUrl, {
-        headers: {
-          Authorization: `Bearer ${tokenResponse.data.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
 
       if (!response.ok) {
         await throwForStatus(response, 'Power BI API error');
@@ -210,10 +215,10 @@ export function createPowerBIApiService(deps: PowerBIApiDeps): PowerBIApiService
 export function buildProductionApiDeps(): PowerBIApiDeps {
   return {
     auth: {
-      getAccessToken: () => {
+      getAccessToken: (forceRefresh?: boolean) => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { authService } = require('../auth/auth-service') as typeof import('../auth/auth-service');
-        return authService.getAccessToken();
+        return authService.getAccessToken(forceRefresh);
       },
       getAdminAccessToken: () => {
         // eslint-disable-next-line @typescript-eslint/no-require-imports

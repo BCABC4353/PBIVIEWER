@@ -248,4 +248,26 @@ describe('setupAutoUpdater — forced-update arming and grace timer', () => {
     await vi.advanceTimersByTimeAsync(FORCE_GRACE_MS);
     expect(quitAndInstall).toHaveBeenCalledTimes(1);
   });
+
+  it('abandons the forced install after repeated quitAndInstall failures instead of re-prompting forever', async () => {
+    setPlatform('win32');
+    vi.useFakeTimers();
+    stubPolicyFetch(() => JSON.stringify({ forceMinVersion: '9.9.9' }));
+    quitAndInstall.mockImplementation(() => {
+      throw new Error('NSIS locked by antivirus');
+    });
+
+    const { setupAutoUpdater } = await loadUpdater();
+    setupAutoUpdater();
+    await vi.advanceTimersByTimeAsync(0);
+    updaterEvents.get('update-downloaded')!();
+
+    for (let i = 0; i < 6; i++) {
+      await vi.advanceTimersByTimeAsync(FORCE_GRACE_MS);
+      await vi.advanceTimersByTimeAsync(FORCE_POLL_MS);
+    }
+
+    expect(quitAndInstall).toHaveBeenCalledTimes(3);
+    expect(showMessageBox).toHaveBeenCalledTimes(3);
+  });
 });

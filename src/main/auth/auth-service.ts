@@ -31,6 +31,7 @@ export interface MsalClientPort {
   acquireTokenSilent(request: {
     scopes: string[];
     account: AccountInfo;
+    forceRefresh?: boolean;
   }): Promise<{ accessToken: string; expiresOn: Date | null }>;
 }
 
@@ -82,6 +83,7 @@ class AuthService {
   private activeIdLoaded = false;
   private lastAuthError: string | null = null;
   private tokenAcquisitionInFlight: Promise<IPCResponse<TokenResult>> | null = null;
+  private tokenAcquisitionAccountId: string | null = null;
   private tokenPersistMutex: Promise<void> = Promise.resolve();
 
   constructor(deps: AuthServiceDeps) {
@@ -418,8 +420,13 @@ class AuthService {
     }
   }
 
-  async getAccessToken(): Promise<IPCResponse<TokenResult>> {
-    if (this.tokenAcquisitionInFlight !== null) {
+  async getAccessToken(forceRefresh = false): Promise<IPCResponse<TokenResult>> {
+    const requestedAccountId = this.account?.homeAccountId ?? null;
+    if (
+      !forceRefresh &&
+      this.tokenAcquisitionInFlight !== null &&
+      this.tokenAcquisitionAccountId === requestedAccountId
+    ) {
       return await this.tokenAcquisitionInFlight;
     }
 
@@ -444,6 +451,7 @@ class AuthService {
             const acquired = await this.deps.msalClient.acquireTokenSilent({
               ...silentRequest,
               account,
+              forceRefresh,
             });
             await this.persistCache();
             return acquired;
@@ -481,11 +489,19 @@ class AuthService {
       }
     })();
 
+    if (forceRefresh) {
+      return await work;
+    }
+
     this.tokenAcquisitionInFlight = work;
+    this.tokenAcquisitionAccountId = requestedAccountId;
     try {
       return await work;
     } finally {
-      this.tokenAcquisitionInFlight = null;
+      if (this.tokenAcquisitionInFlight === work) {
+        this.tokenAcquisitionInFlight = null;
+        this.tokenAcquisitionAccountId = null;
+      }
     }
   }
 

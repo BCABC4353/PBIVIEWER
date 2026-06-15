@@ -2,6 +2,7 @@ import { app, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import { getMainWindow } from '../window';
 import { exportCurrentViewPdf, type ExportCurrentViewOptions } from '../services/export-service';
+import { approveExportPath } from './export-paths';
 
 export function registerExportIpc(): void {
   ipcMain.handle('export:choose-pdf-path', async () => {
@@ -29,6 +30,7 @@ export function registerExportIpc(): void {
       };
     }
 
+    approveExportPath(filePath);
     return { success: true, data: { path: filePath } };
   });
 
