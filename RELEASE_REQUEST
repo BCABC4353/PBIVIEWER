@@ -1,2 +1,2 @@
 patch
-# 2026-06-15T02:02:44Z — v2.2.17: go-live hardening — per-report freshness in-flight fix, kiosk slideshow auto-start + recovery backoff, ErrorBoundary auto-recovery (no prod message leak), PDF export-path guard, updater forced-install ceiling, auth account-race + 401 silent-refresh; includes the Insights tile FLIP+spring morph
+# 2026-06-19T01:57:54Z — v2.2.18: Insights board cleanup — removed health gauge + summary tiles and the kind-dot legend/dots; lineage nodes are 2 rows tall with wrapped full names (no ellipsis); sheet open/close morph slowed ~5x for visibility
