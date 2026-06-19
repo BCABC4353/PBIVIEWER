@@ -199,6 +199,17 @@ describe('middleTruncate', () => {
   });
 });
 
+describe('node labels — full name, no ellipsis (owner: wrap in 2-row boxes)', () => {
+  it('keeps the full dataset name in the label even when it is long', () => {
+    const longName = 'AUTO FINANCE REPORTING MODEL - PRODUCTION';
+    const ds = item({ id: 'ds-long', name: longName });
+    const layout = layoutLineage(deriveLineage([ds], blastOf([], []), [], NOW));
+    const node = layout.nodes.find((n) => n.id === 'ds-long')!;
+    expect(node.label).toBe(longName);
+    expect(node.label).not.toContain('…');
+  });
+});
+
 describe('edgePath', () => {
   it('routes a smooth cubic bezier with the control points at mid-x', () => {
     expect(edgePath(0, 10, 100, 50)).toBe('M 0 10 C 50 10, 50 50, 100 50');

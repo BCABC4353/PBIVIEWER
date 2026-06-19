@@ -213,7 +213,7 @@ export function layoutLineage(
 ): LineageLayout {
   const width = opts.width ?? 816;
   const nodeWidth = opts.nodeWidth ?? 220;
-  const nodeHeight = opts.nodeHeight ?? 30;
+  const nodeHeight = opts.nodeHeight ?? 42;
   const rowGap = opts.rowGap ?? 10;
   const headerHeight = opts.headerHeight ?? 26;
   const cap = opts.cap ?? Number.MAX_SAFE_INTEGER;
@@ -240,7 +240,7 @@ export function layoutLineage(
         y: top + row * (nodeHeight + rowGap),
         width: nodeWidth,
         height: nodeHeight,
-        label: middleTruncate(n.name),
+        label: n.name,
       });
       drawnId.set(n.id, n.id);
     });

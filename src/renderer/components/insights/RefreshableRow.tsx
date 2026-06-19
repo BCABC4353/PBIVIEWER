@@ -9,7 +9,6 @@ import {
   isDormant,
 } from './insights-luce';
 import { formatTime, relativeAge, triggerLabel, tabular } from './insights-shared';
-import { KindDot } from './KindDot';
 import { RunDotStrip } from './RunDotStrip';
 
 function statusMetaLine(
@@ -48,14 +47,11 @@ export const RefreshableRow: React.FC<{ item: InsightsRefreshable; stale?: boole
       role="row"
       className="grid items-center transition-colors hover:bg-white/[0.03]"
       style={{
-        gridTemplateColumns: '16px minmax(0, 2fr) 132px 240px',
+        gridTemplateColumns: 'minmax(0, 2fr) 132px 240px',
         columnGap: 16,
         padding: '12px 0',
       }}
     >
-      {}
-      <KindDot kind={item.kind} />
-
       {}
       <div className="min-w-0">
         <div className="truncate text-sm font-medium" style={{ color: luce.textPrimary }}>

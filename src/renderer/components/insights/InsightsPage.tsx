@@ -1,13 +1,11 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import React, { useCallback, useState } from 'react';
 import { Spinner } from '@fluentui/react-components';
 import { useAuthStore } from '../../stores/auth-store';
-import { luce, workspaceAffectedReportCount, type TileFilter } from './insights-luce';
+import { luce, workspaceAffectedReportCount } from './insights-luce';
 import { prefersReducedMotion, useIgnition, useDocumentHidden } from './luce-motion';
-import { relativeAge, tabular } from './insights-shared';
+import { relativeAge } from './insights-shared';
 import { LuceButton } from './LuceButton';
 import { SectionHeading } from './SectionHeading';
-import { HeroGauge } from './HeroGauge';
 import { HeroTile } from './HeroTile';
 import { WorkspaceTile } from './WorkspaceTile';
 import { WorkspaceSheet } from './WorkspaceSheet';
@@ -19,39 +17,20 @@ import './insights-luce.css';
 export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) => {
   const user = useAuthStore((s) => s.user);
   const isOwner = (user?.email ?? '').toLowerCase() === 'brendan@bc-abc.com';
-  const [activeFilter, setActiveFilter] = useState<TileFilter | null>(null);
   const [sheet, setSheet] = useState<SheetState | null>(null);
 
   const {
     snapshot, isLoading, error, load,
-    blast, groups, counts, healthPct, accessByWs,
+    blast, groups, accessByWs,
     frequent, catalog,
     admin, adminLoading, adminError, unlockElapsedMs, loadAdmin, cancelAdminLoad,
-  } = useInsightsData(user?.id, activeFilter);
+  } = useInsightsData(user?.id, null);
 
-  const activeVtRef = useRef<{ skipTransition: () => void } | null>(null);
-  const armVt = useCallback(
-    (vt: { skipTransition: () => void; finished: Promise<unknown> }) => {
-      activeVtRef.current = vt;
-      void vt.finished.finally(() => { if (activeVtRef.current === vt) activeVtRef.current = null; });
-    },
-    [],
-  );
-
-  const { morphRef, openSheet, closeSheet } = useSheetMorph({ setSheet, timeScale });
+  const { morphRef, openSheet, closeSheet } = useSheetMorph({ setSheet, timeScale: timeScale ?? 0.2 });
   const handleClose = useCallback(() => closeSheet(sheet), [closeSheet, sheet]);
 
   const igniting = useIgnition(snapshot !== null);
   const docHidden = useDocumentHidden();
-
-  const toggleFilter = (f: TileFilter) => {
-    const apply = () => setActiveFilter((prev) => (prev === f ? null : f));
-    if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') { apply(); return; }
-    document.documentElement.classList.add('vt-filter');
-    const vt = document.startViewTransition(() => flushSync(apply));
-    armVt(vt);
-    void vt.finished.finally(() => document.documentElement.classList.remove('vt-filter'));
-  };
 
   const scrollToSection = (id: string) =>
     document.getElementById(id)?.scrollIntoView?.({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -78,15 +57,6 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
   }
   if (!snapshot) return null;
 
-  const tiles: Array<{ label: string; value: number; color: string; loud: boolean; filter?: TileFilter }> = [
-    { label: 'Broken', value: counts.broken, color: counts.broken > 0 ? luce.broken : luce.textTertiary, loud: counts.broken > 0, filter: 'broken' },
-    { label: 'Overdue', value: counts.overdue, color: counts.overdue > 0 ? luce.warn : luce.textTertiary, loud: counts.overdue > 0 && counts.broken === 0, filter: 'overdue' },
-    { label: 'Running', value: counts.running, color: counts.running > 0 ? luce.accent : luce.textTertiary, loud: false, filter: 'running' },
-    { label: 'Healthy', value: counts.ok, color: luce.textSecondary, loud: counts.broken === 0 && counts.overdue === 0, filter: 'healthy' },
-    { label: 'Dormant', value: counts.dormant, color: counts.dormant > 0 ? luce.dormant : luce.textTertiary, loud: false, filter: 'dormant' },
-    { label: 'Workspaces', value: snapshot.workspaceCount, color: luce.textSecondary, loud: false },
-  ];
-  const activeTileLabel = tiles.find((t) => t.filter === activeFilter)?.label;
   const sheetGroup = sheet ? groups.find((g) => g.workspaceId === sheet.workspaceId) ?? null : null;
 
   return (
@@ -122,34 +92,6 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
           </div>
         )}
         {}
-        <div className="grid gap-[2px] lg:grid-cols-[minmax(280px,2fr)_3fr]">
-          <HeroGauge pct={healthPct} igniting={igniting} />
-          <div className="luce-cluster grid-cols-2 sm:grid-cols-3">
-            {tiles.map((tile, idx) => {
-              const active = tile.filter !== undefined && tile.filter === activeFilter;
-              const hot = tile.filter === 'broken' && counts.broken > 0;
-              const inner = (
-                <>
-                  <div className={`${tile.loud ? 'text-4xl' : 'text-3xl'} font-semibold leading-none${hot ? ' luce-lit luce-lit--hot luce-lit--red' : ''}`} style={{ ...(hot ? {} : { color: tile.color }), ...tabular }}>{tile.value}</div>
-                  <div className="mt-2 luce-legend">{tile.label}</div>
-                </>
-              );
-              const entrance = { '--luce-i': idx + 1 } as React.CSSProperties;
-              return tile.filter ? (
-                <button key={tile.label} className={`luce-panel luce-rise p-4 text-left cursor-pointer${active ? ' luce-tile--active' : ''}`} style={entrance} onClick={() => toggleFilter(tile.filter!)} aria-pressed={active} title={active ? `Clear the ${tile.label} filter` : `Show only ${tile.label.toLowerCase()} items`}>{inner}</button>
-              ) : (
-                <div key={tile.label} className="luce-panel luce-rise p-4" style={entrance}>{inner}</div>
-              );
-            })}
-          </div>
-        </div>
-        {activeFilter && (
-          <button className="luce-chip luce-press inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold cursor-pointer border-0" style={{ color: luce.accent }} onClick={() => setActiveFilter(null)} title="Clear filter">
-            <span>Showing: {activeTileLabel}</span>
-            <span aria-hidden="true">✕</span>
-          </button>
-        )}
-        {}
         <nav aria-label="Page sections" className="luce-nav sticky top-0 z-10 -mx-2 px-2 py-1.5 flex items-center gap-1 rounded-lg">
           {([['Health', 'insights-health'], ...(isOwner ? ([['Admin', 'insights-admin']] as const) : [])] as const).map(([label, id]) => (
             <button key={id} className="px-2.5 py-1 rounded-lg text-xs uppercase tracking-wider cursor-pointer transition-colors hover:bg-white/5" style={{ color: luce.textSecondary }} onClick={() => scrollToSection(id)}>{label}</button>
@@ -162,7 +104,7 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
             Broken workspaces sort first; every section starts folded — the headers carry the damage summary. Dots are the last 12 runs, oldest to newest, left to right.
           </p>
           {groups.length === 0 ? (
-            <p className="text-sm" style={{ color: luce.textTertiary }}>{activeFilter ? `Nothing matches the ${activeTileLabel} filter.` : 'No datasets or dataflows are visible to your account.'}</p>
+            <p className="text-sm" style={{ color: luce.textTertiary }}>No datasets or dataflows are visible to your account.</p>
           ) : groups.length === 1 ? (
             <HeroTile group={groups[0]!} access={accessByWs.get(groups[0]!.workspaceId)} blast={blast} onOpen={(el) => openSheet(groups[0]!.workspaceId, el)} />
           ) : (

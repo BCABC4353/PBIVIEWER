@@ -6,7 +6,6 @@ import type { LineageReportInput } from './lineage-diagram';
 import type { BlastRadius } from '../../../shared/blast-radius';
 import { tabular } from './insights-shared';
 import { DamageCounts } from './DamageCounts';
-import { KindKey } from './KindKey';
 import { LineageDiagram } from './LineageDiagram';
 import { RefreshableRow } from './RefreshableRow';
 import { SheetLabel } from './SheetLabel';
@@ -153,9 +152,6 @@ export const WorkspaceSheet: React.FC<{
           <div className="space-y-6">
             <div className="">
               <LineageDiagram group={group} blast={blast} reports={reports} />
-            </div>
-            <div className="">
-              <KindKey />
             </div>
             {dataflows.length > 0 && (
               <div>

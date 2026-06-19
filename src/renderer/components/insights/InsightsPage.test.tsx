@@ -140,21 +140,6 @@ beforeEach(() => {
 });
 
 describe('InsightsPage — Luce board', () => {
-  it('renders the summary tiles row, including the Dormant tile', async () => {
-    mockGetInsights({ success: true, data: snapshot() });
-    await act(async () => {
-      render(<InsightsPage />, { wrapper: Wrapper });
-    });
-
-    expect(screen.getByText('Broken')).toBeInTheDocument();
-    expect(screen.getAllByText('Overdue').length).toBeGreaterThan(0);
-    expect(screen.getByText('Running')).toBeInTheDocument();
-    expect(screen.getByText('Healthy')).toBeInTheDocument();
-    expect(screen.getByText('Dormant')).toBeInTheDocument();
-    expect(screen.getByText('Workspaces')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '1 Dormant' })).toBeInTheDocument();
-  });
-
   it('groups by workspace: one tile per client, damage first, items folded behind the tile (Matt #7)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
@@ -194,45 +179,6 @@ describe('InsightsPage — Luce board', () => {
       fireEvent.click(within(ops).getByRole('button', { name: 'Close details' }));
     });
     expect(screen.queryAllByText('Staging Flow')).toHaveLength(0);
-  });
-
-  it('summary tiles filter the board: only matching workspaces remain, clear chip removes the filter (Matt #2)', async () => {
-    mockGetInsights({ success: true, data: snapshot() });
-    await act(async () => {
-      render(<InsightsPage />, { wrapper: Wrapper });
-    });
-
-    const brokenTile = screen.getByRole('button', { name: '1 Broken' });
-    await act(async () => {
-      fireEvent.click(brokenTile);
-    });
-    expect(brokenTile).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/Showing: Broken/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Open Ops details' })).not.toBeInTheDocument();
-    const sales = await openSheet('Sales');
-    expect(within(sales).getAllByText('Broken Model').length).toBeGreaterThan(0);
-    expect(within(sales).getAllByText('Healthy Model').length).toBeGreaterThan(0);
-    await closeSheet();
-
-    await act(async () => {
-      fireEvent.click(screen.getByText(/Showing: Broken/));
-    });
-    expect(screen.queryByText(/Showing: Broken/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open Ops details' })).toBeInTheDocument();
-    expect(screen.queryAllByRole('row')).toHaveLength(0);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '1 Dormant' }));
-    });
-    expect(screen.getByText(/Showing: Dormant/)).toBeInTheDocument();
-    const ops = await openSheet('Ops');
-    expect(within(ops).getAllByText('Dusty Model').length).toBeGreaterThan(0);
-    await closeSheet();
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '1 Dormant' }));
-    });
-    expect(screen.queryByText(/Showing: Dormant/)).not.toBeInTheDocument();
-    expect(screen.queryAllByText('Dusty Model')).toHaveLength(0);
   });
 
   it('marks dormant items with gray DORMANT meta text and down-for label (Matt #4 / owner v3 #6)', async () => {
@@ -358,33 +304,16 @@ describe('InsightsPage — Luce board', () => {
     expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   });
 
-  it('color-codes rows with kind DOTS (violet dataflow / slate dataset) and a one-line key — no kind chips (owner v3 #5)', async () => {
+  it('drops the kind dots and the kind-key legend — the section titles carry the type (owner)', async () => {
     mockGetInsights({ success: true, data: snapshot() });
     await act(async () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     const ops = await openSheet('Ops');
-    const dots = within(ops).getAllByTestId('kind-dot');
-    expect(dots.length).toBe(3);
-    const dfDots = dots.filter((d) => d.getAttribute('aria-label') === 'dataflow');
-    const dsDots = dots.filter((d) => d.getAttribute('aria-label') === 'dataset');
-    expect(dfDots.length).toBe(1);
-    expect(dsDots.length).toBe(2);
-    expect((dfDots[0] as HTMLElement).style.background).toBe('rgb(167, 139, 219)');
-    expect((dsDots[0] as HTMLElement).style.background).toBe('rgb(126, 156, 201)');
-    for (const dot of dots) {
-      expect(['rgb(229, 72, 77)', 'rgb(229, 72, 77)', 'rgb(63, 182, 139)']).not.toContain(
-        (dot as HTMLElement).style.background,
-      );
-    }
-    const key = within(ops).getByTestId('kind-key');
-    expect(key).toHaveTextContent('dataflow');
-    expect(key).toHaveTextContent('dataset');
-    const labels = within(ops).getByText(/Dataflows — upstream/);
-    expect(labels).toBeInTheDocument();
+    expect(within(ops).queryAllByTestId('kind-dot')).toHaveLength(0);
+    expect(within(ops).queryByTestId('kind-key')).toBeNull();
+    expect(within(ops).getByText(/Dataflows — upstream/)).toBeInTheDocument();
     expect(within(ops).getByText(/Datasets \(2\)/)).toBeInTheDocument();
-    expect(within(ops).queryByText('DATASET')).not.toBeInTheDocument();
-    expect(within(ops).queryByText('DATAFLOW')).not.toBeInTheDocument();
   });
 
   it('folds the access roster into the sheet and labels not-visible lists', async () => {
@@ -1109,28 +1038,6 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     });
   }
 
-  it('renders ONE hero number — overall data health, dominant and white (D11)', async () => {
-    mockGetInsights({ success: true, data: snapshot() });
-    await act(async () => {
-      render(<InsightsPage />, { wrapper: Wrapper });
-    });
-    const hero = screen.getByTestId('luce-hero');
-    expect(within(hero).getByLabelText(/Data health \d+ percent|Data health unknown/)).toBeInTheDocument();
-    expect(within(hero).getByLabelText('Data health 80 percent')).toBeInTheDocument();
-    expect(within(hero).getByText('80')).toBeInTheDocument();
-    expect(hero.querySelector('.luce-backlight')).not.toBeNull();
-    expect(hero.querySelector('.luce-lens')).not.toBeNull();
-  });
-
-  it('keeps exactly TWO idle movers: needle + backlight deck — the live-dot died with the dial caption (owner v11)', async () => {
-    mockGetInsights({ success: true, data: snapshot() });
-    await act(async () => {
-      render(<InsightsPage />, { wrapper: Wrapper });
-    });
-    const movers = document.querySelectorAll('.luce-live-dot, .luce-needle, .luce-backlight--live');
-    expect(movers).toHaveLength(2);
-  });
-
   it('plays the ignition ceremony once per session, never gating the content (D6)', async () => {
     stubRaf();
     window.sessionStorage.removeItem(IGNITION_FLAG);
@@ -1140,7 +1047,6 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     });
 
     expect(document.querySelector('.luce-board.luce-ignite')).not.toBeNull();
-    expect(screen.getByText('Broken')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Sales details' })).toBeInTheDocument();
     expect(window.sessionStorage.getItem(IGNITION_FLAG)).toBe('1');
 
@@ -1169,7 +1075,7 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
       render(<InsightsPage />, { wrapper: Wrapper });
     });
     expect(document.querySelector('.luce-ignite')).toBeNull();
-    expect(within(screen.getByTestId('luce-hero')).getByText('80')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Sales details' })).toBeInTheDocument();
   });
 
   it('pauses the idle movers while the window is hidden (D7)', async () => {
@@ -1190,16 +1096,6 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
       fireEvent(document, new Event('visibilitychange'));
     });
     expect(document.querySelector('.luce-asleep')).toBeNull();
-  });
-
-  it('shows the em-dash hero (no false 100%) when there is nothing to measure', async () => {
-    mockGetInsights({ success: true, data: snapshot({ refreshables: [] }) });
-    await act(async () => {
-      render(<InsightsPage />, { wrapper: Wrapper });
-    });
-    const hero = screen.getByTestId('luce-hero');
-    expect(within(hero).getByText('—')).toBeInTheDocument();
-    expect(within(hero).getByLabelText('Data health unknown')).toBeInTheDocument();
   });
 
   it('closes the sheet with a click anywhere that is not interactive (owner v3 #1)', async () => {

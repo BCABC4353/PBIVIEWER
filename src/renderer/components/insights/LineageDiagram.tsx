@@ -77,16 +77,28 @@ export const LineageDiagram: React.FC<{
             strokeWidth={2}
             strokeOpacity={n.health === 'dormant' ? 0.6 : 1}
           />
-          <text
-            x={n.x + n.width / 2}
-            y={n.y + n.height / 2 + 4}
-            textAnchor="middle"
-            fill={lineageColor[n.health]}
-            opacity={n.health === 'dormant' ? 0.85 : 1}
-            style={{ fontSize: 11, fontWeight: 500 }}
-          >
-            {n.label}
-          </text>
+          <foreignObject x={n.x} y={n.y} width={n.width} height={n.height}>
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '2px 8px',
+                boxSizing: 'border-box',
+                fontSize: 11,
+                fontWeight: 500,
+                lineHeight: 1.15,
+                color: lineageColor[n.health],
+                opacity: n.health === 'dormant' ? 0.85 : 1,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {n.label}
+            </div>
+          </foreignObject>
         </g>
       ))}
     </svg>
