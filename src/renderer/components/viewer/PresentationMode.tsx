@@ -20,6 +20,7 @@ import { useKioskRecovery } from '../../hooks/presentation/useKioskRecovery';
 import { useCursorHide } from '../../hooks/presentation/useCursorHide';
 import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGesture';
 import { ViewerToolbar } from './ViewerToolbar';
+import { AnnotationLayer } from './AnnotationLayer';
 
 export function isInteractiveTarget(target: HTMLElement | null): boolean {
   if (!target) return false;
@@ -70,6 +71,7 @@ export const PresentationMode: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [isAnnotating, setIsAnnotating] = useState(false);
   const [slideAnnouncement, setSlideAnnouncement] = useState<string>('');
 
   const intervalSeconds = useSettingsStore((s) => s.settings.slideshowInterval);
@@ -235,7 +237,7 @@ export const PresentationMode: React.FC = () => {
   }, [slides.length, doExit, autoStartSlideshow, showSettings]);
 
   useEffect(() => {
-    if (isPlaying && slides.length > 0 && !error) {
+    if (isPlaying && !isAnnotating && slides.length > 0 && !error) {
       slideshowIntervalRef.current = setInterval(() => {
         setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
       }, intervalSeconds * 1000);
@@ -251,7 +253,7 @@ export const PresentationMode: React.FC = () => {
         clearInterval(slideshowIntervalRef.current);
       }
     };
-  }, [isPlaying, intervalSeconds, slides.length, error]);
+  }, [isPlaying, isAnnotating, intervalSeconds, slides.length, error]);
 
   const clampedSlideIndex =
     slides.length === 0 ? 0 : Math.min(currentSlideIndex, slides.length - 1);
@@ -376,6 +378,15 @@ export const PresentationMode: React.FC = () => {
         className={`w-full h-full ${isLoading || error ? 'invisible' : 'visible'}`}
       />
 
+      {isAnnotating && !isLoading && !error && (
+        <AnnotationLayer
+          key={clampedSlideIndex}
+          className="z-[8]"
+          paletteClassName="bottom-32"
+          onExit={() => setIsAnnotating(false)}
+        />
+      )}
+
       {}
       {!isLoading && !error && !showControls && (
         <div
@@ -442,6 +453,8 @@ export const PresentationMode: React.FC = () => {
               onBack={doExit}
               backLabel="Exit"
               itemName={toolbarItemName}
+              onAnnotate={() => setIsAnnotating((v) => !v)}
+              isAnnotating={isAnnotating}
             />
             {}
             <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-b from-black/60 to-transparent">

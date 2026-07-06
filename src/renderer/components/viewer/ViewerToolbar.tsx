@@ -14,6 +14,7 @@ import {
   PlayRegular,
   HomeRegular,
   CheckmarkCircleRegular,
+  PenRegular,
 } from '@fluentui/react-icons';
 import { formatAgeNoun, formatRelativeAge, STALE_AFTER_MS } from '../../lib/freshness-format';
 import { formatAbsoluteDateTime } from '../../lib/date-format';
@@ -33,6 +34,8 @@ export interface ViewerToolbarProps {
   isExporting?: boolean;
   onFullScreen?: () => void;
   onSlideshow?: () => void;
+  onAnnotate?: () => void;
+  isAnnotating?: boolean;
   showRelativeAge?: boolean;
   newDataAvailable?: boolean;
   dataflowRefresh?: string | null;
@@ -58,6 +61,8 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   isExporting = false,
   onFullScreen,
   onSlideshow,
+  onAnnotate,
+  isAnnotating = false,
   showRelativeAge = false,
   newDataAvailable = false,
   dataflowRefresh,
@@ -316,6 +321,21 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
             title="Export current view to PDF"
           >
             {isExporting ? 'Exporting…' : 'Export PDF'}
+          </Button>
+        )}
+
+        {}
+        {onAnnotate && (
+          <Button
+            appearance={isAnnotating ? 'primary' : 'subtle'}
+            icon={<PenRegular />}
+            onClick={onAnnotate}
+            title={isAnnotating ? 'Stop drawing' : 'Draw and highlight on screen'}
+            aria-label={isAnnotating ? 'Stop drawing' : 'Draw on screen'}
+            aria-pressed={isAnnotating}
+            data-annotate-toggle
+          >
+            Draw
           </Button>
         )}
 

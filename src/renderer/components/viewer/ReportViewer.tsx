@@ -9,6 +9,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useContentStore } from '../../stores/content-store';
 import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
+import { AnnotationLayer } from './AnnotationLayer';
 import { useViewerExport } from './useViewerExport';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
 import { reportIssue } from '../../lib/report-issue';
@@ -27,6 +28,8 @@ export const ReportViewer: React.FC = () => {
   const datasetIdRef = useRef<string | null>(null);
 
   const [reportName, setReportName] = useState<string>('');
+  const [isAnnotating, setIsAnnotating] = useState(false);
+  const [annotationEpoch, setAnnotationEpoch] = useState(0);
 
   const {
     pages,
@@ -149,6 +152,7 @@ export const ReportViewer: React.FC = () => {
         setLastLoadAt(Date.now());
       },
       pageChanged: async () => {
+        setAnnotationEpoch((epoch) => epoch + 1);
         const report = embedRef.current as pbi.Report | null;
         if (!report) return;
         try {
@@ -245,6 +249,7 @@ export const ReportViewer: React.FC = () => {
         const now = Date.now();
         setLastLoadAt(now);
         setJustRefreshedAt(now);
+        setAnnotationEpoch((epoch) => epoch + 1);
       } else {
         reload();
       }
@@ -304,6 +309,8 @@ export const ReportViewer: React.FC = () => {
         isExporting={isExporting}
         onSlideshow={handleSlideshow}
         onFullScreen={handleFullScreen}
+        onAnnotate={() => setIsAnnotating((v) => !v)}
+        isAnnotating={isAnnotating}
       />
 
       {}
@@ -349,6 +356,14 @@ export const ReportViewer: React.FC = () => {
           className={`w-full h-full outline-none ${isLoading || error ? 'invisible' : 'visible'}`}
           tabIndex={0}
         />
+
+        {isAnnotating && !isLoading && !error && (
+          <AnnotationLayer
+            key={annotationEpoch}
+            className="z-30"
+            onExit={() => setIsAnnotating(false)}
+          />
+        )}
       </div>
     </div>
   );

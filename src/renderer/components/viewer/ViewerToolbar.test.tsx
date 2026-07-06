@@ -95,3 +95,31 @@ describe('ViewerToolbar freshness chip', () => {
     expect(strip?.textContent).toContain('Data refreshed: —');
   });
 });
+
+describe('ViewerToolbar draw toggle', () => {
+  it('is hidden when no onAnnotate handler is provided', () => {
+    const { container } = render(<ViewerToolbar onBack={vi.fn()} />);
+    expect(container.querySelector('[data-annotate-toggle]')).toBeNull();
+  });
+
+  it('renders and fires the handler when provided', () => {
+    const onAnnotate = vi.fn();
+    const { container } = render(
+      <ViewerToolbar onBack={vi.fn()} onAnnotate={onAnnotate} />,
+    );
+    const toggle = container.querySelector('[data-annotate-toggle]') as HTMLElement;
+    expect(toggle).not.toBeNull();
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    toggle.click();
+    expect(onAnnotate).toHaveBeenCalledTimes(1);
+  });
+
+  it('reflects the active drawing state', () => {
+    const { container } = render(
+      <ViewerToolbar onBack={vi.fn()} onAnnotate={vi.fn()} isAnnotating />,
+    );
+    const toggle = container.querySelector('[data-annotate-toggle]') as HTMLElement;
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(toggle.getAttribute('title')).toBe('Stop drawing');
+  });
+});
