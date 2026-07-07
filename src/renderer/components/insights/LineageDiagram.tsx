@@ -23,10 +23,11 @@ export const LineageDiagram: React.FC<{
     <svg
       viewBox={`0 0 ${layout.width} ${layout.height}`}
       width="100%"
+      preserveAspectRatio="xMidYMin meet"
       role="img"
       aria-label={`${group.workspaceName} lineage — dataflows to datasets to reports`}
       data-testid="lineage-diagram"
-      style={{ display: 'block', height: layout.height }}
+      style={{ display: 'block' }}
     >
       {}
       {(['DATAFLOWS', 'DATASETS', 'REPORTS'] as const).map((label, i) => (
@@ -44,7 +45,14 @@ export const LineageDiagram: React.FC<{
         >
           {}
           {damage(e.health) && (
-            <path d={e.path} fill="none" stroke={lineageColor[e.health]} strokeWidth={6} strokeOpacity={0.16} />
+            <path
+              d={e.path}
+              fill="none"
+              stroke={lineageColor[e.health]}
+              strokeWidth={6}
+              strokeOpacity={0.16}
+              vectorEffect="non-scaling-stroke"
+            />
           )}
           <path
             d={e.path}
@@ -52,6 +60,7 @@ export const LineageDiagram: React.FC<{
             stroke={lineageColor[e.health]}
             strokeWidth={damage(e.health) ? 2 : 1.5}
             strokeOpacity={e.health === 'dormant' ? 0.55 : 0.9}
+            vectorEffect="non-scaling-stroke"
           />
         </g>
       ))}
@@ -76,6 +85,7 @@ export const LineageDiagram: React.FC<{
             stroke={lineageColor[n.health]}
             strokeWidth={2}
             strokeOpacity={n.health === 'dormant' ? 0.6 : 1}
+            vectorEffect="non-scaling-stroke"
           />
           <foreignObject x={n.x} y={n.y} width={n.width} height={n.height}>
             <div

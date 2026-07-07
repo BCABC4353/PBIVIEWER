@@ -26,8 +26,9 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
     admin, adminLoading, adminError, unlockElapsedMs, loadAdmin, cancelAdminLoad,
   } = useInsightsData(user?.id, null);
 
-  const { morphRef, openSheet, closeSheet } = useSheetMorph({ setSheet, timeScale: timeScale ?? 0.2 });
+  const { morphRef, sourceContentRef, targetContentRef, backdropRef, detailMounted, openSheet, closeSheet, toggleSheet } = useSheetMorph({ setSheet, timeScale: timeScale ?? 0.65 });
   const handleClose = useCallback(() => closeSheet(sheet), [closeSheet, sheet]);
+  const handleToggleMorph = useCallback(() => toggleSheet(sheet), [toggleSheet, sheet]);
 
   const igniting = useIgnition(snapshot !== null);
   const docHidden = useDocumentHidden();
@@ -110,7 +111,7 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
           ) : (
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
               {groups.map((g) => (
-                <WorkspaceTile key={g.workspaceId} group={g} access={accessByWs.get(g.workspaceId)} affectedCount={workspaceAffectedReportCount(g, blast)} onOpen={(el) => openSheet(g.workspaceId, el)} />
+                <WorkspaceTile key={g.workspaceId} group={g} access={accessByWs.get(g.workspaceId)} affectedCount={workspaceAffectedReportCount(g, blast)} isOpen={sheet?.workspaceId === g.workspaceId} onOpen={(el) => openSheet(g.workspaceId, el)} />
               ))}
             </div>
           )}
@@ -129,8 +130,14 @@ export const InsightsPage: React.FC<{ timeScale?: number }> = ({ timeScale }) =>
           usage={frequent.filter((f) => f.workspaceId === sheetGroup.workspaceId)}
           catalog={catalog.filter((c) => c.workspaceId === sheetGroup.workspaceId)}
           settled={true}
+          detailMounted={detailMounted}
+          affectedCount={workspaceAffectedReportCount(sheetGroup, blast)}
           onClose={handleClose}
+          onToggleMorph={handleToggleMorph}
           sheetRef={morphRef}
+          sourceContentRef={sourceContentRef}
+          targetContentRef={targetContentRef}
+          backdropRef={backdropRef}
         />
       )}
     </div>

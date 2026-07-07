@@ -1,0 +1,266 @@
+{
+  "timeScale": 0.9,
+  "viewport": {
+    "width": 1400,
+    "height": 900
+  },
+  "budgetMs": 16.667,
+  "method": "CDP Tracing — RunTask main-thread durations + Layout/Paint event totals, windowed to each morph at perf.now() boundaries",
+  "variants": {
+    "baseline": {
+      "open": {
+        "taskStats": {
+          "count": 1090,
+          "median": 0.013,
+          "p95": 2.682,
+          "worst": 70.504,
+          "overBudget": 26,
+          "totalMs": 1027.43
+        },
+        "rafTaskStats": {
+          "count": 30,
+          "median": 0.126,
+          "p95": 0.225,
+          "worst": 0.948,
+          "overBudget": 0
+        },
+        "worstTaskOffsetMs": 103.5,
+        "layoutPaintTotals": {
+          "UpdateLayoutTree": 4.99,
+          "Layout": 11.16,
+          "PrePaint": 2.51,
+          "Paint": 1.87,
+          "PaintImage": 0.02,
+          "Layerize": 1.25
+        },
+        "topEventNames": {
+          "RunTask": 1090,
+          "UpdateLayer": 48,
+          "FunctionCall": 44,
+          "PrePaint": 38,
+          "Layerize": 38,
+          "Commit": 38,
+          "UpdateLayoutTree": 32,
+          "FireAnimationFrame": 30,
+          "Paint": 24,
+          "RasterTask": 17,
+          "GPUTask": 14,
+          "EventDispatch": 9
+        },
+        "windowMs": 1033.4
+      },
+      "close": {
+        "taskStats": {
+          "count": 1207,
+          "median": 0.014,
+          "p95": 1.341,
+          "worst": 16.759,
+          "overBudget": 14,
+          "totalMs": 689.16
+        },
+        "rafTaskStats": {
+          "count": 31,
+          "median": 0.142,
+          "p95": 0.179,
+          "worst": 2.706,
+          "overBudget": 0
+        },
+        "worstTaskOffsetMs": 115.4,
+        "layoutPaintTotals": {
+          "UpdateLayoutTree": 6.58,
+          "Layout": 15.98,
+          "PrePaint": 7.03,
+          "Paint": 18.02,
+          "PaintImage": 0.37,
+          "Layerize": 3.48
+        },
+        "topEventNames": {
+          "RunTask": 1207,
+          "Paint": 178,
+          "UpdateLayer": 114,
+          "RasterTask": 78,
+          "GPUTask": 53,
+          "FunctionCall": 33,
+          "UpdateLayoutTree": 32,
+          "PaintImage": 32,
+          "FireAnimationFrame": 31,
+          "Layout": 31,
+          "PrePaint": 31,
+          "Layerize": 31
+        },
+        "windowMs": 1013.2
+      },
+      "injectedCss": "(none)"
+    },
+    "contain-paint": {
+      "open": {
+        "taskStats": {
+          "count": 994,
+          "median": 0.014,
+          "p95": 12.475,
+          "worst": 85.969,
+          "overBudget": 27,
+          "totalMs": 1078.71
+        },
+        "rafTaskStats": {
+          "count": 26,
+          "median": 0.123,
+          "p95": 0.174,
+          "worst": 0.336,
+          "overBudget": 0
+        },
+        "worstTaskOffsetMs": 255.8,
+        "layoutPaintTotals": {
+          "UpdateLayoutTree": 3.91,
+          "Layout": 1.08,
+          "PrePaint": 2.71,
+          "Paint": 2.48,
+          "PaintImage": 0.01,
+          "Layerize": 1.18
+        },
+        "topEventNames": {
+          "RunTask": 994,
+          "UpdateLayer": 51,
+          "FunctionCall": 40,
+          "PrePaint": 35,
+          "Layerize": 35,
+          "Commit": 35,
+          "UpdateLayoutTree": 31,
+          "FireAnimationFrame": 26,
+          "Paint": 25,
+          "RasterTask": 20,
+          "GPUTask": 13,
+          "EventDispatch": 9
+        },
+        "windowMs": 1014.7
+      },
+      "close": {
+        "taskStats": {
+          "count": 1063,
+          "median": 0.014,
+          "p95": 1.611,
+          "worst": 80.89,
+          "overBudget": 19,
+          "totalMs": 793.61
+        },
+        "rafTaskStats": {
+          "count": 28,
+          "median": 0.137,
+          "p95": 0.171,
+          "worst": 1.398,
+          "overBudget": 0
+        },
+        "worstTaskOffsetMs": 123.7,
+        "layoutPaintTotals": {
+          "UpdateLayoutTree": 6.17,
+          "Layout": 11.2,
+          "PrePaint": 6.5,
+          "Paint": 15.05,
+          "PaintImage": 0.25,
+          "Layerize": 3.16
+        },
+        "topEventNames": {
+          "RunTask": 1063,
+          "Paint": 160,
+          "UpdateLayer": 91,
+          "RasterTask": 63,
+          "GPUTask": 40,
+          "FunctionCall": 30,
+          "FireAnimationFrame": 28,
+          "UpdateLayoutTree": 28,
+          "Layout": 28,
+          "PrePaint": 28,
+          "Layerize": 28,
+          "Commit": 28
+        },
+        "windowMs": 1013.7
+      },
+      "injectedCss": ".luce-sheet { contain: layout paint !important; }"
+    },
+    "contain-paint-willchange": {
+      "open": {
+        "taskStats": {
+          "count": 1070,
+          "median": 0.015,
+          "p95": 1.157,
+          "worst": 17.005,
+          "overBudget": 23,
+          "totalMs": 911.43
+        },
+        "rafTaskStats": {
+          "count": 32,
+          "median": 0.129,
+          "p95": 0.206,
+          "worst": 0.316,
+          "overBudget": 0
+        },
+        "worstTaskOffsetMs": 382.4,
+        "layoutPaintTotals": {
+          "UpdateLayoutTree": 4.37,
+          "Layout": 1.03,
+          "PrePaint": 2.78,
+          "Paint": 2.62,
+          "PaintImage": 0.01,
+          "Layerize": 1.6
+        },
+        "topEventNames": {
+          "RunTask": 1070,
+          "UpdateLayer": 58,
+          "FunctionCall": 46,
+          "PrePaint": 40,
+          "Layerize": 40,
+          "Commit": 40,
+          "UpdateLayoutTree": 33,
+          "FireAnimationFrame": 32,
+          "Paint": 26,
+          "RasterTask": 20,
+          "GPUTask": 12,
+          "EventDispatch": 9
+        },
+        "windowMs": 1014.4
+      },
+      "close": {
+        "taskStats": {
+          "count": 1146,
+          "median": 0.014,
+          "p95": 1.447,
+          "worst": 16.977,
+          "overBudget": 15,
+          "totalMs": 678.3
+        },
+        "rafTaskStats": {
+          "count": 31,
+          "median": 0.136,
+          "p95": 0.167,
+          "worst": 1.565,
+          "overBudget": 0
+        },
+        "worstTaskOffsetMs": 182.3,
+        "layoutPaintTotals": {
+          "UpdateLayoutTree": 7.37,
+          "Layout": 12.03,
+          "PrePaint": 6.49,
+          "Paint": 17.57,
+          "PaintImage": 0.33,
+          "Layerize": 3.55
+        },
+        "topEventNames": {
+          "RunTask": 1146,
+          "Paint": 181,
+          "UpdateLayer": 106,
+          "RasterTask": 78,
+          "GPUTask": 50,
+          "FunctionCall": 33,
+          "FireAnimationFrame": 31,
+          "UpdateLayoutTree": 31,
+          "Layout": 31,
+          "PrePaint": 31,
+          "Layerize": 31,
+          "Commit": 31
+        },
+        "windowMs": 1013.4
+      },
+      "injectedCss": ".luce-sheet { contain: layout paint !important; will-change: width, height, left, top !important; }"
+    }
+  }
+}

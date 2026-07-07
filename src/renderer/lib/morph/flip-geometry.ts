@@ -5,23 +5,9 @@ export interface Rect {
   height: number;
 }
 
-export interface Transform {
-  translateX: number;
-  translateY: number;
-  scaleX: number;
-  scaleY: number;
-}
-
 export interface CrossfadeOpacities {
   source: number;
   target: number;
-}
-
-const EPSILON = 1e-9;
-
-function safeScale(numerator: number, denominator: number): number {
-  if (Math.abs(denominator) < EPSILON) return 1;
-  return numerator / denominator;
 }
 
 export function normalizeRect(r: Rect & { top?: number; left?: number }): Rect {
@@ -30,23 +16,6 @@ export function normalizeRect(r: Rect & { top?: number; left?: number }): Rect {
     y: r.y ?? r.top ?? 0,
     width: r.width,
     height: r.height,
-  };
-}
-
-export function invert(from: Rect, to: Rect): Transform {
-  const scaleX = safeScale(from.width, to.width);
-  const scaleY = safeScale(from.height, to.height);
-  const translateX = from.x - to.x * scaleX;
-  const translateY = from.y - to.y * scaleY;
-  return { translateX, translateY, scaleX, scaleY };
-}
-
-export function applyTransform(rect: Rect, t: Transform): Rect {
-  return {
-    x: t.translateX + rect.x * t.scaleX,
-    y: t.translateY + rect.y * t.scaleY,
-    width: rect.width * t.scaleX,
-    height: rect.height * t.scaleY,
   };
 }
 
@@ -60,26 +29,20 @@ export function interpolateRect(a: Rect, b: Rect, p: number): Rect {
   };
 }
 
-export function transformFromRects(current: Rect, target: Rect): Transform {
-  const scaleX = safeScale(current.width, target.width);
-  const scaleY = safeScale(current.height, target.height);
-  const translateX = current.x - target.x * scaleX;
-  const translateY = current.y - target.y * scaleY;
-  return { translateX, translateY, scaleX, scaleY };
+export function rectToCss(r: Rect): { left: string; top: string; width: string; height: string } {
+  return {
+    left: `${r.x}px`,
+    top: `${r.y}px`,
+    width: `${r.width}px`,
+    height: `${r.height}px`,
+  };
 }
 
-export function transformToCss(t: Transform): string {
-  return `translate(${t.translateX}px, ${t.translateY}px) scale(${t.scaleX}, ${t.scaleY})`;
-}
-
-export function morphTransformAt(tileRect: Rect, sheetRect: Rect, p: number): Transform {
-  const current = interpolateRect(tileRect, sheetRect, p);
-  return transformFromRects(current, sheetRect);
-}
+const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
 
 export function crossfadeOpacities(p: number): CrossfadeOpacities {
   return {
-    source: 1 - p,
-    target: p,
+    source: 1 - clamp(p / 0.45, 0, 1),
+    target: clamp((p - 0.2) / 0.6, 0, 1),
   };
 }

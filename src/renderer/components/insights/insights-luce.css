@@ -160,7 +160,7 @@
 .luce-sheet {
   position: relative;
   isolation: isolate;
-  contain: layout;
+  contain: layout paint;
   border-radius: 16px;
   background: linear-gradient(180deg, #202026 0%, #1c1c21 40%, #16161a 100%);
   box-shadow:

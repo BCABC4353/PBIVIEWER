@@ -4,6 +4,8 @@ import type { MorphCallbacks, SharedElementMorphHandle } from './use-shared-elem
 
 export interface MorphSurfaceProps extends MorphCallbacks {
   sourceRef: React.RefObject<Element | null>;
+  sourceContentRef?: React.RefObject<HTMLElement | null>;
+  targetContentRef?: React.RefObject<HTMLElement | null>;
   children: React.ReactNode;
   style?: React.CSSProperties;
   className?: string;
@@ -15,6 +17,8 @@ export const MorphSurface = forwardRef<HTMLDivElement, MorphSurfaceProps>(
   function MorphSurface(props, forwardedRef) {
     const {
       sourceRef,
+      sourceContentRef,
+      targetContentRef,
       children,
       style,
       className,
@@ -41,6 +45,8 @@ export const MorphSurface = forwardRef<HTMLDivElement, MorphSurfaceProps>(
     const handle = useSharedElementMorph({
       morphRef,
       sourceRef,
+      sourceContentRef,
+      targetContentRef,
       onOpened,
       onClosed,
     });

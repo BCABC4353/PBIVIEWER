@@ -1175,4 +1175,33 @@ describe('InsightsPage — Luce motion + material layer (D1–D12)', () => {
     await closeSheet();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('tile sets aria-expanded=false before opening and aria-expanded=true while sheet is open (§ARIA-EXPANDED)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const tile = screen.getByRole('button', { name: 'Open Sales details' });
+    expect(tile).toHaveAttribute('aria-expanded', 'false');
+    await openSheet('Sales');
+    expect(tile).toHaveAttribute('aria-expanded', 'true');
+    await closeSheet();
+    expect(tile).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('focus returns to the opener tile after sheet unmounts — active element is the tile, not the body (§FOCUS-RETURN)', async () => {
+    mockGetInsights({ success: true, data: snapshot() });
+    await act(async () => {
+      render(<InsightsPage />, { wrapper: Wrapper });
+    });
+    const tile = screen.getByRole('button', { name: 'Open Sales details' });
+    tile.focus();
+    await openSheet('Sales');
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Sales details' })).getByRole('button', { name: 'Close details' }));
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(tile);
+    expect(document.activeElement).not.toBe(document.body);
+  });
 });

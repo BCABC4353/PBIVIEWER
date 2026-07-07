@@ -2,8 +2,8 @@ import { useRef, useCallback, useEffect } from 'react';
 import { createMomentumSpring } from './spring-physics';
 import type { MomentumSpring } from './spring-physics';
 import {
-  morphTransformAt,
-  transformToCss,
+  interpolateRect,
+  rectToCss,
   crossfadeOpacities,
   normalizeRect,
 } from './flip-geometry';
@@ -29,7 +29,21 @@ export interface UseSharedElementMorphOptions extends MorphCallbacks {
   sourceRef: React.RefObject<Element | null>;
   sourceContentRef?: React.RefObject<HTMLElement | null>;
   targetContentRef?: React.RefObject<HTMLElement | null>;
+  backdropRef?: React.RefObject<HTMLElement | null>;
+  naturalSheetRectRef?: React.RefObject<Rect | null>;
   timeScale?: number;
+}
+
+const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
+
+function morphBoxShadow(p: number): string {
+  const t = clamp01(p);
+  return [
+    '0 0 0 1px rgba(0, 0, 0, 0.65)',
+    'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+    `0 ${1 + 3 * t}px ${2 + 6 * t}px rgba(0, 0, 0, ${0.5 + 0.1 * t})`,
+    `0 ${8 + 16 * t}px ${24 + 40 * t}px ${-8 - 8 * t}px rgba(0, 0, 0, ${0.5 + 0.2 * t})`,
+  ].join(', ');
 }
 
 function safeRect(el: Element | null): Rect {
@@ -47,29 +61,63 @@ function applyMorphStyles(
   p: number,
   sourceEl: HTMLElement | null,
   targetEl: HTMLElement | null,
+  backdropEl: HTMLElement | null,
 ): void {
-  const t = morphTransformAt(tileRect, sheetRect, p);
-  morphEl.style.transform = transformToCss(t);
-  morphEl.style.transformOrigin = '0 0';
+  const r = interpolateRect(tileRect, sheetRect, p);
+  const css = rectToCss(r);
+  morphEl.style.position = 'fixed';
+  morphEl.style.transform = '';
+  morphEl.style.left = css.left;
+  morphEl.style.top = css.top;
+  morphEl.style.width = css.width;
+  morphEl.style.height = css.height;
+  morphEl.style.boxShadow = morphBoxShadow(p);
   const opacities = crossfadeOpacities(p);
   if (sourceEl) sourceEl.style.opacity = String(opacities.source);
-  if (targetEl) targetEl.style.opacity = String(opacities.target);
+  if (targetEl) {
+    targetEl.style.opacity = String(opacities.target);
+    targetEl.style.pointerEvents = opacities.target > 0.6 ? 'auto' : 'none';
+  }
+  if (backdropEl) backdropEl.style.opacity = String(clamp01(p));
 }
 
 function settleMorphStyles(
   morphEl: HTMLElement,
+  sheetRect: Rect,
+  tileRect: Rect,
   sourceEl: HTMLElement | null,
   targetEl: HTMLElement | null,
+  backdropEl: HTMLElement | null,
   atOpen: boolean,
 ): void {
   morphEl.style.transform = '';
-  morphEl.style.transformOrigin = '';
+  morphEl.style.boxShadow = '';
   if (atOpen) {
+    const css = rectToCss(sheetRect);
+    morphEl.style.position = 'fixed';
+    morphEl.style.left = css.left;
+    morphEl.style.top = css.top;
+    morphEl.style.width = css.width;
+    morphEl.style.height = css.height;
     if (sourceEl) sourceEl.style.opacity = '0';
-    if (targetEl) targetEl.style.opacity = '1';
+    if (targetEl) {
+      targetEl.style.opacity = '1';
+      targetEl.style.pointerEvents = 'auto';
+    }
+    if (backdropEl) backdropEl.style.opacity = '1';
   } else {
+    const css = rectToCss(tileRect);
+    morphEl.style.position = 'fixed';
+    morphEl.style.left = css.left;
+    morphEl.style.top = css.top;
+    morphEl.style.width = css.width;
+    morphEl.style.height = css.height;
     if (sourceEl) sourceEl.style.opacity = '1';
-    if (targetEl) targetEl.style.opacity = '0';
+    if (targetEl) {
+      targetEl.style.opacity = '0';
+      targetEl.style.pointerEvents = 'none';
+    }
+    if (backdropEl) backdropEl.style.opacity = '0';
   }
 }
 
@@ -80,7 +128,7 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
   const tileRectRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const sheetRectRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
 
-  const { morphRef, sourceRef, sourceContentRef, targetContentRef, onOpened, onClosed, timeScale } = opts;
+  const { morphRef, sourceRef, sourceContentRef, targetContentRef, backdropRef, naturalSheetRectRef, onOpened, onClosed, timeScale } = opts;
 
   const getOrCreateSpring = useCallback((): MomentumSpring => {
     if (springRef.current) return springRef.current;
@@ -100,6 +148,7 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
           pos,
           sourceContentRef?.current ?? null,
           targetContentRef?.current ?? null,
+          backdropRef?.current ?? null,
         );
 
         if (done) {
@@ -107,8 +156,11 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
             phaseRef.current = 'open';
             settleMorphStyles(
               morphEl,
+              sheetRectRef.current,
+              tileRectRef.current,
               sourceContentRef?.current ?? null,
               targetContentRef?.current ?? null,
+              backdropRef?.current ?? null,
               true,
             );
             onOpened?.();
@@ -116,8 +168,11 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
             phaseRef.current = 'idle';
             settleMorphStyles(
               morphEl,
+              sheetRectRef.current,
+              tileRectRef.current,
               sourceContentRef?.current ?? null,
               targetContentRef?.current ?? null,
+              backdropRef?.current ?? null,
               false,
             );
             onClosed?.();
@@ -128,7 +183,7 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
 
     springRef.current = spring;
     return spring;
-  }, [morphRef, sourceContentRef, targetContentRef, onOpened, onClosed, timeScale]);
+  }, [morphRef, sourceContentRef, targetContentRef, backdropRef, onOpened, onClosed, timeScale]);
 
   const open = useCallback((): void => {
     const morphEl = morphRef.current;
@@ -137,23 +192,31 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
     if (prefersReducedMotion()) {
       progressRef.current = 1;
       phaseRef.current = 'open';
-      settleMorphStyles(
-        morphEl,
-        sourceContentRef?.current ?? null,
-        targetContentRef?.current ?? null,
-        true,
-      );
+      morphEl.style.position = '';
+      morphEl.style.transform = '';
+      morphEl.style.left = '';
+      morphEl.style.top = '';
+      morphEl.style.width = '';
+      morphEl.style.height = '';
+      morphEl.style.boxShadow = '';
+      if (sourceContentRef?.current) sourceContentRef.current.style.opacity = '0';
+      if (targetContentRef?.current) {
+        targetContentRef.current.style.opacity = '1';
+        targetContentRef.current.style.pointerEvents = 'auto';
+      }
+      if (backdropRef?.current) backdropRef.current.style.opacity = '1';
       onOpened?.();
       return;
     }
 
     tileRectRef.current = safeRect(sourceRef.current);
-    sheetRectRef.current = safeRect(morphEl);
+    sheetRectRef.current = naturalSheetRectRef?.current ?? safeRect(morphEl);
 
     const prevPhase = phaseRef.current;
     phaseRef.current = 'opening';
 
     if (prevPhase === 'closing' || prevPhase === 'opening') {
+      tileRectRef.current = safeRect(sourceRef.current);
       const spring = getOrCreateSpring();
       spring.retarget(1);
     } else {
@@ -169,11 +232,12 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
         0,
         sourceContentRef?.current ?? null,
         targetContentRef?.current ?? null,
+        backdropRef?.current ?? null,
       );
       const spring = getOrCreateSpring();
       spring.retarget(1);
     }
-  }, [morphRef, sourceRef, sourceContentRef, targetContentRef, onOpened, getOrCreateSpring]);
+  }, [morphRef, sourceRef, sourceContentRef, targetContentRef, backdropRef, naturalSheetRectRef, onOpened, getOrCreateSpring]);
 
   const close = useCallback((): void => {
     const morphEl = morphRef.current;
@@ -182,12 +246,19 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
     if (prefersReducedMotion()) {
       progressRef.current = 0;
       phaseRef.current = 'idle';
-      settleMorphStyles(
-        morphEl,
-        sourceContentRef?.current ?? null,
-        targetContentRef?.current ?? null,
-        false,
-      );
+      morphEl.style.position = '';
+      morphEl.style.transform = '';
+      morphEl.style.left = '';
+      morphEl.style.top = '';
+      morphEl.style.width = '';
+      morphEl.style.height = '';
+      morphEl.style.boxShadow = '';
+      if (sourceContentRef?.current) sourceContentRef.current.style.opacity = '1';
+      if (targetContentRef?.current) {
+        targetContentRef.current.style.opacity = '0';
+        targetContentRef.current.style.pointerEvents = 'none';
+      }
+      if (backdropRef?.current) backdropRef.current.style.opacity = '0';
       onClosed?.();
       return;
     }
@@ -196,6 +267,7 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
     phaseRef.current = 'closing';
 
     if (prevPhase === 'opening' || prevPhase === 'closing') {
+      tileRectRef.current = safeRect(sourceRef.current);
       const spring = getOrCreateSpring();
       spring.retarget(0);
     } else {
@@ -209,7 +281,7 @@ export function useSharedElementMorph(opts: UseSharedElementMorphOptions): Share
       const spring = getOrCreateSpring();
       spring.retarget(0);
     }
-  }, [morphRef, sourceRef, sourceContentRef, targetContentRef, onClosed, getOrCreateSpring]);
+  }, [morphRef, sourceRef, sourceContentRef, targetContentRef, backdropRef, onClosed, getOrCreateSpring]);
 
   useEffect(() => {
     return () => {

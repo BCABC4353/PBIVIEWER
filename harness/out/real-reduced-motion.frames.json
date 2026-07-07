@@ -4,9 +4,9 @@
     "t": 0,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -18,9 +18,9 @@
     "t": 0.02564102564102564,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -32,9 +32,9 @@
     "t": 0.05128205128205128,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -46,9 +46,9 @@
     "t": 0.07692307692307693,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -60,9 +60,9 @@
     "t": 0.10256410256410256,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -74,9 +74,9 @@
     "t": 0.1282051282051282,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -88,9 +88,9 @@
     "t": 0.15384615384615385,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -102,9 +102,9 @@
     "t": 0.1794871794871795,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -116,9 +116,9 @@
     "t": 0.20512820512820512,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -130,9 +130,9 @@
     "t": 0.23076923076923078,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -144,9 +144,9 @@
     "t": 0.2564102564102564,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -158,9 +158,9 @@
     "t": 0.28205128205128205,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -172,9 +172,9 @@
     "t": 0.3076923076923077,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -186,9 +186,9 @@
     "t": 0.3333333333333333,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -200,9 +200,9 @@
     "t": 0.358974358974359,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -214,9 +214,9 @@
     "t": 0.38461538461538464,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -228,9 +228,9 @@
     "t": 0.41025641025641024,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -242,9 +242,9 @@
     "t": 0.4358974358974359,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -256,9 +256,9 @@
     "t": 0.46153846153846156,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -270,9 +270,9 @@
     "t": 0.48717948717948717,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -284,9 +284,9 @@
     "t": 0.5128205128205128,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -298,9 +298,9 @@
     "t": 0.5384615384615384,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -312,9 +312,9 @@
     "t": 0.5641025641025641,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -326,9 +326,9 @@
     "t": 0.5897435897435898,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -340,9 +340,9 @@
     "t": 0.6153846153846154,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -354,9 +354,9 @@
     "t": 0.6410256410256411,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -368,9 +368,9 @@
     "t": 0.6666666666666666,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -382,9 +382,9 @@
     "t": 0.6923076923076923,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -396,9 +396,9 @@
     "t": 0.717948717948718,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -410,9 +410,9 @@
     "t": 0.7435897435897436,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -424,9 +424,9 @@
     "t": 0.7692307692307693,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -438,9 +438,9 @@
     "t": 0.7948717948717948,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -452,9 +452,9 @@
     "t": 0.8205128205128205,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -466,9 +466,9 @@
     "t": 0.8461538461538461,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -480,9 +480,9 @@
     "t": 0.8717948717948718,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -494,9 +494,9 @@
     "t": 0.8974358974358975,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -508,9 +508,9 @@
     "t": 0.9230769230769231,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -522,9 +522,9 @@
     "t": 0.9487179487179487,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -536,9 +536,9 @@
     "t": 0.9743589743589743,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
@@ -550,9 +550,9 @@
     "t": 1,
     "rect": {
       "x": 260,
-      "y": 181.453125,
+      "y": 195.703125,
       "width": 880,
-      "height": 537.09375
+      "height": 508.59375
     },
     "present": true,
     "pointerBlockedAtCenter": null,
