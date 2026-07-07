@@ -123,3 +123,26 @@ describe('ViewerToolbar draw toggle', () => {
     expect(toggle.getAttribute('title')).toBe('Stop drawing');
   });
 });
+
+describe('ViewerToolbar zoom toggle', () => {
+  it('is hidden when no onMagnify handler is provided', () => {
+    const { container } = render(<ViewerToolbar onBack={vi.fn()} />);
+    expect(container.querySelector('[data-magnify-toggle]')).toBeNull();
+  });
+
+  it('renders, fires the handler, and reflects active state', () => {
+    const onMagnify = vi.fn();
+    const { container, rerender } = render(
+      <ViewerToolbar onBack={vi.fn()} onMagnify={onMagnify} />,
+    );
+    const toggle = container.querySelector('[data-magnify-toggle]') as HTMLElement;
+    expect(toggle).not.toBeNull();
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    toggle.click();
+    expect(onMagnify).toHaveBeenCalledTimes(1);
+
+    rerender(<ViewerToolbar onBack={vi.fn()} onMagnify={onMagnify} isMagnifying />);
+    const active = container.querySelector('[data-magnify-toggle]') as HTMLElement;
+    expect(active.getAttribute('aria-pressed')).toBe('true');
+  });
+});

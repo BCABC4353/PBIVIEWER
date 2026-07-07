@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner, Button, Text } from '@fluentui/react-components';
 import { AppsRegular } from '@fluentui/react-icons';
 import { ViewerToolbar } from './ViewerToolbar';
+import { AnnotationLayer } from './AnnotationLayer';
+import { MagnifierLayer } from './MagnifierLayer';
 import { EMBED } from '../../../shared/constants';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
 import {
@@ -39,6 +41,9 @@ export const AppViewer: React.FC = () => {
   const [partitionLoaded, setPartitionLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [justRefreshedAt, setJustRefreshedAt] = useState<number | null>(null);
+  const [isAnnotating, setIsAnnotating] = useState(false);
+  const [annotationEpoch, setAnnotationEpoch] = useState(0);
+  const [isMagnifying, setIsMagnifying] = useState(false);
 
   const [lastLoadAt, setLastLoadAt] = useState<number | null>(null);
   const [datasetCount, setDatasetCount] = useState(0);
@@ -248,6 +253,7 @@ export const AppViewer: React.FC = () => {
       currentReportIdRef.current = reportId;
       setCurrentReportId(reportId);
       setLastLoadAt(Date.now());
+      setAnnotationEpoch((epoch) => epoch + 1);
     };
 
     webview.addEventListener('did-start-loading', handleDidStartLoading);
@@ -286,7 +292,18 @@ export const AppViewer: React.FC = () => {
     setIsLoading(true);
     isRefreshingRef.current = true;
     setIsRefreshing(true);
+    setAnnotationEpoch((epoch) => epoch + 1);
     webview.reload();
+  }, []);
+
+  const toggleAnnotate = useCallback(() => {
+    setIsMagnifying(false);
+    setIsAnnotating((v) => !v);
+  }, []);
+
+  const toggleMagnify = useCallback(() => {
+    setIsAnnotating(false);
+    setIsMagnifying((v) => !v);
   }, []);
 
   useEffect(() => {
@@ -326,10 +343,14 @@ export const AppViewer: React.FC = () => {
         showFreshness
         justRefreshedAt={justRefreshedAt}
         newDataAvailable={newDataAvailable}
+        onAnnotate={toggleAnnotate}
+        isAnnotating={isAnnotating}
+        onMagnify={toggleMagnify}
+        isMagnifying={isMagnifying}
       />
 
       {}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-hidden">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
             <div className="text-center">
@@ -369,6 +390,22 @@ export const AppViewer: React.FC = () => {
             partition={partitionName || undefined}
             useragent={userAgent}
             allowpopups={true}
+          />
+        )}
+
+        {isAnnotating && !isLoading && !error && (
+          <AnnotationLayer
+            key={annotationEpoch}
+            className="z-30"
+            onExit={() => setIsAnnotating(false)}
+          />
+        )}
+
+        {isMagnifying && !isLoading && !error && (
+          <MagnifierLayer
+            targetRef={webviewRef as unknown as React.RefObject<HTMLElement | null>}
+            className="z-30"
+            onExit={() => setIsMagnifying(false)}
           />
         )}
       </div>

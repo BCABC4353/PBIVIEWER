@@ -15,6 +15,7 @@ import {
   HomeRegular,
   CheckmarkCircleRegular,
   PenRegular,
+  ZoomInRegular,
 } from '@fluentui/react-icons';
 import { formatAgeNoun, formatRelativeAge, STALE_AFTER_MS } from '../../lib/freshness-format';
 import { formatAbsoluteDateTime } from '../../lib/date-format';
@@ -36,6 +37,8 @@ export interface ViewerToolbarProps {
   onSlideshow?: () => void;
   onAnnotate?: () => void;
   isAnnotating?: boolean;
+  onMagnify?: () => void;
+  isMagnifying?: boolean;
   showRelativeAge?: boolean;
   newDataAvailable?: boolean;
   dataflowRefresh?: string | null;
@@ -63,6 +66,8 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
   onSlideshow,
   onAnnotate,
   isAnnotating = false,
+  onMagnify,
+  isMagnifying = false,
   showRelativeAge = false,
   newDataAvailable = false,
   dataflowRefresh,
@@ -321,6 +326,21 @@ export const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
             title="Export current view to PDF"
           >
             {isExporting ? 'Exporting…' : 'Export PDF'}
+          </Button>
+        )}
+
+        {}
+        {onMagnify && (
+          <Button
+            appearance={isMagnifying ? 'primary' : 'subtle'}
+            icon={<ZoomInRegular />}
+            onClick={onMagnify}
+            title={isMagnifying ? 'Stop zooming' : 'Magnify the screen (scroll to zoom, drag to pan)'}
+            aria-label={isMagnifying ? 'Stop zooming' : 'Magnify the screen'}
+            aria-pressed={isMagnifying}
+            data-magnify-toggle
+          >
+            Zoom
           </Button>
         )}
 

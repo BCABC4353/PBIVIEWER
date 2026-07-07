@@ -21,6 +21,7 @@ import { useCursorHide } from '../../hooks/presentation/useCursorHide';
 import { useKioskExitGesture } from '../../hooks/presentation/useKioskExitGesture';
 import { ViewerToolbar } from './ViewerToolbar';
 import { AnnotationLayer } from './AnnotationLayer';
+import { MagnifierLayer } from './MagnifierLayer';
 
 export function isInteractiveTarget(target: HTMLElement | null): boolean {
   if (!target) return false;
@@ -72,6 +73,17 @@ export const PresentationMode: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isAnnotating, setIsAnnotating] = useState(false);
+  const [isMagnifying, setIsMagnifying] = useState(false);
+
+  const toggleAnnotate = useCallback(() => {
+    setIsMagnifying(false);
+    setIsAnnotating((v) => !v);
+  }, []);
+
+  const toggleMagnify = useCallback(() => {
+    setIsAnnotating(false);
+    setIsMagnifying((v) => !v);
+  }, []);
   const [slideAnnouncement, setSlideAnnouncement] = useState<string>('');
 
   const intervalSeconds = useSettingsStore((s) => s.settings.slideshowInterval);
@@ -387,6 +399,15 @@ export const PresentationMode: React.FC = () => {
         />
       )}
 
+      {isMagnifying && !isLoading && !error && (
+        <MagnifierLayer
+          targetRef={embedContainerRef}
+          className="z-[8]"
+          paletteClassName="bottom-32"
+          onExit={() => setIsMagnifying(false)}
+        />
+      )}
+
       {}
       {!isLoading && !error && !showControls && (
         <div
@@ -453,8 +474,10 @@ export const PresentationMode: React.FC = () => {
               onBack={doExit}
               backLabel="Exit"
               itemName={toolbarItemName}
-              onAnnotate={() => setIsAnnotating((v) => !v)}
+              onAnnotate={toggleAnnotate}
               isAnnotating={isAnnotating}
+              onMagnify={toggleMagnify}
+              isMagnifying={isMagnifying}
             />
             {}
             <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-b from-black/60 to-transparent">

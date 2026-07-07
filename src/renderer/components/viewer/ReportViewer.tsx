@@ -10,6 +10,7 @@ import { useContentStore } from '../../stores/content-store';
 import { isNotFoundError } from '../../../shared/powerbi-errors';
 import { ViewerToolbar } from './ViewerToolbar';
 import { AnnotationLayer } from './AnnotationLayer';
+import { MagnifierLayer } from './MagnifierLayer';
 import { useViewerExport } from './useViewerExport';
 import { useLiveFreshness } from '../../hooks/useLiveFreshness';
 import { reportIssue } from '../../lib/report-issue';
@@ -30,6 +31,17 @@ export const ReportViewer: React.FC = () => {
   const [reportName, setReportName] = useState<string>('');
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [annotationEpoch, setAnnotationEpoch] = useState(0);
+  const [isMagnifying, setIsMagnifying] = useState(false);
+
+  const toggleAnnotate = useCallback(() => {
+    setIsMagnifying(false);
+    setIsAnnotating((v) => !v);
+  }, []);
+
+  const toggleMagnify = useCallback(() => {
+    setIsAnnotating(false);
+    setIsMagnifying((v) => !v);
+  }, []);
 
   const {
     pages,
@@ -309,12 +321,14 @@ export const ReportViewer: React.FC = () => {
         isExporting={isExporting}
         onSlideshow={handleSlideshow}
         onFullScreen={handleFullScreen}
-        onAnnotate={() => setIsAnnotating((v) => !v)}
+        onAnnotate={toggleAnnotate}
         isAnnotating={isAnnotating}
+        onMagnify={toggleMagnify}
+        isMagnifying={isMagnifying}
       />
 
       {}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-hidden">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-background-1 z-10">
             <div className="text-center">
@@ -362,6 +376,14 @@ export const ReportViewer: React.FC = () => {
             key={annotationEpoch}
             className="z-30"
             onExit={() => setIsAnnotating(false)}
+          />
+        )}
+
+        {isMagnifying && !isLoading && !error && (
+          <MagnifierLayer
+            targetRef={embedContainerRef}
+            className="z-30"
+            onExit={() => setIsMagnifying(false)}
           />
         )}
       </div>
