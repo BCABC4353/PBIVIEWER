@@ -1,2 +1,2 @@
 patch
-# 2026-07-07T00:02:58Z — v2.2.20: Insights morph finished — sheet expands from the tile with the background fading in step with the spring (no more cut), lands back on the tile seamlessly, and a mid-flight click stops and reverses it; spring retuned to approved prototype feel
+# 2026-07-07T01:23:14Z — v2.2.21: Screen zoom magnifier (wheel zoom to cursor, drag pan, 100-400%) on report viewer, app viewer & slideshow; Draw/highlight now works in the app viewer (ink clears on in-app navigation)
