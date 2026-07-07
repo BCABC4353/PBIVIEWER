@@ -1,2 +1,2 @@
 patch
-# 2026-07-06T22:56:39Z — v2.2.19: Screen annotation — Draw toggle on report viewer & slideshow: pen + highlighter overlay (brand orange), undo/clear, Esc to exit; ink auto-clears on page/slide change & refresh; slideshow auto-advance pauses while drawing
+# 2026-07-07T00:02:58Z — v2.2.20: Insights morph finished — sheet expands from the tile with the background fading in step with the spring (no more cut), lands back on the tile seamlessly, and a mid-flight click stops and reverses it; spring retuned to approved prototype feel
